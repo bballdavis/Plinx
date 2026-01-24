@@ -1,0 +1,3 @@
+[submodule "Vendor/Strimr"]
+	path = Vendor/Strimr
+	url = https://github.com/wunax/strimr.git
