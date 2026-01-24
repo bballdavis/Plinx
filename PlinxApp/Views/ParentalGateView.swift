@@ -21,7 +21,7 @@ struct ParentalGateView: View {
 
             Text("Parents Only")
                 .font(.title2.bold())
-                .foregroundStyle(PlinxTheme().primaryColor)
+                .foregroundStyle(PlinxTheme().palette.primary)
 
             Text(challenge.prompt)
                 .font(.system(size: 48, weight: .black, design: .rounded))
