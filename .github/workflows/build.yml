@@ -1,0 +1,58 @@
+name: Build & Test
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-test:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Build PlinxCore
+        run: swift build --package-path Packages/PlinxCore
+
+      - name: Build PlinxUI
+        run: swift build --package-path Packages/PlinxUI
+
+      - name: Test PlinxCore (with coverage)
+        run: swift test --package-path Packages/PlinxCore --enable-code-coverage
+
+      - name: Test PlinxUI
+        run: swift test --package-path Packages/PlinxUI
+
+      - name: Enforce 100% coverage for safety-critical files
+        shell: bash
+        run: |
+          set -euo pipefail
+          TEST_BUNDLE=$(find Packages/PlinxCore/.build -name "*PlinxCorePackageTests.xctest" -maxdepth 5 | head -n 1 || true)
+          if [[ -z "$TEST_BUNDLE" ]]; then
+            echo "No test bundle found; failing for safety coverage enforcement."
+            exit 1
+          fi
+          PROF_DATA=$(find Packages/PlinxCore/.build -name "default.profdata" -maxdepth 6 | head -n 1 || true)
+          if [[ -z "$PROF_DATA" ]]; then
+            echo "No coverage data found; failing for safety coverage enforcement."
+            exit 1
+          fi
+
+          xcrun llvm-cov report \
+            "$TEST_BUNDLE" \
+            -instr-profile "$PROF_DATA" \
+            Packages/PlinxCore/Sources/PlinxCore/Safety/SafetyInterceptor.swift \
+            Packages/PlinxCore/Sources/PlinxCore/Safety/MathGate.swift \
+            | tail -n +2 \
+            | awk '{ print $1, $4 }' \
+            | while read -r file coverage; do
+                echo "$file -> $coverage"
+                if [[ "$coverage" != "100.0%" ]]; then
+                  echo "Coverage below 100% for $file"
+                  exit 1
+                fi
+              done

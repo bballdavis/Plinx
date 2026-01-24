@@ -1,0 +1,33 @@
+# Local-only (never commit)
+.local_dev/
+.vscode/
+AGENTS.md
+
+# Xcode / Swift
+.DS_Store
+*.xcuserstate
+*.xccheckout
+*.xcscmblueprint
+*.xcuserdata/
+*.moved-aside
+*.swp
+*.orig
+*.ipa
+*.dSYM
+
+# SwiftPM
+.build/
+.swiftpm/xcode/package.xcworkspace/
+.swiftpm/configuration/
+
+# Carthage
+Carthage/Build/
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/
+fastlane/test_output/
+
+# Derived data (usually outside repo, but ignore just in case)
+DerivedData/
