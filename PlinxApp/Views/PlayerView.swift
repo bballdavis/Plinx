@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct PlayerView: View {
+    @Environment(\.dismiss) var dismiss
     @State private var isLocked = false
     @State private var showControls = true
 
@@ -8,21 +9,31 @@ struct PlayerView: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            if showControls {
+            if !isLocked && showControls {
                 VStack {
                     HStack {
-                        Button("X") {}
-                            .font(.title.bold())
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.title)
+                        }
+                        
                         Spacer()
-                        Toggle("Lock", isOn: $isLocked)
-                            .labelsHidden()
+                        
+                        Button {
+                            isLocked = true
+                        } label: {
+                            Image(systemName: "lock.open.fill")
+                                .font(.title)
+                        }
                     }
                     .padding()
 
                     Spacer()
 
                     Button {
-                        showControls.toggle()
+                        // Play/Pause logic would go here
                     } label: {
                         Image(systemName: "playpause.fill")
                             .font(.system(size: 56))
@@ -32,17 +43,29 @@ struct PlayerView: View {
 
                     Spacer()
 
-                    Text("Scrub Bar")
-                        .foregroundStyle(.white)
+                    Text("Triple tap to unlock")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
                         .padding()
                 }
                 .foregroundStyle(.white)
             }
+            
+            if isLocked {
+                // Invisible overlay to catch taps if locked? 
+                // Actually theCounted tap gesture below handles it.
+                Color.black.opacity(0.001)
+            }
         }
-        .disabled(isLocked)
         .onTapGesture(count: 3) {
             if isLocked {
                 isLocked = false
+                showControls = true
+            }
+        }
+        .onTapGesture {
+            if !isLocked {
+                showControls.toggle()
             }
         }
     }

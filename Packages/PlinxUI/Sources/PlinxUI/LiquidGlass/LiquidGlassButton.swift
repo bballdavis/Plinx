@@ -6,14 +6,17 @@ public struct LiquidGlassButton: View {
     private let action: () -> Void
     private let haptics: HapticManaging
     private let audio: PlinkAudioManaging
+    private let theme: PlinxTheme
 
     public init(
         _ title: String,
+        theme: PlinxTheme = PlinxTheme(),
         haptics: HapticManaging = HapticManager(),
         audio: PlinkAudioManaging = PlinkAudioManager(),
         action: @escaping () -> Void
     ) {
         self.title = title
+        self.theme = theme
         self.haptics = haptics
         self.audio = audio
         self.action = action
@@ -27,18 +30,7 @@ public struct LiquidGlassButton: View {
         }) {
             Text(title)
                 .font(.headline)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 14)
-                .background(
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .fill(.thinMaterial)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                                .stroke(.white.opacity(0.4), lineWidth: 1)
-                        )
-                        .shadow(color: .white.opacity(0.35), radius: 10, x: -4, y: -6)
-                        .shadow(color: .black.opacity(0.2), radius: 12, x: 6, y: 8)
-                )
+                .liquidGlassStyle(theme: theme)
         }
         .buttonStyle(.plain)
     }

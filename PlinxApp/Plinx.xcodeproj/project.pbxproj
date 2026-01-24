@@ -1,0 +1,373 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0F2C17347E4A0AAD9C97F756 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A855764461BF12200B98F236 /* HomeView.swift */; };
+		35328131DB427F542FF62671 /* RootTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76F4BABD4F73A11A91EEE548 /* RootTabView.swift */; };
+		614F63CDE817C558A919EA85 /* PlinxApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C28F6764431C2699056C56FB /* PlinxApp.swift */; };
+		8C26B8A13837150AEE1E05AC /* PlinxUI in Frameworks */ = {isa = PBXBuildFile; productRef = B17524348A6E731D83027556 /* PlinxUI */; };
+		B948AD5930480201F0EEC0A9 /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBB3BA9CAEB93CE9D472D718 /* SearchView.swift */; };
+		CAF3BCE77C02746AFDE95BB5 /* PlinxCore in Frameworks */ = {isa = PBXBuildFile; productRef = 77BDBCB74F364658323EE647 /* PlinxCore */; };
+		D5163E703930C386120B77AE /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E41098C942A7AC8AE7C5980 /* LibraryView.swift */; };
+		F33BAB111A67A4771B9C6032 /* ParentalGateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B56432DD3AF5222EB83D4131 /* ParentalGateView.swift */; };
+		FADAFC3CFB15E3EFD119A97A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88076B0E558A901C9CD01EF8 /* SettingsView.swift */; };
+		FF9B7DC3952432BECAF53AE7 /* PlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43F072FEE452DD156D8EB8D9 /* PlayerView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		3353A4ECD4B09832AAA273CF /* Plinx-iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "Plinx-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		42B7F552552457FE36EA8C60 /* PlinxCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = PlinxCore; path = ../Packages/PlinxCore; sourceTree = SOURCE_ROOT; };
+		43F072FEE452DD156D8EB8D9 /* PlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerView.swift; sourceTree = "<group>"; };
+		6E41098C942A7AC8AE7C5980 /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
+		76F4BABD4F73A11A91EEE548 /* RootTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootTabView.swift; sourceTree = "<group>"; };
+		88076B0E558A901C9CD01EF8 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		A855764461BF12200B98F236 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		B56432DD3AF5222EB83D4131 /* ParentalGateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentalGateView.swift; sourceTree = "<group>"; };
+		C28F6764431C2699056C56FB /* PlinxApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlinxApp.swift; sourceTree = "<group>"; };
+		D723ACC766B828C1E0B04642 /* PlinxUI */ = {isa = PBXFileReference; lastKnownFileType = folder; name = PlinxUI; path = ../Packages/PlinxUI; sourceTree = SOURCE_ROOT; };
+		FBB3BA9CAEB93CE9D472D718 /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		E964560C2CE49F1606BFC502 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CAF3BCE77C02746AFDE95BB5 /* PlinxCore in Frameworks */,
+				8C26B8A13837150AEE1E05AC /* PlinxUI in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0D86A3EEEC685C13CAB8DF5D /* App */ = {
+			isa = PBXGroup;
+			children = (
+				C28F6764431C2699056C56FB /* PlinxApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		2CEEF3B8EDDE52901C6616D5 = {
+			isa = PBXGroup;
+			children = (
+				0D86A3EEEC685C13CAB8DF5D /* App */,
+				319D29E0FBF6937A1FB07521 /* Packages */,
+				C7C4CB211D26691F5AB75840 /* Views */,
+				5D76BB0884AA38ECB4570263 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		319D29E0FBF6937A1FB07521 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				42B7F552552457FE36EA8C60 /* PlinxCore */,
+				D723ACC766B828C1E0B04642 /* PlinxUI */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		5D76BB0884AA38ECB4570263 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				3353A4ECD4B09832AAA273CF /* Plinx-iOS.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		C7C4CB211D26691F5AB75840 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				A855764461BF12200B98F236 /* HomeView.swift */,
+				6E41098C942A7AC8AE7C5980 /* LibraryView.swift */,
+				B56432DD3AF5222EB83D4131 /* ParentalGateView.swift */,
+				43F072FEE452DD156D8EB8D9 /* PlayerView.swift */,
+				76F4BABD4F73A11A91EEE548 /* RootTabView.swift */,
+				FBB3BA9CAEB93CE9D472D718 /* SearchView.swift */,
+				88076B0E558A901C9CD01EF8 /* SettingsView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		271FDA19995B71E45A41C75F /* Plinx-iOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6A9F981AF2CE8B3944D5F31B /* Build configuration list for PBXNativeTarget "Plinx-iOS" */;
+			buildPhases = (
+				366533AFB31CF21A4F2487DE /* Sources */,
+				E964560C2CE49F1606BFC502 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "Plinx-iOS";
+			packageProductDependencies = (
+				77BDBCB74F364658323EE647 /* PlinxCore */,
+				B17524348A6E731D83027556 /* PlinxUI */,
+			);
+			productName = "Plinx-iOS";
+			productReference = 3353A4ECD4B09832AAA273CF /* Plinx-iOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		D213CDA151094612F4376C5E /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+			};
+			buildConfigurationList = 93F22E9673B17F60DB0204CC /* Build configuration list for PBXProject "Plinx" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 2CEEF3B8EDDE52901C6616D5;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				8014FA708A914D484F8D4B86 /* XCLocalSwiftPackageReference "../Packages/PlinxCore" */,
+				B2316E9BAA011A3BD53C2BD9 /* XCLocalSwiftPackageReference "../Packages/PlinxUI" */,
+			);
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				271FDA19995B71E45A41C75F /* Plinx-iOS */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		366533AFB31CF21A4F2487DE /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0F2C17347E4A0AAD9C97F756 /* HomeView.swift in Sources */,
+				D5163E703930C386120B77AE /* LibraryView.swift in Sources */,
+				F33BAB111A67A4771B9C6032 /* ParentalGateView.swift in Sources */,
+				FF9B7DC3952432BECAF53AE7 /* PlayerView.swift in Sources */,
+				614F63CDE817C558A919EA85 /* PlinxApp.swift in Sources */,
+				35328131DB427F542FF62671 /* RootTabView.swift in Sources */,
+				B948AD5930480201F0EEC0A9 /* SearchView.swift in Sources */,
+				FADAFC3CFB15E3EFD119A97A /* SettingsView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		089E6D877414827B8C0410A0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.plinx;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		2D257B511764610AEF8D5D92 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		49BF23D009208990ED7DDD09 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		5346F23CED4B15F72B4849DF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.plinx;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		6A9F981AF2CE8B3944D5F31B /* Build configuration list for PBXNativeTarget "Plinx-iOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2D257B511764610AEF8D5D92 /* Debug */,
+				49BF23D009208990ED7DDD09 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		93F22E9673B17F60DB0204CC /* Build configuration list for PBXProject "Plinx" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5346F23CED4B15F72B4849DF /* Debug */,
+				089E6D877414827B8C0410A0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		8014FA708A914D484F8D4B86 /* XCLocalSwiftPackageReference "../Packages/PlinxCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../Packages/PlinxCore;
+		};
+		B2316E9BAA011A3BD53C2BD9 /* XCLocalSwiftPackageReference "../Packages/PlinxUI" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../Packages/PlinxUI;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		77BDBCB74F364658323EE647 /* PlinxCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = PlinxCore;
+		};
+		B17524348A6E731D83027556 /* PlinxUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = PlinxUI;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = D213CDA151094612F4376C5E /* Project object */;
+}

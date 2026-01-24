@@ -33,4 +33,11 @@ public final class PlaybackCoordinator: ObservableObject {
             // Placeholder: clear caches or sensitive playback state if needed
         }
     }
+
+    public func handleMemoryWarning() {
+        stop()
+        if policy.shouldClearSensitiveStateOnBackground() {
+            // Placeholder: clear caches or sensitive playback state if needed
+        }
+    }
 }
