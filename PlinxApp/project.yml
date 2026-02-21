@@ -8,12 +8,19 @@ packages:
     path: ../Packages/PlinxCore
   PlinxUI:
     path: ../Packages/PlinxUI
+  MPVKit:
+    url: https://github.com/wunax/MPVKit
+    from: 0.41.2
+  Sentry:
+    url: https://github.com/getsentry/sentry-cocoa.git
+    from: 9.1.0
 
 settings:
   base:
     PRODUCT_BUNDLE_IDENTIFIER: com.example.plinx
     CURRENT_PROJECT_VERSION: 1
     MARKETING_VERSION: 0.1.0
+    SWIFT_OBJC_INTEROP_MODE: objcxx
 
 targets:
   Plinx-iOS:
@@ -22,11 +29,19 @@ targets:
     sources:
       - path: App
       - path: Views
+      - path: ../Vendor/Strimr/Shared
+        name: StrimrShared
+        excludes:
+          - "Library/VLC/**"
+      - path: ../Vendor/Strimr/Strimr-iOS/Features
+        name: StrimrIOSFeatures
     resources:
       - path: Resources
     dependencies:
       - package: PlinxCore
       - package: PlinxUI
+      - package: MPVKit
+      - package: Sentry
     info:
       path: Resources/Info.plist
       properties:

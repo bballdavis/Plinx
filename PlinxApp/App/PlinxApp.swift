@@ -8,23 +8,34 @@ import UIKit
 
 @main
 struct PlinxApp: App {
-    @StateObject private var playbackCoordinator = PlaybackCoordinator()
-    @Environment(\.scenePhase) private var scenePhase
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate: AppDelegate
+    
+    @State private var plexApiContext: PlexAPIContext
+    @State private var sessionManager: SessionManager
+    @State private var settingsManager: SettingsManager
+    @State private var libraryStore: LibraryStore
+    @State private var mainCoordinator: MainCoordinator
+
+    init() {
+        let context = PlexAPIContext()
+        let store = LibraryStore(context: context)
+        let settings = SettingsManager()
+        _plexApiContext = State(initialValue: context)
+        _sessionManager = State(initialValue: SessionManager(context: context, libraryStore: store))
+        _settingsManager = State(initialValue: settings)
+        _libraryStore = State(initialValue: store)
+        _mainCoordinator = State(initialValue: MainCoordinator())
+    }
 
     var body: some Scene {
         WindowGroup {
-            RootTabView()
-                .environmentObject(playbackCoordinator)
-                #if canImport(UIKit)
-                .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
-                    playbackCoordinator.handleMemoryWarning()
-                }
-                #endif
-        }
-        .onChange(of: scenePhase) { newPhase in
-            if newPhase != .active {
-                playbackCoordinator.handleBackgrounding()
-            }
+            PlinxContentView()
+                .environment(plexApiContext)
+                .environment(sessionManager)
+                .environment(settingsManager)
+                .environment(libraryStore)
+                .environment(mainCoordinator)
+                .preferredColorScheme(.dark)
         }
     }
 }
