@@ -21,9 +21,39 @@ struct HomeScreenSettingsView: View {
     @AppStorage("plinx.homeHiddenLibraryIds") private var hiddenIdsJson = "[]"
     /// JSON-encoded [String] of library IDs in preferred display order.
     @AppStorage("plinx.homeLibraryOrder") private var orderJson = "[]"
+    /// JSON-encoded [String] of section IDs in display order.
+    @AppStorage("plinx.homeSectionOrder") private var sectionOrderJson = "[]"
 
     /// Live in-memory ordered list of libraries; initialised from stored prefs.
     @State private var orderedLibraries: [Library] = []
+    /// Live in-memory ordered section IDs.
+    @State private var orderedSections: [String] = []
+
+    // MARK: - Fixed section definitions
+
+    private static let defaultSectionOrder: [String] = [
+        "continueWatching",
+        "moviesAndTV",
+        "otherVideos",
+    ]
+
+    private func sectionDisplayKey(_ id: String) -> String {
+        switch id {
+        case "continueWatching": return "home.section.continueWatching"
+        case "moviesAndTV":      return "home.section.moviesAndTV"
+        case "otherVideos":      return "home.section.otherVideos"
+        default:                 return id
+        }
+    }
+
+    private func sectionIconName(_ id: String) -> String {
+        switch id {
+        case "continueWatching": return "clock.arrow.circlepath"
+        case "moviesAndTV":      return "film.fill"
+        case "otherVideos":      return "video.fill"
+        default:                 return "square.grid.2x2"
+        }
+    }
 
     // MARK: - Computed helpers
 
@@ -35,6 +65,28 @@ struct HomeScreenSettingsView: View {
 
     var body: some View {
         List {
+            // MARK: Section order
+            Section {
+                ForEach(orderedSections, id: \.self) { sectionId in
+                    Label {
+                        Text(LocalizedStringKey(sectionDisplayKey(sectionId)), tableName: "Plinx")
+                    } icon: {
+                        Image(systemName: sectionIconName(sectionId))
+                    }
+                }
+                .onMove { indices, newOffset in
+                    orderedSections.move(fromOffsets: indices, toOffset: newOffset)
+                    sectionOrderJson = encodeStringArray(orderedSections)
+                }
+            } header: {
+                Text("settings.homescreen.sections.title", tableName: "Plinx")
+            } footer: {
+                Text("settings.homescreen.sections.footer", tableName: "Plinx")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            // MARK: Recently Added library visibility & order
             Section {
                 ForEach(orderedLibraries) { library in
                     HomeLibraryRow(
@@ -74,6 +126,7 @@ struct HomeScreenSettingsView: View {
                 try? await libraryStore.loadLibraries()
             }
             buildOrderedList()
+            buildSectionOrder()
         }
         .onChange(of: libraryStore.libraries) { _, _ in
             buildOrderedList()
@@ -95,6 +148,19 @@ struct HomeScreenSettingsView: View {
             let ordered = storedOrder.compactMap { id in all.first { $0.id == id } }
             let extras = all.filter { !storedSet.contains($0.id) }
             orderedLibraries = ordered + extras
+        }
+    }
+
+    /// Build the ordered section list, filling in any missing defaults at the end.
+    private func buildSectionOrder() {
+        let stored = decodeStringArray(sectionOrderJson)
+        let defaults = Self.defaultSectionOrder
+        if stored.isEmpty {
+            orderedSections = defaults
+        } else {
+            let storedKnown = stored.filter { defaults.contains($0) }
+            let missing = defaults.filter { !Set(stored).contains($0) }
+            orderedSections = storedKnown + missing
         }
     }
 

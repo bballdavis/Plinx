@@ -12,6 +12,17 @@ struct PlinxHomeView: View {
     // Plinx-specific home screen settings (separate from Library-tab visibility)
     @AppStorage("plinx.homeHiddenLibraryIds") private var homeHiddenIdsJson = "[]"
     @AppStorage("plinx.homeLibraryOrder") private var homeOrderJson = "[]"
+    @AppStorage("plinx.homeSectionOrder") private var homeSectionOrderJson = "[]"
+
+    /// Section IDs in user-configured display order.
+    private var orderedHomeSections: [String] {
+        let stored = decodeStringArray(homeSectionOrderJson)
+        let defaults = ["continueWatching", "moviesAndTV", "otherVideos"]
+        if stored.isEmpty { return defaults }
+        let storedKnown = stored.filter { defaults.contains($0) }
+        let missing = defaults.filter { !Set(stored).contains($0) }
+        return storedKnown + missing
+    }
 
     var body: some View {
         Group {
@@ -45,17 +56,36 @@ struct PlinxHomeView: View {
     private var scrollContent: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 28) {
-                if let hub = viewModel.continueWatching, hub.hasItems {
-                    hubRow(hub, layout: .landscape)
-                }
-                ForEach(displayedGroups) { group in
-                    if group.hub.hasItems {
-                        hubRow(group.hub, layout: group.layout)
-                    }
+                ForEach(orderedHomeSections, id: \.self) { sectionId in
+                    homeSectionView(sectionId)
                 }
             }
             .padding(.top, 16)
             .padding(.bottom, 40)
+        }
+    }
+
+    @ViewBuilder
+    private func homeSectionView(_ sectionId: String) -> some View {
+        switch sectionId {
+        case "continueWatching":
+            if let hub = viewModel.continueWatching, hub.hasItems {
+                hubRow(hub, layout: .landscape)
+            }
+        case "moviesAndTV":
+            ForEach(moviesTVGroups) { group in
+                if group.hub.hasItems {
+                    hubRow(group.hub, layout: group.layout)
+                }
+            }
+        case "otherVideos":
+            ForEach(otherVideoGroups) { group in
+                if group.hub.hasItems {
+                    hubRow(group.hub, layout: group.layout)
+                }
+            }
+        default:
+            EmptyView()
         }
     }
 
@@ -154,6 +184,16 @@ struct PlinxHomeView: View {
             orderIndexForGroup(a, order: order, libraries: libraries)
             < orderIndexForGroup(b, order: order, libraries: libraries)
         }
+    }
+
+    /// Combined movie+TV recently-added groups (for "moviesAndTV" section).
+    private var moviesTVGroups: [HubGroup] {
+        displayedGroups.filter { $0.id == "combined.recentlyadded.movies+shows" }
+    }
+
+    /// Other-video recently-added groups (for "otherVideos" section).
+    private var otherVideoGroups: [HubGroup] {
+        displayedGroups.filter { $0.id != "combined.recentlyadded.movies+shows" }
     }
 
     private func matchedLibraryId(for hub: Hub, in libraries: [Library]) -> String? {
