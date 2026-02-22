@@ -28,6 +28,7 @@ options:
   minimumXcodeGenVersion: 2.37.0
   deploymentTarget:
     iOS: 17.0
+  postGenCommand: python3 ../.local_dev/patch_resources.py
 
 packages:
   PlinxCore:
@@ -108,11 +109,12 @@ targets:
           - "ContentView.swift"
 
     resources:
-      - path: Resources
-        excludes:
-          # Exclude Strimr brand assets if any leak in
-          - "**/*strimr*"
-      - path: ../Vendor/Strimr/Localizable.xcstrings
+      # Privacy manifest (required for App Store)
+      - path: Resources/PrivacyInfo.xcprivacy
+      # Localized strings — listed explicitly because xcodegen skips xcstrings
+      # and needs lproj bundles spelled out.
+      - path: Resources/en.lproj/Plinx.strings
+      - path: ../Vendor/Strimr/en.lproj/Localizable.strings
 
     dependencies:
       - package: PlinxCore

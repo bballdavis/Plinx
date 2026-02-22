@@ -3,31 +3,39 @@ import PlinxUI
 
 /// Applies `PlinxTheme` globally via UIKit appearance proxies.
 ///
-/// Called once from `PlinxApp.body` via `.onAppear`. This ensures that any
-/// Strimr views that haven't yet been replaced by Plinx equivalents still
-/// receive consistent Plinx branding (tint, navigation bar style).
+/// Called once from `PlinxApp.body` via `.onAppear` and again whenever the
+/// user-selected accent color changes.  Pass the resolved UIColor so the
+/// dynamic accent (from `@AppStorage`) drives UIKit-level rendering (tab bar
+/// tints, navigation bar buttons) rather than the static theme default.
 enum AppearanceSetup {
-    static func apply(_ theme: PlinxTheme) {
+    static func apply(_ theme: PlinxTheme, accentColor: UIColor? = nil) {
+        let accent = accentColor ?? UIColor(theme.palette.accent)
+
         // Navigation bar — transparent, white text
         let navAppearance = UINavigationBarAppearance()
         navAppearance.configureWithTransparentBackground()
         navAppearance.titleTextAttributes = [.foregroundColor: UIColor.white]
         navAppearance.largeTitleTextAttributes = [.foregroundColor: UIColor.white]
         navAppearance.buttonAppearance.normal.titleTextAttributes = [
-            .foregroundColor: UIColor(theme.palette.accent)
+            .foregroundColor: accent
         ]
         UINavigationBar.appearance().standardAppearance = navAppearance
         UINavigationBar.appearance().scrollEdgeAppearance = navAppearance
         UINavigationBar.appearance().compactAppearance = navAppearance
-        UINavigationBar.appearance().tintColor = UIColor(theme.palette.accent)
+        UINavigationBar.appearance().tintColor = accent
 
-        // Tab bar — transparent (Plinx uses a custom tab bar, but belt-and-suspenders)
+        // Tab bar — transparent, selected item in user-chosen accent
         let tabAppearance = UITabBarAppearance()
         tabAppearance.configureWithTransparentBackground()
         UITabBar.appearance().standardAppearance = tabAppearance
+        UITabBar.appearance().tintColor = accent
+        UITabBar.appearance().unselectedItemTintColor = UIColor.white.withAlphaComponent(0.55)
 
-        // Global tint
-        UIView.appearance(whenContainedInInstancesOf: [UIWindow.self]).tintColor =
-            UIColor(theme.palette.accent)
+        // Global tint — only set at window level so SwiftUI .tint() can still override
+        // child views. Setting this also forces UIKit-hosted views (tab bar) to update.
+        if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let window = scene.windows.first {
+            window.tintColor = accent
+        }
     }
 }

@@ -1,0 +1,81 @@
+/* ─────────────────────────────────────────────────────────────────────
+   Plinx.strings  (English)
+   Generated from Plinx.xcstrings — source of truth is this file going forward.
+   ───────────────────────────────────────────────────────────────────── */
+
+/* App */
+"app.branding.name" = "Plinx";
+
+/* Parental Gate */
+"parental.gate.title" = "Parents Only";
+"parental.gate.unlock" = "Unlock";
+"parental.gate.placeholder" = "Answer";
+
+/* Media */
+"media.unavailable.title" = "Content Not Available";
+"media.unavailable.description" = "This title isn't available in Plinx's kid-safe mode.";
+"media.detail.play" = "▶  Play";
+"media.detail.seasons" = "Seasons";
+"media.detail.related" = "Related";
+"media.collection.empty" = "No items are available in this collection.";
+
+/* Tabs */
+"tabs.home" = "Home";
+"tabs.library" = "Library";
+"tabs.search" = "Search";
+"tabs.settings" = "Settings";
+
+/* Home */
+"home.loading" = "Loading your shows…";
+"home.section.continueWatching" = "Continue Watching";
+"home.section.moviesAndTV" = "Movies & TV";
+"home.section.otherVideos" = "Other Videos";
+
+/* Library */
+"library.loading.plinx" = "Loading your libraries…";
+
+/* Search */
+"search.placeholder" = "Search movies, shows…";
+"search.placeholder.prompt" = "What would you like to watch?";
+"search.no_results %@" = "No results for \"%@\"";
+
+/* Settings — Content */
+"settings.content.section" = "Content";
+"settings.libraries.title" = "Visible Libraries";
+"settings.libraries.description" = "Only selected libraries appear in the Plinx home and library screens.";
+"settings.libraries.noneFound" = "No libraries found.";
+
+/* Settings — Home Screen */
+"settings.homescreen.title" = "Home Screen";
+"settings.homescreen.recentlyadded.title" = "Recently Added Libraries";
+"settings.homescreen.recentlyadded.footer" = "Choose which libraries appear in the Recently Added rows and drag to change the display order.";
+"settings.homescreen.sections.title" = "Section Order";
+"settings.homescreen.sections.footer" = "Drag to control which section appears first on the Home tab.";
+
+/* Settings — Appearance */
+"settings.accent.section" = "Appearance";
+"settings.accent.title" = "Accent Color";
+"settings.accent.description" = "Choose the highlight color used throughout Plinx.";
+
+/* Settings — Safety */
+"settings.safety.title" = "Content Safety";
+"settings.safety.rating.title" = "Maximum Rating";
+"settings.safety.rating.description" = "Content rated above this level won't appear anywhere in Plinx.";
+"settings.safety.rating.dual.description" = "Content rated above these levels won't appear anywhere in Plinx.";
+"settings.safety.movie.rating.title" = "Max Movie Rating";
+"settings.safety.tv.rating.title" = "Max TV Rating";
+"settings.safety.touchlock.title" = "Baby Lock";
+"settings.safety.touchlock.section" = "Touch Protection";
+"settings.safety.touchlock.description" = "When enabled, all touches are blocked until a triple-tap is detected.";
+
+/* Settings — Account */
+"settings.profile.section" = "Account";
+"settings.profile.switch" = "Switch Profile";
+
+/* Settings — About */
+"settings.about.title" = "Legal & Open Source";
+"settings.about.strimr" = "Strimr Open Source (GPL-2.0)";
+"settings.about.description" = "Plinx is built on Strimr, licensed under the GPL-2.0. Source code is available at the link above.";
+
+/* Player */
+"player.vlc.missing" = "VLC Player Engine not installed in this build.";

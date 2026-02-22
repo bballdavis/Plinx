@@ -56,11 +56,7 @@ private struct SettingsBody: View {
                     }
                 }
             } header: {
-                Label {
-                    Text("settings.content.section", tableName: "Plinx")
-                } icon: {
-                    Image(systemName: "rectangle.stack.fill")
-                }
+                Text("settings.content.section", tableName: "Plinx")
             }
 
             // MARK: Appearance
@@ -73,11 +69,7 @@ private struct SettingsBody: View {
                     }
                 }
             } header: {
-                Label {
-                    Text("settings.accent.section", tableName: "Plinx")
-                } icon: {
-                    Image(systemName: "paintbrush.fill")
-                }
+                Text("settings.accent.section", tableName: "Plinx")
             }
 
             // MARK: Content rating — movie
@@ -100,11 +92,7 @@ private struct SettingsBody: View {
                 }
                 .pickerStyle(.menu)
             } header: {
-                Label {
-                    Text("settings.safety.title", tableName: "Plinx")
-                } icon: {
-                    Image(systemName: "shield.fill")
-                }
+                Text("settings.safety.title", tableName: "Plinx")
             } footer: {
                 Text("settings.safety.rating.dual.description", tableName: "Plinx")
                     .font(.caption)
@@ -121,11 +109,7 @@ private struct SettingsBody: View {
                     }
                 }
             } header: {
-                Label {
-                    Text("settings.safety.touchlock.section", tableName: "Plinx")
-                } icon: {
-                    Image(systemName: "hand.raised.fill")
-                }
+                Text("settings.safety.touchlock.section", tableName: "Plinx")
             } footer: {
                 Text("settings.safety.touchlock.description", tableName: "Plinx")
                     .font(.caption)
@@ -144,11 +128,7 @@ private struct SettingsBody: View {
                     }
                 }
             } header: {
-                Label {
-                    Text("settings.profile.section", tableName: "Plinx")
-                } icon: {
-                    Image(systemName: "person.crop.circle.fill")
-                }
+                Text("settings.profile.section", tableName: "Plinx")
             }
 
             // MARK: GPL compliance (hidden behind gate)
@@ -162,11 +142,7 @@ private struct SettingsBody: View {
                 }
                 .foregroundStyle(.primary)
             } header: {
-                Label {
-                    Text("settings.about.title", tableName: "Plinx")
-                } icon: {
-                    Image(systemName: "scroll.fill")
-                }
+                Text("settings.about.title", tableName: "Plinx")
             } footer: {
                 Text("settings.about.description", tableName: "Plinx")
                     .font(.caption)

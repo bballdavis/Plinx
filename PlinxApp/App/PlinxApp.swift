@@ -109,7 +109,12 @@ struct PlinxApp: App {
                 // ── Global configuration ────────────────────────────
                 .preferredColorScheme(.dark)
                 .tint(accentColor)
-                .onAppear { AppearanceSetup.apply(theme) }
+                .onAppear {
+                    AppearanceSetup.apply(theme, accentColor: UIColor(accentColor))
+                }
+                .onChange(of: accentColorName) { _, _ in
+                    AppearanceSetup.apply(theme, accentColor: UIColor(accentColor))
+                }
                 // ── Lifecycle hardening ─────────────────────────────
                 .lifecycleHardening(
                     coordinator: playbackCoordinator,

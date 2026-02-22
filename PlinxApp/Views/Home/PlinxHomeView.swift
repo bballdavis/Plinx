@@ -110,7 +110,29 @@ struct PlinxHomeView: View {
                 if i < s.count { combined.append(s[i]) }
             }
             if !combined.isEmpty {
-                let title = movieHub?.title ?? showHub?.title ?? "Recently Added"
+                // Build a title from the actual library names (e.g. "Movies & TV Shows")
+                let movieLibName = movieLibId.flatMap { id in
+                    libraries.first(where: { $0.id == id })?.title
+                }
+                let showLibName = showLibId.flatMap { id in
+                    libraries.first(where: { $0.id == id })?.title
+                }
+                let title: String
+                if movieVisible && showVisible, let ml = movieLibName, let sl = showLibName {
+                    title = "\(ml) & \(sl)"
+                } else if movieVisible, let ml = movieLibName {
+                    title = ml
+                } else if showVisible, let sl = showLibName {
+                    title = sl
+                } else {
+                    // Fallback to Plex hub title stripped of "Recently Added" prefix
+                    let raw = movieHub?.title ?? showHub?.title ?? ""
+                    let stripped = raw
+                        .replacingOccurrences(of: "Recently Added ", with: "")
+                        .replacingOccurrences(of: "Recently Added", with: "")
+                        .trimmingCharacters(in: .whitespaces)
+                    title = stripped.isEmpty ? NSLocalizedString("home.section.moviesAndTV", tableName: "Plinx", comment: "") : stripped
+                }
                 let combinedId = "combined.recentlyadded.movies+shows"
                 groups.append(HubGroup(
                     id: combinedId,

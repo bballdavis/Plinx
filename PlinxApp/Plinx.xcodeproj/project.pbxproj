@@ -152,6 +152,9 @@
 		FE84463F11051B8373263CB2 /* DisplayedLibrariesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08D3215B0CF435122901C3E6 /* DisplayedLibrariesViewModel.swift */; };
 		FEE1F756A37AD067A8C94742 /* CollectionRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 070C0EBA3777A61B4FFE570E /* CollectionRepository.swift */; };
 		FF6B7A1A7CA4333D478E52A7 /* PlayerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23D7DF4FF4AE7A6351622E89 /* PlayerViewModel.swift */; };
+
+		AA10000000000003PLINXBLD /* Plinx.strings in Resources */ = {isa = PBXBuildFile; fileRef = AA10000000000001PLINXSTR /* Plinx.strings */; };
+		AA10000000000004LOCALBLD /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = AA10000000000002LOCALSTR /* Localizable.strings */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -299,6 +302,9 @@
 		FBAEA2A1508863F0830FAB69 /* PlayerOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerOptions.swift; sourceTree = "<group>"; };
 		FD84D49489E9206E89BE69B3 /* ServerSelectionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerSelectionViewModel.swift; sourceTree = "<group>"; };
 		FE550DB37D3BADF95B088819 /* SectionRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectionRepository.swift; sourceTree = "<group>"; };
+
+		AA10000000000001PLINXSTR /* Plinx.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = Plinx.strings; path = "Resources/en.lproj/Plinx.strings"; sourceTree = "<group>"; };
+		AA10000000000002LOCALSTR /* Localizable.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = Localizable.strings; path = "../Vendor/Strimr/en.lproj/Localizable.strings"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -931,6 +937,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 6A9F981AF2CE8B3944D5F31B /* Build configuration list for PBXNativeTarget "Plinx-iOS" */;
 			buildPhases = (
+				AA10000000000005RESPHASE /* Resources */,
 				366533AFB31CF21A4F2487DE /* Sources */,
 				E964560C2CE49F1606BFC502 /* Frameworks */,
 			);
@@ -982,6 +989,18 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		AA10000000000005RESPHASE /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA10000000000003PLINXBLD /* Plinx.strings in Resources */,
+				AA10000000000004LOCALBLD /* Localizable.strings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		366533AFB31CF21A4F2487DE /* Sources */ = {
