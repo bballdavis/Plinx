@@ -1,5 +1,16 @@
 import SwiftUI
 
+/// Applies bouncing symbol effect where available, otherwise no-op.
+private struct BounceEffectModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 17.0, macOS 15.0, *) {
+            content.symbolEffect(.bounce, options: .repeating)
+        } else {
+            content
+        }
+    }
+}
+
 /// A kid-friendly inline error state with retry support.
 public struct PlinxErrorView: View {
     public let message: String
@@ -17,7 +28,7 @@ public struct PlinxErrorView: View {
             Image(systemName: "wifi.exclamationmark")
                 .font(.system(size: 44, weight: .bold))
                 .foregroundStyle(theme.palette.accent)
-                .symbolEffect(.bounce, options: .repeating)
+                .modifier(BounceEffectModifier())
 
             Text(message)
                 .font(.body)

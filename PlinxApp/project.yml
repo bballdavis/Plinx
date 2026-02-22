@@ -1,19 +1,50 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Plinx — XcodeGen Project Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Architecture: "Skin, Don't Fork"
+#
+# Strimr vendor sources compile INTO the Plinx-iOS app target (not as a
+# separate framework). This is required because Strimr uses `internal` access
+# on all types — compiling in the same module is the only way to access them
+# without modifying vendor code.
+#
+# The StrimrEngine SPM package exists alongside for CI validation and future
+# migration (when Strimr adds `public` access). It is NOT listed as an app
+# dependency to avoid duplicate symbol errors.
+#
+# Dependency flow:
+#   PlinxApp (this target)
+#     ├── Strimr sources (compiled inline, internal access)
+#     ├── PlinxUI (SPM) → PlinxCore (SPM)
+#     ├── MPVKit (SPM)
+#     └── Sentry (SPM)
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
 name: Plinx
+
 options:
   minimumXcodeGenVersion: 2.37.0
   deploymentTarget:
     iOS: 17.0
+
 packages:
   PlinxCore:
     path: ../Packages/PlinxCore
   PlinxUI:
     path: ../Packages/PlinxUI
+  # StrimrEngine is intentionally NOT listed here.
+  # Vendor sources compile directly into the app target for `internal` access.
+  # The StrimrEngine package at ../Packages/StrimrEngine/ exists for:
+  #   - Independent build validation (`cd Packages/StrimrEngine && swift build`)
+  #   - Future migration when Strimr types become `public`
   MPVKit:
     url: https://github.com/wunax/MPVKit
-    from: 0.41.2
+    exactVersion: 0.41.2
   Sentry:
     url: https://github.com/getsentry/sentry-cocoa.git
-    from: 9.1.0
+    exactVersion: 9.1.0
 
 settings:
   base:
@@ -21,32 +52,62 @@ settings:
     CURRENT_PROJECT_VERSION: 1
     MARKETING_VERSION: 0.1.0
     SWIFT_OBJC_INTEROP_MODE: objcxx
+    # Plinx branding — no Strimr references leak into the binary
+    PRODUCT_NAME: Plinx
 
 targets:
   Plinx-iOS:
     type: application
     platform: iOS
+
     sources:
+      # ── Plinx application code ──────────────────────────────────────
       - path: App
       - path: Views
+      - path: Decorators
+      - path: Adapters
+      - path: ViewModels
+
+      # ── Strimr vendor sources (compiled into app module) ────────────
+      # These compile as part of the Plinx-iOS module, giving our
+      # decorators and adapters access to Strimr's internal types.
+      # When StrimrEngine supports direct import, remove these paths
+      # and add `- package: StrimrEngine` to dependencies instead.
       - path: ../Vendor/Strimr/Shared
         name: StrimrShared
         excludes:
+          # VLC player — Plinx uses MPVKit exclusively
           - "Library/VLC/**"
       - path: ../Vendor/Strimr/Strimr-iOS/Features
         name: StrimrIOSFeatures
+        excludes:
+          # Strimr's own app entry point — we use PlinxApp.swift
+          - "../StrimrApp.swift"
+
     resources:
       - path: Resources
+        excludes:
+          # Exclude Strimr brand assets if any leak in
+          - "**/*strimr*"
+
     dependencies:
       - package: PlinxCore
       - package: PlinxUI
       - package: MPVKit
+        product: MPVKit-GPL
       - package: Sentry
+
     info:
       path: Resources/Info.plist
       properties:
         CFBundleDisplayName: Plinx
         UILaunchStoryboardName: ""
+
+    settings:
+      base:
+        # Ensure vendor code compiles with our Swift version
+        SWIFT_VERSION: 5.0
+
     scheme:
       shared: true
       build:
