@@ -29,7 +29,9 @@ struct PlinxSearchView: View {
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.7))
 
-            TextField(Text("search.placeholder", tableName: "Plinx"), text: $viewModel.query)
+            TextField(text: $viewModel.query) {
+                    Text("search.placeholder", tableName: "Plinx")
+                }
                 .font(.body)
                 .foregroundStyle(.white)
                 .tint(.orange)

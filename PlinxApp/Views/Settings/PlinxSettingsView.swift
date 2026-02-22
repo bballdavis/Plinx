@@ -2,10 +2,7 @@ import SwiftUI
 import PlinxCore
 import PlinxUI
 
-/// The Plinx settings screen, protected by a Plinxie-themed parental gate.
-///
-/// Access is gated behind `ParentalGateView` (MathGate multiplication challenge).
-/// On unlock the gate stays open for the current session (`isUnlocked` is transient).
+/// The Plinx settings screen, protected by a parental gate.
 struct PlinxSettingsView: View {
     @State private var isUnlocked = false
 
@@ -20,8 +17,6 @@ struct PlinxSettingsView: View {
             }
         }
     }
-
-    // MARK: - Actual settings (shown post-gate)
 
     private var settingsContent: some View {
         SettingsBody()
@@ -38,27 +33,30 @@ private struct SettingsBody: View {
     @AppStorage("plinx.babyLockEnabled") private var babyLockEnabled = false
     @AppStorage("plinx.maxRating") private var maxRatingRaw = PlinxRating.g.rawValue
 
-    private var maxRating: PlinxRating {
-        PlinxRating(rawValue: maxRatingRaw) ?? .g
-    }
-
     var body: some View {
         List {
-            // MARK: Libraries section
+            // MARK: Content subpages
             Section {
-                ForEach(libraryStore.libraries) { library in
-                    LibraryToggleRow(library: library, settingsManager: settingsManager)
+                NavigationLink(destination: VisibleLibrariesView()) {
+                    Label {
+                        Text("settings.libraries.title", tableName: "Plinx")
+                    } icon: {
+                        Image(systemName: "square.grid.2x2.fill")
+                    }
+                }
+                NavigationLink(destination: HomeScreenSettingsView()) {
+                    Label {
+                        Text("Home Screen")
+                    } icon: {
+                        Image(systemName: "house.fill")
+                    }
                 }
             } header: {
                 Label {
-                    Text("settings.libraries.title", tableName: "Plinx")
+                    Text("Content")
                 } icon: {
-                    Image(systemName: "square.grid.2x2.fill")
+                    Image(systemName: "rectangle.stack.fill")
                 }
-            } footer: {
-                Text("settings.libraries.description", tableName: "Plinx")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
 
             // MARK: Content rating
@@ -106,7 +104,7 @@ private struct SettingsBody: View {
                     .foregroundStyle(.secondary)
             }
 
-            // MARK: GPL compliance (hidden behind this gate)
+            // MARK: GPL compliance (hidden behind gate)
             Section {
                 Link(destination: URL(string: "https://github.com/wunax/strimr")!) {
                     Label {
@@ -146,32 +144,5 @@ private struct SettingsBody: View {
                 try? await libraryStore.loadLibraries()
             }
         }
-    }
-}
-
-// MARK: - Library toggle row
-
-private struct LibraryToggleRow: View {
-    let library: Library
-    let settingsManager: SettingsManager
-
-    private var isVisible: Bool {
-        !settingsManager.interface.hiddenLibraryIds.contains(library.id)
-    }
-
-    var body: some View {
-        Toggle(isOn: Binding(
-            get: { isVisible },
-            set: { show in
-                if show {
-                    settingsManager.setLibraryDisplayed(library.id, displayed: true)
-                } else {
-                    settingsManager.setLibraryDisplayed(library.id, displayed: false)
-                }
-            }
-        )) {
-            Label(library.title, systemImage: library.iconName)
-        }
-        .tint(.orange)
     }
 }

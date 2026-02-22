@@ -19,6 +19,7 @@
 		0C62D82776D18AA56EA0DBC5 /* LibraryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF81F1CBA879145103140354 /* LibraryViewModel.swift */; };
 		0D34C8288590625653111AFE /* MediaCarousel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BB0A967B4AEEA80B940B958 /* MediaCarousel.swift */; };
 		0EE7E949BF1B1F308637838C /* MediaDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F5F6716EF7C8C94D5B1E0D2 /* MediaDetailViewModel.swift */; };
+		1171003B8CB9D734C26CB291 /* RootTabView.swift.bak in Resources */ = {isa = PBXBuildFile; fileRef = D61430A2CE7B5A8A008ADD61 /* RootTabView.swift.bak */; };
 		1262618EB256CBE96EE7F3C5 /* MPVPlayerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 056BA0E50EC0B9376547BEEF /* MPVPlayerViewController.swift */; };
 		13DED3CFE840F1CCE5251D23 /* CollectionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F4DF1C277B810898A845678 /* CollectionDetailView.swift */; };
 		15FD7428E5A5F6640FCBE80F /* PlinxSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F9154778210F9C639A3CAD /* PlinxSettingsView.swift */; };
@@ -88,6 +89,7 @@
 		8CC3635A8FFB1BA01F480782 /* MetadataRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97083F2FB17A64237A7F287B /* MetadataRepository.swift */; };
 		8FB75DE61E42EF7EA771F63D /* LibraryDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43B6129504AE437F4FAF0462 /* LibraryDetailView.swift */; };
 		916F1A967D2537F863DC6868 /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7D77FE3DAEF5933CF1DE590 /* SettingsViewModel.swift */; };
+		91B5C4DD2EFD382BA9296159 /* HomeScreenSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96E04B83F9C2FCE712620589 /* HomeScreenSettingsView.swift */; };
 		93A7577C205D1BBA68E4C09C /* MetalLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49E1DF75B36B87BCD81E14C8 /* MetalLayer.swift */; };
 		93EB281E07F9D3F89DEC10DD /* SafeHomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF9C822A6B9562D7FE709B0 /* SafeHomeViewModel.swift */; };
 		944F22112990330EB263DC2B /* PlinxCollectionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E191CE6E8E1C8855551294D1 /* PlinxCollectionDetailView.swift */; };
@@ -140,6 +142,7 @@
 		F1ABD4BA59ABAF9050F41982 /* PlinxMediaBackdropGradient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CE1565547CFEFC1529AA6B7 /* PlinxMediaBackdropGradient.swift */; };
 		F2BCD83910E5B8BCB9A1115B /* PlinxPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A162E33E9879C1C615DE45E /* PlinxPlayerView.swift */; };
 		F33BAB111A67A4771B9C6032 /* ParentalGateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B56432DD3AF5222EB83D4131 /* ParentalGateView.swift */; };
+		F36A880E92ACA182601D5051 /* VisibleLibrariesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0C6664F7AC6D80EB8F07816 /* VisibleLibrariesView.swift */; };
 		F518CE2773EBA2956B2B72FE /* SelectServerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3919A0C83DF52E7E69C0DFD /* SelectServerView.swift */; };
 		F534B5F073BCE8D6DD90A101 /* StrimrAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07EADF8D6398D43A3C65B0D5 /* StrimrAdapter.swift */; };
 		F54D8979749F3E4C62573B3A /* CollectionMediaItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51464E650CAECA1D30123E18 /* CollectionMediaItem.swift */; };
@@ -231,6 +234,7 @@
 		8CF3A7682B1366AF16593440 /* SignInViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInViewModel.swift; sourceTree = "<group>"; };
 		8E89B885FF86C3B3F252E1C4 /* PlexCloudModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlexCloudModels.swift; sourceTree = "<group>"; };
 		8ED26C84C7FA9CC533EA7502 /* CollectionDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionDetailViewModel.swift; sourceTree = "<group>"; };
+		96E04B83F9C2FCE712620589 /* HomeScreenSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeScreenSettingsView.swift; sourceTree = "<group>"; };
 		97083F2FB17A64237A7F287B /* MetadataRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetadataRepository.swift; sourceTree = "<group>"; };
 		97FE0BEB4814F434BD36874B /* MediaRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaRepository.swift; sourceTree = "<group>"; };
 		99344FC2607BBBD7A864632D /* PlayerBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerBadge.swift; sourceTree = "<group>"; };
@@ -266,6 +270,7 @@
 		D371F1573B14BE4B622A3ED5 /* PlayableMediaItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayableMediaItem.swift; sourceTree = "<group>"; };
 		D4C55444F6521DE49D06F86B /* MPVPlayerDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MPVPlayerDelegate.swift; sourceTree = "<group>"; };
 		D5DDA277EF3ED986119F9BBD /* Hub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hub.swift; sourceTree = "<group>"; };
+		D61430A2CE7B5A8A008ADD61 /* RootTabView.swift.bak */ = {isa = PBXFileReference; path = RootTabView.swift.bak; sourceTree = "<group>"; };
 		D660B3D2EED8F0D826E0A7E0 /* MediaImageViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaImageViewModel.swift; sourceTree = "<group>"; };
 		D703DF8B3CF640AD64773EEA /* PlexCloudNetworkClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlexCloudNetworkClient.swift; sourceTree = "<group>"; };
 		D723ACC766B828C1E0B04642 /* PlinxUI */ = {isa = PBXFileReference; lastKnownFileType = folder; name = PlinxUI; path = ../Packages/PlinxUI; sourceTree = SOURCE_ROOT; };
@@ -281,6 +286,7 @@
 		DE10DFFA540B33DB257EE06E /* SettingsPlaybackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPlaybackView.swift; sourceTree = "<group>"; };
 		DF81F1CBA879145103140354 /* LibraryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryViewModel.swift; sourceTree = "<group>"; };
 		E053B96A6E43B7E56CE65051 /* ProfileSwitcherView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileSwitcherView.swift; sourceTree = "<group>"; };
+		E0C6664F7AC6D80EB8F07816 /* VisibleLibrariesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisibleLibrariesView.swift; sourceTree = "<group>"; };
 		E191CE6E8E1C8855551294D1 /* PlinxCollectionDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlinxCollectionDetailView.swift; sourceTree = "<group>"; };
 		E3919A0C83DF52E7E69C0DFD /* SelectServerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectServerView.swift; sourceTree = "<group>"; };
 		E64C51162DE473FEBEC72E65 /* Keychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keychain.swift; sourceTree = "<group>"; };
@@ -629,7 +635,9 @@
 		5D76DE1CBE2935380C3216A6 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				96E04B83F9C2FCE712620589 /* HomeScreenSettingsView.swift */,
 				A5F9154778210F9C639A3CAD /* PlinxSettingsView.swift */,
+				E0C6664F7AC6D80EB8F07816 /* VisibleLibrariesView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -839,6 +847,7 @@
 				B56432DD3AF5222EB83D4131 /* ParentalGateView.swift */,
 				E786C3A34F38C6CF9189F24C /* PlinxContentView.swift */,
 				76F4BABD4F73A11A91EEE548 /* RootTabView.swift */,
+				D61430A2CE7B5A8A008ADD61 /* RootTabView.swift.bak */,
 				236697496CAE2724BEC40661 /* VLCStub.swift */,
 				574371214E1E2840AE460ED3 /* Auth */,
 				A85D9FA68225A4687FB07FC1 /* Collection */,
@@ -923,6 +932,7 @@
 			buildConfigurationList = 6A9F981AF2CE8B3944D5F31B /* Build configuration list for PBXNativeTarget "Plinx-iOS" */;
 			buildPhases = (
 				366533AFB31CF21A4F2487DE /* Sources */,
+				789CFDF0CA7D9775358491CD /* Resources */,
 				E964560C2CE49F1606BFC502 /* Frameworks */,
 			);
 			buildRules = (
@@ -974,6 +984,17 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXResourcesBuildPhase section */
+		789CFDF0CA7D9775358491CD /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1171003B8CB9D734C26CB291 /* RootTabView.swift.bak in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		366533AFB31CF21A4F2487DE /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -997,6 +1018,7 @@
 				E4CC2B47411EB9D15E798B44 /* EpisodeItemViews.swift in Sources */,
 				02D375B1CCEB8873C119520A /* ErrorReporter.swift in Sources */,
 				333A5BF8EC3428BA16C09419 /* ExternalPlaybackLauncher.swift in Sources */,
+				91B5C4DD2EFD382BA9296159 /* HomeScreenSettingsView.swift in Sources */,
 				7457C4D4067A10354B32478E /* HomeView.swift in Sources */,
 				5D93AFD855E465159CC51B86 /* HomeViewModel.swift in Sources */,
 				3E377C7B5B745BD83CC0E2C8 /* Hub+Mapping.swift in Sources */,
@@ -1116,6 +1138,7 @@
 				C312BFEA8300374A20442395 /* UserMenuView.swift in Sources */,
 				5AD4A88FAB51C0BC8DBD6A7B /* UserRepository.swift in Sources */,
 				069CAAA3947DFD0E07CF8800 /* VLCStub.swift in Sources */,
+				F36A880E92ACA182601D5051 /* VisibleLibrariesView.swift in Sources */,
 				9BC4C88E6A614626F8C1DE6A /* WatchStatusBadge.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

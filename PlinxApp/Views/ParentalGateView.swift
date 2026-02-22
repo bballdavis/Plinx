@@ -26,7 +26,9 @@ struct ParentalGateView: View {
             Text(challenge.prompt)
                 .font(.system(size: 48, weight: .black, design: .rounded))
 
-            TextField(Text("parental.gate.placeholder", tableName: "Plinx"), text: $answerText)
+            TextField(text: $answerText) {
+                Text("parental.gate.placeholder", tableName: "Plinx")
+            }
                 .textFieldStyle(.roundedBorder)
                 .keyboardType(.numberPad)
                 .multilineTextAlignment(.center)

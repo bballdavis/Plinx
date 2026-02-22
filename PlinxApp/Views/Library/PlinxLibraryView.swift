@@ -5,8 +5,6 @@ struct PlinxLibraryView: View {
     @State var viewModel: SafeLibraryViewModel
     var onSelectLibrary: (Library) -> Void
 
-    private let columns = [GridItem(.flexible(minimum: 140)), GridItem(.flexible(minimum: 140))]
-
     var body: some View {
         Group {
             if viewModel.isLoading && viewModel.libraries.isEmpty {
@@ -23,22 +21,22 @@ struct PlinxLibraryView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                libraryGrid
+                libraryList
             }
         }
         .task { await viewModel.load() }
     }
 
-    private var libraryGrid: some View {
+    private var libraryList: some View {
         ScrollView {
-            LazyVGrid(columns: columns, spacing: 16) {
+            LazyVStack(spacing: 16) {
                 ForEach(viewModel.libraries) { library in
                     libraryTile(library)
                 }
             }
             .padding(.horizontal, 20)
             .padding(.top, 16)
-            .padding(.bottom, 120)
+            .padding(.bottom, 40)
         }
     }
 
@@ -84,6 +82,7 @@ struct PlinxLibraryView: View {
                     Spacer()
                 }
             }
+            .frame(maxWidth: .infinity)
             .frame(height: 160)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(
@@ -92,8 +91,6 @@ struct PlinxLibraryView: View {
             )
             .task { await viewModel.ensureArtwork(for: library) }
         }
-        .buttonStyle(.plain)
-        .scaleEffect(1.0)
         .buttonStyle(SpringyButtonStyle())
     }
 
@@ -105,10 +102,6 @@ struct PlinxLibraryView: View {
                 .foregroundStyle(.white.opacity(0.25))
         }
     }
-
-    private func libraryIcon(for library: Library) -> String {
-        library.iconName
-    }
 }
 
 // MARK: - Springy Button
@@ -116,7 +109,7 @@ struct PlinxLibraryView: View {
 private struct SpringyButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
             .animation(.spring(response: 0.2, dampingFraction: 0.6), value: configuration.isPressed)
     }
 }

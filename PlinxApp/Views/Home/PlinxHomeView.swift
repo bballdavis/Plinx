@@ -1,11 +1,17 @@
 import SwiftUI
 import PlinxUI
+import PlinxCore
 
 struct PlinxHomeView: View {
     @State var viewModel: SafeHomeViewModel
     var onSelectMedia: (MediaDisplayItem) -> Void
 
     @Environment(PlexAPIContext.self) private var plexApiContext
+    @Environment(LibraryStore.self) private var libraryStore
+
+    // Plinx-specific home screen settings (separate from Library-tab visibility)
+    @AppStorage("plinx.homeHiddenLibraryIds") private var homeHiddenIdsJson = "[]"
+    @AppStorage("plinx.homeLibraryOrder") private var homeOrderJson = "[]"
 
     var body: some View {
         Group {
@@ -42,16 +48,59 @@ struct PlinxHomeView: View {
                 if let hub = viewModel.continueWatching, hub.hasItems {
                     hubRow(hub, landscape: true)
                 }
-                ForEach(viewModel.recentlyAdded) { hub in
+                ForEach(displayedHubs) { hub in
                     if hub.hasItems {
                         hubRow(hub, landscape: false)
                     }
                 }
             }
             .padding(.top, 16)
-            .padding(.bottom, 120) // clear of tab bar
+            .padding(.bottom, 40)
         }
     }
+
+    // MARK: - Home library filtering & ordering
+
+    private var displayedHubs: [Hub] {
+        let hiddenIds = decodeStringArray(homeHiddenIdsJson)
+        let order = decodeStringArray(homeOrderJson)
+
+        let filtered = viewModel.recentlyAdded.filter { hub in
+            guard !hiddenIds.isEmpty else { return true }
+            if let matchingLibrary = library(for: hub, in: libraryStore.libraries) {
+                return !hiddenIds.contains(matchingLibrary.id)
+            }
+            return true
+        }
+
+        guard !order.isEmpty else { return filtered }
+        return filtered.sorted { a, b in
+            let ai = orderIndex(for: a, order: order, libraries: libraryStore.libraries)
+            let bi = orderIndex(for: b, order: order, libraries: libraryStore.libraries)
+            return ai < bi
+        }
+    }
+
+    private func orderIndex(for hub: Hub, order: [String], libraries: [Library]) -> Int {
+        guard let lib = library(for: hub, in: libraries),
+              let idx = order.firstIndex(of: lib.id) else {
+            return Int.max
+        }
+        return idx
+    }
+
+    private func library(for hub: Hub, in libraries: [Library]) -> Library? {
+        let id = hub.id.lowercased()
+        return libraries.first { lib in
+            switch lib.type {
+            case .movie: return id.contains("movie") || id.contains("film")
+            case .show:  return id.contains("show") || id.contains("tv") || id.contains("series")
+            default:     return false
+            }
+        }
+    }
+
+    // MARK: - Hub row
 
     private func hubRow(_ hub: Hub, landscape: Bool) -> some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -117,4 +166,13 @@ struct PlinxHomeView: View {
         }
         .frame(width: cardWidth)
     }
+}
+
+// MARK: - JSON helpers (file-private)
+
+private func decodeStringArray(_ json: String) -> [String] {
+    guard let data = json.data(using: .utf8),
+          let arr = try? JSONDecoder().decode([String].self, from: data)
+    else { return [] }
+    return arr
 }

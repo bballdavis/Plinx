@@ -13,7 +13,7 @@ public struct PlinxieLoadingView: View {
                         .font(.system(size: 28, weight: .bold))
                         .foregroundStyle(.white)
                 )
-            Text("Plinxie")
+            Text("Plinx")
                 .font(.headline)
         }
         .padding()
