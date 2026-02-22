@@ -9,12 +9,18 @@ import UIKit
 @main
 struct PlinxApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate: AppDelegate
-    
+
     @State private var plexApiContext: PlexAPIContext
     @State private var sessionManager: SessionManager
     @State private var settingsManager: SettingsManager
     @State private var libraryStore: LibraryStore
     @State private var mainCoordinator: MainCoordinator
+
+    // Plinx-specific state
+    @StateObject private var playbackCoordinator = PlaybackCoordinator()
+    @State private var safetyPolicy = SafetyPolicy.ratingOnly()
+    @State private var theme = PlinxTheme()
+    @AppStorage("plinx.babyLockEnabled") private var babyLockEnabled = false
 
     init() {
         let context = PlexAPIContext()
@@ -35,7 +41,16 @@ struct PlinxApp: App {
                 .environment(settingsManager)
                 .environment(libraryStore)
                 .environment(mainCoordinator)
+                .environment(\.plinxTheme, theme)
+                .environment(\.safetyPolicy, safetyPolicy)
+                .environmentObject(playbackCoordinator)
                 .preferredColorScheme(.dark)
+                .onAppear { AppearanceSetup.apply(theme) }
+                .lifecycleHardening(
+                    coordinator: playbackCoordinator,
+                    mainCoordinator: mainCoordinator
+                )
+                .babyLock(isEnabled: $babyLockEnabled)
         }
     }
 }

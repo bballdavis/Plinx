@@ -14,9 +14,7 @@ struct PlinxContentView: View {
 
             switch sessionManager.status {
             case .hydrating:
-                ProgressView()
-                    .progressViewStyle(.circular)
-                    .tint(.blue)
+                PlinxieLoadingView()
             case .signedOut:
                 SignInView(
                     viewModel: SignInViewModel(
