@@ -31,13 +31,13 @@ public struct PlinxErrorView: View {
                 .modifier(BounceEffectModifier())
 
             Text(message)
-                .font(.body)
+                .plinxStyle(theme.typography.body)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: 280)
 
             if let onRetry {
-                LiquidGlassButton("Try Again", action: onRetry)
+                LiquidGlassButton("Try again", action: onRetry)
             }
         }
         .padding()

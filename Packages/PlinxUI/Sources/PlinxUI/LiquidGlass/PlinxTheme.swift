@@ -100,18 +100,35 @@ public struct PlinxTheme: Sendable {
 
     // MARK: - Typography Scale
 
-    /// Font scale — rounded, bold, kid-friendly.
+    /// Typography style — neutral, geometric, highly legible (Inter-inspired).
     public struct Typography: Sendable {
+        /// A specific typographic style combining font, tracking, and line spacing.
+        public struct Style: Sendable {
+            public let font: Font
+            public let tracking: CGFloat
+            public let lineSpacing: CGFloat
+
+            public init(size: CGFloat, weight: Font.Weight, tracking: CGFloat, lineHeight: CGFloat) {
+                // We use system font (SF Pro) as the native "soft geometric" engine.
+                self.font = .system(size: size, weight: weight)
+                self.tracking = size * tracking
+                // lineSpacing is the additional space between lines (approximate).
+                self.lineSpacing = size * (lineHeight - 1.0)
+            }
+        }
+
         /// Large display font (hero sections).
-        public let display: Font
+        public let display: Style
         /// Screen title font.
-        public let title: Font
+        public let title: Style
         /// Section heading font.
-        public let heading: Font
+        public let heading: Style
         /// Body text font.
-        public let body: Font
+        public let body: Style
         /// Caption/small text font.
-        public let caption: Font
+        public let caption: Style
+        /// Button text font.
+        public let button: Style
     }
 
     // MARK: - Properties
@@ -192,10 +209,23 @@ public extension PlinxTheme.Springs {
 
 public extension PlinxTheme.Typography {
     static let `default` = PlinxTheme.Typography(
-        display: .system(size: 36, weight: .black, design: .rounded),
-        title: .system(size: 24, weight: .bold, design: .rounded),
-        heading: .system(size: 18, weight: .bold, design: .rounded),
-        body: .system(size: 15, weight: .regular, design: .rounded),
-        caption: .system(size: 12, weight: .medium, design: .rounded)
+        display: Style(size: 36, weight: .semibold, tracking: 0.0, lineHeight: 1.3),
+        title: Style(size: 24, weight: .medium, tracking: 0.01, lineHeight: 1.3),
+        heading: Style(size: 18, weight: .medium, tracking: 0.01, lineHeight: 1.3),
+        body: Style(size: 15, weight: .regular, tracking: 0.015, lineHeight: 1.45),
+        caption: Style(size: 12, weight: .regular, tracking: 0.03, lineHeight: 1.4),
+        button: Style(size: 16, weight: .medium, tracking: 0.02, lineHeight: 1.2)
     )
+}
+
+// MARK: - View Modifiers
+
+public extension View {
+    /// Applies a Plinx typographic style to a View.
+    @ViewBuilder
+    func plinxStyle(_ style: PlinxTheme.Typography.Style) -> some View {
+        self.font(style.font)
+            .tracking(style.tracking)
+            .lineSpacing(style.lineSpacing)
+    }
 }

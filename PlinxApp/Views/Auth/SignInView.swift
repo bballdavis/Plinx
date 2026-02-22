@@ -28,7 +28,7 @@ struct SignInView: View {
                     .foregroundStyle(theme.palette.primary)
 
                 Text("Plinx")
-                    .font(theme.typography.display)
+                    .plinxStyle(theme.typography.display)
                     .foregroundStyle(.white)
 
                 Text("signIn.subtitle")

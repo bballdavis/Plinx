@@ -62,10 +62,10 @@ public struct LiquidGlassButton: View {
             HStack(spacing: 8) {
                 if let icon {
                     Image(systemName: icon)
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: 16, weight: .medium))
                 }
                 Text(title)
-                    .font(theme.typography.heading)
+                    .plinxStyle(theme.typography.button)
             }
             .foregroundStyle(theme.palette.onPrimary)
             .liquidGlassStyle(variant: glassStyle)

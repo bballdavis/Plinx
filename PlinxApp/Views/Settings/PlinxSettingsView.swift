@@ -34,6 +34,7 @@ private struct SettingsBody: View {
     @AppStorage("plinx.babyLockEnabled") private var babyLockEnabled = false
     @AppStorage("plinx.maxMovieRating") private var maxMovieRatingRaw = PlinxRating.pg.rawValue
     @AppStorage("plinx.maxTVRating")    private var maxTVRatingRaw    = PlinxRating.tvPg.rawValue
+    @AppStorage("plinx.excludeUnrated") private var excludeUnrated    = true
 
     @State private var isPresentingProfileSwitcher = false
 
@@ -91,10 +92,18 @@ private struct SettingsBody: View {
                     Text("settings.safety.tv.rating.title", tableName: "Plinx")
                 }
                 .pickerStyle(.menu)
+
+                Toggle(isOn: $excludeUnrated) {
+                    Label {
+                        Text("settings.safety.excludeUnrated.title", tableName: "Plinx")
+                    } icon: {
+                        Image(systemName: "nosign")
+                    }
+                }
             } header: {
                 Text("settings.safety.title", tableName: "Plinx")
             } footer: {
-                Text("settings.safety.rating.dual.description", tableName: "Plinx")
+                Text("settings.safety.excludeUnrated.description", tableName: "Plinx")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

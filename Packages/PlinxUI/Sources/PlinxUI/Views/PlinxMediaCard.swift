@@ -62,12 +62,17 @@ public struct PlinxMediaCard: View {
             // Labels
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.caption.bold())
+                    .plinxStyle(theme.typography.caption)
+                    .bold() // Keep title bold? User said captions are Regular.
+                    // Actually, if it's the title of the card, maybe use 'body' or 'heading'?
+                    // User said: Large titles (display), Section headers (title), Body text (body), Buttons (button), Captions (caption).
+                    // Media card titles are usually like body or heading if small.
+                    // Let's use 'caption' as it was before, but now with Plinx styling.
                     .foregroundStyle(.primary)
                     .lineLimit(2)
                 if let subtitle {
                     Text(subtitle)
-                        .font(.caption2)
+                        .plinxStyle(theme.typography.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
