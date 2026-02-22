@@ -35,7 +35,7 @@ enum StrimrAdapter {
               !ratingString.isEmpty else {
             return policy.allowUnrated
         }
-        guard let rating = PlinxRating(rawValue: ratingString) else {
+        guard let rating = PlinxRating.from(contentRating: ratingString) else {
             // Unrecognized rating string — treat as unrated.
             return policy.allowUnrated
         }
@@ -60,7 +60,7 @@ enum StrimrAdapter {
               !ratingString.isEmpty else {
             return policy.allowUnrated
         }
-        guard let rating = PlinxRating(rawValue: ratingString) else {
+        guard let rating = PlinxRating.from(contentRating: ratingString) else {
             return policy.allowUnrated
         }
         let maxAllowed = rating.isTVRating ? policy.maxTVRating : policy.maxMovieRating
@@ -102,7 +102,7 @@ enum StrimrAdapter {
             id: item.id,
             title: item.title,
             labels: [],  // Strimr MediaItem doesn't carry labels; library-level gating
-            rating: item.contentRating.flatMap { PlinxRating(rawValue: $0) }
+            rating: PlinxRating.from(contentRating: item.contentRating)
         )
     }
 
@@ -112,7 +112,7 @@ enum StrimrAdapter {
             id: item.id,
             title: item.primaryLabel,
             labels: [],  // library-level gating
-            rating: item.contentRating.flatMap { PlinxRating(rawValue: $0) }
+            rating: PlinxRating.from(contentRating: item.contentRating)
         )
     }
 }

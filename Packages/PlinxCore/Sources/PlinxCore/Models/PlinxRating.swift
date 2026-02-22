@@ -46,4 +46,28 @@ public enum PlinxRating: String, CaseIterable, Comparable, Sendable {
     public static var movieRatings: [PlinxRating] {
         allCases.filter(\.isMovieRating)
     }
+
+    /// Parses Plex/content-rating text into a known `PlinxRating`.
+    /// Normalizes casing/spacing and accepts common TV aliases.
+    public static func from(contentRating raw: String?) -> PlinxRating? {
+        guard let raw else { return nil }
+        let normalized = raw
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .uppercased()
+            .replacingOccurrences(of: "_", with: "-")
+            .replacingOccurrences(of: " ", with: "")
+
+        switch normalized {
+        case "TVY", "TV-Y": return .tvY
+        case "TVY7", "TV-Y7": return .tvY7
+        case "TVPG", "TV-PG": return .tvPg
+        case "TV14", "TV-14": return .tv14
+        case "TVMA", "TV-MA": return .tvMa
+        case "G": return .g
+        case "PG": return .pg
+        case "PG13", "PG-13": return .pg13
+        case "R": return .r
+        default: return nil
+        }
+    }
 }

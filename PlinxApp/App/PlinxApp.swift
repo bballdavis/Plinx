@@ -55,8 +55,8 @@ struct PlinxApp: App {
     @AppStorage("plinx.excludeUnrated") private var excludeUnrated = true
 
     private var safetyPolicy: SafetyPolicy {
-        let movieRating = PlinxRating(rawValue: maxMovieRatingRaw) ?? .pg
-        let tvRating = PlinxRating(rawValue: maxTVRatingRaw) ?? .tvPg
+        let movieRating = PlinxRating.from(contentRating: maxMovieRatingRaw) ?? .pg
+        let tvRating = PlinxRating.from(contentRating: maxTVRatingRaw) ?? .tvPg
         return SafetyPolicy.ratingOnly(maxMovie: movieRating, maxTV: tvRating, allowUnrated: !excludeUnrated)
     }
 
@@ -70,10 +70,10 @@ struct PlinxApp: App {
     @AppStorage("plinx.babyLockEnabled") private var babyLockEnabled = false
 
     // ── Plinx Accent Color ──────────────────────────────────────────────
-    @AppStorage("plinx.accentColorName") private var accentColorName = PlinxAccentColor.orange.rawValue
+    @AppStorage("plinx.accentColorName") private var accentColorName = PlinxAccentColor.green.rawValue
 
     private var accentColor: Color {
-        PlinxAccentColor(rawValue: accentColorName)?.color ?? .orange
+        PlinxAccentColor(rawValue: accentColorName)?.color ?? PlinxAccentColor.green.color
     }
 
     // MARK: - Init (Dependency Construction)

@@ -1,8 +1,11 @@
 import SwiftUI
 import PlinxUI
 import PlinxCore
+import OSLog
 
 struct PlinxHomeView: View {
+    private static let logger = Logger(subsystem: "com.plinx.app", category: "home")
+
     @State var viewModel: SafeHomeViewModel
     var onSelectMedia: (MediaDisplayItem) -> Void
 
@@ -105,63 +108,55 @@ struct PlinxHomeView: View {
         let hiddenIds = decodeStringArray(homeHiddenIdsJson)
         let order = decodeStringArray(homeOrderJson)
         let libraries = libraryStore.libraries
+        let recentlyAddedPrefix = NSLocalizedString("home.recentlyAdded.prefix", tableName: "Plinx", comment: "")
 
-        // Separate movie / show hubs from other-type hubs.
-        var movieHub: Hub?
-        var showHub: Hub?
-        var otherHubs: [Hub] = []
-
-        for hub in viewModel.recentlyAdded {
-            let id = hub.id.lowercased()
-            if id.contains("movie") || id.contains("film") {
-                movieHub = hub
-            } else if id.contains("show") || id.contains("tv") || id.contains("series") {
-                showHub = hub
-            } else {
-                otherHubs.append(hub)
-            }
+        struct HubEntry {
+            let hub: Hub
+            let library: Library?
         }
 
-        // Combine movie + show into one poster-style hub.
-        let movieLibId = movieHub.flatMap { matchedLibraryId(for: $0, in: libraries) }
-        let showLibId  = showHub.flatMap  { matchedLibraryId(for: $0, in: libraries) }
-        let movieVisible = movieHub != nil && !hiddenIds.contains(movieLibId ?? "__none__")
-        let showVisible  = showHub  != nil && !hiddenIds.contains(showLibId  ?? "__none__")
+        let entries: [HubEntry] = viewModel.recentlyAdded.map { hub in
+            HubEntry(hub: hub, library: matchedLibrary(for: hub, in: libraries, recentlyAddedPrefix: recentlyAddedPrefix))
+        }
+
+        let movieEntries = entries.filter { $0.library?.type == .movie }
+        let showEntries = entries.filter { $0.library?.type == .show }
+        let otherEntries = entries.filter { entry in
+            guard let type = entry.library?.type else { return true }
+            return type != .movie && type != .show
+        }
+
+        let visibleMovieEntries = movieEntries.filter { entry in
+            guard let id = entry.library?.id else { return true }
+            return !hiddenIds.contains(id)
+        }
+        let visibleShowEntries = showEntries.filter { entry in
+            guard let id = entry.library?.id else { return true }
+            return !hiddenIds.contains(id)
+        }
+
+        let movieVisible = !visibleMovieEntries.isEmpty
+        let showVisible = !visibleShowEntries.isEmpty
 
         var groups: [HubGroup] = []
 
         if movieVisible || showVisible {
             var combined: [MediaDisplayItem] = []
-            let m = movieVisible ? (movieHub?.items ?? []) : []
-            let s = showVisible  ? (showHub?.items  ?? []) : []
+            let m = visibleMovieEntries.flatMap(\.hub.items)
+            let s = visibleShowEntries.flatMap(\.hub.items)
             let maxCount = max(m.count, s.count)
             for i in 0..<maxCount {
                 if i < m.count { combined.append(m[i]) }
                 if i < s.count { combined.append(s[i]) }
             }
             if !combined.isEmpty {
-                // Build a title from the actual library names (e.g. "Movies & TV Shows")
-                let movieLibName = movieLibId.flatMap { id in
-                    libraries.first(where: { $0.id == id })?.title
-                }
-                let showLibName = showLibId.flatMap { id in
-                    libraries.first(where: { $0.id == id })?.title
-                }
                 let title: String
-                if movieVisible && showVisible, let ml = movieLibName, let sl = showLibName {
-                    title = "\(ml) & \(sl)"
-                } else if movieVisible, let ml = movieLibName {
-                    title = ml
-                } else if showVisible, let sl = showLibName {
-                    title = sl
+                if movieVisible && showVisible {
+                    title = NSLocalizedString("home.recentlyAdded.tvAndMovies", tableName: "Plinx", comment: "")
+                } else if showVisible {
+                    title = NSLocalizedString("home.recentlyAdded.tv", tableName: "Plinx", comment: "")
                 } else {
-                    // Fallback to Plex hub title stripped of "Recently Added" prefix
-                    let raw = movieHub?.title ?? showHub?.title ?? ""
-                    let stripped = raw
-                        .replacingOccurrences(of: "Recently Added ", with: "")
-                        .replacingOccurrences(of: "Recently Added", with: "")
-                        .trimmingCharacters(in: .whitespaces)
-                    title = stripped.isEmpty ? NSLocalizedString("home.section.moviesAndTV", tableName: "Plinx", comment: "") : stripped
+                    title = NSLocalizedString("home.recentlyAdded.movies", tableName: "Plinx", comment: "")
                 }
                 let combinedId = "combined.recentlyadded.movies+shows"
                 groups.append(HubGroup(
@@ -173,10 +168,15 @@ struct PlinxHomeView: View {
         }
 
         // Other-type hubs use letterbox (landscape) layout.
-        for hub in otherHubs {
-            let libId = matchedLibraryId(for: hub, in: libraries)
+        for entry in otherEntries {
+            let hub = entry.hub
+            let libId = entry.library?.id
             if let libId, hiddenIds.contains(libId) { continue }
             groups.append(HubGroup(id: hub.id, hub: hub, layout: .landscape))
+        }
+
+        if !entries.isEmpty && otherEntries.isEmpty && libraries.contains(where: { $0.type == .clip }) {
+            Self.logger.debug("No other-video recently-added hubs matched from \(entries.count, privacy: .public) recently-added hubs")
         }
 
         guard !order.isEmpty else { return groups }
@@ -196,7 +196,20 @@ struct PlinxHomeView: View {
         displayedGroups.filter { $0.id != "combined.recentlyadded.movies+shows" }
     }
 
-    private func matchedLibraryId(for hub: Hub, in libraries: [Library]) -> String? {
+    private func matchedLibrary(for hub: Hub, in libraries: [Library], recentlyAddedPrefix: String) -> Library? {
+        let title = hub.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !title.isEmpty {
+            let stripped = title
+                .replacingOccurrences(of: recentlyAddedPrefix, with: "", options: [.caseInsensitive])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if let exact = libraries.first(where: { $0.title.compare(stripped, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame }) {
+                return exact
+            }
+            if let contains = libraries.first(where: { stripped.localizedCaseInsensitiveContains($0.title) || $0.title.localizedCaseInsensitiveContains(stripped) }) {
+                return contains
+            }
+        }
+
         let id = hub.id.lowercased()
         return libraries.first { lib in
             switch lib.type {
@@ -204,7 +217,7 @@ struct PlinxHomeView: View {
             case .show:  return id.contains("show") || id.contains("tv") || id.contains("series")
             default:     return id.contains(lib.id.lowercased()) || id.contains(lib.title.lowercased())
             }
-        }?.id
+        }
     }
 
     private func orderIndexForGroup(_ group: HubGroup, order: [String], libraries: [Library]) -> Int {
@@ -216,7 +229,8 @@ struct PlinxHomeView: View {
             }
             return indices.min() ?? Int.max
         }
-        guard let libId = matchedLibraryId(for: group.hub, in: libraries),
+        let recentlyAddedPrefix = NSLocalizedString("home.recentlyAdded.prefix", tableName: "Plinx", comment: "")
+        guard let libId = matchedLibrary(for: group.hub, in: libraries, recentlyAddedPrefix: recentlyAddedPrefix)?.id,
               let idx = order.firstIndex(of: libId) else { return Int.max }
         return idx
     }
@@ -244,6 +258,7 @@ struct PlinxHomeView: View {
 
     private func mediaCard(_ item: MediaDisplayItem, layout: CardLayout) -> some View {
         let isLandscape = layout == .landscape
+        let prefersThumbForLandscape = isLandscape && item.type == .clip
         let cardWidth: CGFloat = isLandscape ? 200 : 110
         let ratio: CGFloat = isLandscape ? 16.0 / 9.0 : 2.0 / 3.0
 
@@ -252,7 +267,7 @@ struct PlinxHomeView: View {
                 MediaImageView(
                     viewModel: MediaImageViewModel(
                         context: plexApiContext,
-                        artworkKind: isLandscape ? .art : .thumb,
+                        artworkKind: prefersThumbForLandscape ? .thumb : (isLandscape ? .art : .thumb),
                         media: item
                     )
                 )

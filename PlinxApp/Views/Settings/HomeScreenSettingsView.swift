@@ -116,11 +116,9 @@ struct HomeScreenSettingsView: View {
         .navigationTitle(Text("settings.homescreen.title", tableName: "Plinx"))
         .navigationBarTitleDisplayMode(.large)
         .listStyle(.insetGrouped)
+        .environment(\.editMode, .constant(.active))
         .scrollContentBackground(.hidden)
         .background(Color.black.ignoresSafeArea())
-        .toolbar {
-            EditButton()
-        }
         .task {
             if libraryStore.libraries.isEmpty {
                 try? await libraryStore.loadLibraries()

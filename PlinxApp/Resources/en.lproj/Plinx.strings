@@ -30,6 +30,10 @@
 "home.section.continueWatching" = "Continue Watching";
 "home.section.moviesAndTV" = "Movies & TV";
 "home.section.otherVideos" = "Other Videos";
+"home.recentlyAdded.prefix" = "Recently Added";
+"home.recentlyAdded.tvAndMovies" = "Recently Added TV & Movies";
+"home.recentlyAdded.tv" = "Recently Added TV";
+"home.recentlyAdded.movies" = "Recently Added Movies";
 
 /* Library */
 "library.loading.plinx" = "Loading your libraries…";

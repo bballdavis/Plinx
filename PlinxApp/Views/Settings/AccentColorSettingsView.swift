@@ -9,7 +9,7 @@ import SwiftUI
 // ─────────────────────────────────────────────────────────────────────────────
 
 struct AccentColorSettingsView: View {
-    @AppStorage("plinx.accentColorName") private var accentColorName = PlinxAccentColor.orange.rawValue
+    @AppStorage("plinx.accentColorName") private var accentColorName = PlinxAccentColor.green.rawValue
 
     private let columns = [GridItem(.adaptive(minimum: 72), spacing: 16)]
 
