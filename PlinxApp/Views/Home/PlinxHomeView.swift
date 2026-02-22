@@ -252,7 +252,7 @@ struct PlinxHomeView: View {
                 MediaImageView(
                     viewModel: MediaImageViewModel(
                         context: plexApiContext,
-                        artworkKind: .thumb,
+                        artworkKind: isLandscape ? .art : .thumb,
                         media: item
                     )
                 )

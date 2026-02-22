@@ -67,6 +67,14 @@
 "settings.safety.touchlock.title" = "Baby Lock";
 "settings.safety.touchlock.section" = "Touch Protection";
 "settings.safety.touchlock.description" = "When enabled, all touches are blocked until a triple-tap is detected.";
+"settings.safety.excludeUnrated.title" = "Exclude Unrated Content";
+"settings.safety.excludeUnrated.description" = "When enabled, content without a recognized rating will be hidden.";
+
+/* Media Labels */
+"media.labels.countEpisode %lld" = "%lld Episodes";
+"media.labels.seasonEpisode %lld %lld" = "S%1$lld · E%2$lld";
+"media.labels.elementsCount %lld" = "%lld Items";
+"media.labels.seasonsCount %lld" = "%lld Seasons";
 
 /* Settings — Account */
 "settings.profile.section" = "Account";

@@ -17,10 +17,12 @@ final class SafeLibraryViewModel {
 
     private let inner: LibraryViewModel
     private let policy: SafetyPolicy
+    private let context: PlexAPIContext
 
-    init(inner: LibraryViewModel, policy: SafetyPolicy = .ratingOnly()) {
+    init(inner: LibraryViewModel, policy: SafetyPolicy = .ratingOnly(), context: PlexAPIContext) {
         self.inner = inner
         self.policy = policy
+        self.context = context
     }
 
     func load() async {
@@ -33,6 +35,33 @@ final class SafeLibraryViewModel {
     }
 
     func ensureArtwork(for library: Library) async {
-        await inner.ensureArtwork(for: library)
+        guard inner.artworkURLs[library.id] == nil else { return }
+        guard let sectionId = library.sectionId else { return }
+        
+        do {
+            let sectionRepository = try SectionRepository(context: context)
+            let imageRepository = try ImageRepository(context: context)
+            
+            let itemContainer = try await sectionRepository.getSectionsItems(
+                sectionId: sectionId,
+                params: SectionRepository.SectionItemsParams(sort: "random", limit: 20),
+                pagination: PlexPagination(start: 0, size: 20)
+            )
+            
+            let safeItems = (itemContainer.mediaContainer.metadata ?? []).compactMap { item -> PlexItem? in
+                let displayItem = MediaDisplayItem.playable(MediaItem(plexItem: item))
+                return StrimrAdapter.isAllowed(displayItem, policy: policy) ? item : nil
+            }
+            
+            if let item = safeItems.first {
+                let path = item.art ?? item.thumb
+                if let url = path.flatMap({ imageRepository.transcodeImageURL(path: $0, width: 800, height: 450) }) {
+                    inner.artworkURLs[library.id] = url
+                }
+            }
+        } catch {
+            // Fallback to inner if needed, or just ignore
+            await inner.ensureArtwork(for: library)
+        }
     }
 }

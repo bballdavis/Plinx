@@ -117,7 +117,8 @@ struct RootTabView: View {
                             context: plexApiContext,
                             libraryStore: libraryStore
                         ),
-                        policy: safetyPolicy
+                        policy: safetyPolicy,
+                        context: plexApiContext
                     ),
                     onSelectLibrary: { library in
                         mainCoordinator.libraryPath.append(library)

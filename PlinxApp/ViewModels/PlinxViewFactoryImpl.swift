@@ -66,7 +66,7 @@ final class PlinxViewFactoryImpl: PlinxViewFactory {
             context: plexApiContext,
             libraryStore: libraryStore
         )
-        let safe = SafeLibraryViewModel(inner: inner, policy: safetyPolicy)
+        let safe = SafeLibraryViewModel(inner: inner, policy: safetyPolicy, context: plexApiContext)
         return AnyView(
             PlinxLibraryView(viewModel: safe) { library in
                 onSelectLibrary(library.id)
