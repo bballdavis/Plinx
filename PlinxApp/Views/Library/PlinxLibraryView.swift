@@ -12,7 +12,7 @@ struct PlinxLibraryView: View {
             if viewModel.isLoading && viewModel.libraries.isEmpty {
                 VStack(spacing: 16) {
                     PlinxieLoadingView()
-                    Text("Loading your libraries…")
+                    Text("library.loading.plinx", tableName: "Plinx")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }

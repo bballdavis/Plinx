@@ -23,9 +23,9 @@ struct PlinxCollectionDetailView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if viewModel.items.isEmpty {
                 ContentUnavailableView(
-                    "Nothing Here",
+                    "common.empty.nothingToShow",
                     systemImage: "rectangle.stack",
-                    description: Text("No items are available in this collection.")
+                    description: Text("media.collection.empty", tableName: "Plinx")
                 )
             } else {
                 ScrollView {

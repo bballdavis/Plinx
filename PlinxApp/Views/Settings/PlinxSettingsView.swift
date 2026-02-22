@@ -50,26 +50,36 @@ private struct SettingsBody: View {
                     LibraryToggleRow(library: library, settingsManager: settingsManager)
                 }
             } header: {
-                Label("Visible Libraries", systemImage: "square.grid.2x2.fill")
+                Label {
+                    Text("settings.libraries.title", tableName: "Plinx")
+                } icon: {
+                    Image(systemName: "square.grid.2x2.fill")
+                }
             } footer: {
-                Text("Only selected libraries appear in the Plinx home and library screens.")
+                Text("settings.libraries.description", tableName: "Plinx")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
             // MARK: Content rating
             Section {
-                Picker("Maximum Rating", selection: $maxRatingRaw) {
+                Picker(selection: $maxRatingRaw) {
                     ForEach(PlinxRating.allCases, id: \.rawValue) { rating in
                         Text(rating.rawValue).tag(rating.rawValue)
                     }
+                } label: {
+                    Text("settings.safety.rating.title", tableName: "Plinx")
                 }
                 .pickerStyle(.menu)
                 .tint(.orange)
             } header: {
-                Label("Content Safety", systemImage: "shield.fill")
+                Label {
+                    Text("settings.safety.title", tableName: "Plinx")
+                } icon: {
+                    Image(systemName: "shield.fill")
+                }
             } footer: {
-                Text("Content rated above this level won't appear anywhere in Plinx.")
+                Text("settings.safety.rating.description", tableName: "Plinx")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -77,13 +87,21 @@ private struct SettingsBody: View {
             // MARK: Baby lock
             Section {
                 Toggle(isOn: $babyLockEnabled) {
-                    Label("Baby Lock", systemImage: "lock.fill")
+                    Label {
+                        Text("settings.safety.touchlock.title", tableName: "Plinx")
+                    } icon: {
+                        Image(systemName: "lock.fill")
+                    }
                 }
                 .tint(.orange)
             } header: {
-                Label("Touch Protection", systemImage: "hand.raised.fill")
+                Label {
+                    Text("settings.safety.touchlock.section", tableName: "Plinx")
+                } icon: {
+                    Image(systemName: "hand.raised.fill")
+                }
             } footer: {
-                Text("When enabled, all touches are blocked until a triple-tap is detected.")
+                Text("settings.safety.touchlock.description", tableName: "Plinx")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -91,13 +109,21 @@ private struct SettingsBody: View {
             // MARK: GPL compliance (hidden behind this gate)
             Section {
                 Link(destination: URL(string: "https://github.com/wunax/strimr")!) {
-                    Label("Strimr Open Source (GPL-2.0)", systemImage: "chevron.left.forwardslash.chevron.right")
+                    Label {
+                        Text("settings.about.strimr", tableName: "Plinx")
+                    } icon: {
+                        Image(systemName: "chevron.left.forwardslash.chevron.right")
+                    }
                 }
                 .foregroundStyle(.primary)
             } header: {
-                Label("Legal & Open Source", systemImage: "scroll.fill")
+                Label {
+                    Text("settings.about.title", tableName: "Plinx")
+                } icon: {
+                    Image(systemName: "scroll.fill")
+                }
             } footer: {
-                Text("Plinx is built on Strimr, licensed under the GPL-2.0. Source code is available at the link above.")
+                Text("settings.about.description", tableName: "Plinx")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -107,11 +133,11 @@ private struct SettingsBody: View {
                 Button(role: .destructive) {
                     Task { await sessionManager.signOut() }
                 } label: {
-                    Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                    Label("common.actions.logOut", systemImage: "rectangle.portrait.and.arrow.right")
                 }
             }
         }
-        .navigationTitle("Settings")
+        .navigationTitle(Text("tabs.settings", tableName: "Plinx"))
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .background(Color.black.ignoresSafeArea())

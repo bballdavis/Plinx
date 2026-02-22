@@ -112,6 +112,7 @@ targets:
         excludes:
           # Exclude Strimr brand assets if any leak in
           - "**/*strimr*"
+      - path: ../Vendor/Strimr/Localizable.xcstrings
 
     dependencies:
       - package: PlinxCore

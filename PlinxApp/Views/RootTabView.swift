@@ -46,7 +46,7 @@ struct RootTabView: View {
                                 }
                             }
                         )
-                        .navigationTitle("Home")
+                        .navigationTitle("tabs.home")
                         .navigationDestination(for: MainCoordinator.Route.self) { route in
                             destination(for: route)
                         }
@@ -66,7 +66,7 @@ struct RootTabView: View {
                                 mainCoordinator.libraryPath.append(library)
                             }
                         )
-                        .navigationTitle("Library")
+                        .navigationTitle(Text("tabs.library", tableName: "Plinx"))
                         .navigationDestination(for: Library.self) { library in
                             LibraryDetailView(
                                 library: library,
@@ -101,7 +101,7 @@ struct RootTabView: View {
                                 }
                             }
                         )
-                        .navigationTitle("Search")
+                        .navigationTitle("tabs.search")
                         .navigationDestination(for: MainCoordinator.Route.self) { route in
                             destination(for: route)
                         }
@@ -110,7 +110,7 @@ struct RootTabView: View {
                 case .more:
                     NavigationStack(path: mainCoordinator.pathBinding(for: .more)) {
                         PlinxSettingsView()
-                            .navigationTitle("Settings")
+                            .navigationTitle(Text("tabs.settings", tableName: "Plinx"))
                             .navigationDestination(for: MainCoordinator.Route.self) { route in
                                 destination(for: route)
                             }
@@ -128,11 +128,11 @@ struct RootTabView: View {
             // Custom Liquid Glass Tab Bar
             HStack(spacing: 12) {
                 ForEach([
-                    (MainCoordinator.Tab.home, "Home", "house.fill"),
-                    (MainCoordinator.Tab.library, "Library", "square.grid.2x2.fill"),
-                    (MainCoordinator.Tab.search, "Search", "magnifyingglass"),
-                    (MainCoordinator.Tab.more, "Settings", "gearshape.fill")
-                ], id: \.1) { (tab, title, icon) in
+                    (MainCoordinator.Tab.home, "tabs.home", "house.fill", nil),
+                    (MainCoordinator.Tab.library, "tabs.library", "square.grid.2x2.fill", "Plinx"),
+                    (MainCoordinator.Tab.search, "tabs.search", "magnifyingglass", nil),
+                    (MainCoordinator.Tab.more, "tabs.settings", "gearshape.fill", "Plinx")
+                ], id: \.1) { (tab, title, icon, table) in
                     Button(action: {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                             mainCoordinator.tab = tab
@@ -142,7 +142,7 @@ struct RootTabView: View {
                             Image(systemName: icon)
                                 .font(.system(size: 20, weight: .bold))
                             if mainCoordinator.tab == tab {
-                                Text(title)
+                                Text(LocalizedStringKey(title), tableName: table)
                                     .font(.caption2.bold())
                                     .transition(.scale.combined(with: .opacity))
                             }

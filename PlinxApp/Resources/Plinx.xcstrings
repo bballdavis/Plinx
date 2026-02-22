@@ -1,0 +1,316 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "app.branding.name" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plinx"
+          }
+        }
+      }
+    },
+    "parental.gate.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Parents Only"
+          }
+        }
+      }
+    },
+    "parental.gate.unlock" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlock"
+          }
+        }
+      }
+    },
+    "parental.gate.placeholder" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Answer"
+          }
+        }
+      }
+    },
+    "media.unavailable.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Content Not Available"
+          }
+        }
+      }
+    },
+    "media.unavailable.description" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This title isn't available in Plinx's kid-safe mode."
+          }
+        }
+      }
+    },
+    "media.detail.play" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "▶  Play"
+          }
+        }
+      }
+    },
+    "media.detail.seasons" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seasons"
+          }
+        }
+      }
+    },
+    "media.detail.related" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Related"
+          }
+        }
+      }
+    },
+    "media.collection.empty" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No items are available in this collection."
+          }
+        }
+      }
+    },
+    "tabs.home" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Home"
+          }
+        }
+      }
+    },
+    "tabs.library" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Library"
+          }
+        }
+      }
+    },
+    "tabs.search" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search"
+          }
+        }
+      }
+    },
+    "tabs.settings" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Settings"
+          }
+        }
+      }
+    },
+    "home.loading" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading your shows…"
+          }
+        }
+      }
+    },
+    "library.loading.plinx" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading your libraries…"
+          }
+        }
+      }
+    },
+    "search.placeholder" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search movies, shows…"
+          }
+        }
+      }
+    },
+    "search.placeholder.prompt" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What would you like to watch?"
+          }
+        }
+      }
+    },
+    "search.no_results %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No results for \"%@\""
+          }
+        }
+      }
+    },
+    "settings.libraries.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Visible Libraries"
+          }
+        }
+      }
+    },
+    "settings.libraries.description" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only selected libraries appear in the Plinx home and library screens."
+          }
+        }
+      }
+    },
+    "settings.safety.rating.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maximum Rating"
+          }
+        }
+      }
+    },
+    "settings.safety.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Content Safety"
+          }
+        }
+      }
+    },
+    "settings.safety.rating.description" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Content rated above this level won't appear anywhere in Plinx."
+          }
+        }
+      }
+    },
+    "settings.safety.touchlock.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Baby Lock"
+          }
+        }
+      }
+    },
+    "settings.safety.touchlock.section" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touch Protection"
+          }
+        }
+      }
+    },
+    "settings.safety.touchlock.description" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When enabled, all touches are blocked until a triple-tap is detected."
+          }
+        }
+      }
+    },
+    "settings.about.strimr" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Strimr Open Source (GPL-2.0)"
+          }
+        }
+      }
+    },
+    "settings.about.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Legal & Open Source"
+          }
+        }
+      }
+    },
+    "settings.about.description" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plinx is built on Strimr, licensed under the GPL-2.0. Source code is available at the link above."
+          }
+        }
+      }
+    },
+    "player.vlc.missing" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VLC Player Engine not installed in this build."
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.1"
+}

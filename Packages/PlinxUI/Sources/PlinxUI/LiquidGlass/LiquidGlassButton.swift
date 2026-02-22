@@ -21,9 +21,10 @@ import PlinxCore
 /// ```swift
 /// LiquidGlassButton("Play") { startPlayback() }
 /// LiquidGlassButton("Settings", style: .compact) { openSettings() }
+/// LiquidGlassButton(LocalizedStringResource("Unlock", table: "Plinx")) { ... }
 /// ```
 public struct LiquidGlassButton: View {
-    private let title: String
+    private let title: LocalizedStringResource
     private let icon: String?
     private let glassStyle: PlinxTheme.Glass
     private let action: () -> Void
@@ -34,7 +35,7 @@ public struct LiquidGlassButton: View {
     @State private var isPressed = false
 
     public init(
-        _ title: String,
+        _ title: LocalizedStringResource,
         icon: String? = nil,
         style: PlinxTheme.Glass? = nil,
         theme: PlinxTheme = PlinxTheme(),

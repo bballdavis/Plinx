@@ -19,21 +19,21 @@ struct ParentalGateView: View {
             PlinxieLoadingView()
                 .frame(height: 200)
 
-            Text("Parents Only")
+            Text("parental.gate.title", tableName: "Plinx")
                 .font(.title2.bold())
                 .foregroundStyle(PlinxTheme().palette.primary)
 
             Text(challenge.prompt)
                 .font(.system(size: 48, weight: .black, design: .rounded))
 
-            TextField("Answer", text: $answerText)
+            TextField(Text("parental.gate.placeholder", tableName: "Plinx"), text: $answerText)
                 .textFieldStyle(.roundedBorder)
                 .keyboardType(.numberPad)
                 .multilineTextAlignment(.center)
                 .font(.largeTitle)
                 .frame(maxWidth: 200)
 
-            LiquidGlassButton("Unlock") {
+            LiquidGlassButton(LocalizedStringResource("parental.gate.unlock", table: "Plinx")) {
                 if let answer = Int(answerText), mathGate.validate(answer: answer, for: challenge) {
                     onAllowed()
                 } else {

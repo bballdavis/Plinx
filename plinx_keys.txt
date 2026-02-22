@@ -1,0 +1,51 @@
+1.1
+Answer
+Baby Lock
+Home
+Library
+Loading your libraries…
+Loading your shows…
+Maximum Rating
+No items are available in this collection.
+No results for \
+Plinx
+Related
+Search movies, shows…
+Search
+Seasons
+Settings
+This title isn't available in Plinx's kid-safe mode.
+Touch Protection
+Unlock
+VLC Player Engine not installed in this build.
+Visible Libraries
+What would you like to watch?
+app.branding.name
+home.loading
+library.loading.plinx
+media.collection.empty
+media.detail.play
+media.detail.related
+media.detail.seasons
+media.unavailable.description
+media.unavailable.title
+player.vlc.missing
+search.no_results %@
+search.placeholder
+search.placeholder.prompt
+settings.about.description
+settings.about.strimr
+settings.about.title
+settings.libraries.description
+settings.libraries.title
+settings.safety.rating.description
+settings.safety.rating.title
+settings.safety.title
+settings.safety.touchlock.description
+settings.safety.touchlock.section
+settings.safety.touchlock.title
+tabs.home
+tabs.library
+tabs.search
+tabs.settings
+▶  Play

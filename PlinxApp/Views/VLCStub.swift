@@ -21,7 +21,7 @@ struct VLCPlayerView: View {
     var body: some View {
         ZStack {
             Color.black
-            Text("VLC Player Engine not installed in this build.")
+            Text("player.vlc.missing", tableName: "Plinx")
                 .foregroundStyle(.white)
         }
     }

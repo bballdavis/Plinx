@@ -29,7 +29,7 @@ struct PlinxSearchView: View {
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.7))
 
-            TextField("Search movies, shows…", text: $viewModel.query)
+            TextField(Text("search.placeholder", tableName: "Plinx"), text: $viewModel.query)
                 .font(.body)
                 .foregroundStyle(.white)
                 .tint(.orange)
@@ -69,7 +69,7 @@ struct PlinxSearchView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .tint(.orange)
         } else if viewModel.items.isEmpty {
-            Text("No results for \"\(viewModel.query)\"")
+            Text("search.no_results \(viewModel.query)", tableName: "Plinx")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -83,7 +83,7 @@ struct PlinxSearchView: View {
             Image(systemName: "sparkle.magnifyingglass")
                 .font(.system(size: 48, weight: .bold))
                 .foregroundStyle(.orange.opacity(0.7))
-            Text("What would you like to watch?")
+            Text("search.placeholder.prompt", tableName: "Plinx")
                 .font(.headline)
                 .foregroundStyle(.secondary)
         }

@@ -30,10 +30,10 @@ struct PlinxMediaDetailView: View {
             Image(systemName: "lock.shield.fill")
                 .font(.system(size: 56, weight: .bold))
                 .foregroundStyle(.orange)
-            Text("Content Not Available")
+            Text("media.unavailable.title", tableName: "Plinx")
                 .font(.title2.bold())
                 .foregroundStyle(.white)
-            Text("This title isn't available in Plinx's kid-safe mode.")
+            Text("media.unavailable.description", tableName: "Plinx")
                 .font(.subheadline)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
@@ -125,7 +125,7 @@ struct PlinxMediaDetailView: View {
             }
 
             // Play button
-            LiquidGlassButton("▶  Play") {
+            LiquidGlassButton(LocalizedStringResource("media.detail.play", table: "Plinx")) {
                 Task {
                     if let key = await viewModel.playbackRatingKey() {
                         onPlay(key, viewModel.media.plexType)
@@ -157,7 +157,7 @@ struct PlinxMediaDetailView: View {
 
     private var seasonsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Seasons")
+            Text("media.detail.seasons", tableName: "Plinx")
                 .font(.title3.bold())
                 .foregroundStyle(.white)
                 .padding(.horizontal, 20)
@@ -202,7 +202,7 @@ struct PlinxMediaDetailView: View {
 
     private var relatedSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Related")
+            Text("media.detail.related", tableName: "Plinx")
                 .font(.title3.bold())
                 .foregroundStyle(.white)
                 .padding(.horizontal, 20)

@@ -29,7 +29,7 @@ struct PlinxHomeView: View {
     private var fullscreenLoading: some View {
         VStack(spacing: 20) {
             PlinxieLoadingView()
-            Text("Loading your shows…")
+            Text("home.loading")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
