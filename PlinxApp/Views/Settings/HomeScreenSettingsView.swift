@@ -51,17 +51,17 @@ struct HomeScreenSettingsView: View {
                 }
             } header: {
                 Label {
-                    Text("Recently Added")
+                    Text("settings.homescreen.recentlyadded.title", tableName: "Plinx")
                 } icon: {
                     Image(systemName: "clock.fill")
                 }
             } footer: {
-                Text("Choose which libraries appear in the Recently Added rows and drag to set the display order.")
+                Text("settings.homescreen.recentlyadded.footer", tableName: "Plinx")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
-        .navigationTitle("Home Screen")
+        .navigationTitle(Text("settings.homescreen.title", tableName: "Plinx"))
         .navigationBarTitleDisplayMode(.large)
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
@@ -124,7 +124,6 @@ private struct HomeLibraryRow: View {
         Toggle(isOn: Binding(get: { isEnabled }, set: { onToggle($0) })) {
             Label(library.title, systemImage: library.iconName)
         }
-        .tint(.orange)
     }
 }
 

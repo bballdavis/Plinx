@@ -29,9 +29,13 @@ private struct SettingsBody: View {
     @Environment(SettingsManager.self) private var settingsManager
     @Environment(LibraryStore.self) private var libraryStore
     @Environment(SessionManager.self) private var sessionManager
+    @Environment(PlexAPIContext.self) private var plexApiContext
 
     @AppStorage("plinx.babyLockEnabled") private var babyLockEnabled = false
-    @AppStorage("plinx.maxRating") private var maxRatingRaw = PlinxRating.g.rawValue
+    @AppStorage("plinx.maxMovieRating") private var maxMovieRatingRaw = PlinxRating.pg.rawValue
+    @AppStorage("plinx.maxTVRating")    private var maxTVRatingRaw    = PlinxRating.tvPg.rawValue
+
+    @State private var isPresentingProfileSwitcher = false
 
     var body: some View {
         List {
@@ -46,30 +50,55 @@ private struct SettingsBody: View {
                 }
                 NavigationLink(destination: HomeScreenSettingsView()) {
                     Label {
-                        Text("Home Screen")
+                        Text("settings.homescreen.title", tableName: "Plinx")
                     } icon: {
                         Image(systemName: "house.fill")
                     }
                 }
             } header: {
                 Label {
-                    Text("Content")
+                    Text("settings.content.section", tableName: "Plinx")
                 } icon: {
                     Image(systemName: "rectangle.stack.fill")
                 }
             }
 
-            // MARK: Content rating
+            // MARK: Appearance
             Section {
-                Picker(selection: $maxRatingRaw) {
-                    ForEach(PlinxRating.allCases, id: \.rawValue) { rating in
+                NavigationLink(destination: AccentColorSettingsView()) {
+                    Label {
+                        Text("settings.accent.title", tableName: "Plinx")
+                    } icon: {
+                        Image(systemName: "paintpalette.fill")
+                    }
+                }
+            } header: {
+                Label {
+                    Text("settings.accent.section", tableName: "Plinx")
+                } icon: {
+                    Image(systemName: "paintbrush.fill")
+                }
+            }
+
+            // MARK: Content rating — movie
+            Section {
+                Picker(selection: $maxMovieRatingRaw) {
+                    ForEach(PlinxRating.movieRatings, id: \.rawValue) { rating in
                         Text(rating.rawValue).tag(rating.rawValue)
                     }
                 } label: {
-                    Text("settings.safety.rating.title", tableName: "Plinx")
+                    Text("settings.safety.movie.rating.title", tableName: "Plinx")
                 }
                 .pickerStyle(.menu)
-                .tint(.orange)
+
+                Picker(selection: $maxTVRatingRaw) {
+                    ForEach(PlinxRating.tvRatings, id: \.rawValue) { rating in
+                        Text(rating.rawValue).tag(rating.rawValue)
+                    }
+                } label: {
+                    Text("settings.safety.tv.rating.title", tableName: "Plinx")
+                }
+                .pickerStyle(.menu)
             } header: {
                 Label {
                     Text("settings.safety.title", tableName: "Plinx")
@@ -77,7 +106,7 @@ private struct SettingsBody: View {
                     Image(systemName: "shield.fill")
                 }
             } footer: {
-                Text("settings.safety.rating.description", tableName: "Plinx")
+                Text("settings.safety.rating.dual.description", tableName: "Plinx")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -91,7 +120,6 @@ private struct SettingsBody: View {
                         Image(systemName: "lock.fill")
                     }
                 }
-                .tint(.orange)
             } header: {
                 Label {
                     Text("settings.safety.touchlock.section", tableName: "Plinx")
@@ -102,6 +130,25 @@ private struct SettingsBody: View {
                 Text("settings.safety.touchlock.description", tableName: "Plinx")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+
+            // MARK: Account (profile switching)
+            Section {
+                Button {
+                    isPresentingProfileSwitcher = true
+                } label: {
+                    Label {
+                        Text("settings.profile.switch", tableName: "Plinx")
+                    } icon: {
+                        Image(systemName: "person.2.fill")
+                    }
+                }
+            } header: {
+                Label {
+                    Text("settings.profile.section", tableName: "Plinx")
+                } icon: {
+                    Image(systemName: "person.crop.circle.fill")
+                }
             }
 
             // MARK: GPL compliance (hidden behind gate)
@@ -144,5 +191,16 @@ private struct SettingsBody: View {
                 try? await libraryStore.loadLibraries()
             }
         }
+        .sheet(isPresented: $isPresentingProfileSwitcher) {
+            NavigationStack {
+                ProfileSwitcherView(
+                    viewModel: ProfileSwitcherViewModel(
+                        context: plexApiContext,
+                        sessionManager: sessionManager
+                    )
+                )
+            }
+        }
     }
 }
+

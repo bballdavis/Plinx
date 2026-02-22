@@ -10,7 +10,7 @@ struct VisibleLibrariesView: View {
     var body: some View {
         List {
             if libraryStore.libraries.isEmpty {
-                Text("No libraries found.")
+                Text("settings.libraries.noneFound", tableName: "Plinx")
                     .foregroundStyle(.secondary)
             } else {
                 Section {
@@ -24,7 +24,7 @@ struct VisibleLibrariesView: View {
                 }
             }
         }
-        .navigationTitle("Visible Libraries")
+        .navigationTitle(Text("settings.libraries.title", tableName: "Plinx"))
         .navigationBarTitleDisplayMode(.large)
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
@@ -56,6 +56,5 @@ private struct LibraryVisibilityRow: View {
         )) {
             Label(library.title, systemImage: library.iconName)
         }
-        .tint(.orange)
     }
 }

@@ -48,7 +48,14 @@ struct PlinxApp: App {
     @StateObject private var mainCoordinator = MainCoordinator()
 
     // ── Plinx Safety Layer ──────────────────────────────────────────────
-    @State private var safetyPolicy = SafetyPolicy.ratingOnly()
+    @AppStorage("plinx.maxMovieRating") private var maxMovieRatingRaw = PlinxRating.pg.rawValue
+    @AppStorage("plinx.maxTVRating") private var maxTVRatingRaw = PlinxRating.tvPg.rawValue
+
+    private var safetyPolicy: SafetyPolicy {
+        let movieRating = PlinxRating(rawValue: maxMovieRatingRaw) ?? .pg
+        let tvRating = PlinxRating(rawValue: maxTVRatingRaw) ?? .tvPg
+        return SafetyPolicy.ratingOnly(maxMovie: movieRating, maxTV: tvRating, allowUnrated: true)
+    }
 
     // ── Plinx Playback / Lifecycle ──────────────────────────────────────
     @StateObject private var playbackCoordinator = PlaybackCoordinator()
@@ -58,6 +65,13 @@ struct PlinxApp: App {
 
     // ── Plinx Safety Hardening ──────────────────────────────────────────
     @AppStorage("plinx.babyLockEnabled") private var babyLockEnabled = false
+
+    // ── Plinx Accent Color ──────────────────────────────────────────────
+    @AppStorage("plinx.accentColorName") private var accentColorName = PlinxAccentColor.orange.rawValue
+
+    private var accentColor: Color {
+        PlinxAccentColor(rawValue: accentColorName)?.color ?? .orange
+    }
 
     // MARK: - Init (Dependency Construction)
 
@@ -94,6 +108,7 @@ struct PlinxApp: App {
                 .environmentObject(playbackCoordinator)
                 // ── Global configuration ────────────────────────────
                 .preferredColorScheme(.dark)
+                .tint(accentColor)
                 .onAppear { AppearanceSetup.apply(theme) }
                 // ── Lifecycle hardening ─────────────────────────────
                 .lifecycleHardening(

@@ -26,4 +26,24 @@ public enum PlinxRating: String, CaseIterable, Comparable, Sendable {
         case .tvMa: return 8
         }
     }
+
+    /// `true` for TV-style ratings (TV-Y, TV-Y7, TV-PG, TV-14, TV-MA).
+    public var isTVRating: Bool {
+        rawValue.hasPrefix("TV-")
+    }
+
+    /// `true` for MPAA movie ratings (G, PG, PG-13, R).
+    public var isMovieRating: Bool {
+        !isTVRating
+    }
+
+    /// All TV-style ratings in ascending severity order.
+    public static var tvRatings: [PlinxRating] {
+        allCases.filter(\.isTVRating)
+    }
+
+    /// All MPAA movie ratings in ascending severity order.
+    public static var movieRatings: [PlinxRating] {
+        allCases.filter(\.isMovieRating)
+    }
 }

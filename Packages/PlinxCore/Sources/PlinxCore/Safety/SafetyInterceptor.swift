@@ -80,12 +80,13 @@ public struct SafetyInterceptor: Sendable {
             ))
         }
         guard let rating = item.rating else {
-            return .rejected(reason: .missingRating)
+            return policy.allowUnrated ? .allowed : .rejected(reason: .missingRating)
         }
-        if rating > policy.maxRating {
+        let maxAllowed = rating.isTVRating ? policy.maxTVRating : policy.maxMovieRating
+        if rating > maxAllowed {
             return .rejected(reason: .ratingExceedsMax(
                 itemRating: rating,
-                maxAllowed: policy.maxRating
+                maxAllowed: maxAllowed
             ))
         }
         return .allowed
@@ -109,9 +110,11 @@ public struct SafetyInterceptor: Sendable {
     }
 
     private func passesRatingGate(_ item: PlinxMediaItem) -> Bool {
-        // Fail-closed: absent or unrecognized rating → reject
-        guard let rating = item.rating else { return false }
-        return rating <= policy.maxRating
+        guard let rating = item.rating else {
+            return policy.allowUnrated
+        }
+        let maxAllowed = rating.isTVRating ? policy.maxTVRating : policy.maxMovieRating
+        return rating <= maxAllowed
     }
 }
 

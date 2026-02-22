@@ -26,37 +26,45 @@ enum StrimrAdapter {
     // MARK: - Single Item Checks
 
     /// Check a `MediaItem` (base Strimr media type).
-    /// Fail-closed: missing/unrecognized `contentRating` → rejected.
+    /// - If the item has a recognized rating, enforce the appropriate max
+    ///   (TV vs movie) from `policy`.
+    /// - If the item has no rating, the result is controlled by
+    ///   `policy.allowUnrated`. Library-level gating is the primary guard.
     static func isAllowed(_ item: MediaItem, policy: SafetyPolicy) -> Bool {
         guard let ratingString = item.contentRating,
-              let rating = PlinxRating(rawValue: ratingString) else {
-            return false  // fail-closed
+              !ratingString.isEmpty else {
+            return policy.allowUnrated
         }
-        return rating <= policy.maxRating
+        guard let rating = PlinxRating(rawValue: ratingString) else {
+            // Unrecognized rating string — treat as unrated.
+            return policy.allowUnrated
+        }
+        let maxAllowed = rating.isTVRating ? policy.maxTVRating : policy.maxMovieRating
+        return rating <= maxAllowed
     }
 
     /// Check a `MediaDisplayItem` (union of playable + collection).
-    /// Collections are always allowed (they don't carry ratings themselves;
-    /// their children are individually filtered).
+    /// Collections are always allowed (their children are individually filtered).
     static func isAllowed(_ displayItem: MediaDisplayItem, policy: SafetyPolicy) -> Bool {
         switch displayItem {
         case let .playable(item):
             return isAllowed(item, policy: policy)
         case .collection:
-            // Collections themselves have no rating; items inside them are
-            // filtered when the collection is loaded.
             return true
         }
     }
 
     /// Check a `PlayableMediaItem` (movie, episode, etc.).
-    /// Fail-closed: missing/unrecognized `contentRating` → rejected.
     static func isAllowed(_ item: PlayableMediaItem, policy: SafetyPolicy) -> Bool {
         guard let ratingString = item.contentRating,
-              let rating = PlinxRating(rawValue: ratingString) else {
-            return false  // fail-closed
+              !ratingString.isEmpty else {
+            return policy.allowUnrated
         }
-        return rating <= policy.maxRating
+        guard let rating = PlinxRating(rawValue: ratingString) else {
+            return policy.allowUnrated
+        }
+        let maxAllowed = rating.isTVRating ? policy.maxTVRating : policy.maxMovieRating
+        return rating <= maxAllowed
     }
 
     // MARK: - Batch Filtering

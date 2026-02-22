@@ -12,27 +12,76 @@ public enum LabelMatchMode: Sendable, Equatable {
 
 public struct SafetyPolicy: Sendable, Equatable {
     public let labelMatchMode: LabelMatchMode
-    public let maxRating: PlinxRating
 
-    /// Legacy init preserving the original `requiredLabel` parameter name.
+    /// Maximum allowed rating for movie content (G, PG, PG-13, R).
+    public let maxMovieRating: PlinxRating
+
+    /// Maximum allowed rating for TV content (TV-Y, TV-Y7, TV-PG, TV-14, TV-MA).
+    public let maxTVRating: PlinxRating
+
+    /// When `true`, items with no `contentRating` are allowed through.
+    /// Library-level gating is the primary guard for this path.
+    public let allowUnrated: Bool
+
+    // MARK: - Inits
+
+    /// Legacy init — single rating applied to both movie and TV content.
     public init(requiredLabel: String = "Kids", maxRating: PlinxRating = .g) {
         self.labelMatchMode = .required(requiredLabel)
-        self.maxRating = maxRating
+        self.maxMovieRating = maxRating
+        self.maxTVRating = maxRating
+        self.allowUnrated = true
     }
 
-    /// Full init with explicit label match mode (use `.none` for Strimr adapters
-    /// that apply library-level gating instead of item-level label checks).
-    public init(labelMatchMode: LabelMatchMode, maxRating: PlinxRating) {
+    /// Full init with explicit label match mode.
+    public init(
+        labelMatchMode: LabelMatchMode,
+        maxMovieRating: PlinxRating,
+        maxTVRating: PlinxRating,
+        allowUnrated: Bool = true
+    ) {
         self.labelMatchMode = labelMatchMode
-        self.maxRating = maxRating
+        self.maxMovieRating = maxMovieRating
+        self.maxTVRating = maxTVRating
+        self.allowUnrated = allowUnrated
     }
 
-    /// Convenience for Strimr adapter path: rating-only, no label requirement.
-    public static func ratingOnly(max: PlinxRating = .g) -> SafetyPolicy {
-        SafetyPolicy(labelMatchMode: .none, maxRating: max)
+    /// Convenience: rating-only, no label requirement.
+    /// Uses a single rating for both movie and TV (backward-compatible).
+    public static func ratingOnly(
+        max: PlinxRating = .g,
+        allowUnrated: Bool = true
+    ) -> SafetyPolicy {
+        SafetyPolicy(
+            labelMatchMode: .none,
+            maxMovieRating: max,
+            maxTVRating: max,
+            allowUnrated: allowUnrated
+        )
     }
 
-    // Backward-compatible accessor for code that reads the single required label.
+    /// Convenience: specify separate max ratings for movie and TV.
+    public static func ratingOnly(
+        maxMovie: PlinxRating,
+        maxTV: PlinxRating,
+        allowUnrated: Bool = true
+    ) -> SafetyPolicy {
+        SafetyPolicy(
+            labelMatchMode: .none,
+            maxMovieRating: maxMovie,
+            maxTVRating: maxTV,
+            allowUnrated: allowUnrated
+        )
+    }
+
+    // MARK: - Backward-compat accessors
+
+    /// Single unified max rating — returns the stricter of the two.
+    public var maxRating: PlinxRating {
+        min(maxMovieRating, maxTVRating)
+    }
+
+    /// Backward-compatible accessor for code that reads the required label.
     public var requiredLabel: String {
         guard case .required(let label) = labelMatchMode else { return "" }
         return label

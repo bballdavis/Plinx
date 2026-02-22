@@ -95,6 +95,7 @@
 		963AA8885CB411E804284BF7 /* PlexServerNetworkClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4708712EF09BD761F1E6BE6 /* PlexServerNetworkClient.swift */; };
 		96BF685595D17ECEBA237FE0 /* AuthRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49EF72F57363309922495BF1 /* AuthRepository.swift */; };
 		9A45F966DDB9335C7A7F7BDD /* MPVPlayerDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4C55444F6521DE49D06F86B /* MPVPlayerDelegate.swift */; };
+		9A77FE411B6D7D9D12F71D19 /* AccentColorSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F992E9A8E29D95DA30D2160 /* AccentColorSettingsView.swift */; };
 		9BC4C88E6A614626F8C1DE6A /* WatchStatusBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B77B894BB4019C1F35848BF /* WatchStatusBadge.swift */; };
 		A0E996AF2BED82D379C491AA /* PlexPlayQueueModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9C7EBE62318D7E6FF4CCD52 /* PlexPlayQueueModels.swift */; };
 		A13086143016CF257B3B00D3 /* SafeLibraryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89D231C82F3E56C193A9A500 /* SafeLibraryViewModel.swift */; };
@@ -240,6 +241,7 @@
 		99DBCF871D1B19646564E930 /* SearchRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchRepository.swift; sourceTree = "<group>"; };
 		9BB03FB103BE0F8296364528 /* SettingsInterfaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsInterfaceView.swift; sourceTree = "<group>"; };
 		9E834C76696236087664C626 /* PlinxLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlinxLibraryView.swift; sourceTree = "<group>"; };
+		9F992E9A8E29D95DA30D2160 /* AccentColorSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccentColorSettingsView.swift; sourceTree = "<group>"; };
 		A1A0AF0EC90BDBF4C0AE029B /* MediaDisplayItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaDisplayItem.swift; sourceTree = "<group>"; };
 		A4708712EF09BD761F1E6BE6 /* PlexServerNetworkClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlexServerNetworkClient.swift; sourceTree = "<group>"; };
 		A57EE2B462A5B4867A6E782A /* PortraitMediaCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortraitMediaCard.swift; sourceTree = "<group>"; };
@@ -633,6 +635,7 @@
 		5D76DE1CBE2935380C3216A6 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				9F992E9A8E29D95DA30D2160 /* AccentColorSettingsView.swift */,
 				96E04B83F9C2FCE712620589 /* HomeScreenSettingsView.swift */,
 				A5F9154778210F9C639A3CAD /* PlinxSettingsView.swift */,
 				E0C6664F7AC6D80EB8F07816 /* VisibleLibrariesView.swift */,
@@ -985,6 +988,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9A77FE411B6D7D9D12F71D19 /* AccentColorSettingsView.swift in Sources */,
 				DD73626E4BC65A016A934F8A /* AppDelegate.swift in Sources */,
 				23B3E4EB12F571F1AA45F54E /* AppSettings.swift in Sources */,
 				C4CE5A21B2F62B450191EC7D /* AppearanceSetup.swift in Sources */,

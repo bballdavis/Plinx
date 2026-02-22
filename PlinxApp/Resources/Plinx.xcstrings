@@ -310,6 +310,136 @@
           }
         }
       }
+    },
+    "settings.content.section" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Content"
+          }
+        }
+      }
+    },
+    "settings.homescreen.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Home Screen"
+          }
+        }
+      }
+    },
+    "settings.homescreen.recentlyadded.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recently Added"
+          }
+        }
+      }
+    },
+    "settings.homescreen.recentlyadded.footer" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose which libraries appear in the Recently Added rows and drag to set the display order."
+          }
+        }
+      }
+    },
+    "settings.libraries.noneFound" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No libraries found."
+          }
+        }
+      }
+    },
+    "settings.accent.section" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appearance"
+          }
+        }
+      }
+    },
+    "settings.accent.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accent Color"
+          }
+        }
+      }
+    },
+    "settings.accent.description" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose the highlight color used throughout Plinx."
+          }
+        }
+      }
+    },
+    "settings.profile.section" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Account"
+          }
+        }
+      }
+    },
+    "settings.profile.switch" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Switch Profile"
+          }
+        }
+      }
+    },
+    "settings.safety.movie.rating.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Max Movie Rating"
+          }
+        }
+      }
+    },
+    "settings.safety.tv.rating.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Max TV Rating"
+          }
+        }
+      }
+    },
+    "settings.safety.rating.dual.description" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Content rated above these levels won't appear anywhere in Plinx."
+          }
+        }
+      }
     }
   },
   "version" : "1.1"

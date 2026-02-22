@@ -35,7 +35,7 @@ struct PlinxHomeView: View {
     private var fullscreenLoading: some View {
         VStack(spacing: 20) {
             PlinxieLoadingView()
-            Text("home.loading")
+            Text("home.loading", tableName: "Plinx")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -46,11 +46,11 @@ struct PlinxHomeView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 28) {
                 if let hub = viewModel.continueWatching, hub.hasItems {
-                    hubRow(hub, landscape: true)
+                    hubRow(hub, layout: .landscape)
                 }
-                ForEach(displayedHubs) { hub in
-                    if hub.hasItems {
-                        hubRow(hub, landscape: false)
+                ForEach(displayedGroups) { group in
+                    if group.hub.hasItems {
+                        hubRow(group.hub, layout: group.layout)
                     }
                 }
             }
@@ -59,50 +59,109 @@ struct PlinxHomeView: View {
         }
     }
 
+    // MARK: - Hub layout groups
+
+    enum CardLayout { case portrait, landscape }
+
+    private struct HubGroup: Identifiable {
+        let id: String
+        let hub: Hub
+        let layout: CardLayout
+    }
+
     // MARK: - Home library filtering & ordering
 
-    private var displayedHubs: [Hub] {
+    private var displayedGroups: [HubGroup] {
         let hiddenIds = decodeStringArray(homeHiddenIdsJson)
         let order = decodeStringArray(homeOrderJson)
+        let libraries = libraryStore.libraries
 
-        let filtered = viewModel.recentlyAdded.filter { hub in
-            guard !hiddenIds.isEmpty else { return true }
-            if let matchingLibrary = library(for: hub, in: libraryStore.libraries) {
-                return !hiddenIds.contains(matchingLibrary.id)
+        // Separate movie / show hubs from other-type hubs.
+        var movieHub: Hub?
+        var showHub: Hub?
+        var otherHubs: [Hub] = []
+
+        for hub in viewModel.recentlyAdded {
+            let id = hub.id.lowercased()
+            if id.contains("movie") || id.contains("film") {
+                movieHub = hub
+            } else if id.contains("show") || id.contains("tv") || id.contains("series") {
+                showHub = hub
+            } else {
+                otherHubs.append(hub)
             }
-            return true
         }
 
-        guard !order.isEmpty else { return filtered }
-        return filtered.sorted { a, b in
-            let ai = orderIndex(for: a, order: order, libraries: libraryStore.libraries)
-            let bi = orderIndex(for: b, order: order, libraries: libraryStore.libraries)
-            return ai < bi
+        // Combine movie + show into one poster-style hub.
+        let movieLibId = movieHub.flatMap { matchedLibraryId(for: $0, in: libraries) }
+        let showLibId  = showHub.flatMap  { matchedLibraryId(for: $0, in: libraries) }
+        let movieVisible = movieHub != nil && !hiddenIds.contains(movieLibId ?? "__none__")
+        let showVisible  = showHub  != nil && !hiddenIds.contains(showLibId  ?? "__none__")
+
+        var groups: [HubGroup] = []
+
+        if movieVisible || showVisible {
+            var combined: [MediaDisplayItem] = []
+            let m = movieVisible ? (movieHub?.items ?? []) : []
+            let s = showVisible  ? (showHub?.items  ?? []) : []
+            let maxCount = max(m.count, s.count)
+            for i in 0..<maxCount {
+                if i < m.count { combined.append(m[i]) }
+                if i < s.count { combined.append(s[i]) }
+            }
+            if !combined.isEmpty {
+                let title = movieHub?.title ?? showHub?.title ?? "Recently Added"
+                let combinedId = "combined.recentlyadded.movies+shows"
+                groups.append(HubGroup(
+                    id: combinedId,
+                    hub: Hub(id: combinedId, title: title, items: combined),
+                    layout: .portrait
+                ))
+            }
+        }
+
+        // Other-type hubs use letterbox (landscape) layout.
+        for hub in otherHubs {
+            let libId = matchedLibraryId(for: hub, in: libraries)
+            if let libId, hiddenIds.contains(libId) { continue }
+            groups.append(HubGroup(id: hub.id, hub: hub, layout: .landscape))
+        }
+
+        guard !order.isEmpty else { return groups }
+        return groups.sorted { a, b in
+            orderIndexForGroup(a, order: order, libraries: libraries)
+            < orderIndexForGroup(b, order: order, libraries: libraries)
         }
     }
 
-    private func orderIndex(for hub: Hub, order: [String], libraries: [Library]) -> Int {
-        guard let lib = library(for: hub, in: libraries),
-              let idx = order.firstIndex(of: lib.id) else {
-            return Int.max
-        }
-        return idx
-    }
-
-    private func library(for hub: Hub, in libraries: [Library]) -> Library? {
+    private func matchedLibraryId(for hub: Hub, in libraries: [Library]) -> String? {
         let id = hub.id.lowercased()
         return libraries.first { lib in
             switch lib.type {
             case .movie: return id.contains("movie") || id.contains("film")
             case .show:  return id.contains("show") || id.contains("tv") || id.contains("series")
-            default:     return false
+            default:     return id.contains(lib.id.lowercased()) || id.contains(lib.title.lowercased())
             }
+        }?.id
+    }
+
+    private func orderIndexForGroup(_ group: HubGroup, order: [String], libraries: [Library]) -> Int {
+        if group.id == "combined.recentlyadded.movies+shows" {
+            let indices = order.enumerated().compactMap { (i, libId) -> Int? in
+                guard let lib = libraries.first(where: { $0.id == libId }),
+                      lib.type == .movie || lib.type == .show else { return nil }
+                return i
+            }
+            return indices.min() ?? Int.max
         }
+        guard let libId = matchedLibraryId(for: group.hub, in: libraries),
+              let idx = order.firstIndex(of: libId) else { return Int.max }
+        return idx
     }
 
     // MARK: - Hub row
 
-    private func hubRow(_ hub: Hub, landscape: Bool) -> some View {
+    private func hubRow(_ hub: Hub, layout: CardLayout) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(hub.title)
                 .font(.title3.bold())
@@ -112,7 +171,7 @@ struct PlinxHomeView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 12) {
                     ForEach(hub.items) { item in
-                        mediaCard(item, landscape: landscape)
+                        mediaCard(item, layout: layout)
                             .onTapGesture { onSelectMedia(item) }
                     }
                 }
@@ -121,9 +180,10 @@ struct PlinxHomeView: View {
         }
     }
 
-    private func mediaCard(_ item: MediaDisplayItem, landscape: Bool) -> some View {
-        let cardWidth: CGFloat = landscape ? 200 : 110
-        let ratio: CGFloat = landscape ? 16 / 9 : 2 / 3
+    private func mediaCard(_ item: MediaDisplayItem, layout: CardLayout) -> some View {
+        let isLandscape = layout == .landscape
+        let cardWidth: CGFloat = isLandscape ? 200 : 110
+        let ratio: CGFloat = isLandscape ? 16.0 / 9.0 : 2.0 / 3.0
 
         return VStack(alignment: .leading, spacing: 6) {
             ZStack(alignment: .bottomLeading) {
@@ -141,7 +201,7 @@ struct PlinxHomeView: View {
                 if let pct = item.viewProgressPercentage, pct > 0 {
                     GeometryReader { geo in
                         Capsule()
-                            .fill(Color.orange)
+                            .fill(Color.accentColor)
                             .frame(width: geo.size.width * CGFloat(min(pct / 100, 1)), height: 3)
                             .padding(.horizontal, 4)
                             .padding(.bottom, 4)

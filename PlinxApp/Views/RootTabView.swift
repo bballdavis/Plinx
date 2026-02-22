@@ -55,7 +55,8 @@ struct RootTabView: View {
                         }
                     }
                 )
-                .navigationTitle(Text("tabs.home"))
+                .navigationTitle(Text("tabs.home", tableName: "Plinx"))
+                .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
@@ -70,7 +71,11 @@ struct RootTabView: View {
                 }
             }
             .tabItem {
-                Label("Home", systemImage: "house.fill")
+                Label {
+                    Text("tabs.home", tableName: "Plinx")
+                } icon: {
+                    Image(systemName: "house.fill")
+                }
             }
             .tag(MainCoordinator.Tab.home)
 
@@ -90,13 +95,17 @@ struct RootTabView: View {
                         }
                     }
                 )
-                .navigationTitle(Text("tabs.search"))
+                .navigationTitle(Text("tabs.search", tableName: "Plinx"))
                 .navigationDestination(for: MainCoordinator.Route.self) { route in
                     destination(for: route)
                 }
             }
             .tabItem {
-                Label("Search", systemImage: "magnifyingglass")
+                Label {
+                    Text("tabs.search", tableName: "Plinx")
+                } icon: {
+                    Image(systemName: "magnifyingglass")
+                }
             }
             .tag(MainCoordinator.Tab.search)
 
