@@ -45,7 +45,7 @@ struct PlinxApp: App {
     @State private var sessionManager: SessionManager
     @State private var settingsManager: SettingsManager
     @State private var libraryStore: LibraryStore
-    @State private var mainCoordinator: MainCoordinator
+    @StateObject private var mainCoordinator = MainCoordinator()
 
     // ── Plinx Safety Layer ──────────────────────────────────────────────
     @State private var safetyPolicy = SafetyPolicy.ratingOnly()
@@ -67,13 +67,10 @@ struct PlinxApp: App {
         let store = LibraryStore(context: context)
         let settings = SettingsManager()
         let session = SessionManager(context: context, libraryStore: store)
-        let coordinator = MainCoordinator()
-
         _plexApiContext = State(initialValue: context)
         _sessionManager = State(initialValue: session)
         _settingsManager = State(initialValue: settings)
         _libraryStore = State(initialValue: store)
-        _mainCoordinator = State(initialValue: coordinator)
 
         // Layer 2: Plinx safety + theming are initialized via property defaults.
         // The ViewFactory is created in `body` since it needs the live state refs.
@@ -89,7 +86,7 @@ struct PlinxApp: App {
                 .environment(sessionManager)
                 .environment(settingsManager)
                 .environment(libraryStore)
-                .environment(mainCoordinator)
+                .environmentObject(mainCoordinator)
                 // ── Plinx layer injection ───────────────────────────
                 .environment(\.plinxTheme, theme)
                 .environment(\.safetyPolicy, safetyPolicy)

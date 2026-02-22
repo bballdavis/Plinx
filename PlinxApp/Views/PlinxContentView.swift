@@ -6,7 +6,7 @@ struct PlinxContentView: View {
     @Environment(PlexAPIContext.self) private var plexApiContext
     @Environment(SettingsManager.self) private var settingsManager
     @Environment(LibraryStore.self) private var libraryStore
-    @Environment(MainCoordinator.self) private var mainCoordinator
+    @EnvironmentObject private var mainCoordinator: MainCoordinator
 
     var body: some View {
         ZStack {
@@ -44,7 +44,7 @@ struct PlinxContentView: View {
                 RootTabView()
             }
         }
-        .fullScreenCover(isPresented: Bindable(mainCoordinator).isPresentingPlayer) {
+        .fullScreenCover(isPresented: $mainCoordinator.isPresentingPlayer) {
             if let playQueue = mainCoordinator.selectedPlayQueue {
                 PlayerWrapper(
                     viewModel: PlayerViewModel(

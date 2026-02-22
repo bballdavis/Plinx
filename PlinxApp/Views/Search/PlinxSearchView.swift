@@ -69,7 +69,7 @@ struct PlinxSearchView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .tint(.orange)
         } else if viewModel.items.isEmpty {
-            Text("No results for "\(viewModel.query)"")
+            Text("No results for \"\(viewModel.query)\"")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

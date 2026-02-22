@@ -78,11 +78,34 @@ targets:
         excludes:
           # VLC player — Plinx uses MPVKit exclusively
           - "Library/VLC/**"
+          # PlaybackLauncher has a @MainActor isolation violation that
+          # is a hard error in the Swift 6.2 compiler. Replaced by
+          # Adapters/PlinxPlaybackLauncher.swift with the fix.
+          # Upstream PR: fix `play()` actor isolation on `settingsManager.playback`
+          - "Features/Player/PlaybackLauncher.swift"
+          # PlayerFactory static methods call @MainActor initializers from
+          # nonisolated context. Replaced by Adapters/PlinxPlayerFactory.swift.
+          - "Library/Player/PlayerFactory.swift"
+          # MediaBackdropGradient uses Color.background which is ambiguous
+          # in iOS 26 SDK (resolves to BackgroundStyle, not Color).
+          # Replaced by Adapters/PlinxMediaBackdropGradient.swift.
+          - "Views/Media/MediaBackdropGradient.swift"
       - path: ../Vendor/Strimr/Strimr-iOS/Features
         name: StrimrIOSFeatures
         excludes:
           # Strimr's own app entry point — we use PlinxApp.swift
           - "../StrimrApp.swift"
+          # These views reference Strimr's asset catalog (Image(.icon) etc.)
+          # and are replaced by Plinx-branded stubs in Views/Auth/.
+          # Their ViewModels in Shared/ and Auth/SignInViewModel.swift still compile.
+          - "Auth/SignInView.swift"
+          - "Auth/ProfileSelection/ProfileSwitcherView.swift"
+          - "Auth/ServerSelection/SelectServerView.swift"
+          # Strimr's MainTabView uses iOS 18+ Tab API; Plinx has its own
+          # RootTabView with Liquid Glass tab bar.
+          - "Tab/MainTabView.swift"
+          # Strimr's ContentView — replaced by PlinxContentView.swift
+          - "ContentView.swift"
 
     resources:
       - path: Resources
@@ -107,6 +130,15 @@ targets:
       base:
         # Ensure vendor code compiles with our Swift version
         SWIFT_VERSION: 5.0
+        # Vendor code (Strimr) has actor-isolation violations that are
+        # errors in the Swift 6 compiler even with Swift 5 language mode.
+        # Minimal concurrency turns them into warnings until vendor fixes.
+        SWIFT_STRICT_CONCURRENCY: minimal
+        # Override: force the frontend to treat concurrency as minimal.
+        # This is needed because Xcode 26's toolchain promotes some
+        # isolation checks to errors even under Swift 5 + minimal mode.
+        # Remove once Strimr fixes its actor isolation (file upstream PR).
+        OTHER_SWIFT_FLAGS: "-Xfrontend -strict-concurrency=minimal -Xfrontend -disable-dynamic-actor-isolation"
 
     scheme:
       shared: true

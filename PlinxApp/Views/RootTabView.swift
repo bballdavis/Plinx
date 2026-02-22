@@ -7,7 +7,7 @@ struct RootTabView: View {
     @Environment(PlexAPIContext.self) private var plexApiContext
     @Environment(SettingsManager.self) private var settingsManager
     @Environment(LibraryStore.self) private var libraryStore
-    @Environment(MainCoordinator.self) private var mainCoordinator
+    @EnvironmentObject private var mainCoordinator: MainCoordinator
     @Environment(\.safetyPolicy) private var safetyPolicy
     @Environment(\.openURL) private var openURL
 
@@ -21,15 +21,13 @@ struct RootTabView: View {
     }
 
     var body: some View {
-        @Bindable var coordinator = mainCoordinator
-
         ZStack(alignment: .bottom) {
             Color.black.ignoresSafeArea()
 
             Group {
                 switch mainCoordinator.tab {
                 case .home:
-                    NavigationStack(path: $coordinator.homePath) {
+                    NavigationStack(path: mainCoordinator.pathBinding(for: .home)) {
                         PlinxHomeView(
                             viewModel: SafeHomeViewModel(
                                 inner: HomeViewModel(
@@ -44,7 +42,7 @@ struct RootTabView: View {
                                 case let .playable(media):
                                     Task { await launcher.play(ratingKey: media.id, type: media.type) }
                                 case let .collection(collection):
-                                    coordinator.homePath.append(MainCoordinator.Route.collectionDetail(collection))
+                                    mainCoordinator.showCollectionDetail(collection)
                                 }
                             }
                         )
@@ -55,7 +53,7 @@ struct RootTabView: View {
                     }
 
                 case .library:
-                    NavigationStack(path: $coordinator.libraryPath) {
+                    NavigationStack(path: mainCoordinator.pathBinding(for: .library)) {
                         PlinxLibraryView(
                             viewModel: SafeLibraryViewModel(
                                 inner: LibraryViewModel(
@@ -65,7 +63,7 @@ struct RootTabView: View {
                                 policy: safetyPolicy
                             ),
                             onSelectLibrary: { library in
-                                coordinator.libraryPath.append(library)
+                                mainCoordinator.libraryPath.append(library)
                             }
                         )
                         .navigationTitle("Library")
@@ -77,7 +75,7 @@ struct RootTabView: View {
                                     case let .playable(media):
                                         Task { await launcher.play(ratingKey: media.id, type: media.type) }
                                     case let .collection(collection):
-                                        coordinator.libraryPath.append(MainCoordinator.Route.collectionDetail(collection))
+                                        mainCoordinator.showCollectionDetail(collection)
                                     }
                                 }
                             )
@@ -88,7 +86,7 @@ struct RootTabView: View {
                     }
 
                 case .search:
-                    NavigationStack(path: $coordinator.searchPath) {
+                    NavigationStack(path: mainCoordinator.pathBinding(for: .search)) {
                         PlinxSearchView(
                             viewModel: SafeSearchViewModel(
                                 inner: SearchViewModel(context: plexApiContext),
@@ -99,7 +97,7 @@ struct RootTabView: View {
                                 case let .playable(media):
                                     Task { await launcher.play(ratingKey: media.id, type: media.type) }
                                 case let .collection(collection):
-                                    coordinator.searchPath.append(MainCoordinator.Route.collectionDetail(collection))
+                                    mainCoordinator.showCollectionDetail(collection)
                                 }
                             }
                         )
@@ -109,8 +107,8 @@ struct RootTabView: View {
                         }
                     }
 
-                case .settings:
-                    NavigationStack(path: $coordinator.settingsPath) {
+                case .more:
+                    NavigationStack(path: mainCoordinator.pathBinding(for: .more)) {
                         PlinxSettingsView()
                             .navigationTitle("Settings")
                             .navigationDestination(for: MainCoordinator.Route.self) { route in
@@ -133,7 +131,7 @@ struct RootTabView: View {
                     (MainCoordinator.Tab.home, "Home", "house.fill"),
                     (MainCoordinator.Tab.library, "Library", "square.grid.2x2.fill"),
                     (MainCoordinator.Tab.search, "Search", "magnifyingglass"),
-                    (MainCoordinator.Tab.settings, "Settings", "gearshape.fill")
+                    (MainCoordinator.Tab.more, "Settings", "gearshape.fill")
                 ], id: \.1) { (tab, title, icon) in
                     Button(action: {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
@@ -180,12 +178,7 @@ struct RootTabView: View {
                     Task { await launcher.play(ratingKey: ratingKey, type: type) }
                 },
                 onSelectRelated: { displayItem in
-                    switch displayItem {
-                    case let .playable(related):
-                        mainCoordinator.homePath.append(MainCoordinator.Route.mediaDetail(related))
-                    case let .collection(collection):
-                        mainCoordinator.homePath.append(MainCoordinator.Route.collectionDetail(collection))
-                    }
+                    mainCoordinator.showMediaDetail(displayItem)
                 }
             )
         case let .collectionDetail(collection):
@@ -198,12 +191,7 @@ struct RootTabView: View {
                     policy: safetyPolicy
                 ),
                 onSelectMedia: { displayItem in
-                    switch displayItem {
-                    case let .playable(media):
-                        Task { await launcher.play(ratingKey: media.id, type: media.type) }
-                    case let .collection(nested):
-                        mainCoordinator.homePath.append(MainCoordinator.Route.collectionDetail(nested))
-                    }
+                    mainCoordinator.showMediaDetail(displayItem)
                 }
             )
         }

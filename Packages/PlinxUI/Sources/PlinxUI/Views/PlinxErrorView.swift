@@ -3,7 +3,7 @@ import SwiftUI
 /// Applies bouncing symbol effect where available, otherwise no-op.
 private struct BounceEffectModifier: ViewModifier {
     func body(content: Content) -> some View {
-        if #available(iOS 17.0, macOS 15.0, *) {
+        if #available(iOS 18.0, macOS 15.0, *) {
             content.symbolEffect(.bounce, options: .repeating)
         } else {
             content
