@@ -1,4 +1,15 @@
 import PlinxCore
+import SwiftUI
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PlayQueueState+Identifiable
+// ─────────────────────────────────────────────────────────────────────────────
+// PlayQueueState already has `let id: Int`, so Identifiable conformance is
+// trivially retroactive. This lets PlinxContentView use the `item:` overload
+// of fullScreenCover, which is safe on iPad (the `isPresented:` + optional
+// content pattern can crash when the sheet is dismissed on iPad before the
+// binding clears).
+extension PlayQueueState: Identifiable {}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // StrimrAdapter — Bridge between Strimr internal types and Plinx safety layer

@@ -96,6 +96,7 @@ struct RootTabView: View {
                     }
                 )
                 .navigationTitle(Text("tabs.search", tableName: "Plinx"))
+                .navigationBarTitleDisplayMode(.inline)
                 .navigationDestination(for: MainCoordinator.Route.self) { route in
                     destination(for: route)
                 }
@@ -125,6 +126,7 @@ struct RootTabView: View {
                     }
                 )
                 .navigationTitle(Text("tabs.library", tableName: "Plinx"))
+                .navigationBarTitleDisplayMode(.inline)
                 .navigationDestination(for: Library.self) { library in
                     LibraryDetailView(
                         library: library,

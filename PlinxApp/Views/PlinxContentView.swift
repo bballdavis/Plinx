@@ -44,15 +44,16 @@ struct PlinxContentView: View {
                 RootTabView()
             }
         }
-        .fullScreenCover(isPresented: $mainCoordinator.isPresentingPlayer) {
-            if let playQueue = mainCoordinator.selectedPlayQueue {
-                PlayerWrapper(
-                    viewModel: PlayerViewModel(
-                        playQueue: playQueue,
-                        context: plexApiContext,
-                        shouldResumeFromOffset: mainCoordinator.shouldResumeFromOffset
-                    )
+        .fullScreenCover(item: $mainCoordinator.selectedPlayQueue) { playQueue in
+            PlayerWrapper(
+                viewModel: PlayerViewModel(
+                    playQueue: playQueue,
+                    context: plexApiContext,
+                    shouldResumeFromOffset: mainCoordinator.shouldResumeFromOffset
                 )
+            )
+            .onDisappear {
+                mainCoordinator.resetPlayer()
             }
         }
     }

@@ -13,13 +13,33 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: false
+          submodules: recursive
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Project Generation
+        run: |
+          cd PlinxApp
+          xcodegen generate
+
+      - name: Build StrimrEngine (Validation)
+        run: swift build --package-path Packages/StrimrEngine
 
       - name: Build PlinxCore
         run: swift build --package-path Packages/PlinxCore
 
       - name: Build PlinxUI
         run: swift build --package-path Packages/PlinxUI
+
+      - name: Build Plinx-iOS App
+        run: |
+          xcodebuild build \
+            -project PlinxApp/Plinx.xcodeproj \
+            -scheme Plinx-iOS \
+            -destination "platform=iOS Simulator,name=iPhone 16 Pro Max" \
+            -configuration Debug \
+            -quiet
 
       - name: Test PlinxCore (with coverage)
         run: swift test --package-path Packages/PlinxCore --enable-code-coverage
