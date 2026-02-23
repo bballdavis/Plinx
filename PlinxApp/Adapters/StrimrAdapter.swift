@@ -55,12 +55,14 @@ enum StrimrAdapter {
     }
 
     /// Check a `MediaDisplayItem` (union of playable + collection).
-    /// Collections are always allowed (their children are individually filtered).
+    /// Collections and playlists are always allowed (their children are individually filtered).
     static func isAllowed(_ displayItem: MediaDisplayItem, policy: SafetyPolicy) -> Bool {
         switch displayItem {
         case let .playable(item):
             return isAllowed(item, policy: policy)
         case .collection:
+            return true
+        case .playlist:
             return true
         }
     }

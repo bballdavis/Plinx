@@ -225,7 +225,7 @@ run_live_ui_tests() {
         -resultBundlePath "/tmp/Plinx_live_ui.xcresult" \
         -only-testing:Plinx-iOS-UITests/LaunchSmokeUITests \
         -only-testing:Plinx-iOS-UITests/LiveRenderSmokeUITests \
-        2>&1 | tee /tmp/live_ui.log | grep -E "Test Suite|Test Case|passed|failed|error:"; then
+        2>&1 | tee /tmp/live_ui.log | grep -E "error:|passed|failed" | head -10; then
         LIVE_RESULT="✓ PASS"
         log_success "Live UI smoke tests passed"
         return 0

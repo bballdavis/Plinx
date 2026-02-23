@@ -65,7 +65,13 @@ echo ""
 # Step 3: Generate project.yml → Plinx.xcodeproj
 echo "⚙️  Generating Xcode project..."
 cd "$PLINX_APP_DIR"
-xcodegen generate
+XGEN_LOG="/tmp/plinx_xcodegen_iphone.log"
+xcodegen generate 2>&1 | tee "$XGEN_LOG"
+
+if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+    echo "❌ XcodeGen failed"
+    exit 1
+fi
 
 if [ ! -d "Plinx.xcodeproj" ]; then
     echo "❌ XcodeGen failed to generate project"
@@ -77,15 +83,18 @@ echo ""
 
 # Step 4: Build the app
 echo "🔨 Building Plinx-iOS..."
+BUILD_LOG="/tmp/plinx_build_iphone.log"
 xcodebuild build \
     -project Plinx.xcodeproj \
     -scheme "$SCHEME" \
     -destination "platform=iOS Simulator,id=$UDID" \
     -configuration Debug \
-    2>&1 | grep -E "^(Build|Compiling|Linking|error:|\*\*)" || true
+    2>&1 | tee "$BUILD_LOG" | grep -E "error:|warning:|Build succeeded|BUILD FAILED" || true
 
 if [ "${PIPESTATUS[0]}" -ne 0 ]; then
-    echo "❌ Build failed"
+    echo ""
+    echo "❌ Build failed. Detailed errors:"
+    grep -A 5 "error:" "$BUILD_LOG" | head -30
     exit 1
 fi
 

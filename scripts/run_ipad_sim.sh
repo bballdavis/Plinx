@@ -22,7 +22,7 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 PLINX_APP_DIR="$PROJECT_ROOT/PlinxApp"
 
 # Configuration
-DEVICE_NAME="${1:-iPad (10th generation) (E19DAE3B-D5F7-4811-BA93-88623C1E76E1) (Shutdown)}"
+DEVICE_NAME="${1:-iPad (10th generation)}"
 BUNDLE_ID="com.example.plinx"
 SCHEME="Plinx-iOS"
 
@@ -35,7 +35,7 @@ echo ""
 
 # Step 1: Check if simulator exists
 echo "📱 Finding simulator..."
-UDID=$(xcrun simctl list devices available | grep "$DEVICE_NAME" | grep -oE '\(([A-F0-9-]+)\)' | head -1 | tr -d '()')
+UDID=$(xcrun simctl list devices available | grep "$DEVICE_NAME" | grep -oE '[A-F0-9-]{36}' | head -1)
 
 if [ -z "$UDID" ]; then
     echo "❌ Simulator '$DEVICE_NAME' not found."
@@ -65,7 +65,13 @@ echo ""
 # Step 3: Generate project.yml → Plinx.xcodeproj
 echo "⚙️  Generating Xcode project..."
 cd "$PLINX_APP_DIR"
-xcodegen generate
+XGEN_LOG="/tmp/plinx_xcodegen_ipad.log"
+xcodegen generate 2>&1 | tee "$XGEN_LOG"
+
+if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+    echo "❌ XcodeGen failed"
+    exit 1
+fi
 
 if [ ! -d "Plinx.xcodeproj" ]; then
     echo "❌ XcodeGen failed to generate project"
@@ -77,15 +83,18 @@ echo ""
 
 # Step 4: Build the app
 echo "🔨 Building Plinx-iOS..."
+BUILD_LOG="/tmp/plinx_build_ipad.log"
 xcodebuild build \
     -project Plinx.xcodeproj \
     -scheme "$SCHEME" \
     -destination "platform=iOS Simulator,id=$UDID" \
     -configuration Debug \
-    2>&1 | grep -E "^(Build|Compiling|Linking|error:|\*\*)" || true
+    2>&1 | tee "$BUILD_LOG" | grep -E "error:|warning:|Build succeeded|BUILD FAILED" || true
 
 if [ "${PIPESTATUS[0]}" -ne 0 ]; then
-    echo "❌ Build failed"
+    echo ""
+    echo "❌ Build failed. Detailed errors:"
+    grep -A 5 "error:" "$BUILD_LOG" | head -30
     exit 1
 fi
 
