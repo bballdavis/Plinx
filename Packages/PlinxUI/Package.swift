@@ -30,7 +30,8 @@ let package = Package(
         .library(name: "PlinxUI", targets: ["PlinxUI"])
     ],
     dependencies: [
-        .package(path: "../PlinxCore")
+        .package(path: "../PlinxCore"),
+        .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.17.0"),
     ],
     targets: [
         .target(
@@ -41,7 +42,10 @@ let package = Package(
         ),
         .testTarget(
             name: "PlinxUITests",
-            dependencies: ["PlinxUI"]
+            dependencies: [
+                "PlinxUI",
+                .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
+            ]
         )
     ]
 )

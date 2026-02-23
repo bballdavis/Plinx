@@ -1,8 +1,44 @@
 # Plinx Build & Run Scripts
 
-Convenient shell scripts for building and running the Plinx iOS app on the simulator.
+Convenient shell scripts for building and running the Plinx iOS app on the simulator, plus UI/logic tests.
 
 ## Scripts
+
+### `ui_tests.sh` — Run UI & Logic Tests
+
+Runs Swift Testing tests for both PlinxCore and PlinxUI, with optional snapshot tests.
+
+```bash
+# Run all logic tests (PlinxCore + PlinxUI)
+./scripts/ui_tests.sh
+
+# Run PlinxCore tests only
+./scripts/ui_tests.sh --core
+
+# Run PlinxUI tests only
+./scripts/ui_tests.sh --ui
+
+# Run snapshot diffs on iPhone 15 simulator
+./scripts/ui_tests.sh --snapshots
+
+# Record baseline snapshots (first run, then commit __Snapshots__/)
+./scripts/ui_tests.sh --record
+```
+
+**What it does:**
+- **Logic tests** (PlinxCore + PlinxUI): Swift Testing tests — fast, no simulator needed
+  - `PlinxRating` parsing, ordering, classification
+  - `SafetyInterceptor` label & rating filtering
+  - `PlinxTheme`, `PlinxMediaCard`, `PlinxErrorView` property tests
+- **Snapshot tests** (PlinxUI only): Pixel-diff screenshots at three device widths
+  - iPhone SE (compact), iPhone 15 (standard), iPad Pro 13" (regular)
+  - Catches layout breakage, missing nav bars, UI regressions
+
+**Output:** Colored summary of pass/fail for each test layer.
+
+See [development/UI_TESTING_STRATEGY.md](../development/UI_TESTING_STRATEGY.md) for full documentation.
+
+---
 
 ### `run_iphone_sim.sh` — Build, Install & Run
 
@@ -103,6 +139,37 @@ xcrun simctl list devices available | grep "iPhone 16"
 xcrun simctl erase <device-udid>  # Full reset
 ./scripts/run_iphone_sim.sh       # Try again
 ```
+
+---
+
+## UI Testing Workflow
+
+Run logic tests before every commit:
+
+```bash
+# Run all logic tests (fast, no simulator)
+./scripts/ui_tests.sh
+
+# Run snapshot tests (requires iPhone 15 simulator)
+./scripts/ui_tests.sh --snapshots
+```
+
+**First time snapshot testing:**
+
+```bash
+# 1. Boot iPhone 15 simulator (or let ui_tests.sh do it)
+# 2. Record baselines
+./scripts/ui_tests.sh --record
+
+# 3. Commit the generated __Snapshots__/ folder
+git add Packages/PlinxUI/Tests/PlinxUITests/__Snapshots__/
+git commit -m "test: record PlinxUI snapshot baselines"
+
+# 4. Future runs will compare against these baselines
+./scripts/ui_tests.sh --snapshots
+```
+
+See [development/UI_TESTING_STRATEGY.md](../development/UI_TESTING_STRATEGY.md) for test layer documentation.
 
 ---
 
