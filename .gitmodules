@@ -1,4 +1,3 @@
 [submodule "vendor/strimr"]
 	path = vendor/strimr
 	url = https://github.com/wunax/strimr.git
-	branch = strimr-patched
