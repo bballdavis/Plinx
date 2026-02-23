@@ -1,13 +1,13 @@
 # Strimr Patching Workflow
 
-Plinx maintains a patched version of Strimr (`wunax/strimr`) for kid-safe customizations. Since we don't have push access to the upstream repository, we maintain a local `plinx-patches` branch that contains all Plinx-specific modifications.
+Plinx vendors a patched version of Strimr (`wunax/strimr`) with kid-safe customizations. Since we don't have push access to the upstream repository, we maintain a local `strimr-patched` branch that contains all Strimr modifications for Plinx.
 
 ## Branch Strategy
 
 - **`main`** — Upstream Strimr (read-only, fetch-only)
-- **`plinx-patches`** — Local branch with Plinx customizations (our working branch)
+- **`strimr-patched`** — Local patched version (our working branch)
 
-The `.gitmodules` file is configured to track `plinx-patches`, so cloning or updating this repo automatically checks out the patched version.
+The `.gitmodules` file is configured to track `strimr-patched`, so cloning or updating this repo automatically checks out the patched version.
 
 ## Workflow
 
@@ -16,7 +16,7 @@ The `.gitmodules` file is configured to track `plinx-patches`, so cloning or upd
 ```bash
 cd vendor/strimr
 git log --oneline main..HEAD
-# Shows all commits in plinx-patches that are NOT in upstream main
+# Shows all commits in strimr-patched that are NOT in upstream main
 ```
 
 ### 2. Syncing with Upstream
@@ -79,12 +79,12 @@ cd vendor/strimr
 git remote add fork https://github.com/YOUR_USERNAME/strimr.git
 
 # Push the patches branch
-git push fork plinx-patches
+git push fork strimr-patched
 ```
 
 ## Important Notes
 
-- ⚠️ **Do not manually switch branches in `vendor/strimr`** — the parent Plinx repository expects `plinx-patches`
+- ⚠️ **Do not manually switch branches in `vendor/strimr`** — the parent Plinx repository expects `strimr-patched`
 - ✅ Always rebase patches on upstream `main` before adding new work
 - 📝 Use clear, descriptive commit messages with `feat(plinx):`, `fix(plinx):`, etc. prefixes
 - 🔄 If upstream has breaking changes, update patches and test thoroughly before committing
@@ -97,17 +97,17 @@ Check what we've patched compared to upstream:
 cd vendor/strimr
 
 # Show all patches
-git log --oneline main..plinx-patches
+git log --oneline main..strimr-patched
 
 # Show detailed diffs for all patches
-git diff main..plinx-patches
+git diff main..strimr-patched
 
 # Show just the summary
-git shortlog main..plinx-patches
+git shortlog main..strimr-patched
 ```
 
 ## CI/CD Considerations
 
-- The Plinx CI will always use `plinx-patches` from `vendor/strimr`
+- The Plinx CI will always use `strimr-patched` from `vendor/strimr`
 - Builds will fail if patches conflict with Strimr updates
 - Test locally before committing: `./scripts/build_only.sh`
