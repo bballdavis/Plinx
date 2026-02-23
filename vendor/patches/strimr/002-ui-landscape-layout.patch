@@ -1,0 +1,255 @@
+diff --git a/Shared/Views/Media/MediaImageViewModel.swift b/Shared/Views/Media/MediaImageViewModel.swift
+index a3dc64e..1c63379 100644
+--- a/Shared/Views/Media/MediaImageViewModel.swift
++++ b/Shared/Views/Media/MediaImageViewModel.swift
+@@ -25,7 +25,9 @@ final class MediaImageViewModel {
+         case .thumb:
+             media.preferredThumbPath
+         case .art:
+-            media.preferredArtPath
++            media.type == .clip
++                ? (media.preferredThumbPath ?? media.preferredArtPath)
++                : (media.preferredArtPath ?? media.preferredThumbPath)
+         }
+ 
+         guard let path else {
+diff --git a/Strimr-iOS/Features/Library/Detail/LibraryBrowseView.swift b/Strimr-iOS/Features/Library/Detail/LibraryBrowseView.swift
+index a88ea2a..b41d745 100644
+--- a/Strimr-iOS/Features/Library/Detail/LibraryBrowseView.swift
++++ b/Strimr-iOS/Features/Library/Detail/LibraryBrowseView.swift
+@@ -4,55 +4,58 @@ struct LibraryBrowseView: View {
+     @State var viewModel: LibraryBrowseViewModel
+     let onSelectMedia: (MediaDisplayItem) -> Void
+ 
++    /// When `.landscape`, renders wider cells with LandscapeMediaCard instead of
++    /// portrait poster cards. Useful for libraries whose thumbnails are 16:9
++    /// (e.g. home-video / clip libraries).
++    var overrideLayout: MediaCarousel.Layout? = nil
++
++    @Environment(\.horizontalSizeClass) private var sizeClass
++
++    private var isLandscape: Bool { overrideLayout == .landscape }
++
++    /// On iPhone (compact) with a landscape-type library, use a single full-width
++    /// row per item. On iPad (regular), keep the adaptive multi-column grid.
++    private var useSingleColumnList: Bool {
++        isLandscape && sizeClass == .compact
++    }
++
+     private var gridColumns: [GridItem] {
+-        [
+-            GridItem(.adaptive(minimum: 112, maximum: 112), spacing: 12, alignment: .top),
+-        ]
++        if isLandscape {
++            return [GridItem(.adaptive(minimum: 190, maximum: 190), spacing: 12)]
++        } else {
++            return [GridItem(.adaptive(minimum: 112, maximum: 112), spacing: 12, alignment: .top)]
++        }
+     }
+ 
+     var body: some View {
+         @Bindable var controls = viewModel.controls
+ 
+-        ScrollView {
+-            VStack(alignment: .leading, spacing: 16) {
+-                if controls.hasDisplayTypes {
+-                    LibraryBrowseControlsView(
+-                        viewModel: controls,
+-                        showsBackButton: viewModel.canNavigateBack,
+-                        onNavigateBack: viewModel.navigateBack,
+-                    )
+-                    .padding(.horizontal, 16)
+-                }
++        GeometryReader { proxy in
++            let singleColWidth = proxy.size.width - 32
++            ScrollView {
++                VStack(alignment: .leading, spacing: 16) {
++                    if controls.hasDisplayTypes {
++                        LibraryBrowseControlsView(
++                            viewModel: controls,
++                            showsBackButton: viewModel.canNavigateBack,
++                            onNavigateBack: viewModel.navigateBack
++                        )
++                        .padding(.horizontal, 16)
++                    }
+ 
+-                LazyVGrid(columns: gridColumns, spacing: 16) {
+-                    ForEach(Array(viewModel.browseItems.enumerated()), id: \.element.id) { index, item in
+-                        Group {
+-                            switch item {
+-                            case let .media(media):
+-                                PortraitMediaCard(media: media, width: 112, showsLabels: true) {
+-                                    onSelectMedia(media)
+-                                }
+-                            case let .folder(folder):
+-                                FolderCard(title: folder.title, width: 112, showsLabels: true) {
+-                                    viewModel.enterFolder(folder)
+-                                }
+-                            }
++                    if useSingleColumnList {
++                        LazyVStack(spacing: 12) {
++                            browseContent(width: singleColWidth)
+                         }
+-                        .task {
+-                            if index == viewModel.browseItems.count - 1 {
+-                                await viewModel.loadMore()
+-                            }
++                    } else {
++                        LazyVGrid(columns: gridColumns, spacing: 16) {
++                            browseContent(width: isLandscape ? 190 : 112)
+                         }
+                     }
+-
+-                    if viewModel.isLoadingMore {
+-                        ProgressView()
+-                            .frame(maxWidth: .infinity)
+-                    }
+                 }
+                 .padding(.horizontal, 16)
++                .padding(.top, 16)
+             }
+-            .padding(.top, 16)
+         }
+         .overlay {
+             if viewModel.isLoading, viewModel.browseItems.isEmpty {
+@@ -76,4 +79,38 @@ struct LibraryBrowseView: View {
+             await viewModel.load()
+         }
+     }
++
++    @ViewBuilder
++    private func browseContent(width: CGFloat) -> some View {
++        ForEach(Array(viewModel.browseItems.enumerated()), id: \.element.id) { index, item in
++            Group {
++                switch item {
++                case let .media(media):
++                    if isLandscape {
++                        LandscapeMediaCard(media: media, width: width, showsLabels: true) {
++                            onSelectMedia(media)
++                        }
++                    } else {
++                        PortraitMediaCard(media: media, width: width, showsLabels: true) {
++                            onSelectMedia(media)
++                        }
++                    }
++                case let .folder(folder):
++                    FolderCard(title: folder.title, width: width, showsLabels: true) {
++                        viewModel.enterFolder(folder)
++                    }
++                }
++            }
++            .task {
++                if index == viewModel.browseItems.count - 1 {
++                    await viewModel.loadMore()
++                }
++            }
++        }
++
++        if viewModel.isLoadingMore {
++            ProgressView()
++                .frame(maxWidth: .infinity)
++        }
++    }
+ }
+diff --git a/Strimr-iOS/Features/Library/Detail/LibraryDetailView.swift b/Strimr-iOS/Features/Library/Detail/LibraryDetailView.swift
+index c884951..c3d3b50 100644
+--- a/Strimr-iOS/Features/Library/Detail/LibraryDetailView.swift
++++ b/Strimr-iOS/Features/Library/Detail/LibraryDetailView.swift
+@@ -1,8 +1,10 @@
+ import SwiftUI
++import PlinxCore
+ 
+ struct LibraryDetailView: View {
+     @Environment(PlexAPIContext.self) private var plexApiContext
+     @Environment(SettingsManager.self) private var settingsManager
++    @Environment(\.safetyPolicy) private var safetyPolicy
+     let library: Library
+     let onSelectMedia: (MediaDisplayItem) -> Void
+ 
+@@ -23,20 +25,15 @@ struct LibraryDetailView: View {
+                 switch selectedTab {
+                 case .recommended:
+                     LibraryRecommendedView(
+-                        viewModel: LibraryRecommendedViewModel(
+-                            library: library,
+-                            context: plexApiContext,
+-                        ),
++                        viewModel: makeRecommendedViewModel(),
+                         onSelectMedia: onSelectMedia,
++                        overrideLayout: preferredCarouselLayout,
+                     )
+                 case .browse:
+                     LibraryBrowseView(
+-                        viewModel: LibraryBrowseViewModel(
+-                            library: library,
+-                            context: plexApiContext,
+-                            settingsManager: settingsManager,
+-                        ),
++                        viewModel: makeBrowseViewModel(),
+                         onSelectMedia: onSelectMedia,
++                        overrideLayout: preferredCarouselLayout,
+                     )
+                 case .collections:
+                     LibraryCollectionsView(
+@@ -84,6 +81,61 @@ struct LibraryDetailView: View {
+             }
+         }
+     }
++
++    /// Determines the carousel layout for this library's content.
++    /// Movie and show libraries use portrait (poster) cards.
++    /// All other library types (e.g. home videos, clips) use landscape (letterbox).
++    private var preferredCarouselLayout: MediaCarousel.Layout? {
++        switch library.type {
++        case .movie, .show: return nil          // let hub-level heuristic decide
++        default:            return .landscape   // letterbox for other video types
++        }
++    }
++
++    private func makeRecommendedViewModel() -> LibraryRecommendedViewModel {
++        let vm = LibraryRecommendedViewModel(library: library, context: plexApiContext)
++        let policy = safetyPolicy
++        vm.hubFilter = { filterRecommendedHub($0, policy: policy) }
++        return vm
++    }
++
++    private func makeBrowseViewModel() -> LibraryBrowseViewModel {
++        let vm = LibraryBrowseViewModel(library: library, context: plexApiContext, settingsManager: settingsManager)
++        let policy = safetyPolicy
++        vm.itemFilter = { item in
++            isAllowedInLibraryContext(item, policy: policy)
++        }
++        return vm
++    }
++
++    private var excludesCollectionsInBrowseContext: Bool {
++        switch library.type {
++        case .movie, .show:
++            true
++        default:
++            false
++        }
++    }
++
++    private func isAllowedInLibraryContext(_ item: MediaDisplayItem, policy: SafetyPolicy) -> Bool {
++        if excludesCollectionsInBrowseContext, case .collection = item {
++            return false
++        }
++        return StrimrAdapter.isAllowed(item, policy: policy)
++    }
++
++    private func filterRecommendedHub(_ hub: Hub, policy: SafetyPolicy) -> Hub? {
++        guard let safetyFiltered = StrimrAdapter.filtered(hub, policy: policy) else {
++            return nil
++        }
++        let contextFilteredItems = safetyFiltered.items.filter { item in
++            isAllowedInLibraryContext(item, policy: policy)
++        }
++        guard !contextFilteredItems.isEmpty else {
++            return nil
++        }
++        return Hub(id: safetyFiltered.id, title: safetyFiltered.title, items: contextFilteredItems)
++    }
+ }
+ 
+ enum LibraryDetailTab: String, CaseIterable, Identifiable {

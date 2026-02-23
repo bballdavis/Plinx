@@ -20,11 +20,34 @@ Our goal is to be a "good citizen" of the Strimr ecosystem. **Whenever we develo
 
 ### Updating the Submodule
 To pull the latest changes from Strimr:
-```bash
-git submodule update --remote --merge Vendor/Strimr
-git add Vendor/Strimr
-git commit -m "chore: sync Strimr upstream"
-```
+1. Update the submodule:
+   ```bash
+   git submodule update --remote --merge vendor/strimr
+   ```
+
+2. Re-apply Plinx-specific patches:
+   We treat vendor modifications like **migrations**. If Strimr's core changes, we re-run our patches:
+   ```bash
+   ./scripts/apply_vendor_patches.sh
+   ```
+
+3. If a patch fails (due to upstream structural changes):
+   - Resolve conflicts in `vendor/strimr`.
+   - Re-generate the specific atomic patch in `vendor/patches/strimr/`.
+   - Commit the new patch to the Plinx repository.
+
+4. Commit the new submodule pointer:
+   ```bash
+   git add vendor/strimr vendor/patches/strimr
+   git commit -m "chore: sync Strimr upstream and re-apply patches"
+   ```
+
+### Patch Organization
+Plinx maintaining the following patches for Strimr:
+- `001-engine-clip-support`: Adds Plex `clip` ("Other Videos") item type support.
+- `002-ui-landscape-layout`: Implements 16:9 landscape card support for clip libraries.
+- `003-logging-and-filtering`: Provides OSLog hooks and promoted hub classification.
+- `004-localization-baseline`: Adds Plinx branding and strings to the vendor layer.
 
 ### Build Guardrails
 Currently, our CI focus is on the `Plinx-iOS` target. While Strimr supports tvOS, we prioritize iOS stability and Liquid Glass performance first. tvOS support is maintained as "experimental/legacy" inside the vendor folder for future exploration.
