@@ -1,135 +1,76 @@
 # Strimr Patching Workflow
 
-Plinx vendors a patched version of Strimr (`wunax/strimr`) with kid-safe customizations. Since we don't have push access to the upstream repository, we maintain a local `strimr-patched` branch that contains all Strimr modifications for Plinx.
+Plinx vendors a patched version of Strimr with kid-safe customizations. Since we don't have push access to upstream, we maintain patches on a local git branch.
 
-## Branch & Commit Strategy
+## How It Works
 
-- **Submodule Pinning**: `vendor/strimr` is pinned to a specific commit (currently `9a84bd4...`) that includes all Plinx patches
-- **`main` (remote)** — Upstream Strimr (upstream-only, read-only)
-- **`strimr-patched` (local)** — Your working branch with patches (stays on your machine)
+- **`vendor/strimr`** is a git submodule pinned to a specific commit
+- **`plinx-strimr-patching`** is a local development branch containing all Plinx patches
+- When cloning Plinx, you automatically get the patched version (submodule commit is pinned, no need for the branch to exist remotely)
+- The branch stays local-only; push attempts are disabled
 
-The `.gitmodules` file pins `vendor/strimr` to a specific commit, so when someone clones Plinx, they automatically get the patched version without needing `strimr-patched` to exist on the remote. The local `strimr-patched` branch is for your development work only.
+## Common Tasks
 
-## Workflow
-
-### 1. Viewing Current Patches
+### View Current Patches
 
 ```bash
 cd vendor/strimr
 git log --oneline main..HEAD
-# Shows all commits in strimr-patched that are NOT in upstream main
 ```
 
-### 2. Syncing with Upstream
-
-To pull the latest changes from the upstream Strimr `main` branch:
+### Add a Patch
 
 ```bash
 cd vendor/strimr
-
-# Fetch latest upstream
-git fetch origin main
-
-# Rebase patches on top of the latest upstream
-git rebase origin/main
-
-# If conflicts occur, resolve them and continue
-git rebase --continue
-```
-
-### 3. Adding a New Patch
-
-Make your changes directly on the `plinx-patches` branch:
-
-```bash
-cd vendor/strimr
-
 # Make your edits
-# ... edit files ...
-
-# Stage and commit
 git add .
-git commit -m "feat(plinx): describe your change"
-
-# The change is automatically part of plinx-patches
+git commit -m "feat(plinx): description"
 ```
 
-### 4. Removing or Amending Patches
+### Sync with Upstream
 
 ```bash
 cd vendor/strimr
+git fetch origin main
+git rebase origin/main
+# Resolve conflicts if any, then: git rebase --continue
+```
 
-# List recent commits
-git log --oneline -10
+### Amend or Reorder Patches
 
-# Amend the most recent commit
-git commit --amend
-
-# Or rebase to modify older commits
+```bash
+cd vendor/strimr
 git rebase -i main
 ```
 
-### 5. Pushing Changes (For Repository Maintainers)
+### Publish Patches (Update Submodule Pin)
 
-If you gain push access to a personal fork, you can push the patched branch:
-
-```bash
-cd vendor/strimr
-
-# Add your fork as a remote
-git remote add fork https://github.com/YOUR_USERNAME/strimr.git
-
-# Push the patches branch
-git push fork strimr-patched
-```
-
-### 6. Updating the Submodule Pin
-
-When you have new patches and want to publish them in Plinx:
+After committing patches locally:
 
 ```bash
-# Make sure patches are committed on strimr-patched
-cd vendor/strimr
-git log -5
-
-# Go back to main Plinx
-cd ../..
-
-# Update the submodule pin in git
+cd /Users/philipdavis/Repos/Plinx
 git add vendor/strimr
-git commit -m "chore(strimr): update to latest patches (commit: abcd1234...)"
-git push origin main
+git commit -m "chore(strimr): update patches (commit abc1234)"
 ```
 
 ## Important Notes
 
-- ⚠️ **Do not manually switch branches in `vendor/strimr`** — the parent Plinx repository expects `strimr-patched`
-- ✅ Always rebase patches on upstream `main` before adding new work
-- 📝 Use clear, descriptive commit messages with `feat(plinx):`, `fix(plinx):`, etc. prefixes
-- 🔄 If upstream has breaking changes, update patches and test thoroughly before committing
-- 📌 The submodule is pinned to a commit, not a branch. This means cloners get the patched version automatically
-- ⚙️ Since `strimr-patched` doesn't exist on the remote, you manage versions by updating the submodule commit pin
+- ✅ **Always rebase `plinx-strimr-patching` on upstream `main` before adding new patches**
+- ⚠️ **Never manually switch branches in `vendor/strimr`** — the parent repo expects `plinx-strimr-patching`
+- 🔒 Push is disabled on this branch (intentional; it's local-only)
+- 📌 Version management happens by updating the submodule commit in the main Plinx repo, not by syncing the branch
 
-## Patch History
-
-Check what we've patched compared to upstream:
+## Checking What We've Patched
 
 ```bash
 cd vendor/strimr
-
-# Show all patches
-git log --oneline main..strimr-patched
-
-# Show detailed diffs for all patches
-git diff main..strimr-patched
-
-# Show just the summary
-git shortlog main..strimr-patched
+git diff main..HEAD          # See all patch diffs
+git shortlog main..HEAD      # See summary by author
 ```
 
-## CI/CD Considerations
+## Testing Patches
 
-- Plinx CI uses the pinned commit from `vendor/strimr` — reproducible builds always get the same version
-- Builds will fail if patches conflict with upstream updates
-- Test locally before committing: `./scripts/build_only.sh`
-- To upgrade Strimr with new patches: update submodule commit on `strimr-patched`, then pin in main
+```bash
+./scripts/build_only.sh      # Quick build test
+./scripts/ui_tests.sh        # Full test suite
+```
