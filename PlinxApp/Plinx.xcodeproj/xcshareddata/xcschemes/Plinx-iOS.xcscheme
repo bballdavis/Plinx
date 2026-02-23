@@ -39,6 +39,17 @@
          </BuildableReference>
       </MacroExpansion>
       <Testables>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "79B7708E48A3728EFAA9F3CB"
+               BuildableName = "Plinx-iOS-UITests.xctest"
+               BlueprintName = "Plinx-iOS-UITests"
+               ReferencedContainer = "container:Plinx.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
       <CommandLineArguments>
       </CommandLineArguments>

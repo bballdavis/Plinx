@@ -148,14 +148,12 @@ targets:
       build:
         targets:
           Plinx-iOS: all
+      testTargets:
+        - Plinx-iOS-UITests
       run:
         config: Debug
       test:
         config: Debug
-        targets:
-          - name: Plinx-iOS-UITests
-            parallelizable: false
-            randomExecutionOrder: false
 
   Plinx-iOS-UITests:
     type: bundle.ui-testing
@@ -169,5 +167,6 @@ targets:
 
     settings:
       base:
+        PRODUCT_NAME: PlinxUITests
         PRODUCT_BUNDLE_IDENTIFIER: com.example.plinx.uitests
         GENERATE_INFOPLIST_FILE: YES

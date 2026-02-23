@@ -18,12 +18,13 @@ import SnapshotTesting
 import SwiftUI
 @testable import PlinxUI
 
+@MainActor
 final class MovieCard_SnapshotTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
         // Flip to `true` to regenerate baselines, commit __Snapshots__/, flip back.
-        isRecording = true
+        // isRecording = true
     }
 
     private static let deviceMatrix: [(name: String, config: ViewImageConfig)] = [

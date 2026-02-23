@@ -1,0 +1,15 @@
+# Plinx Local Development Environment - EXAMPLE
+# Copy this to 'test_creds.yaml' and replace with your actual values.
+# DO NOT COMMIT THE REAL 'test_creds.yaml'!
+
+# The URL of your Plex server (must be accessible from the simulator)
+PLINX_PLEX_SERVER_URL: "http://192.168.1.100:32400"
+
+# The Plex auth token (found in the 'X-Plex-Token' header of requests in the Plex Web UI)
+# This is currently the primary authentication method for automated UI tests.
+PLINX_PLEX_TOKEN: "YOUR_TOKEN_HERE"
+
+# Optional: Other variables (not currently required for 'token only' route)
+# PLINX_PLEX_USER: ""
+# PLINX_PLEX_PASSWORD: ""
+# PLINX_PLEX_PIN: ""

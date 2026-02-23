@@ -10,7 +10,7 @@
 #   ./scripts/ui_tests.sh              # Run all tests
 #   ./scripts/ui_tests.sh --core       # Run PlinxCore only
 #   ./scripts/ui_tests.sh --ui         # Run PlinxUI only
-#   ./scripts/ui_tests.sh --snapshots  # Run snapshot tests on iPhone 15
+#   ./scripts/ui_tests.sh --snapshots  # Run snapshot tests on iPhone 17
 #   ./scripts/ui_tests.sh --record     # Recording mode for snapshot baselines
 #   ./scripts/ui_tests.sh --live       # Live Plex UI smoke tests (Playwright-style)
 #
@@ -19,6 +19,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 set -e
+set -o pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
@@ -46,6 +47,29 @@ MODE="${1:-all}"
 # ─────────────────────────────────────────────────────────────────────────────
 # Helper functions
 # ─────────────────────────────────────────────────────────────────────────────
+
+load_env_yaml() {
+    local env_file="$PROJECT_ROOT/test_creds.yaml"
+    if [ -f "$env_file" ]; then
+        log_info "Loading test credentials from test_creds.yaml..."
+        # Extract keys and values from YAML (supports 'Key: Value' and 'Key: "Value"')
+        # Note: This is a simple bash-only YAML parser for flat files.
+        while IFS=": " read -r key value; do
+            # Skip comments and empty lines
+            [[ "$key" =~ ^#.*$ || -z "$key" ]] && continue
+            
+            # Clean quotes if present
+            value=$(echo "$value" | sed -e 's/^"//' -e 's/"$//' -e 's/^\x27//' -e 's/\x27$//')
+            
+            # Export if key is uppercase (standard env var naming)
+            if [[ "$key" =~ ^[A-Z_]+$ ]]; then
+                export "$key"="$value"
+            fi
+        done < "$env_file"
+    else
+        log_warning "No test_creds.yaml found (copied from .example for you if it was missing). Run with your Plex vars for live tests."
+    fi
+}
 
 log_section() {
     echo ""
@@ -118,11 +142,19 @@ run_snapshot_tests() {
             echo ""
             echo "Running snapshot tests in recording mode..."
             cd "$PROJECT_ROOT/Packages/PlinxUI"
-            if xcodebuild test \
+            rm -rf /tmp/PlinxUI_snapshots.xcresult
+            xcodebuild test \
                 -scheme PlinxUI \
-                -destination 'platform=iOS Simulator,name=iPhone 15' \
+                -destination 'platform=iOS Simulator,name=iPhone 17' \
                 -resultBundlePath "/tmp/PlinxUI_snapshots.xcresult" \
-                2>&1 | tee /tmp/snapshots.log | grep -E "Test Suite|Test Case|passed|failed"; then
+                2>&1 | tee /tmp/snapshots.log
+
+            XCODE_STATUS=${PIPESTATUS[0]}
+            grep -E "Test Suite|Test Case|passed|failed|Automatically recorded snapshot" /tmp/snapshots.log || true
+
+            # SnapshotTesting intentionally fails tests in record mode after writing baselines.
+            # Treat that expected failure as success when we detect recorded snapshots.
+            if [ "$XCODE_STATUS" -eq 0 ] || grep -q "Automatically recorded snapshot" /tmp/snapshots.log; then
                 SNAPSHOTS_RESULT="✓ RECORDED"
                 log_success "Snapshot baselines recorded"
                 log_warning "Don't forget to:"
@@ -136,18 +168,21 @@ run_snapshot_tests() {
             fi
             ;;
         *)
-            log_info "Running snapshot diffs on iPhone 15..."
+            log_info "Running snapshot diffs on iPhone 17..."
             echo ""
             cd "$PROJECT_ROOT/Packages/PlinxUI"
+            rm -rf /tmp/PlinxUI_snapshots.xcresult
             if xcodebuild test \
                 -scheme PlinxUI \
-                -destination 'platform=iOS Simulator,name=iPhone 15' \
+                -destination 'platform=iOS Simulator,name=iPhone 17' \
                 -resultBundlePath "/tmp/PlinxUI_snapshots.xcresult" \
-                2>&1 | tee /tmp/snapshots.log | grep -E "Test Suite|passed|failed"; then
+                2>&1 | tee /tmp/snapshots.log; then
+                grep -E "Test Suite|passed|failed" /tmp/snapshots.log || true
                 SNAPSHOTS_RESULT="✓ PASS"
                 log_success "Snapshot tests passed"
                 return 0
             else
+                grep -E "Test Suite|passed|failed|error:" /tmp/snapshots.log || true
                 SNAPSHOTS_RESULT="✗ FAIL"
                 log_failure "Snapshot tests failed (see diffs in /tmp/PlinxUI_snapshots.xcresult/)"
                 return 1
@@ -158,24 +193,35 @@ run_snapshot_tests() {
 
 run_live_ui_tests() {
     log_section "Live UI Smoke Tests"
+    
+    # Load env from yaml before starting
+    load_env_yaml
+    
     log_info "Running app-level UI smoke checks with live/simulated Plex data..."
     echo ""
-    echo "Optional env vars for live server auth:"
-    echo "  PLINX_PLEX_SERVER_URL"
-    echo "  PLINX_PLEX_TOKEN"
-    echo "  PLINX_PLEX_USER"
-    echo "  PLINX_PLEX_PASSWORD"
-    echo "  PLINX_PLEX_PIN"
+    echo "Plex Auth Configuration:"
+    if [ -n "$PLINX_PLEX_SERVER_URL" ]; then
+        echo "  URL: $PLINX_PLEX_SERVER_URL"
+    else
+        echo "  URL: [NOT CONFIGURED]"
+    fi
+    
+    if [ -n "$PLINX_PLEX_TOKEN" ]; then
+        echo "  Token: [LOADED]"
+    else
+        echo "  Token: [NOT CONFIGURED]"
+    fi
     echo ""
 
     cd "$PROJECT_ROOT/PlinxApp"
 
     xcodegen generate >/tmp/plinx_xcodegen.log 2>&1
+    rm -rf /tmp/Plinx_live_ui.xcresult
 
     if xcodebuild test \
         -project Plinx.xcodeproj \
         -scheme Plinx-iOS \
-        -destination 'platform=iOS Simulator,name=iPhone 16' \
+        -destination 'platform=iOS Simulator,name=iPhone 17' \
         -resultBundlePath "/tmp/Plinx_live_ui.xcresult" \
         -only-testing:Plinx-iOS-UITests/LaunchSmokeUITests \
         -only-testing:Plinx-iOS-UITests/LiveRenderSmokeUITests \
@@ -222,7 +268,7 @@ main() {
             echo "  ./scripts/ui_tests.sh              # Run all tests"
             echo "  ./scripts/ui_tests.sh --core       # Run PlinxCore tests"
             echo "  ./scripts/ui_tests.sh --ui         # Run PlinxUI tests"
-            echo "  ./scripts/ui_tests.sh --snapshots  # Run snapshot diffs (iPhone 15)"
+            echo "  ./scripts/ui_tests.sh --snapshots  # Run snapshot diffs (iPhone 17)"
             echo "  ./scripts/ui_tests.sh --record     # Record snapshot baselines"
             echo "  ./scripts/ui_tests.sh --live       # Live Plex UI smoke tests"
             echo ""

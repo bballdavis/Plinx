@@ -40,6 +40,7 @@
 		2B67EB772510AC594574B071 /* Library.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EC12039A448C14A78CC2FD1 /* Library.swift */; };
 		2CB829AE87F471C60FD40D01 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DCCAA86812A22FD9C77F0B8 /* SettingsView.swift */; };
 		2D25EE3B0933F407E2B38C84 /* ProfileSwitcherView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E053B96A6E43B7E56CE65051 /* ProfileSwitcherView.swift */; };
+		2D70F0AA9B149AB55FF48FB8 /* LaunchSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFC8933767CB93A3A2049F4E /* LaunchSmokeUITests.swift */; };
 		2EC438E767BAB88FDEC59396 /* PlinxContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E786C3A34F38C6CF9189F24C /* PlinxContentView.swift */; };
 		302C52B4371396F10D0E0CFB /* PortraitMediaCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A57EE2B462A5B4867A6E782A /* PortraitMediaCard.swift */; };
 		304791ABEE6D979BBDCCB0CC /* SearchViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67F6BBA1A537EDC007641CA8 /* SearchViewModel.swift */; };
@@ -83,6 +84,7 @@
 		82BA9DEF648E92B2265274D7 /* LifecycleManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3944E3AA7F0630917C3D8142 /* LifecycleManager.swift */; };
 		84D7D17F9B395ED2954566AD /* PlexCloudModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E89B885FF86C3B3F252E1C4 /* PlexCloudModels.swift */; };
 		85D33C82696903AA55014459 /* ResourceRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD82D287809F51448A49FDF6 /* ResourceRepository.swift */; };
+		866FA811AED7D26AAF570C7E /* LiveRenderSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAA004304D4418C6DED657FB /* LiveRenderSmokeUITests.swift */; };
 		8C26B8A13837150AEE1E05AC /* PlinxUI in Frameworks */ = {isa = PBXBuildFile; productRef = B17524348A6E731D83027556 /* PlinxUI */; };
 		8CA0CF6C1A9311A28F7B43F9 /* PlinxHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 421496E526AFBE2D15E81327 /* PlinxHomeView.swift */; };
 		8CC3635A8FFB1BA01F480782 /* MetadataRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97083F2FB17A64237A7F287B /* MetadataRepository.swift */; };
@@ -157,9 +159,20 @@
 		AA10000000000004LOCALBLD /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = AA10000000000002LOCALSTR /* Localizable.strings */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		958C3B5EA233326197A5B86A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D213CDA151094612F4376C5E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 271FDA19995B71E45A41C75F;
+			remoteInfo = "Plinx-iOS";
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		044387610C00AB09C3B39D30 /* SignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInView.swift; sourceTree = "<group>"; };
 		056BA0E50EC0B9376547BEEF /* MPVPlayerViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MPVPlayerViewController.swift; sourceTree = "<group>"; };
+		05B8A7F1451F58A9BDE38EF5 /* Plinx-iOS-UITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = "Plinx-iOS-UITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		0624A0313BBADD8B31BA7428 /* PlexMediaModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlexMediaModels.swift; sourceTree = "<group>"; };
 		070C0EBA3777A61B4FFE570E /* CollectionRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionRepository.swift; sourceTree = "<group>"; };
 		07C71C86287048335F9FBE39 /* PlinxPlaybackLauncher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlinxPlaybackLauncher.swift; sourceTree = "<group>"; };
@@ -284,6 +297,7 @@
 		D8F0CE5523DBDC0EADB9C8BD /* CastSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CastSection.swift; sourceTree = "<group>"; };
 		D9C6BF06B93C484AF3BC0AA0 /* PlexAPIContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlexAPIContext.swift; sourceTree = "<group>"; };
 		D9CA2847E266FF62A7F79A17 /* MediaCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaCard.swift; sourceTree = "<group>"; };
+		DAA004304D4418C6DED657FB /* LiveRenderSmokeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveRenderSmokeUITests.swift; sourceTree = "<group>"; };
 		DB6623C142DCD03DFA24C8C0 /* Hub+Mapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hub+Mapping.swift"; sourceTree = "<group>"; };
 		DD82D287809F51448A49FDF6 /* ResourceRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResourceRepository.swift; sourceTree = "<group>"; };
 		DE10DFFA540B33DB257EE06E /* SettingsPlaybackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPlaybackView.swift; sourceTree = "<group>"; };
@@ -302,6 +316,7 @@
 		FBAEA2A1508863F0830FAB69 /* PlayerOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerOptions.swift; sourceTree = "<group>"; };
 		FD84D49489E9206E89BE69B3 /* ServerSelectionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerSelectionViewModel.swift; sourceTree = "<group>"; };
 		FE550DB37D3BADF95B088819 /* SectionRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectionRepository.swift; sourceTree = "<group>"; };
+		FFC8933767CB93A3A2049F4E /* LaunchSmokeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchSmokeUITests.swift; sourceTree = "<group>"; };
 
 		AA10000000000001PLINXSTR /* Plinx.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = Plinx.strings; path = "Resources/en.lproj/Plinx.strings"; sourceTree = "<group>"; };
 		AA10000000000002LOCALSTR /* Localizable.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = Localizable.strings; path = "../Vendor/Strimr/en.lproj/Localizable.strings"; sourceTree = "<group>"; };
@@ -473,6 +488,7 @@
 				319D29E0FBF6937A1FB07521 /* Packages */,
 				29713C9C8F95DD17296DD4C0 /* StrimrIOSFeatures */,
 				A231A9384717A7FA3949F4DB /* StrimrShared */,
+				9B3C53D601987E9DE82AEEC2 /* UITests */,
 				023868A6CA10411AAD27F5A3 /* ViewModels */,
 				C7C4CB211D26691F5AB75840 /* Views */,
 				5D76BB0884AA38ECB4570263 /* Products */,
@@ -633,6 +649,7 @@
 		5D76BB0884AA38ECB4570263 /* Products */ = {
 			isa = PBXGroup;
 			children = (
+				05B8A7F1451F58A9BDE38EF5 /* Plinx-iOS-UITests.xctest */,
 				3353A4ECD4B09832AAA273CF /* Plinx-iOS.app */,
 			);
 			name = Products;
@@ -803,6 +820,15 @@
 			path = Controls;
 			sourceTree = "<group>";
 		};
+		9B3C53D601987E9DE82AEEC2 /* UITests */ = {
+			isa = PBXGroup;
+			children = (
+				FFC8933767CB93A3A2049F4E /* LaunchSmokeUITests.swift */,
+				DAA004304D4418C6DED657FB /* LiveRenderSmokeUITests.swift */,
+			);
+			path = UITests;
+			sourceTree = "<group>";
+		};
 		A231A9384717A7FA3949F4DB /* StrimrShared */ = {
 			isa = PBXGroup;
 			children = (
@@ -956,6 +982,25 @@
 			productReference = 3353A4ECD4B09832AAA273CF /* Plinx-iOS.app */;
 			productType = "com.apple.product-type.application";
 		};
+		79B7708E48A3728EFAA9F3CB /* Plinx-iOS-UITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C016C09A6933781D4E850CC4 /* Build configuration list for PBXNativeTarget "Plinx-iOS-UITests" */;
+			buildPhases = (
+				AA10000000000005RESPHASE /* Resources */,
+				34C1801CA2707EDD7B716866 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				EBDC8FC7C90B16CD1027697B /* PBXTargetDependency */,
+			);
+			name = "Plinx-iOS-UITests";
+			packageProductDependencies = (
+			);
+			productName = "Plinx-iOS-UITests";
+			productReference = 05B8A7F1451F58A9BDE38EF5 /* Plinx-iOS-UITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -964,6 +1009,11 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					79B7708E48A3728EFAA9F3CB = {
+						TestTargetID = 271FDA19995B71E45A41C75F;
+					};
+				};
 			};
 			buildConfigurationList = 93F22E9673B17F60DB0204CC /* Build configuration list for PBXProject "Plinx" */;
 			compatibilityVersion = "Xcode 14.0";
@@ -986,6 +1036,7 @@
 			projectRoot = "";
 			targets = (
 				271FDA19995B71E45A41C75F /* Plinx-iOS */,
+				79B7708E48A3728EFAA9F3CB /* Plinx-iOS-UITests */,
 			);
 		};
 /* End PBXProject section */
@@ -1003,6 +1054,15 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		34C1801CA2707EDD7B716866 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2D70F0AA9B149AB55FF48FB8 /* LaunchSmokeUITests.swift in Sources */,
+				866FA811AED7D26AAF570C7E /* LiveRenderSmokeUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		366533AFB31CF21A4F2487DE /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -1152,6 +1212,14 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		EBDC8FC7C90B16CD1027697B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 271FDA19995B71E45A41C75F /* Plinx-iOS */;
+			targetProxy = 958C3B5EA233326197A5B86A /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		089E6D877414827B8C0410A0 /* Release */ = {
@@ -1317,6 +1385,42 @@
 			};
 			name = Debug;
 		};
+		699950FCA1565F1D3F6EF40F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.plinx.uitests;
+				PRODUCT_NAME = PlinxUITests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = "Plinx-iOS";
+			};
+			name = Debug;
+		};
+		89F02BA798AD5610BE68EC05 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.plinx.uitests;
+				PRODUCT_NAME = PlinxUITests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = "Plinx-iOS";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -1334,6 +1438,15 @@
 			buildConfigurations = (
 				5346F23CED4B15F72B4849DF /* Debug */,
 				089E6D877414827B8C0410A0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		C016C09A6933781D4E850CC4 /* Build configuration list for PBXNativeTarget "Plinx-iOS-UITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				699950FCA1565F1D3F6EF40F /* Debug */,
+				89F02BA798AD5610BE68EC05 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

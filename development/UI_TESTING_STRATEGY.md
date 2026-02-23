@@ -117,12 +117,12 @@ Snapshot baselines live in `Tests/PlinxUITests/__Snapshots__/` and are committed
 
 ### First run — recording baselines
 
-Set `isRecording = true` in the relevant `setUp()` method, run once on iPhone 16 simulator, commit the generated images, set back to `false`.
+Set `isRecording = true` in the relevant `setUp()` method, run once on an available simulator (default: iPhone 17), commit the generated images, set back to `false`.
 
 ```bash
 xcodebuild test \
   -scheme PlinxUI \
-  -destination 'platform=iOS Simulator,name=iPhone 16' \
+  -destination 'platform=iOS Simulator,name=iPhone 17' \
   | xcbeautify
 ```
 
@@ -167,25 +167,51 @@ This catches the class of bugs where a component renders correctly on iPhone but
 
 - **Network / server responses** — mocked at the `PlexAPIContext` boundary
 - **Video playback** — MPVKit internal; covered by Strimr's own tests
-- **Full app navigation flows** — XCUITest target in PlinxApp (future work)
 - **Localization completeness** — validated by `xcodebuild -exportLocalizations` in CI
+
+## Live UI Smoke (Playwright-style)
+
+Plinx now includes an app-level XCUITest target in `PlinxApp/UITests` for live render checks while connected to a real Plex server.
+
+### Coverage
+
+- `LaunchSmokeUITests.test_appLaunches` — verifies app boot path
+- `LiveRenderSmokeUITests.test_liveHomeRendersPrimarySections` — waits for live home content sections
+- `LiveRenderSmokeUITests.test_liveOtherVideosThumbnailIsLandscape` — verifies "Other Videos" thumbnail geometry is landscape
+- `LiveRenderSmokeUITests.test_liveMovieThumbnailIsPortrait` — verifies Movies/TV thumbnail geometry is portrait
+- `LiveRenderSmokeUITests.test_liveLandscapeAndPortraitDiffer` — validates clear ratio divergence across section types
+
+The tests use deterministic accessibility identifiers added in `PlinxHomeView`:
+
+- `home.hub.continueWatching`, `home.hub.moviesAndTV`, `home.hub.otherVideos`
+- `home.thumbnail.<section>.<index>`
+- `home.card.<section>.<index>`
+
+### Run command
+
+```bash
+./scripts/ui_tests.sh --live
+```
+
+### Live Plex Credentials (YAML)
+
+To run real-server assertions, create a `test_creds.yaml` file in the project root (copied from `test_creds.yaml.example`):
+
+- `PLINX_PLEX_SERVER_URL`: Your Plex server address
+- `PLINX_PLEX_TOKEN`: Your auth token (primary method)
+
+The `scripts/ui_tests.sh --live` command automatically loads this file. If missing, live rendering assertions are skipped while basic launch smoke tests still run.
 
 ---
 
 ## CI Script
 
-`scripts/ui_tests.sh` — runs both packages across iPhone and iPad:
+`scripts/ui_tests.sh` supports logic, snapshot, recording, and live smoke modes:
 
 ```bash
-#!/bin/bash
-set -euo pipefail
-for DEST in \
-  "platform=iOS Simulator,name=iPhone 15" \
-  "platform=iOS Simulator,name=iPad Pro (12.9-inch) (6th generation)"; do
-  xcodebuild test \
-    -scheme PlinxUI \
-    -destination "$DEST" \
-    -resultBundlePath "TestResults/$(echo "$DEST" | tr ', ' '__').xcresult" \
-    | xcbeautify
-done
+./scripts/ui_tests.sh --core
+./scripts/ui_tests.sh --ui
+./scripts/ui_tests.sh --snapshots
+./scripts/ui_tests.sh --record
+./scripts/ui_tests.sh --live
 ```

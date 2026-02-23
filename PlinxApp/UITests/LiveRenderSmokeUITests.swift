@@ -26,7 +26,11 @@ final class LiveRenderSmokeUITests: XCTestCase {
         app.launch()
     }
 
-    func test_liveHomeRendersPrimarySections() {
+    func test_liveHomeRendersPrimarySections() throws {
+        guard isLiveEnvironmentConfigured else {
+            throw XCTSkip("Live Plex credentials are not configured. Update test_creds.yaml with PLINX_PLEX_SERVER_URL and PLINX_PLEX_TOKEN.")
+        }
+
         // We expect at least one core section to appear when live content loads.
         // Accept either exact section IDs or localized static titles as fallback.
         let continueSection = app.otherElements["home.hub.continueWatching"]
@@ -50,7 +54,11 @@ final class LiveRenderSmokeUITests: XCTestCase {
         XCTAssertTrue(loaded, "Expected at least one live home section to render.")
     }
 
-    func test_liveOtherVideosThumbnailIsLandscape() {
+    func test_liveOtherVideosThumbnailIsLandscape() throws {
+        guard isLiveEnvironmentConfigured else {
+            throw XCTSkip("Live Plex env vars are not configured.")
+        }
+
         let otherRow = app.otherElements["home.hub.otherVideos"]
         XCTAssertTrue(otherRow.waitForExistence(timeout: 40), "Other Videos section did not render")
 
@@ -64,7 +72,11 @@ final class LiveRenderSmokeUITests: XCTestCase {
         XCTAssertGreaterThan(ratio, 1.2, "Other Videos thumbnail should be landscape (width > height)")
     }
 
-    func test_liveMovieThumbnailIsPortrait() {
+    func test_liveMovieThumbnailIsPortrait() throws {
+        guard isLiveEnvironmentConfigured else {
+            throw XCTSkip("Live Plex env vars are not configured.")
+        }
+
         let moviesRow = app.otherElements["home.hub.moviesAndTV"]
         XCTAssertTrue(moviesRow.waitForExistence(timeout: 40), "Movies/TV section did not render")
 
@@ -78,7 +90,11 @@ final class LiveRenderSmokeUITests: XCTestCase {
         XCTAssertLessThan(ratio, 1.0, "Movies/TV thumbnail should be portrait (height > width)")
     }
 
-    func test_liveLandscapeAndPortraitDiffer() {
+    func test_liveLandscapeAndPortraitDiffer() throws {
+        guard isLiveEnvironmentConfigured else {
+            throw XCTSkip("Live Plex env vars are not configured.")
+        }
+
         let otherThumb = app.otherElements["home.thumbnail.otherVideos.0"]
         let movieThumb = app.otherElements["home.thumbnail.moviesAndTV.0"]
 
@@ -94,6 +110,15 @@ final class LiveRenderSmokeUITests: XCTestCase {
 
         XCTAssertGreaterThan(otherRatio, movieRatio + 0.4,
                              "Landscape thumbnail ratio should be significantly wider than portrait ratio")
+    }
+
+    private var isLiveEnvironmentConfigured: Bool {
+        let env = ProcessInfo.processInfo.environment
+        let hasServer = !(env["PLINX_PLEX_SERVER_URL"] ?? "").isEmpty
+        let hasToken = !(env["PLINX_PLEX_TOKEN"] ?? "").isEmpty
+        let hasUserPass = !(env["PLINX_PLEX_USER"] ?? "").isEmpty && !(env["PLINX_PLEX_PASSWORD"] ?? "").isEmpty
+        let hasPin = !(env["PLINX_PLEX_PIN"] ?? "").isEmpty
+        return hasServer && (hasToken || hasUserPass || hasPin)
     }
 
     private func waitForAny(_ elements: [XCUIElement], timeout: TimeInterval) -> Bool {

@@ -23,11 +23,12 @@ import SnapshotTesting
 import SwiftUI
 @testable import PlinxUI
 
+@MainActor
 final class ContinueWatching_SnapshotTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        isRecording = true
+        // isRecording = true
     }
 
     private static let deviceMatrix: [(name: String, config: ViewImageConfig)] = [

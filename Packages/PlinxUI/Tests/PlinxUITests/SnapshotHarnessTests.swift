@@ -19,12 +19,13 @@ import SnapshotTesting
 import SwiftUI
 @testable import PlinxUI
 
+@MainActor
 final class SnapshotHarnessTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
         // Flip to `true` to regenerate baselines, commit __Snapshots__/, flip back.
-        isRecording = true
+        // isRecording = true
     }
 
     // MARK: - Device matrix
