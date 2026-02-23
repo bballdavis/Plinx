@@ -73,18 +73,18 @@ struct PlinxHomeView: View {
         switch sectionId {
         case "continueWatching":
             if let hub = viewModel.continueWatching, hub.hasItems {
-                hubRow(hub, layout: .landscape)
+                hubRow(hub, layout: .landscape, sectionKey: "continueWatching")
             }
         case "moviesAndTV":
             ForEach(moviesTVGroups) { group in
                 if group.hub.hasItems {
-                    hubRow(group.hub, layout: group.layout)
+                    hubRow(group.hub, layout: group.layout, sectionKey: "moviesAndTV")
                 }
             }
         case "otherVideos":
             ForEach(otherVideoGroups) { group in
                 if group.hub.hasItems {
-                    hubRow(group.hub, layout: group.layout)
+                    hubRow(group.hub, layout: group.layout, sectionKey: "otherVideos")
                 }
             }
         default:
@@ -237,26 +237,28 @@ struct PlinxHomeView: View {
 
     // MARK: - Hub row
 
-    private func hubRow(_ hub: Hub, layout: CardLayout) -> some View {
+    private func hubRow(_ hub: Hub, layout: CardLayout, sectionKey: String) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(hub.title)
                 .font(.title3.bold())
                 .foregroundStyle(.white)
                 .padding(.horizontal, 20)
+                .accessibilityIdentifier("home.section.\(sectionKey)")
 
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 12) {
-                    ForEach(hub.items) { item in
-                        mediaCard(item, layout: layout)
+                    ForEach(Array(hub.items.enumerated()), id: \.element.id) { index, item in
+                        mediaCard(item, layout: layout, sectionKey: sectionKey, index: index)
                             .onTapGesture { onSelectMedia(item) }
                     }
                 }
                 .padding(.horizontal, 20)
             }
         }
+        .accessibilityIdentifier("home.hub.\(sectionKey)")
     }
 
-    private func mediaCard(_ item: MediaDisplayItem, layout: CardLayout) -> some View {
+    private func mediaCard(_ item: MediaDisplayItem, layout: CardLayout, sectionKey: String, index: Int) -> some View {
         let isLandscape = layout == .landscape
         let prefersThumbForLandscape = isLandscape && item.type == .clip
         let cardWidth: CGFloat = isLandscape ? 200 : 110
@@ -274,6 +276,7 @@ struct PlinxHomeView: View {
                 .frame(width: cardWidth, height: cardWidth / ratio)
                 .clipped()
                 .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+                .accessibilityIdentifier("home.thumbnail.\(sectionKey).\(index)")
 
                 if let pct = item.viewProgressPercentage, pct > 0 {
                     GeometryReader { geo in
@@ -302,6 +305,7 @@ struct PlinxHomeView: View {
             }
         }
         .frame(width: cardWidth)
+        .accessibilityIdentifier("home.card.\(sectionKey).\(index)")
     }
 }
 

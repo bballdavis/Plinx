@@ -12,6 +12,7 @@
 #   ./scripts/ui_tests.sh --ui         # Run PlinxUI only
 #   ./scripts/ui_tests.sh --snapshots  # Run snapshot tests on iPhone 15
 #   ./scripts/ui_tests.sh --record     # Recording mode for snapshot baselines
+#   ./scripts/ui_tests.sh --live       # Live Plex UI smoke tests (Playwright-style)
 #
 # References: development/UI_TESTING_STRATEGY.md
 #
@@ -38,6 +39,7 @@ FAILED_TESTS=0
 CORE_RESULT=""
 UI_RESULT=""
 SNAPSHOTS_RESULT=""
+LIVE_RESULT=""
 
 MODE="${1:-all}"
 
@@ -115,7 +117,7 @@ run_snapshot_tests() {
             echo "When prompted in Xcode, set isRecording = true in SnapshotHarnessTests.swift"
             echo ""
             echo "Running snapshot tests in recording mode..."
-            cd "$PROJECT_ROOT"
+            cd "$PROJECT_ROOT/Packages/PlinxUI"
             if xcodebuild test \
                 -scheme PlinxUI \
                 -destination 'platform=iOS Simulator,name=iPhone 15' \
@@ -136,7 +138,7 @@ run_snapshot_tests() {
         *)
             log_info "Running snapshot diffs on iPhone 15..."
             echo ""
-            cd "$PROJECT_ROOT"
+            cd "$PROJECT_ROOT/Packages/PlinxUI"
             if xcodebuild test \
                 -scheme PlinxUI \
                 -destination 'platform=iOS Simulator,name=iPhone 15' \
@@ -152,6 +154,40 @@ run_snapshot_tests() {
             fi
             ;;
     esac
+}
+
+run_live_ui_tests() {
+    log_section "Live UI Smoke Tests"
+    log_info "Running app-level UI smoke checks with live/simulated Plex data..."
+    echo ""
+    echo "Optional env vars for live server auth:"
+    echo "  PLINX_PLEX_SERVER_URL"
+    echo "  PLINX_PLEX_TOKEN"
+    echo "  PLINX_PLEX_USER"
+    echo "  PLINX_PLEX_PASSWORD"
+    echo "  PLINX_PLEX_PIN"
+    echo ""
+
+    cd "$PROJECT_ROOT/PlinxApp"
+
+    xcodegen generate >/tmp/plinx_xcodegen.log 2>&1
+
+    if xcodebuild test \
+        -project Plinx.xcodeproj \
+        -scheme Plinx-iOS \
+        -destination 'platform=iOS Simulator,name=iPhone 16' \
+        -resultBundlePath "/tmp/Plinx_live_ui.xcresult" \
+        -only-testing:Plinx-iOS-UITests/LaunchSmokeUITests \
+        -only-testing:Plinx-iOS-UITests/LiveRenderSmokeUITests \
+        2>&1 | tee /tmp/live_ui.log | grep -E "Test Suite|Test Case|passed|failed|error:"; then
+        LIVE_RESULT="✓ PASS"
+        log_success "Live UI smoke tests passed"
+        return 0
+    else
+        LIVE_RESULT="✗ FAIL"
+        log_failure "Live UI smoke tests failed (see /tmp/Plinx_live_ui.xcresult/)"
+        return 1
+    fi
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -172,6 +208,10 @@ main() {
             run_snapshot_tests
             TEST_STATUS=$?
             ;;
+        --live)
+            run_live_ui_tests
+            TEST_STATUS=$?
+            ;;
         all|"")
             run_core_tests || true
             run_ui_tests || true
@@ -184,6 +224,7 @@ main() {
             echo "  ./scripts/ui_tests.sh --ui         # Run PlinxUI tests"
             echo "  ./scripts/ui_tests.sh --snapshots  # Run snapshot diffs (iPhone 15)"
             echo "  ./scripts/ui_tests.sh --record     # Record snapshot baselines"
+            echo "  ./scripts/ui_tests.sh --live       # Live Plex UI smoke tests"
             echo ""
             echo "See development/UI_TESTING_STRATEGY.md for details."
             exit 0
@@ -209,6 +250,10 @@ main() {
     
     if [ "$SNAPSHOTS_RESULT" != "" ]; then
         echo "PlinxUI (Snapshots)     $SNAPSHOTS_RESULT"
+    fi
+
+    if [ "$LIVE_RESULT" != "" ]; then
+        echo "Plinx-iOS (Live UI)     $LIVE_RESULT"
     fi
     
     echo ""

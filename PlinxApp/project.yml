@@ -152,3 +152,22 @@ targets:
         config: Debug
       test:
         config: Debug
+        targets:
+          - name: Plinx-iOS-UITests
+            parallelizable: false
+            randomExecutionOrder: false
+
+  Plinx-iOS-UITests:
+    type: bundle.ui-testing
+    platform: iOS
+
+    sources:
+      - path: UITests
+
+    dependencies:
+      - target: Plinx-iOS
+
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.plinx.uitests
+        GENERATE_INFOPLIST_FILE: YES

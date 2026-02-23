@@ -28,7 +28,7 @@ final class ClipCard_SnapshotTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        // isRecording = true
+        isRecording = true
     }
 
     private static let deviceMatrix: [(name: String, config: ViewImageConfig)] = [
