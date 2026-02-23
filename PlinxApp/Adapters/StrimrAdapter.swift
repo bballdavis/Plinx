@@ -60,7 +60,7 @@ enum StrimrAdapter {
         switch displayItem {
         case let .playable(item):
             return isAllowed(item, policy: policy)
-        case .collection:
+        case .collection, .playlist:
             return true
         }
     }

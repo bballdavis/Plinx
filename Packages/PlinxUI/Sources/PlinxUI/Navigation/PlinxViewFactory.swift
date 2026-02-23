@@ -69,6 +69,8 @@ public enum PlinxMediaAction: Sendable {
     case play(id: String, type: String)
     /// User tapped a collection (show, collection).
     case browseCollection(id: String, title: String)
+    /// User tapped a playlist.
+    case browsePlaylist(id: String, title: String)
 }
 
 // MARK: - Environment Key

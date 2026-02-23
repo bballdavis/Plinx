@@ -52,6 +52,8 @@ struct RootTabView: View {
                             Task { await launcher.play(ratingKey: media.id, type: media.type) }
                         case let .collection(collection):
                             mainCoordinator.showCollectionDetail(collection)
+                        case .playlist:
+                            break
                         }
                     }
                 )
@@ -92,6 +94,8 @@ struct RootTabView: View {
                             Task { await launcher.play(ratingKey: media.id, type: media.type) }
                         case let .collection(collection):
                             mainCoordinator.showCollectionDetail(collection)
+                        case .playlist:
+                            break
                         }
                     }
                 )
@@ -136,6 +140,8 @@ struct RootTabView: View {
                                 Task { await launcher.play(ratingKey: media.id, type: media.type) }
                             case let .collection(collection):
                                 mainCoordinator.showCollectionDetail(collection)
+                        case .playlist:
+                            break
                             }
                         }
                     )
@@ -205,6 +211,9 @@ struct RootTabView: View {
                     mainCoordinator.showMediaDetail(displayItem)
                 }
             )
+        case .playlistDetail:
+            // TODO: Add playlist detail view
+            EmptyView()
         }
     }
 }
