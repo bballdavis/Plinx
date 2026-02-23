@@ -52,6 +52,8 @@ struct RootTabView: View {
                             Task { await launcher.play(ratingKey: media.id, type: media.type) }
                         case let .collection(collection):
                             mainCoordinator.showCollectionDetail(collection)
+                        case let .playlist(playlist):
+                            Task { await launcher.play(ratingKey: playlist.id, type: playlist.type) }
                         }
                     }
                 )
@@ -92,6 +94,8 @@ struct RootTabView: View {
                             Task { await launcher.play(ratingKey: media.id, type: media.type) }
                         case let .collection(collection):
                             mainCoordinator.showCollectionDetail(collection)
+                        case let .playlist(playlist):
+                            Task { await launcher.play(ratingKey: playlist.id, type: playlist.type) }
                         }
                     }
                 )
@@ -136,6 +140,8 @@ struct RootTabView: View {
                                 Task { await launcher.play(ratingKey: media.id, type: media.type) }
                             case let .collection(collection):
                                 mainCoordinator.showCollectionDetail(collection)
+                            case let .playlist(playlist):
+                                Task { await launcher.play(ratingKey: playlist.id, type: playlist.type) }
                             }
                         }
                     )
@@ -204,6 +210,20 @@ struct RootTabView: View {
                 onSelectMedia: { displayItem in
                     mainCoordinator.showMediaDetail(displayItem)
                 }
+            )
+        case let .playlistDetail(playlist):
+            // Playlists are a new feature; show placeholder for now
+            AnyView(
+                VStack(spacing: 16) {
+                    Text(playlist.title)
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    Text("Playlist")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+                .padding()
             )
         }
     }

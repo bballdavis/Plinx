@@ -128,6 +128,8 @@ extension MediaDisplayItem {
             return .play(id: item.id, type: item.type.rawValue)
         case let .collection(collection):
             return .browseCollection(id: collection.id, title: collection.title)
+        case let .playlist(playlist):
+            return .play(id: playlist.id, type: playlist.type.rawValue)
         }
     }
 }
