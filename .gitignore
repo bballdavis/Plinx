@@ -34,3 +34,7 @@ fastlane/test_output/
 
 # Derived data (usually outside repo, but ignore just in case)
 DerivedData/
+
+# Ignore generated Xcode project (created by xcodegen)
+PlinxApp/Plinx.xcodeproj/
+PlinxApp/Plinx.xcodeproj/project.pbxproj
