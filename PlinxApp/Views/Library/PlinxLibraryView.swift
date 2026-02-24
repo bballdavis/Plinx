@@ -89,6 +89,10 @@ struct PlinxLibraryView: View {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .stroke(.white.opacity(0.15), lineWidth: 1)
             )
+            // contentShape ensures the entire visible frame is tappable on all
+            // screen sizes, including iPad where transparent gradient tops would
+            // otherwise fall outside the default hit region.
+            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .task { await viewModel.ensureArtwork(for: library) }
         }
         .buttonStyle(SpringyButtonStyle())

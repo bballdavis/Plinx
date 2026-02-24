@@ -47,6 +47,12 @@ struct PlinxApp: App {
     @State private var libraryStore: LibraryStore
     @StateObject private var mainCoordinator = MainCoordinator()
 
+    //── Strimr Watch-Together (inactive in Plinx; required by PlayerView's @Environment) ──
+    // PlayerView reads @Environment(WatchTogetherViewModel.self). If the value
+    // is absent the app crashes the first time a video is opened on iPad.
+    // We inject a default idle instance so the feature is present but dormant.
+    @State private var watchTogetherViewModel: WatchTogetherViewModel
+
     // ── Plinx Safety Layer ──────────────────────────────────────────────
     @AppStorage("plinx.maxMovieRating") private var maxMovieRatingRaw = PlinxRating.pg.rawValue
     @AppStorage("plinx.maxTVRating") private var maxTVRatingRaw = PlinxRating.tvPg.rawValue
@@ -89,6 +95,13 @@ struct PlinxApp: App {
         _settingsManager = State(initialValue: settings)
         _libraryStore = State(initialValue: store)
 
+        // WatchTogether: inject an idle instance so PlayerView's @Environment lookup
+        // succeeds on iPad. Plinx does not actively use Watch Together.
+        _watchTogetherViewModel = State(initialValue: WatchTogetherViewModel(
+            sessionManager: session,
+            context: context
+        ))
+
         // Layer 2: Plinx safety + theming are initialized via property defaults.
         // The ViewFactory is created in `body` since it needs the live state refs.
     }
@@ -104,6 +117,7 @@ struct PlinxApp: App {
                 .environment(settingsManager)
                 .environment(libraryStore)
                 .environmentObject(mainCoordinator)
+                .environment(watchTogetherViewModel)
                 // ── Plinx layer injection ───────────────────────────
                 .environment(\.plinxTheme, theme)
                 .environment(\.safetyPolicy, safetyPolicy)
