@@ -150,10 +150,33 @@ targets:
           Plinx-iOS: all
       testTargets:
         - Plinx-iOS-UITests
+        - Plinx-iOS-UnitTests
       run:
         config: Debug
       test:
         config: Debug
+
+  Plinx-iOS-UnitTests:
+    type: bundle.unit-test
+    platform: iOS
+
+    sources:
+      - path: UnitTests
+
+    dependencies:
+      - target: Plinx-iOS
+
+    settings:
+      base:
+        PRODUCT_NAME: PlinxUnitTests
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.plinx.unittests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_STRICT_CONCURRENCY: minimal
+        OTHER_SWIFT_FLAGS: "-Xfrontend -strict-concurrency=minimal"
+        # Host the unit tests inside the running app process so they can access
+        # all internal types (vendor + Plinx) via @testable import Plinx_iOS.
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Plinx-iOS.app/Plinx-iOS"
+        BUNDLE_LOADER: "$(TEST_HOST)"
 
   Plinx-iOS-UITests:
     type: bundle.ui-testing

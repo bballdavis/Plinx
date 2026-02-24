@@ -197,27 +197,7 @@ struct PlinxHomeView: View {
     }
 
     private func matchedLibrary(for hub: Hub, in libraries: [Library], recentlyAddedPrefix: String) -> Library? {
-        let title = hub.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !title.isEmpty {
-            let stripped = title
-                .replacingOccurrences(of: recentlyAddedPrefix, with: "", options: [.caseInsensitive])
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            if let exact = libraries.first(where: { $0.title.compare(stripped, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame }) {
-                return exact
-            }
-            if let contains = libraries.first(where: { stripped.localizedCaseInsensitiveContains($0.title) || $0.title.localizedCaseInsensitiveContains(stripped) }) {
-                return contains
-            }
-        }
-
-        let id = hub.id.lowercased()
-        return libraries.first { lib in
-            switch lib.type {
-            case .movie: return id.contains("movie") || id.contains("film")
-            case .show:  return id.contains("show") || id.contains("tv") || id.contains("series")
-            default:     return id.contains(lib.id.lowercased()) || id.contains(lib.title.lowercased())
-            }
-        }
+        HomeLibraryGrouping.matchLibrary(for: hub, in: libraries, recentlyAddedPrefix: recentlyAddedPrefix)
     }
 
     private func orderIndexForGroup(_ group: HubGroup, order: [String], libraries: [Library]) -> Int {
