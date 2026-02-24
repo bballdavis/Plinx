@@ -64,7 +64,9 @@ struct PlinxHomeView: View {
                 }
             }
             .padding(.top, 16)
-            .padding(.bottom, 40)
+            // Extra bottom padding ensures content scrolls clear of the
+            // floating KidsMainTabPicker (≈ 88pt) + comfortable overshoot.
+            .padding(.bottom, 120)
         }
     }
 
@@ -119,12 +121,30 @@ struct PlinxHomeView: View {
             HubEntry(hub: hub, library: matchedLibrary(for: hub, in: libraries, recentlyAddedPrefix: recentlyAddedPrefix))
         }
 
-        let movieEntries = entries.filter { $0.library?.type == .movie }
-        let showEntries = entries.filter { $0.library?.type == .show }
-        let otherEntries = entries.filter { entry in
-            guard let type = entry.library?.type else { return true }
-            return type != .movie && type != .show
+        // Use HomeLibraryGrouping helpers so none-agent libraries (e.g. YouTube)
+        // with type=.movie are correctly excluded from the movies/TV row.
+        let movieEntries = entries.filter { entry in
+            guard let lib = entry.library else { return false }
+            return HomeLibraryGrouping.isMoviesOrTV(lib) && lib.type == .movie
         }
+        let showEntries = entries.filter { entry in
+            guard let lib = entry.library else { return false }
+            return HomeLibraryGrouping.isMoviesOrTV(lib) && lib.type == .show
+        }
+        let otherEntries = entries.filter { entry in
+            HomeLibraryGrouping.isOtherVideo(entry.library)
+        }
+
+        let unmatchedEntries = entries.filter { $0.library == nil }
+        if !unmatchedEntries.isEmpty {
+            Self.logger.debug(
+                "Unmatched recently-added hubs classified as otherVideos count=\(unmatchedEntries.count, privacy: .public) total=\(entries.count, privacy: .public)"
+            )
+        }
+
+        Self.logger.debug(
+            "Recently-added grouping total=\(entries.count, privacy: .public) movie=\(movieEntries.count, privacy: .public) show=\(showEntries.count, privacy: .public) other=\(otherEntries.count, privacy: .public)"
+        )
 
         let visibleMovieEntries = movieEntries.filter { entry in
             guard let id = entry.library?.id else { return true }
@@ -170,8 +190,9 @@ struct PlinxHomeView: View {
         // Other-type hubs use letterbox (landscape) layout.
         for entry in otherEntries {
             let hub = entry.hub
-            let libId = entry.library?.id
-            if let libId, hiddenIds.contains(libId) { continue }
+            if let libId = entry.library?.id, hiddenIds.contains(libId) {
+                continue
+            }
             groups.append(HubGroup(id: hub.id, hub: hub, layout: .landscape))
         }
 
@@ -240,7 +261,6 @@ struct PlinxHomeView: View {
 
     private func mediaCard(_ item: MediaDisplayItem, layout: CardLayout, sectionKey: String, index: Int) -> some View {
         let isLandscape = layout == .landscape
-        let prefersThumbForLandscape = isLandscape && item.type == .clip
         let cardWidth: CGFloat = isLandscape ? 200 : 110
         let ratio: CGFloat = isLandscape ? 16.0 / 9.0 : 2.0 / 3.0
 
@@ -249,7 +269,7 @@ struct PlinxHomeView: View {
                 MediaImageView(
                     viewModel: MediaImageViewModel(
                         context: plexApiContext,
-                        artworkKind: prefersThumbForLandscape ? .thumb : (isLandscape ? .art : .thumb),
+                        artworkKind: .thumb,
                         media: item
                     )
                 )

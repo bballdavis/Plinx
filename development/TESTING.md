@@ -1,60 +1,63 @@
 # Testing & Quality Assurance
 
-Plinx maintains high standards for safety-critical logic and UI consistency.
+Plinx testing is run in a strict order so regressions are caught quickly and cheaply before live-server runs.
 
-## Unit Testing
-We aim for **100% coverage** on safety-critical components:
-- `SafetyInterceptor`: Label and rating filtering logic.
-- `MathGate`: Parental challenge validation.
+## Regression Execution Order
 
-### Running Tests
-You can run tests via Xcode (Cmd+U) or via the terminal using SwiftPM:
+1. **Unit tests (fast, deterministic)**
+2. **Targeted UI tests on simulator (navigation/layout regressions)**
+3. **Live UI tests (real Plex data/render checks)**
 
-```bash
-# Test Core logic
-swift test --package-path Packages/PlinxCore
+## Regression Matrix (Current Priority)
 
-# Test UI logic
-swift test --package-path Packages/PlinxUI
-```
+| Area | What to verify | Primary tests |
+|---|---|---|
+| Home grouping | Movies+TV combined row stays separate from Other Videos; unmatched hubs are not dropped | `HomeLibraryGroupingTests` |
+| Other-video letterbox | Other-video thumbnails are landscape while Movies/TV remain portrait | `HomeScreenSectionUITests`, `LiveRenderSmokeUITests` |
+| Main navigation row | Only one native tab row (no custom duplicate row) | `LibraryTabUITests.test_mainNavigation_usesSingleNativeTabBar` |
+| Library browse spacing | Browse list/grid keeps non-zero rendered items while scrolling/paginating (no phantom blank slots) | `LibraryTabUITests.test_libraryBrowse_continuousItems_noZeroSizedPhantomSlots` |
 
-## Snapshot Testing
-We use visual verification to ensure the "Liquid Glass" UI remains consistent across different iPhone and iPad display sizes. Snapshot artifacts are stored in the `PlinxUI` package tests.
+## Local Commands
 
-```bash
-# Snapshot assertions
-./scripts/ui_tests.sh --snapshots
-
-# Baseline recording (temporarily enable `isRecording = true` in snapshot setUp)
-./scripts/ui_tests.sh --record
-```
-
-## Primary Device Targets
-Default testing devices should be:
-- **iPhone 17** (current default simulator target used by scripts in this repository).
-- **iPad (10th generation)** (targets the largest kid-friendly screen that must remain responsive).
-These are the devices we emphasize in both local debugging and CI simulations when possible.
-
-## Live UI Smoke Tests (Playwright-style)
-
-Use app-level XCUITests to validate real render behavior when connected to a live Plex server.
+### 1) Unit tests
 
 ```bash
-./scripts/ui_tests.sh --live
+xcodebuild test \
+	-project PlinxApp/Plinx.xcodeproj \
+	-scheme Plinx-iOS \
+	-destination "platform=iOS Simulator,name=iPad (10th generation)" \
+	-only-testing:Plinx-iOS-UnitTests
 ```
 
-### Live Plex Credentials (YAML)
-To run real-server assertions, configure a `test_creds.yaml` file in the project root (copied from `test_creds.yaml.example`):
+### 2) Targeted UI tests (non-live)
 
-- `PLINX_PLEX_SERVER_URL`: Your Plex server address
-- `PLINX_PLEX_TOKEN`: Your auth token
+```bash
+xcodebuild test \
+	-project PlinxApp/Plinx.xcodeproj \
+	-scheme Plinx-iOS \
+	-destination "platform=iOS Simulator,name=iPad (10th generation)" \
+	-only-testing:Plinx-iOS-UITests/LibraryTabUITests
+```
 
-The `scripts/ui_tests.sh` runner automatically loads this file. If missing, live rendering assertions are skipped while basic launch smoke tests still run.
+### 3) Live UI tests (requires credentials)
 
-## Mocking
-To ensure a fast developer feedback loop, use the `MockPlexServer` and `MockPlexClient` during local development on the macOS simulator. This avoids the need for a live Plex server during UI work.
+```bash
+xcodebuild test \
+	-project PlinxApp/Plinx.xcodeproj \
+	-scheme Plinx-iOS \
+	-destination "platform=iOS Simulator,name=iPad (10th generation)" \
+	-only-testing:Plinx-iOS-UITests/HomeScreenSectionUITests \
+	-only-testing:Plinx-iOS-UITests/LiveRenderSmokeUITests
+```
 
-## CI/CD
-Every pull request is automatically verified via GitHub Actions:
-- **Build & Test**: Verifies compilation and runs all unit tests.
-- **Coverage Check**: Blocks merges if coverage on `SafetyInterceptor.swift` or `MathGate.swift` falls below 100%.
+## Live Credentials & Skip Behavior
+
+- Configure `test_creds.yaml` (copy from `test_creds.yaml.example`) with:
+	- `PLINX_PLEX_SERVER_URL`
+	- `PLINX_PLEX_TOKEN` (or user/password/PIN path)
+- Live tests are designed to **skip** when credentials are unavailable rather than fail unrelated PRs.
+
+## Device Targets
+
+- iPhone (default scripts target) for compact tab bar behavior.
+- iPad (10th generation) for regular-width navigation and browse-grid regressions.

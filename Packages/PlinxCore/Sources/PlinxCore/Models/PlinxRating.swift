@@ -2,6 +2,7 @@ public enum PlinxRating: String, CaseIterable, Comparable, Sendable {
     case tvY = "TV-Y"
     case g = "G"
     case tvY7 = "TV-Y7"
+    case tvG = "TV-G"   // Between TV-Y7 and TV-PG in severity
     case pg = "PG"
     case tvPg = "TV-PG"
     case pg13 = "PG-13"
@@ -15,15 +16,16 @@ public enum PlinxRating: String, CaseIterable, Comparable, Sendable {
 
     private var sortOrder: Int {
         switch self {
-        case .tvY: return 0
-        case .g: return 1
+        case .tvY:  return 0
+        case .g:    return 1
         case .tvY7: return 2
-        case .pg: return 3
-        case .tvPg: return 4
-        case .pg13: return 5
-        case .tv14: return 6
-        case .r: return 7
-        case .tvMa: return 8
+        case .tvG:  return 3
+        case .pg:   return 4
+        case .tvPg: return 5
+        case .pg13: return 6
+        case .tv14: return 7
+        case .r:    return 8
+        case .tvMa: return 9
         }
     }
 
@@ -58,15 +60,16 @@ public enum PlinxRating: String, CaseIterable, Comparable, Sendable {
             .replacingOccurrences(of: " ", with: "")
 
         switch normalized {
-        case "TVY", "TV-Y": return .tvY
+        case "TVY", "TV-Y":   return .tvY
         case "TVY7", "TV-Y7": return .tvY7
+        case "TVG", "TV-G":   return .tvG
         case "TVPG", "TV-PG": return .tvPg
         case "TV14", "TV-14": return .tv14
         case "TVMA", "TV-MA": return .tvMa
-        case "G": return .g
-        case "PG": return .pg
+        case "G":             return .g
+        case "PG":            return .pg
         case "PG13", "PG-13": return .pg13
-        case "R": return .r
+        case "R":             return .r
         default: return nil
         }
     }

@@ -39,6 +39,9 @@ enum StrimrAdapter {
     /// Check a `MediaItem` (base Strimr media type).
     /// - If the item has a recognized rating, enforce the appropriate max
     ///   (TV vs movie) from `policy`.
+    /// - Cross-type check: if a TV library has movie-rated content or a movie
+    ///   library has TV-rated content, use the higher of the two maxes (via the
+    ///   unified sort order) to avoid unfairly filtering cross-rated items.
     /// - If the item has no rating, the result is controlled by
     ///   `policy.allowUnrated`. Library-level gating is the primary guard.
     static func isAllowed(_ item: MediaItem, policy: SafetyPolicy) -> Bool {
@@ -50,8 +53,13 @@ enum StrimrAdapter {
             // Unrecognized rating string — treat as unrated.
             return policy.allowUnrated
         }
-        let maxAllowed = rating.isTVRating ? policy.maxTVRating : policy.maxMovieRating
-        return rating <= maxAllowed
+        // Primary check: use the exact max for the rating's type.
+        let primaryMax = rating.isTVRating ? policy.maxTVRating : policy.maxMovieRating
+        // Cross-type check: also allow if the item falls within the other type's
+        // configured max. Uses the unified severity sort order so the comparison
+        // is meaningful across TV/movie rating systems.
+        let crossTypeMax = max(policy.maxTVRating, policy.maxMovieRating)
+        return rating <= max(primaryMax, crossTypeMax)
     }
 
     /// Check a `MediaDisplayItem` (union of playable + collection).
@@ -76,8 +84,9 @@ enum StrimrAdapter {
         guard let rating = PlinxRating.from(contentRating: ratingString) else {
             return policy.allowUnrated
         }
-        let maxAllowed = rating.isTVRating ? policy.maxTVRating : policy.maxMovieRating
-        return rating <= maxAllowed
+        let primaryMax = rating.isTVRating ? policy.maxTVRating : policy.maxMovieRating
+        let crossTypeMax = max(policy.maxTVRating, policy.maxMovieRating)
+        return rating <= max(primaryMax, crossTypeMax)
     }
 
     // MARK: - Batch Filtering
