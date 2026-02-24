@@ -175,7 +175,7 @@ targets:
         OTHER_SWIFT_FLAGS: "-Xfrontend -strict-concurrency=minimal"
         # Host the unit tests inside the running app process so they can access
         # all internal types (vendor + Plinx) via @testable import Plinx_iOS.
-        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Plinx-iOS.app/Plinx-iOS"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Plinx.app/Plinx"
         BUNDLE_LOADER: "$(TEST_HOST)"
 
   Plinx-iOS-UITests:
