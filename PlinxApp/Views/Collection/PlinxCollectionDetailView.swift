@@ -58,7 +58,8 @@ struct PlinxCollectionDetailView: View {
             }
         }
         .navigationTitle(viewModel.collection.title)
-        .navigationBarTitleDisplayMode(.large)
+        .toolbarTitleDisplayMode(.inlineLarge)
+        .toolbarBackground(.hidden, for: .navigationBar)
         .task { await viewModel.load() }
     }
 }

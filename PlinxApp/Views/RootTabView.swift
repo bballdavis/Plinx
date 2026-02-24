@@ -34,6 +34,31 @@ struct RootTabView: View {
     }
 
     var body: some View {
+        mainTabView
+    }
+
+    @ViewBuilder
+    private var mainTabView: some View {
+        // Build the base view: native tab bar hidden, our liquid glass picker
+        // floated as a safe-area inset so it sits above the home indicator.
+        let base = tabContainer
+            .toolbar(.hidden, for: .tabBar)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                KidsMainTabPicker(
+                    tabs: KidsMainTabPicker.TabItem.mainTabs(),
+                    selectedTab: tabBinding
+                )
+            }
+
+        if #available(iOS 18.0, *) {
+            // Suppress the iOS 18 adaptive sidebar / top navigation on iPad.
+            base.tabViewStyle(.tabBarOnly)
+        } else {
+            base
+        }
+    }
+
+    private var tabContainer: some View {
         TabView(selection: tabBinding) {
             // MARK: Home
             NavigationStack(path: mainCoordinator.pathBinding(for: .home)) {
@@ -58,7 +83,9 @@ struct RootTabView: View {
                     }
                 )
                 .navigationTitle(Text("tabs.home", tableName: "Plinx"))
-                .navigationBarTitleDisplayMode(.inline)
+                .navigationBarTitleDisplayMode(.large)
+                .toolbarTitleDisplayMode(.inlineLarge)
+                .toolbarBackground(.hidden, for: .navigationBar)
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
@@ -100,7 +127,9 @@ struct RootTabView: View {
                     }
                 )
                 .navigationTitle(Text("tabs.search", tableName: "Plinx"))
-                .navigationBarTitleDisplayMode(.inline)
+                .navigationBarTitleDisplayMode(.large)
+                .toolbarTitleDisplayMode(.inlineLarge)
+                .toolbarBackground(.hidden, for: .navigationBar)
                 .navigationDestination(for: MainCoordinator.Route.self) { route in
                     destination(for: route)
                 }
@@ -130,7 +159,9 @@ struct RootTabView: View {
                     }
                 )
                 .navigationTitle(Text("tabs.library", tableName: "Plinx"))
-                .navigationBarTitleDisplayMode(.inline)
+                .navigationBarTitleDisplayMode(.large)
+                .toolbarTitleDisplayMode(.inlineLarge)
+                .toolbarBackground(.hidden, for: .navigationBar)
                 .navigationDestination(for: Library.self) { library in
                     LibraryDetailView(
                         library: library,
@@ -163,7 +194,7 @@ struct RootTabView: View {
             NavigationStack {
                 PlinxSettingsView()
                     .navigationTitle(Text("tabs.settings", tableName: "Plinx"))
-                    .navigationBarTitleDisplayMode(.inline)
+                    .navigationBarTitleDisplayMode(.large)
                     .toolbar {
                         ToolbarItem(placement: .topBarTrailing) {
                             Button {
@@ -176,6 +207,7 @@ struct RootTabView: View {
                         }
                     }
             }
+            .presentationDetents([.large])
         }
     }
 

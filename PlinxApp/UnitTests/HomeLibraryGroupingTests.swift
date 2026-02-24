@@ -27,9 +27,12 @@ final class HomeLibraryGroupingTests: XCTestCase {
     private let movieLibrary  = Library(id: "1", title: "Movies",      type: .movie, sectionId: 1)
     private let showLibrary   = Library(id: "2", title: "TV Shows",    type: .show,  sectionId: 2)
     private let clipLibrary   = Library(id: "3", title: "Home Videos", type: .clip,  sectionId: 3)
+    // YouTube library: declared as `type = .movie` in Plex but agent = "tv.plex.agents.none"
+    // This is the real-world case confirmed on the live test server (section key = 6).
+    private let youtubeLibrary = Library(id: "6", title: "Youtube Videos", type: .movie, sectionId: 6, agent: "tv.plex.agents.none")
     private let prefix        = "Recently Added"
 
-    private var allLibraries: [Library] { [movieLibrary, showLibrary, clipLibrary] }
+    private var allLibraries: [Library] { [movieLibrary, showLibrary, clipLibrary, youtubeLibrary] }
 
     // MARK: - Priority 1: Section-ID matching
 
@@ -142,5 +145,56 @@ final class HomeLibraryGroupingTests: XCTestCase {
 
     func test_isOtherVideo_clipLibrary() {
         XCTAssertTrue(HomeLibraryGrouping.isOtherVideo(clipLibrary))
+    }
+
+    func test_ambiguousHubWithoutMatch_staysUnmatchedAndClassifiesAsOtherVideo() {
+        let hub = Hub(id: "hub.home.recentlyadded.99", title: "Recently Added", items: [])
+        let matched = HomeLibraryGrouping.matchLibrary(for: hub, in: allLibraries, recentlyAddedPrefix: prefix)
+        XCTAssertNil(matched, "Unexpected match for unknown section hub should remain nil")
+        XCTAssertTrue(HomeLibraryGrouping.isOtherVideo(matched), "Unmatched hubs must default into other-video grouping")
+    }
+
+    func test_titleContainsMatch_mapsToClipLibrary() {
+        let hub = Hub(id: "hub.unknown", title: "Recently Added Home Videos Library", items: [])
+        let matched = HomeLibraryGrouping.matchLibrary(for: hub, in: allLibraries, recentlyAddedPrefix: prefix)
+        XCTAssertEqual(matched?.type, .clip)
+    }
+
+    // MARK: - None-agent library (e.g. YouTube with type=movie, agent=tv.plex.agents.none)
+    // Confirmed real-world: Plex server returns key=6, type=movie, agent=tv.plex.agents.none
+    // for a YouTube library. Without this fix, it would appear in the movies row.
+
+    func test_isNoneAgentLibrary_returnsTrue_forNoneAgent() {
+        XCTAssertTrue(youtubeLibrary.isNoneAgentLibrary,
+            "agent=tv.plex.agents.none must be detected as a none-agent library")
+    }
+
+    func test_isNoneAgentLibrary_returnsFalse_forRealMovieAgent() {
+        let realMovieLib = Library(id: "1", title: "Movies", type: .movie, sectionId: 1,
+                                   agent: "tv.plex.agents.movie")
+        XCTAssertFalse(realMovieLib.isNoneAgentLibrary)
+    }
+
+    func test_isMoviesOrTV_noneAgentMovieLibrary_returnsFalse() {
+        // YouTube is declared `type=.movie` in Plex but must NOT appear in the movies row.
+        XCTAssertFalse(HomeLibraryGrouping.isMoviesOrTV(youtubeLibrary),
+            "none-agent library with type=.movie must NOT be treated as movies/TV")
+    }
+
+    func test_isOtherVideo_noneAgentMovieLibrary_returnsTrue() {
+        // YouTube must be routed to the "Other Videos" section.
+        XCTAssertTrue(HomeLibraryGrouping.isOtherVideo(youtubeLibrary),
+            "none-agent library with type=.movie must be treated as other-video")
+    }
+
+    func test_sectionId_matchesYouTubeHub_andClassifiesAsOtherVideo() {
+        // Hub for the real YouTube library: hubIdentifier ends in ".6"
+        let hub = Hub(id: "hub.home.recentlyadded.6", title: "Recently Added Youtube Videos", items: [])
+        let matched = HomeLibraryGrouping.matchLibrary(for: hub, in: allLibraries, recentlyAddedPrefix: prefix)
+        XCTAssertEqual(matched?.id, "6", "Hub for section 6 must match YouTube library")
+        XCTAssertTrue(HomeLibraryGrouping.isOtherVideo(matched),
+            "Matched YouTube library must land in other-video grouping")
+        XCTAssertFalse(HomeLibraryGrouping.isMoviesOrTV(matched),
+            "Matched YouTube library must NOT land in movies/TV grouping")
     }
 }

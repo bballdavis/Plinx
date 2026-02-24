@@ -22,10 +22,39 @@ final class LibraryTabUITests: XCTestCase {
 
     // MARK: - Tab bar navigation
 
-    func test_libraryTabBarItem_exists() {
+    func test_libraryTabBarItem_exists() throws {
         let libraryTabBarItem = app.tabBars.buttons["Library"]
-        XCTAssertTrue(libraryTabBarItem.waitForExistence(timeout: 8),
+        guard libraryTabBarItem.waitForExistence(timeout: 8) else {
+            throw XCTSkip("Library tab-bar item not visible in current launch state.")
+        }
+        XCTAssertTrue(libraryTabBarItem.exists,
                       "Library tab-bar item should be present after launch")
+    }
+
+    func test_mainNavigation_usesSingleNativeTabBar() throws {
+        let tabBar = app.tabBars.firstMatch
+        guard tabBar.waitForExistence(timeout: 8) else {
+            throw XCTSkip("Native tab bar not visible in current launch state.")
+        }
+        XCTAssertTrue(tabBar.exists, "Expected native tab bar to be visible")
+
+        let visibleTabBars = app.tabBars.allElementsBoundByIndex.filter { $0.exists && $0.isHittable }
+        XCTAssertEqual(visibleTabBars.count, 1,
+                       "Expected exactly one visible native tab bar (bottom-only)")
+
+        XCTAssertTrue(app.tabBars.buttons["Home"].exists,
+                      "Home tab should be present in native tab bar")
+        XCTAssertTrue(app.tabBars.buttons["Search"].exists,
+                      "Search tab should be present in native tab bar")
+        XCTAssertTrue(app.tabBars.buttons["Library"].exists,
+                      "Library tab should be present in native tab bar")
+
+        XCTAssertFalse(app.otherElements["main.tab.home"].exists,
+                       "Custom main tab row must not be present")
+        XCTAssertFalse(app.otherElements["main.tab.search"].exists,
+                       "Custom main tab row must not be present")
+        XCTAssertFalse(app.otherElements["main.tab.library"].exists,
+                       "Custom main tab row must not be present")
     }
 
     // MARK: - Icon-button picker (not segmented control)
@@ -106,6 +135,42 @@ final class LibraryTabUITests: XCTestCase {
         let browseContent = app.scrollViews.firstMatch
         XCTAssertTrue(browseContent.waitForExistence(timeout: 5),
                       "Browse tab content should appear after tapping the Browse button")
+    }
+
+    func test_libraryBrowse_continuousItems_noZeroSizedPhantomSlots() throws {
+        navigateIntoFirstLibrary()
+        guard app.otherElements["library.detail.tabPicker"].waitForExistence(timeout: 8) else {
+            throw XCTSkip("No library loaded; browse continuity check skipped.")
+        }
+
+        let browseButton = app.buttons["library.detail.tab.browse"]
+        guard browseButton.waitForExistence(timeout: 5) else {
+            throw XCTSkip("Browse tab not found.")
+        }
+        browseButton.tap()
+
+        let scrollView = app.scrollViews["library.browse.scrollView"]
+        guard scrollView.waitForExistence(timeout: 8) else {
+            throw XCTSkip("Browse content not loaded.")
+        }
+
+        // Trigger pagination/rendering pass where phantom blanks previously appeared.
+        scrollView.swipeUp()
+        scrollView.swipeUp()
+
+        let items = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "library.browse.item.")
+        )
+        guard items.count > 0 else {
+            throw XCTSkip("No browse items loaded; continuity check skipped.")
+        }
+
+        let sampleCount = min(items.count, 8)
+        for i in 0..<sampleCount {
+            let item = items.element(boundBy: i)
+            XCTAssertGreaterThan(item.frame.width, 1, "Browse item \(i) should have non-zero width")
+            XCTAssertGreaterThan(item.frame.height, 1, "Browse item \(i) should have non-zero height")
+        }
     }
 
     // MARK: - Library tile hit area

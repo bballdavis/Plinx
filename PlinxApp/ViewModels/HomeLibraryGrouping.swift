@@ -85,7 +85,7 @@ enum HomeLibraryGrouping {
             switch lib.type {
             case .movie: return hubId.contains("movie") || hubId.contains("film")
             case .show:  return hubId.contains("show") || hubId.contains("tv") || hubId.contains("series")
-            case .clip:  return hubId.contains("clip") || hubId.contains("video") || hubId.contains("home")
+            case .clip:  return hubId.contains("clip") || hubId.contains("video")
             default:     return false
             }
         }
@@ -94,16 +94,20 @@ enum HomeLibraryGrouping {
     // MARK: - Grouping helpers
 
     /// Returns `true` if a recently-added hub entry belongs in the combined
-    /// movies+TV row (type is `.movie` or `.show`).
+    /// movies+TV row (type is `.movie` or `.show` AND is managed by a real agent).
     static func isMoviesOrTV(_ library: Library?) -> Bool {
         guard let lib = library else { return false }
+        // "none" agent libraries (e.g. YouTube, Home Videos) are NOT movies/TV
+        // even if their Plex section type is declared as "movie".
+        if lib.isNoneAgentLibrary { return false }
         return lib.type == .movie || lib.type == .show
     }
 
     /// Returns `true` if a recently-added hub entry belongs in the
-    /// "Other Videos" rows (any type that is not movie or show).
+    /// "Other Videos" rows (any type that is not movie or show, OR a none-agent library).
     static func isOtherVideo(_ library: Library?) -> Bool {
         guard let lib = library else { return true }   // unmatched → treat as other
+        if lib.isNoneAgentLibrary { return true }      // none-agent (YouTube, etc.) → other
         return lib.type != .movie && lib.type != .show
     }
 }

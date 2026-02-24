@@ -40,7 +40,7 @@ struct PlinxPlayerView: View {
                 Spacer()
                 contentRatingBadge
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 10)
             .padding(.top, 52)
 
             Spacer()
@@ -57,9 +57,9 @@ struct PlinxPlayerView: View {
                 Circle()
                     .fill(.ultraThinMaterial)
                     .overlay(Circle().stroke(.white.opacity(0.2), lineWidth: 1))
-                    .frame(width: 44, height: 44)
+                    .frame(width: 66, height: 66)
                 Image(systemName: "xmark")
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.system(size: 20, weight: .bold))
                     .foregroundStyle(.white)
             }
         }

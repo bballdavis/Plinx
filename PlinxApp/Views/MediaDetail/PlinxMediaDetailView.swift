@@ -20,7 +20,8 @@ struct PlinxMediaDetailView: View {
             }
         }
         .task { await viewModel.loadDetails() }
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbarTitleDisplayMode(.inlineLarge)
+        .toolbarBackground(.hidden, for: .navigationBar)
     }
 
     // MARK: - Blocked

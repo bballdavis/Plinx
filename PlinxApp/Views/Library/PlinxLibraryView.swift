@@ -36,7 +36,9 @@ struct PlinxLibraryView: View {
             }
             .padding(.horizontal, 20)
             .padding(.top, 16)
-            .padding(.bottom, 40)
+            // Extra padding to prevent content from disappearing behind the
+            // floating KidsMainTabPicker tab bar (~88pt).
+            .padding(.bottom, 120)
         }
     }
 
