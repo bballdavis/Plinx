@@ -41,6 +41,8 @@ struct RootTabView: View {
     private var mainTabView: some View {
         // Build the base view: native tab bar hidden, our liquid glass picker
         // floated as a safe-area inset so it sits above the home indicator.
+        // Settings gear is a floating overlay so we can fully hide the nav bar
+        // on root tabs (no chrome, no title bar at all).
         let base = tabContainer
             .toolbar(.hidden, for: .tabBar)
             .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -48,6 +50,19 @@ struct RootTabView: View {
                     tabs: KidsMainTabPicker.TabItem.mainTabs(),
                     selectedTab: tabBinding
                 )
+            }
+            .overlay(alignment: .topTrailing) {
+                Button {
+                    showSettings = true
+                } label: {
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.85))
+                        .padding(10)
+                        .background(.ultraThinMaterial, in: Circle())
+                }
+                .padding(.top, 12)
+                .padding(.trailing, 20)
             }
 
         if #available(iOS 18.0, *) {
@@ -83,27 +98,9 @@ struct RootTabView: View {
                     }
                 )
                 .navigationTitle(Text("tabs.home", tableName: "Plinx"))
-                .navigationBarTitleDisplayMode(.large)
-                .toolbarTitleDisplayMode(.inlineLarge)
-                .toolbarBackground(.hidden, for: .navigationBar)
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            showSettings = true
-                        } label: {
-                            Image(systemName: "gearshape.fill")
-                        }
-                    }
-                }
+                .toolbar(.hidden, for: .navigationBar)
                 .navigationDestination(for: MainCoordinator.Route.self) { route in
                     destination(for: route)
-                }
-            }
-            .tabItem {
-                Label {
-                    Text("tabs.home", tableName: "Plinx")
-                } icon: {
-                    Image(systemName: "house.fill")
                 }
             }
             .tag(MainCoordinator.Tab.home)
@@ -127,18 +124,9 @@ struct RootTabView: View {
                     }
                 )
                 .navigationTitle(Text("tabs.search", tableName: "Plinx"))
-                .navigationBarTitleDisplayMode(.large)
-                .toolbarTitleDisplayMode(.inlineLarge)
-                .toolbarBackground(.hidden, for: .navigationBar)
+                .toolbar(.hidden, for: .navigationBar)
                 .navigationDestination(for: MainCoordinator.Route.self) { route in
                     destination(for: route)
-                }
-            }
-            .tabItem {
-                Label {
-                    Text("tabs.search", tableName: "Plinx")
-                } icon: {
-                    Image(systemName: "magnifyingglass")
                 }
             }
             .tag(MainCoordinator.Tab.search)
@@ -159,9 +147,7 @@ struct RootTabView: View {
                     }
                 )
                 .navigationTitle(Text("tabs.library", tableName: "Plinx"))
-                .navigationBarTitleDisplayMode(.large)
-                .toolbarTitleDisplayMode(.inlineLarge)
-                .toolbarBackground(.hidden, for: .navigationBar)
+                .toolbar(.hidden, for: .navigationBar)
                 .navigationDestination(for: Library.self) { library in
                     LibraryDetailView(
                         library: library,
@@ -179,13 +165,6 @@ struct RootTabView: View {
                 }
                 .navigationDestination(for: MainCoordinator.Route.self) { route in
                     destination(for: route)
-                }
-            }
-            .tabItem {
-                Label {
-                    Text("tabs.library", tableName: "Plinx")
-                } icon: {
-                    Image(systemName: "square.grid.2x2.fill")
                 }
             }
             .tag(MainCoordinator.Tab.library)

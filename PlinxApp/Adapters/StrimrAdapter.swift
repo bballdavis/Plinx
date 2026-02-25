@@ -34,6 +34,49 @@ extension PlayQueueState: Identifiable {}
 
 enum StrimrAdapter {
 
+    private enum RatingContext {
+        case movie
+        case tv
+        case other
+    }
+
+    private static func ratingContext(for type: PlexItemType) -> RatingContext {
+        switch type {
+        case .movie:
+            return .movie
+        case .show, .season, .episode:
+            return .tv
+        case .clip, .collection, .playlist, .unknown:
+            return .other
+        }
+    }
+
+    private static func ratingContext(for type: PlayableItemType) -> RatingContext {
+        switch type {
+        case .movie:
+            return .movie
+        case .show, .season, .episode:
+            return .tv
+        case .clip:
+            return .other
+        }
+    }
+
+    private static func isAllowed(
+        rating: PlinxRating,
+        context: RatingContext,
+        policy: SafetyPolicy
+    ) -> Bool {
+        switch context {
+        case .movie:
+            return rating <= policy.maxMovieRating
+        case .tv:
+            return rating <= policy.maxTVRating
+        case .other:
+            return rating <= policy.maxMovieRating || rating <= policy.maxTVRating
+        }
+    }
+
     // MARK: - Single Item Checks
 
     /// Check a `MediaItem` (base Strimr media type).
@@ -53,13 +96,7 @@ enum StrimrAdapter {
             // Unrecognized rating string — treat as unrated.
             return policy.allowUnrated
         }
-        // Primary check: use the exact max for the rating's type.
-        let primaryMax = rating.isTVRating ? policy.maxTVRating : policy.maxMovieRating
-        // Cross-type check: also allow if the item falls within the other type's
-        // configured max. Uses the unified severity sort order so the comparison
-        // is meaningful across TV/movie rating systems.
-        let crossTypeMax = max(policy.maxTVRating, policy.maxMovieRating)
-        return rating <= max(primaryMax, crossTypeMax)
+        return isAllowed(rating: rating, context: ratingContext(for: item.type), policy: policy)
     }
 
     /// Check a `MediaDisplayItem` (union of playable + collection).
@@ -84,9 +121,7 @@ enum StrimrAdapter {
         guard let rating = PlinxRating.from(contentRating: ratingString) else {
             return policy.allowUnrated
         }
-        let primaryMax = rating.isTVRating ? policy.maxTVRating : policy.maxMovieRating
-        let crossTypeMax = max(policy.maxTVRating, policy.maxMovieRating)
-        return rating <= max(primaryMax, crossTypeMax)
+        return isAllowed(rating: rating, context: ratingContext(for: item.type), policy: policy)
     }
 
     // MARK: - Batch Filtering
