@@ -56,9 +56,10 @@ struct PlinxApp: App {
     // ── Plinx Safety Layer ──────────────────────────────────────────────
     @AppStorage("plinx.maxMovieRating") private var maxMovieRatingRaw = PlinxRating.pg.rawValue
     @AppStorage("plinx.maxTVRating") private var maxTVRatingRaw = PlinxRating.tvPg.rawValue
-    /// When `true` (default), items with no content rating are hidden. Parents can
-    /// set this to `false` to allow through unrated home videos / personal clips.
-    @AppStorage("plinx.excludeUnrated") private var excludeUnrated = true
+    /// When `false` (default), items with no content rating are shown.
+    /// Library-level gating (Kids-type sections only) is the primary guard.
+    /// Parents can set this to `true` to hide content with no MPAA/TV rating.
+    @AppStorage("plinx.excludeUnrated") private var excludeUnrated = false
 
     private var safetyPolicy: SafetyPolicy {
         let movieRating = PlinxRating.from(contentRating: maxMovieRatingRaw) ?? .pg

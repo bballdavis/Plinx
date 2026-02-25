@@ -34,7 +34,7 @@ private struct SettingsBody: View {
     @AppStorage("plinx.babyLockEnabled") private var babyLockEnabled = false
     @AppStorage("plinx.maxMovieRating") private var maxMovieRatingRaw = PlinxRating.pg.rawValue
     @AppStorage("plinx.maxTVRating")    private var maxTVRatingRaw    = PlinxRating.tvPg.rawValue
-    @AppStorage("plinx.excludeUnrated") private var excludeUnrated    = true
+    @AppStorage("plinx.excludeUnrated") private var excludeUnrated    = false
 
     @State private var isPresentingProfileSwitcher = false
 
@@ -54,6 +54,13 @@ private struct SettingsBody: View {
                         Text("settings.homescreen.title", tableName: "Plinx")
                     } icon: {
                         Image(systemName: "house.fill")
+                    }
+                }
+                NavigationLink(destination: LibraryViewsSettingsView()) {
+                    Label {
+                        Text("Library Views")
+                    } icon: {
+                        Image(systemName: "rectangle.3.group.fill")
                     }
                 }
             } header: {
