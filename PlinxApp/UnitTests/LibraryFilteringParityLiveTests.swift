@@ -6,6 +6,10 @@ import PlinxCore
 final class LibraryFilteringParityLiveTests: XCTestCase {
 
     private let policy = SafetyPolicy.ratingOnly(maxMovie: .pg, maxTV: .tvPg, allowUnrated: false)
+    private struct BrowseParityEntry: Equatable {
+        let kind: String
+        let id: String
+    }
 
     func test_liveRecommendedFilteringParity_movieLibrary() async throws {
         let context = try await makeLiveContextOrSkip()
@@ -37,34 +41,36 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
         let hubRepository = try HubRepository(context: context)
         let response = try await hubRepository.getSectionHubs(sectionId: try sectionId(for: library))
         let rawHubs = (response.mediaContainer.hub ?? []).map(Hub.init)
-
-        let expectedHubs = rawHubs.compactMap { hub -> Hub? in
-            guard let safetyHub = StrimrAdapter.filtered(hub, policy: policy) else { return nil }
-            let contextItems = safetyHub.items.filter { isAllowedInLibraryContext($0, library: library) }
-            guard !contextItems.isEmpty else { return nil }
-            return Hub(id: safetyHub.id, title: safetyHub.title, items: contextItems)
-        }
-        let expectedById = Dictionary(uniqueKeysWithValues: expectedHubs.map { ($0.id, $0) })
+        let expectedHubs = expectedRecommendedHubs(from: rawHubs, library: library)
 
         let vm = LibraryRecommendedViewModel(library: library, context: context)
         vm.hubFilter = { [policy] hub in
             guard let safetyHub = StrimrAdapter.filtered(hub, policy: policy) else { return nil }
-            let contextItems = safetyHub.items.filter { self.isAllowedInLibraryContext($0, library: library) }
+            let contextItems = safetyHub.items.filter { self.isAllowedInAppContext($0, library: library) }
             guard !contextItems.isEmpty else { return nil }
             return Hub(id: safetyHub.id, title: safetyHub.title, items: contextItems)
         }
         await vm.load()
 
-        for hub in vm.hubs {
-            guard let expectedHub = expectedById[hub.id] else {
-                XCTFail("Unexpected recommended hub returned by filtered VM: \(hub.id)")
-                continue
-            }
-            let expectedIds = Set(expectedHub.items.map(\.id))
-            let actualIds = Set(hub.items.map(\.id))
-            XCTAssertEqual(actualIds, expectedIds, "Recommended hub item parity mismatch for hub \(hub.id)")
-            XCTAssertTrue(hub.items.allSatisfy { isAllowedInLibraryContext($0, library: library) },
-                          "All recommended items must satisfy library-context safety policy")
+        XCTAssertEqual(
+            vm.hubs.map(\.id),
+            expectedHubs.map(\.id),
+            "Recommended hub order/identity must match Plex+policy oracle"
+        )
+        XCTAssertEqual(vm.hubs.count, expectedHubs.count, "Recommended hub counts must match")
+
+        for (actualHub, expectedHub) in zip(vm.hubs, expectedHubs) {
+            let actualIds = actualHub.items.map(\.id)
+            let expectedIds = expectedHub.items.map(\.id)
+            XCTAssertEqual(
+                actualIds,
+                expectedIds,
+                "Recommended hub item order/identity mismatch for hub \(actualHub.id)"
+            )
+            XCTAssertTrue(
+                actualHub.items.allSatisfy { isAllowedByPolicyInLibraryContext($0, library: library) },
+                "Recommended items must satisfy policy oracle"
+            )
         }
     }
 
@@ -80,17 +86,25 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
             return StrimrAdapter.isAllowed(item, policy: policy)
         }
         await vm.load()
+        await vm.loadMore()
 
-        let rawExpectedIds = try await expectedBrowseMediaIDs(library: library, context: context, includeCollections: false)
-        let displayedIds = Set(vm.browseItems.compactMap { item -> String? in
-            guard case let .media(media) = item else { return nil }
-            return media.id
-        })
+        let expectedEntries = try await expectedBrowseEntries(
+            library: library,
+            context: context,
+            includeCollections: false,
+            pages: 2,
+            pageSize: 20
+        )
+        let actualEntries = vm.browseItems.map(browseEntry)
 
-        XCTAssertEqual(displayedIds, rawExpectedIds, "Browse filtered media IDs must match repository parity for first page")
+        XCTAssertEqual(
+            actualEntries,
+            expectedEntries,
+            "Browse entries must match Plex+policy oracle across initial pagination (including order)"
+        )
         XCTAssertTrue(vm.browseItems.allSatisfy { item in
             guard case let .media(media) = item else { return true }
-            return isAllowedInLibraryContext(media, library: library)
+            return isAllowedByPolicyInLibraryContext(media, library: library)
         }, "All browse media items must satisfy library-context safety policy")
     }
 
@@ -230,41 +244,105 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
         return sectionId
     }
 
-    private func expectedBrowseMediaIDs(
+    private func expectedRecommendedHubs(
+        from rawHubs: [Hub],
+        library: Library
+    ) -> [Hub] {
+        rawHubs.compactMap { hub in
+            let allowedItems = hub.items.filter { isAllowedByPolicyInLibraryContext($0, library: library) }
+            guard !allowedItems.isEmpty else { return nil }
+            return Hub(id: hub.id, title: hub.title, items: allowedItems)
+        }
+    }
+
+    private func expectedBrowseEntries(
         library: Library,
         context: PlexAPIContext,
-        includeCollections: Bool
-    ) async throws -> Set<String> {
+        includeCollections: Bool,
+        pages: Int,
+        pageSize: Int
+    ) async throws -> [BrowseParityEntry] {
         let sectionRepository = try SectionRepository(context: context)
         let sectionId = try sectionId(for: library)
         let typeValue: String = library.type == .movie ? "1" : "2"
-        let queryItems = [
-            URLQueryItem(name: "type", value: typeValue),
-            URLQueryItem(name: "includeCollections", value: includeCollections ? "1" : "0"),
-            URLQueryItem(name: "includeMeta", value: "1")
-        ]
+        var entries: [BrowseParityEntry] = []
 
-        let response = try await sectionRepository.getSectionBrowseItems(
-            path: "/library/sections/\(sectionId)/all",
-            queryItems: queryItems,
-            pagination: PlexPagination(start: 0, size: 20)
-        )
+        for page in 0..<pages {
+            let includeMeta = page == 0
+            let queryItems = [
+                URLQueryItem(name: "type", value: typeValue),
+                URLQueryItem(name: "includeCollections", value: includeCollections ? "1" : "0"),
+                URLQueryItem(name: "includeMeta", value: includeMeta ? "1" : "0")
+            ]
 
-        let safeMediaIDs = (response.mediaContainer.metadata ?? []).compactMap { metadata -> String? in
-            guard case let .item(plexItem) = metadata,
-                  let displayItem = MediaDisplayItem(plexItem: plexItem) else {
-                return nil
+            let response = try await sectionRepository.getSectionBrowseItems(
+                path: "/library/sections/\(sectionId)/all",
+                queryItems: queryItems,
+                pagination: PlexPagination(start: page * pageSize, size: pageSize)
+            )
+            let metadata = response.mediaContainer.metadata ?? []
+            if metadata.isEmpty {
+                break
             }
-            return isAllowedInLibraryContext(displayItem, library: library) ? displayItem.id : nil
+
+            let pageEntries = metadata.compactMap { metadata in
+                switch metadata {
+                case let .folder(folder):
+                    return BrowseParityEntry(kind: "folder", id: folder.key)
+                case let .item(plexItem):
+                    guard let displayItem = MediaDisplayItem(plexItem: plexItem) else {
+                        return nil
+                    }
+                    guard isAllowedByPolicyInLibraryContext(displayItem, library: library) else {
+                        return nil
+                    }
+                    return BrowseParityEntry(kind: "media", id: displayItem.id)
+                }
+            }
+            entries.append(contentsOf: pageEntries)
         }
 
-        return Set(safeMediaIDs)
+        return entries
     }
 
-    private func isAllowedInLibraryContext(_ item: MediaDisplayItem, library: Library) -> Bool {
+    private func browseEntry(_ item: LibraryBrowseItem) -> BrowseParityEntry {
+        switch item {
+        case let .folder(folder):
+            return BrowseParityEntry(kind: "folder", id: folder.key)
+        case let .media(media):
+            return BrowseParityEntry(kind: "media", id: media.id)
+        }
+    }
+
+    private func isAllowedInAppContext(_ item: MediaDisplayItem, library: Library) -> Bool {
         if HomeLibraryGrouping.isMoviesOrTV(library), case .collection = item {
             return false
         }
         return StrimrAdapter.isAllowed(item, policy: policy)
+    }
+
+    private func isAllowedByPolicyInLibraryContext(_ item: MediaDisplayItem, library: Library) -> Bool {
+        if HomeLibraryGrouping.isMoviesOrTV(library), case .collection = item {
+            return false
+        }
+        switch item {
+        case .collection, .playlist:
+            return true
+        case let .playable(media):
+            return isAllowedByPolicyRating(media.contentRating)
+        }
+    }
+
+    private func isAllowedByPolicyRating(_ contentRating: String?) -> Bool {
+        guard let contentRating, !contentRating.isEmpty else {
+            return policy.allowUnrated
+        }
+        guard let rating = PlinxRating.from(contentRating: contentRating) else {
+            return policy.allowUnrated
+        }
+        if rating.isTVRating {
+            return rating <= policy.maxTVRating
+        }
+        return rating <= policy.maxMovieRating
     }
 }
