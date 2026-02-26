@@ -42,9 +42,9 @@ struct PlinxLibraryView: View {
 
                 ForEach(viewModel.libraries) { library in
                     libraryTile(library)
+                        .padding(.horizontal, 20)
                 }
             }
-            .padding(.horizontal, 20)
             .padding(.top, 16)
             // Extra padding to prevent content from disappearing behind the
             // floating KidsMainTabPicker tab bar (~88pt).
@@ -55,23 +55,29 @@ struct PlinxLibraryView: View {
     private func libraryTile(_ library: Library) -> some View {
         Button { onSelectLibrary(library) } label: {
             ZStack(alignment: .bottom) {
-                // Background artwork
-                Group {
-                    if let url = viewModel.artworkURL(for: library) {
-                        AsyncImage(url: url) { phase in
-                            if case .success(let img) = phase {
-                                img.resizable().scaledToFill()
-                            } else {
-                                libraryPlaceholder(for: library)
+                GeometryReader { proxy in
+                    // Background artwork
+                    Group {
+                        if let url = viewModel.artworkURL(for: library) {
+                            AsyncImage(url: url) { phase in
+                                if case .success(let img) = phase {
+                                    adaptiveLibraryArtwork(
+                                        image: img,
+                                        library: library,
+                                        size: proxy.size,
+                                    )
+                                } else {
+                                    libraryPlaceholder(for: library)
+                                }
                             }
+                        } else {
+                            libraryPlaceholder(for: library)
                         }
-                    } else {
-                        libraryPlaceholder(for: library)
                     }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 160)
+                    .clipped()
                 }
-                .frame(maxWidth: .infinity)
-                .frame(height: 160)
-                .clipped()
 
                 // Gradient + title
                 LinearGradient(
@@ -117,6 +123,37 @@ struct PlinxLibraryView: View {
                 .font(.system(size: 36, weight: .bold))
                 .foregroundStyle(.white.opacity(0.25))
         }
+    }
+
+    private func adaptiveLibraryArtwork(image: Image, library: Library, size: CGSize) -> some View {
+        let aspect = size.width / max(size.height, 1)
+        let isUltraWide = aspect > 2.1
+
+        return ZStack {
+            if isUltraWide {
+                image
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: size.width, height: size.height)
+                    .blur(radius: 18)
+                    .overlay(Color.black.opacity(0.28))
+
+                image
+                    .resizable()
+                    .scaledToFit()
+                    .frame(
+                        maxWidth: min(size.width * 0.72, library.type == .clip ? size.width * 0.82 : size.height * 1.55),
+                        maxHeight: size.height,
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            } else {
+                image
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: size.width, height: size.height)
+            }
+        }
+        .frame(width: size.width, height: size.height)
     }
 }
 

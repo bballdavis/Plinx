@@ -74,6 +74,7 @@ private struct SettingsBody: View {
                         Text("settings.accent.title", tableName: "Plinx")
                     } icon: {
                         Image(systemName: "paintpalette.fill")
+                            .foregroundStyle(Color.accentColor)
                     }
                 }
             } header: {

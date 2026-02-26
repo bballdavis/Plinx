@@ -104,7 +104,7 @@ struct RootTabView: View {
                         ),
                         policy: safetyPolicy
                     ),
-                    topContent: AnyView(topTitleRow(title: "tabs.home")),
+                    topContent: AnyView(topTitleRow(title: "tabs.home", showsSettingsButton: true)),
                     onSelectMedia: { displayItem in
                         switch displayItem {
                         case let .playable(media):
@@ -132,7 +132,7 @@ struct RootTabView: View {
                         inner: SearchViewModel(context: plexApiContext),
                         policy: safetyPolicy
                     ),
-                    topContent: AnyView(topTitleRow(title: "tabs.search")),
+                    topContent: AnyView(topTitleRow(title: "tabs.search", showsSettingsButton: false)),
                     onSelectMedia: { displayItem in
                         switch displayItem {
                         case let .playable(media):
@@ -164,7 +164,7 @@ struct RootTabView: View {
                         policy: safetyPolicy,
                         context: plexApiContext
                     ),
-                    topContent: AnyView(topTitleRow(title: "tabs.libraries")),
+                    topContent: AnyView(topTitleRow(title: "tabs.libraries", showsSettingsButton: false)),
                     onSelectLibrary: { library in
                         mainCoordinator.libraryPath.append(library)
                     }
@@ -198,20 +198,32 @@ struct RootTabView: View {
         }
     }
 
-    private func topTitleRow(title: LocalizedStringKey) -> some View {
+    private func topTitleRow(title: LocalizedStringKey, showsSettingsButton: Bool) -> some View {
         HStack(spacing: 12) {
             Text(title)
                 .font(.title3.weight(.bold))
                 .foregroundStyle(.white.opacity(0.95))
             Spacer()
-            Button {
-                showSettings = true
-            } label: {
-                Image(systemName: "gearshape.fill")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.85))
-                    .padding(10)
-                    .background(.ultraThinMaterial, in: Circle())
+            if showsSettingsButton {
+                Button {
+                    showSettings = true
+                } label: {
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(Color.accentColor)
+                        .frame(width: 52, height: 52)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(.ultraThinMaterial)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(Color.accentColor.opacity(0.35), lineWidth: 1)
+                        )
+                }
+            } else {
+                Color.clear
+                    .frame(width: 52, height: 52)
             }
         }
         .padding(.horizontal, 20)
