@@ -33,17 +33,50 @@ struct RootTabView: View {
         )
     }
 
+    private var currentTabTitle: LocalizedStringKey {
+        switch tabBinding.wrappedValue {
+        case .home:
+            return "tabs.home"
+        case .search:
+            return "tabs.search"
+        case .library:
+            return "tabs.libraries"
+        case .more, .seerrDiscover:
+            return "tabs.home"
+        case .libraryDetail:
+            return "tabs.libraries"
+        }
+    }
+
     var body: some View {
         mainTabView
     }
 
     @ViewBuilder
     private var mainTabView: some View {
-        // Build the base view: native tab bar hidden, our liquid glass picker
-        // floated as a safe-area inset so it sits above the home indicator.
-        // Settings gear is a floating overlay so we can fully hide the nav bar
-        // on root tabs (no chrome, no title bar at all).
+        // Build the base view: native tab bar hidden, with custom top/bottom bars.
         let base = tabContainer
+            .safeAreaInset(edge: .top, spacing: 0) {
+                HStack(spacing: 12) {
+                    Text(currentTabTitle)
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(.white.opacity(0.95))
+                    Spacer()
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gearshape.fill")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.85))
+                            .padding(10)
+                            .background(.ultraThinMaterial, in: Circle())
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+                .padding(.bottom, 10)
+                .background(Color.clear)
+            }
             .toolbar(.hidden, for: .tabBar)
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 KidsMainTabPicker(
@@ -51,24 +84,10 @@ struct RootTabView: View {
                     selectedTab: tabBinding
                 )
             }
-            .overlay(alignment: .topTrailing) {
-                Button {
-                    showSettings = true
-                } label: {
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.85))
-                        .padding(10)
-                        .background(.ultraThinMaterial, in: Circle())
-                }
-                .padding(.top, 12)
-                .padding(.trailing, 20)
-            }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
         // Keep root tab chrome fully custom (KidsMainTabPicker only).
-        // Page style avoids iPad's top tab bar / section strip.
-        base.tabViewStyle(.page(indexDisplayMode: .never))
+        base
     }
 
     private var tabContainer: some View {

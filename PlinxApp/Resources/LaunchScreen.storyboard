@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="23504" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" launchScreen="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="01J-lp-oVM">
-    <device id="retina6_12" orientation="portrait" appearance="light"/>
+    <device id="ipad11_4" orientation="portrait" appearance="light"/>
     <dependencies>
         <deployment identifier="iOS"/>
         <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="23506"/>
@@ -12,10 +12,13 @@
             <objects>
                 <viewController id="01J-lp-oVM" sceneMemberID="viewController">
                     <view key="view" contentMode="scaleToFill" id="Ze5-6b-2t3">
-                        <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
+                        <rect key="frame" x="0.0" y="0.0" width="834" height="1194"/>
                         <subviews>
+                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFill" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="LaunchGradient" translatesAutoresizingMaskIntoConstraints="NO" id="q5s-jy-UBv">
+                                <rect key="frame" x="0.0" y="0.0" width="834" height="1194"/>
+                            </imageView>
                             <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="LogoWhite" translatesAutoresizingMaskIntoConstraints="NO" id="K2f-xA-uXZ">
-                                <rect key="frame" x="126.5" y="356" width="140" height="140"/>
+                                <rect key="frame" x="347" y="527" width="140" height="140"/>
                                 <constraints>
                                     <constraint firstAttribute="width" constant="140" id="GQ6-96-qIh"/>
                                     <constraint firstAttribute="height" constant="140" id="rnF-rd-kKL"/>
@@ -23,8 +26,12 @@
                             </imageView>
                         </subviews>
                         <viewLayoutGuide key="safeArea" id="Bcu-3y-fUS"/>
-                        <color key="backgroundColor" red="0.20392156862745098" green="0.82745098039215681" blue="0.6" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                        <color key="backgroundColor" red="0.0" green="0.0" blue="0.0" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                         <constraints>
+                            <constraint firstItem="q5s-jy-UBv" firstAttribute="leading" secondItem="Ze5-6b-2t3" secondAttribute="leading" id="0jy-94-f35"/>
+                            <constraint firstItem="q5s-jy-UBv" firstAttribute="top" secondItem="Ze5-6b-2t3" secondAttribute="top" id="9oe-Sf-tqA"/>
+                            <constraint firstAttribute="trailing" secondItem="q5s-jy-UBv" secondAttribute="trailing" id="JtO-Io-lf2"/>
+                            <constraint firstAttribute="bottom" secondItem="q5s-jy-UBv" secondAttribute="bottom" id="d7d-Zf-0UA"/>
                             <constraint firstItem="K2f-xA-uXZ" firstAttribute="centerX" secondItem="Ze5-6b-2t3" secondAttribute="centerX" id="tKD-yr-dv7"/>
                             <constraint firstItem="K2f-xA-uXZ" firstAttribute="centerY" secondItem="Ze5-6b-2t3" secondAttribute="centerY" id="ye4-pN-EB3"/>
                         </constraints>
@@ -36,6 +43,7 @@
         </scene>
     </scenes>
     <resources>
+        <image name="LaunchGradient" width="2580" height="5592"/>
         <image name="LogoWhite" width="396" height="302"/>
     </resources>
 </document>
