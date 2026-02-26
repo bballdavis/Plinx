@@ -9,6 +9,7 @@ struct PlinxHomeView: View {
     @State var viewModel: SafeHomeViewModel
     var topContent: AnyView? = nil
     var onSelectMedia: (MediaDisplayItem) -> Void
+    var onLongPressMedia: (MediaDisplayItem) -> Void = { _ in }
 
     @Environment(PlexAPIContext.self) private var plexApiContext
     @Environment(LibraryStore.self) private var libraryStore
@@ -269,6 +270,7 @@ struct PlinxHomeView: View {
                     ForEach(Array(hub.items.enumerated()), id: \.element.id) { index, item in
                         mediaCard(item, layout: layout, sectionKey: sectionKey, index: index)
                             .onTapGesture { onSelectMedia(item) }
+                            .onLongPressGesture { onLongPressMedia(item) }
                     }
                 }
                 .padding(.horizontal, 20)

@@ -42,6 +42,10 @@ final class SafeMediaDetailViewModel {
     private let inner: MediaDetailViewModel
     private let policy: SafetyPolicy
 
+    var rawViewModel: MediaDetailViewModel {
+        inner
+    }
+
     init(inner: MediaDetailViewModel, policy: SafetyPolicy = .ratingOnly()) {
         self.inner = inner
         self.policy = policy
@@ -77,11 +81,12 @@ final class SafeMediaDetailViewModel {
     // MARK: - Filtering
 
     private func applyFilters() {
-        seasons = inner.seasons  // Season items rarely carry individual ratings.
+        seasons = inner.seasons
         filterEpisodes()
         relatedHubs = inner.relatedHubs.compactMap {
             StrimrAdapter.filtered($0, policy: policy)
         }
+        inner.relatedHubs = relatedHubs
     }
 
     private func filterEpisodes() {

@@ -60,7 +60,7 @@ private struct LibraryViewSectionsConfigurationView: View {
     @State private var errorMessage: String?
 
     private var hiddenIds: Set<String> {
-        Set(settingsManager.libraryViewSettings(for: library.id).hiddenRecommendSectionIds)
+        Set(settingsManager.plinxLibraryViewSettings(for: library.id).hiddenRecommendSectionIds)
     }
 
     var body: some View {
@@ -90,7 +90,7 @@ private struct LibraryViewSectionsConfigurationView: View {
                             isOn: Binding(
                                 get: { !hiddenIds.contains(section.id) },
                                 set: { isVisible in
-                                    settingsManager.setRecommendSectionHidden(!isVisible, libraryId: library.id, sectionId: section.id)
+                                    settingsManager.plinxSetRecommendSectionHidden(!isVisible, libraryId: library.id, sectionId: section.id)
                                 }
                             )
                         ) {
@@ -116,7 +116,7 @@ private struct LibraryViewSectionsConfigurationView: View {
 
     private func moveSections(from source: IndexSet, to destination: Int) {
         sections.move(fromOffsets: source, toOffset: destination)
-        settingsManager.setRecommendSectionOrder(sections.map(\.id), libraryId: library.id)
+        settingsManager.plinxSetRecommendSectionOrder(sections.map(\.id), libraryId: library.id)
     }
 
     private func loadSections() async {
@@ -149,7 +149,7 @@ private struct LibraryViewSectionsConfigurationView: View {
                 return RecommendSection(id: hub.id, title: hub.title)
             }
 
-            let orderedIds = settingsManager.resolvedRecommendSectionIds(
+            let orderedIds = settingsManager.plinxResolvedRecommendSectionIds(
                 for: library.id,
                 availableSectionIds: availableSections.map(\.id)
             )
