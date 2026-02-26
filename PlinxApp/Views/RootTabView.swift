@@ -103,13 +103,6 @@ struct RootTabView: View {
                     destination(for: route)
                 }
             }
-            .tabItem {
-                Label {
-                    Text("tabs.home", tableName: "Plinx")
-                } icon: {
-                    Image(systemName: "house.fill")
-                }
-            }
             .tag(MainCoordinator.Tab.home)
 
             // MARK: Search
@@ -133,13 +126,6 @@ struct RootTabView: View {
                 .toolbar(.hidden, for: .navigationBar)
                 .navigationDestination(for: MainCoordinator.Route.self) { route in
                     destination(for: route)
-                }
-            }
-            .tabItem {
-                Label {
-                    Text("tabs.search", tableName: "Plinx")
-                } icon: {
-                    Image(systemName: "magnifyingglass")
                 }
             }
             .tag(MainCoordinator.Tab.search)
@@ -177,13 +163,6 @@ struct RootTabView: View {
                 }
                 .navigationDestination(for: MainCoordinator.Route.self) { route in
                     destination(for: route)
-                }
-            }
-            .tabItem {
-                Label {
-                    Text("tabs.library", tableName: "Plinx")
-                } icon: {
-                    Image(systemName: "books.vertical.fill")
                 }
             }
             .tag(MainCoordinator.Tab.library)
