@@ -40,6 +40,29 @@ See [development/UI_TESTING_STRATEGY.md](../development/UI_TESTING_STRATEGY.md) 
 
 ---
 
+### `live_library_parity_tests.sh` — Run Live Browse/Recommend Parity Tests
+
+Loads `test_creds.yaml`, injects Plex credentials into the test process, and runs:
+`Plinx-iOS-UnitTests/LibraryFilteringParityLiveTests`
+
+```bash
+# Run against default simulator destination
+./scripts/live_library_parity_tests.sh
+
+# Run against a custom destination string
+./scripts/live_library_parity_tests.sh 'platform=iOS Simulator,name=iPhone 17'
+```
+
+**What it does:**
+- Reads `PLINX_PLEX_SERVER_URL` and `PLINX_PLEX_TOKEN` from repository-root `test_creds.yaml`
+- Exports both direct and `SIMCTL_CHILD_*` env vars for simulator test propagation
+- Runs targeted live parity tests and writes full logs to `/tmp/plinx_live_library_parity.log`
+- Writes result bundle to `/tmp/Plinx_live_library_parity.xcresult`
+
+**Output:** Clear pass/fail status plus extracted error lines on failure.
+
+---
+
 ### `run_iphone_sim.sh` — Build, Install & Run
 
 Generates the Xcode project, builds the app, and launches it on a simulator.

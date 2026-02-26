@@ -151,6 +151,9 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
         if let simctl = env[simctlKey], !simctl.isEmpty {
             return simctl
         }
+        if let stored = UserDefaults.standard.string(forKey: key), !stored.isEmpty {
+            return stored
+        }
         return yamlCredential(named: key)
     }
 
