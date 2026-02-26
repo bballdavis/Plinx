@@ -66,12 +66,9 @@ struct RootTabView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-        if #available(iOS 18.0, *) {
-            // Suppress the iOS 18 adaptive sidebar / top navigation on iPad.
-            base.tabViewStyle(.tabBarOnly)
-        } else {
-            base
-        }
+        // Keep root tab chrome fully custom (KidsMainTabPicker only).
+        // Page style avoids iPad's top tab bar / section strip.
+        base.tabViewStyle(.page(indexDisplayMode: .never))
     }
 
     private var tabContainer: some View {

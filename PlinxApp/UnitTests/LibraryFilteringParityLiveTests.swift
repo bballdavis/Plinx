@@ -10,15 +10,49 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
     func test_liveRecommendedFilteringParity_movieLibrary() async throws {
         let context = try await makeLiveContextOrSkip()
         let library = try await pickLibrary(type: .movie, context: context)
+        try await assertRecommendedParity(library: library, context: context)
+    }
 
+    func test_liveRecommendedFilteringParity_showLibrary() async throws {
+        let context = try await makeLiveContextOrSkip()
+        let library = try await pickLibrary(type: .show, context: context)
+        try await assertRecommendedParity(library: library, context: context)
+    }
+
+    func test_liveBrowseFilteringParity_movieLibrary() async throws {
+        let context = try await makeLiveContextOrSkip()
+        let library = try await pickLibrary(type: .movie, context: context)
+        try await assertBrowseParity(library: library, context: context)
+    }
+
+    func test_liveBrowseFilteringParity_showLibrary() async throws {
+        let context = try await makeLiveContextOrSkip()
+        let library = try await pickLibrary(type: .show, context: context)
+        try await assertBrowseParity(library: library, context: context)
+    }
+
+    // MARK: - Parity assertions
+
+    private func assertRecommendedParity(library: Library, context: PlexAPIContext) async throws {
         let hubRepository = try HubRepository(context: context)
         let response = try await hubRepository.getSectionHubs(sectionId: try sectionId(for: library))
         let rawHubs = (response.mediaContainer.hub ?? []).map(Hub.init)
-        let expectedHubs = rawHubs.compactMap { StrimrAdapter.filtered($0, policy: policy) }
+
+        let expectedHubs = rawHubs.compactMap { hub -> Hub? in
+            guard let safetyHub = StrimrAdapter.filtered(hub, policy: policy) else { return nil }
+            let contextItems = safetyHub.items.filter { isAllowedInLibraryContext($0, library: library) }
+            guard !contextItems.isEmpty else { return nil }
+            return Hub(id: safetyHub.id, title: safetyHub.title, items: contextItems)
+        }
         let expectedById = Dictionary(uniqueKeysWithValues: expectedHubs.map { ($0.id, $0) })
 
         let vm = LibraryRecommendedViewModel(library: library, context: context)
-        vm.hubFilter = { StrimrAdapter.filtered($0, policy: self.policy) }
+        vm.hubFilter = { [policy] hub in
+            guard let safetyHub = StrimrAdapter.filtered(hub, policy: policy) else { return nil }
+            let contextItems = safetyHub.items.filter { self.isAllowedInLibraryContext($0, library: library) }
+            guard !contextItems.isEmpty else { return nil }
+            return Hub(id: safetyHub.id, title: safetyHub.title, items: contextItems)
+        }
         await vm.load()
 
         for hub in vm.hubs {
@@ -29,20 +63,25 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
             let expectedIds = Set(expectedHub.items.map(\.id))
             let actualIds = Set(hub.items.map(\.id))
             XCTAssertEqual(actualIds, expectedIds, "Recommended hub item parity mismatch for hub \(hub.id)")
-            XCTAssertTrue(hub.items.allSatisfy { StrimrAdapter.isAllowed($0, policy: policy) },
-                          "All recommended items must satisfy safety policy")
+            XCTAssertTrue(hub.items.allSatisfy { isAllowedInLibraryContext($0, library: library) },
+                          "All recommended items must satisfy library-context safety policy")
         }
     }
 
-    func test_liveBrowseFilteringParity_showLibrary() async throws {
-        let context = try await makeLiveContextOrSkip()
-        let library = try await pickLibrary(type: .show, context: context)
+    private func assertBrowseParity(library: Library, context: PlexAPIContext) async throws {
+        let settings = SettingsManager()
+        settings.setDisplayCollections(false)
 
-        let vm = LibraryBrowseViewModel(library: library, context: context, settingsManager: SettingsManager())
-        vm.itemFilter = { StrimrAdapter.isAllowed($0, policy: self.policy) }
+        let vm = LibraryBrowseViewModel(library: library, context: context, settingsManager: settings)
+        vm.itemFilter = { [policy] item in
+            if HomeLibraryGrouping.isMoviesOrTV(library), case .collection = item {
+                return false
+            }
+            return StrimrAdapter.isAllowed(item, policy: policy)
+        }
         await vm.load()
 
-        let rawExpectedIds = try await expectedBrowseMediaIDs(library: library, context: context)
+        let rawExpectedIds = try await expectedBrowseMediaIDs(library: library, context: context, includeCollections: false)
         let displayedIds = Set(vm.browseItems.compactMap { item -> String? in
             guard case let .media(media) = item else { return nil }
             return media.id
@@ -51,16 +90,18 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
         XCTAssertEqual(displayedIds, rawExpectedIds, "Browse filtered media IDs must match repository parity for first page")
         XCTAssertTrue(vm.browseItems.allSatisfy { item in
             guard case let .media(media) = item else { return true }
-            return StrimrAdapter.isAllowed(media, policy: policy)
-        }, "All browse media items must satisfy safety policy")
+            return isAllowedInLibraryContext(media, library: library)
+        }, "All browse media items must satisfy library-context safety policy")
     }
 
     // MARK: - Helpers
 
     private func makeLiveContextOrSkip() async throws -> PlexAPIContext {
-        let env = ProcessInfo.processInfo.environment
-        guard let serverRaw = env["PLINX_PLEX_SERVER_URL"], !serverRaw.isEmpty,
-              let token = env["PLINX_PLEX_TOKEN"], !token.isEmpty else {
+        let serverRaw = credential(named: "PLINX_PLEX_SERVER_URL")
+        let token = credential(named: "PLINX_PLEX_TOKEN")
+
+        guard let serverRaw, !serverRaw.isEmpty,
+              let token, !token.isEmpty else {
             throw XCTSkip("Live Plex credentials are not configured. Populate test_creds.yaml with PLINX_PLEX_SERVER_URL and PLINX_PLEX_TOKEN.")
         }
 
@@ -101,6 +142,70 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
         return context
     }
 
+    private func credential(named key: String) -> String? {
+        let env = ProcessInfo.processInfo.environment
+        if let direct = env[key], !direct.isEmpty {
+            return direct
+        }
+        let simctlKey = "SIMCTL_CHILD_\(key)"
+        if let simctl = env[simctlKey], !simctl.isEmpty {
+            return simctl
+        }
+        return yamlCredential(named: key)
+    }
+
+    private func yamlCredential(named key: String) -> String? {
+        guard let yamlPath = locateTestCredsYAML(),
+              let content = try? String(contentsOfFile: yamlPath, encoding: .utf8) else {
+            return nil
+        }
+
+        for rawLine in content.split(whereSeparator: \.isNewline) {
+            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            guard !line.isEmpty, !line.hasPrefix("#") else { continue }
+            guard let separator = line.firstIndex(of: ":") else { continue }
+
+            let parsedKey = line[..<separator].trimmingCharacters(in: .whitespaces)
+            guard parsedKey == key else { continue }
+
+            var value = line[line.index(after: separator)...].trimmingCharacters(in: .whitespaces)
+            if value.hasPrefix("\""), value.hasSuffix("\""), value.count >= 2 {
+                value.removeFirst()
+                value.removeLast()
+            } else if value.hasPrefix("'"), value.hasSuffix("'"), value.count >= 2 {
+                value.removeFirst()
+                value.removeLast()
+            }
+            return value.isEmpty ? nil : value
+        }
+        return nil
+    }
+
+    private func locateTestCredsYAML() -> String? {
+        let fm = FileManager.default
+        var current = URL(fileURLWithPath: fm.currentDirectoryPath)
+
+        for _ in 0..<5 {
+            let candidate = current.appendingPathComponent("test_creds.yaml").path
+            if fm.fileExists(atPath: candidate) {
+                return candidate
+            }
+            current.deleteLastPathComponent()
+        }
+
+        // Fallback: resolve from this source file path:
+        // <repo>/PlinxApp/UnitTests/LibraryFilteringParityLiveTests.swift
+        // -> <repo>/test_creds.yaml
+        var sourceURL = URL(fileURLWithPath: #filePath)
+        for _ in 0..<4 { sourceURL.deleteLastPathComponent() }
+        let sourceCandidate = sourceURL.appendingPathComponent("test_creds.yaml").path
+        if fm.fileExists(atPath: sourceCandidate) {
+            return sourceCandidate
+        }
+
+        return nil
+    }
+
     private func pickLibrary(type: PlexItemType, context: PlexAPIContext) async throws -> Library {
         let libraryStore = LibraryStore(context: context)
         try await libraryStore.loadLibraries()
@@ -122,13 +227,17 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
         return sectionId
     }
 
-    private func expectedBrowseMediaIDs(library: Library, context: PlexAPIContext) async throws -> Set<String> {
+    private func expectedBrowseMediaIDs(
+        library: Library,
+        context: PlexAPIContext,
+        includeCollections: Bool
+    ) async throws -> Set<String> {
         let sectionRepository = try SectionRepository(context: context)
         let sectionId = try sectionId(for: library)
         let typeValue: String = library.type == .movie ? "1" : "2"
         let queryItems = [
             URLQueryItem(name: "type", value: typeValue),
-            URLQueryItem(name: "includeCollections", value: "0"),
+            URLQueryItem(name: "includeCollections", value: includeCollections ? "1" : "0"),
             URLQueryItem(name: "includeMeta", value: "1")
         ]
 
@@ -143,9 +252,16 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
                   let displayItem = MediaDisplayItem(plexItem: plexItem) else {
                 return nil
             }
-            return StrimrAdapter.isAllowed(displayItem, policy: policy) ? displayItem.id : nil
+            return isAllowedInLibraryContext(displayItem, library: library) ? displayItem.id : nil
         }
 
         return Set(safeMediaIDs)
+    }
+
+    private func isAllowedInLibraryContext(_ item: MediaDisplayItem, library: Library) -> Bool {
+        if HomeLibraryGrouping.isMoviesOrTV(library), case .collection = item {
+            return false
+        }
+        return StrimrAdapter.isAllowed(item, policy: policy)
     }
 }
