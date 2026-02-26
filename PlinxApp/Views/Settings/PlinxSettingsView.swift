@@ -34,7 +34,7 @@ private struct SettingsBody: View {
     @AppStorage("plinx.babyLockEnabled") private var babyLockEnabled = false
     @AppStorage("plinx.maxMovieRating") private var maxMovieRatingRaw = PlinxRating.pg.rawValue
     @AppStorage("plinx.maxTVRating")    private var maxTVRatingRaw    = PlinxRating.tvPg.rawValue
-    @AppStorage("plinx.excludeUnrated") private var excludeUnrated    = false
+    @AppStorage("plinx.excludeUnrated") private var excludeUnrated    = true
 
     @State private var isPresentingProfileSwitcher = false
 
@@ -195,4 +195,3 @@ private struct SettingsBody: View {
         }
     }
 }
-
