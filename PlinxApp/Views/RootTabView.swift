@@ -22,29 +22,35 @@ struct RootTabView: View {
         )
     }
 
-    /// Maps coordinator tab to tab-bar selection, collapsing `.more` → `.home`
+    private var activeRootTab: MainCoordinator.Tab {
+        switch mainCoordinator.tab {
+        case .search:
+            return .search
+        case .library, .libraryDetail:
+            return .library
+        case .home, .more, .seerrDiscover:
+            return .home
+        }
+    }
+
+    /// Maps coordinator tab to tab-bar selection.
     private var tabBinding: Binding<MainCoordinator.Tab> {
         Binding(
-            get: {
-                let t = mainCoordinator.tab
-                return (t == .more) ? .home : t
-            },
+            get: { activeRootTab },
             set: { mainCoordinator.tab = $0 }
         )
     }
 
     private var currentTabTitle: LocalizedStringKey {
-        switch tabBinding.wrappedValue {
+        switch activeRootTab {
         case .home:
             return "tabs.home"
         case .search:
             return "tabs.search"
         case .library:
             return "tabs.libraries"
-        case .more, .seerrDiscover:
+        case .more, .seerrDiscover, .libraryDetail:
             return "tabs.home"
-        case .libraryDetail:
-            return "tabs.libraries"
         }
     }
 
@@ -91,8 +97,37 @@ struct RootTabView: View {
     }
 
     private var tabContainer: some View {
-        TabView(selection: tabBinding) {
-            // MARK: Home
+        ZStack {
+            tabStack(for: .home)
+            tabStack(for: .search)
+            tabStack(for: .library)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .sheet(isPresented: $showSettings) {
+            NavigationStack {
+                PlinxSettingsView()
+                    .navigationTitle(Text("tabs.settings", tableName: "Plinx"))
+                    .navigationBarTitleDisplayMode(.large)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button {
+                                showSettings = false
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.secondary)
+                                    .font(.title3)
+                            }
+                        }
+                    }
+            }
+            .presentationDetents([.large])
+        }
+    }
+
+    @ViewBuilder
+    private func tabStack(for tab: MainCoordinator.Tab) -> some View {
+        switch tab {
+        case .home:
             NavigationStack(path: mainCoordinator.pathBinding(for: .home)) {
                 PlinxHomeView(
                     viewModel: SafeHomeViewModel(
@@ -119,9 +154,11 @@ struct RootTabView: View {
                     destination(for: route)
                 }
             }
-            .tag(MainCoordinator.Tab.home)
+            .opacity(activeRootTab == .home ? 1 : 0)
+            .allowsHitTesting(activeRootTab == .home)
+            .accessibilityHidden(activeRootTab != .home)
 
-            // MARK: Search
+        case .search:
             NavigationStack(path: mainCoordinator.pathBinding(for: .search)) {
                 PlinxSearchView(
                     viewModel: SafeSearchViewModel(
@@ -144,9 +181,11 @@ struct RootTabView: View {
                     destination(for: route)
                 }
             }
-            .tag(MainCoordinator.Tab.search)
+            .opacity(activeRootTab == .search ? 1 : 0)
+            .allowsHitTesting(activeRootTab == .search)
+            .accessibilityHidden(activeRootTab != .search)
 
-            // MARK: Library
+        case .library:
             NavigationStack(path: mainCoordinator.pathBinding(for: .library)) {
                 PlinxLibraryView(
                     viewModel: SafeLibraryViewModel(
@@ -181,27 +220,12 @@ struct RootTabView: View {
                     destination(for: route)
                 }
             }
-            .tag(MainCoordinator.Tab.library)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .sheet(isPresented: $showSettings) {
-            NavigationStack {
-                PlinxSettingsView()
-                    .navigationTitle(Text("tabs.settings", tableName: "Plinx"))
-                    .navigationBarTitleDisplayMode(.large)
-                    .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button {
-                                showSettings = false
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundStyle(.secondary)
-                                    .font(.title3)
-                            }
-                        }
-                    }
-            }
-            .presentationDetents([.large])
+            .opacity(activeRootTab == .library ? 1 : 0)
+            .allowsHitTesting(activeRootTab == .library)
+            .accessibilityHidden(activeRootTab != .library)
+
+        case .more, .seerrDiscover, .libraryDetail:
+            EmptyView()
         }
     }
 
