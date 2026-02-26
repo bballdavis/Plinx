@@ -3,6 +3,7 @@ import PlinxUI
 
 struct PlinxSearchView: View {
     @State var viewModel: SafeSearchViewModel
+    var topContent: AnyView? = nil
     var onSelectMedia: (MediaDisplayItem) -> Void
 
     @Environment(PlexAPIContext.self) private var plexApiContext
@@ -10,15 +11,23 @@ struct PlinxSearchView: View {
     @Environment(\.safetyPolicy) private var safetyPolicy
 
     var body: some View {
-        VStack(spacing: 0) {
-            searchBar
-                .padding(.horizontal, 20)
-                .padding(.top, 12)
-                .padding(.bottom, 8)
+        ScrollView {
+            VStack(spacing: 0) {
+                if let topContent {
+                    topContent
+                }
 
-            Divider().opacity(0.2)
+                searchBar
+                    .padding(.horizontal, 20)
+                    .padding(.top, 12)
+                    .padding(.bottom, 8)
 
-            resultsContent
+                Divider().opacity(0.2)
+
+                resultsContent
+                    .padding(.top, 12)
+            }
+            .padding(.bottom, 120)
         }
         .onChange(of: safetyPolicy) { _, newPolicy in
             viewModel.updatePolicy(newPolicy)
@@ -72,13 +81,15 @@ struct PlinxSearchView: View {
             emptyPrompt
         } else if viewModel.isLoading && viewModel.items.isEmpty {
             ProgressView()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 24)
                 .tint(.orange)
         } else if viewModel.items.isEmpty {
             Text("search.no_results \(viewModel.query)", tableName: "Plinx")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 24)
         } else {
             resultsList
         }
@@ -93,24 +104,22 @@ struct PlinxSearchView: View {
                 .font(.headline)
                 .foregroundStyle(.secondary)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
+        .padding(.top, 20)
     }
 
     private var resultsList: some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
-                ForEach(viewModel.items) { item in
-                    Button { onSelectMedia(item) } label: {
-                        resultRow(item)
-                    }
-                    .buttonStyle(.plain)
-
-                    Divider()
-                        .padding(.leading, 76)
-                        .opacity(0.15)
+        LazyVStack(spacing: 0) {
+            ForEach(viewModel.items) { item in
+                Button { onSelectMedia(item) } label: {
+                    resultRow(item)
                 }
+                .buttonStyle(.plain)
+
+                Divider()
+                    .padding(.leading, 76)
+                    .opacity(0.15)
             }
-            .padding(.bottom, 120)
         }
     }
 

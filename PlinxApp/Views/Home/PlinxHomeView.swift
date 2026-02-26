@@ -7,6 +7,7 @@ struct PlinxHomeView: View {
     private static let logger = Logger(subsystem: "com.plinx.app", category: "home")
 
     @State var viewModel: SafeHomeViewModel
+    var topContent: AnyView? = nil
     var onSelectMedia: (MediaDisplayItem) -> Void
 
     @Environment(PlexAPIContext.self) private var plexApiContext
@@ -66,6 +67,10 @@ struct PlinxHomeView: View {
     private var scrollContent: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 28) {
+                if let topContent {
+                    topContent
+                }
+
                 ForEach(orderedHomeSections, id: \.self) { sectionId in
                     homeSectionView(sectionId)
                 }
