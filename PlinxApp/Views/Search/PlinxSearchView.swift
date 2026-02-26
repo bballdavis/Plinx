@@ -5,6 +5,7 @@ struct PlinxSearchView: View {
     @State var viewModel: SafeSearchViewModel
     var topContent: AnyView? = nil
     var onSelectMedia: (MediaDisplayItem) -> Void
+    var onLongPressMedia: (MediaDisplayItem) -> Void = { _ in }
 
     @Environment(PlexAPIContext.self) private var plexApiContext
     @FocusState private var searchFocused: Bool
@@ -111,10 +112,9 @@ struct PlinxSearchView: View {
     private var resultsList: some View {
         LazyVStack(spacing: 0) {
             ForEach(viewModel.items) { item in
-                Button { onSelectMedia(item) } label: {
-                    resultRow(item)
-                }
-                .buttonStyle(.plain)
+                resultRow(item)
+                    .onTapGesture { onSelectMedia(item) }
+                    .onLongPressGesture { onLongPressMedia(item) }
 
                 Divider()
                     .padding(.leading, 76)

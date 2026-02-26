@@ -4,6 +4,7 @@ import PlinxUI
 struct PlinxCollectionDetailView: View {
     @State var viewModel: SafeCollectionDetailViewModel
     var onSelectMedia: (MediaDisplayItem) -> Void
+    var onLongPressMedia: (MediaDisplayItem) -> Void = { _ in }
 
     @Environment(PlexAPIContext.self) private var plexApiContext
 
@@ -39,18 +40,18 @@ struct PlinxCollectionDetailView: View {
                     }
                     LazyVGrid(columns: columns, spacing: 12) {
                         ForEach(viewModel.items, id: \.id) { item in
-                            Button { onSelectMedia(item) } label: {
-                                MediaImageView(
-                                    viewModel: MediaImageViewModel(
-                                        context: plexApiContext,
-                                        artworkKind: .thumb,
-                                        media: item
-                                    )
+                            MediaImageView(
+                                viewModel: MediaImageViewModel(
+                                    context: plexApiContext,
+                                    artworkKind: .thumb,
+                                    media: item
                                 )
-                                .aspectRatio(2/3, contentMode: .fit)
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
-                            }
-                            .buttonStyle(.plain)
+                            )
+                            .aspectRatio(2/3, contentMode: .fit)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .contentShape(Rectangle())
+                            .onTapGesture { onSelectMedia(item) }
+                            .onLongPressGesture { onLongPressMedia(item) }
                         }
                     }
                     .padding(16)

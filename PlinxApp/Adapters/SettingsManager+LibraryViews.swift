@@ -7,12 +7,12 @@ struct PlinxLibraryViewSettings: Codable, Equatable {
 
 @MainActor
 extension SettingsManager {
-    func libraryViewSettings(for libraryId: String) -> PlinxLibraryViewSettings {
+    func plinxLibraryViewSettings(for libraryId: String) -> PlinxLibraryViewSettings {
         libraryViewSettingsStorage[libraryId] ?? PlinxLibraryViewSettings()
     }
 
-    func setRecommendSectionHidden(_ hidden: Bool, libraryId: String, sectionId: String) {
-        var entry = libraryViewSettings(for: libraryId)
+    func plinxSetRecommendSectionHidden(_ hidden: Bool, libraryId: String, sectionId: String) {
+        var entry = plinxLibraryViewSettings(for: libraryId)
         var hiddenSet = Set(entry.hiddenRecommendSectionIds)
         if hidden {
             hiddenSet.insert(sectionId)
@@ -25,17 +25,17 @@ extension SettingsManager {
         libraryViewSettingsStorage = all
     }
 
-    func setRecommendSectionOrder(_ sectionIds: [String], libraryId: String) {
-        var entry = libraryViewSettings(for: libraryId)
+    func plinxSetRecommendSectionOrder(_ sectionIds: [String], libraryId: String) {
+        var entry = plinxLibraryViewSettings(for: libraryId)
         entry.recommendSectionOrder = sectionIds
         var all = libraryViewSettingsStorage
         all[libraryId] = entry
         libraryViewSettingsStorage = all
     }
 
-    func resolvedRecommendSectionIds(for libraryId: String, availableSectionIds: [String]) -> [String] {
+    func plinxResolvedRecommendSectionIds(for libraryId: String, availableSectionIds: [String]) -> [String] {
         let available = Set(availableSectionIds)
-        let settings = libraryViewSettings(for: libraryId)
+        let settings = plinxLibraryViewSettings(for: libraryId)
         return settings.recommendSectionOrder.filter { available.contains($0) }
     }
 

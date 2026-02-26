@@ -3,6 +3,14 @@ import PlinxCore
 import PlinxUI
 
 struct RootTabView: View {
+    private struct QuickActionOption: Identifiable {
+        let id = UUID()
+        let title: String
+        let systemImage: String
+        let role: ButtonRole?
+        let action: () -> Void
+    }
+
     @Environment(SessionManager.self) private var sessionManager
     @Environment(PlexAPIContext.self) private var plexApiContext
     @Environment(SettingsManager.self) private var settingsManager
@@ -12,6 +20,8 @@ struct RootTabView: View {
     @Environment(\.openURL) private var openURL
 
     @State private var showSettings = false
+    @State private var selectedQuickActionMedia: MediaDisplayItem?
+    @State private var quickActionErrorMessage: String?
 
     private var launcher: PlaybackLauncher {
         PlaybackLauncher(
@@ -43,6 +53,87 @@ struct RootTabView: View {
 
     var body: some View {
         mainTabView
+            .overlay(alignment: .bottom) {
+                if let item = selectedQuickActionMedia {
+                    quickActionSheet(for: item)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .animation(.spring(response: 0.25, dampingFraction: 0.86), value: selectedQuickActionMedia != nil)
+            .alert("Action Failed", isPresented: Binding(
+                get: { quickActionErrorMessage != nil },
+                set: { if !$0 { quickActionErrorMessage = nil } }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(quickActionErrorMessage ?? "")
+            }
+    }
+
+    private func quickActionSheet(for item: MediaDisplayItem) -> some View {
+        ZStack(alignment: .bottom) {
+            Color.black.opacity(0.45)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    selectedQuickActionMedia = nil
+                }
+
+            VStack(alignment: .leading, spacing: 12) {
+                Text(item.title)
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+
+                ForEach(quickActionOptions(for: item)) { option in
+                    quickActionButton(option)
+                }
+
+                Button {
+                    selectedQuickActionMedia = nil
+                } label: {
+                    Text(String(localized: "common.actions.cancel"))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.95))
+                        .frame(maxWidth: .infinity, minHeight: 50)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(Color.white.opacity(0.08))
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(14)
+            .liquidGlassBackground()
+            .padding(.horizontal, 16)
+            .padding(.bottom, 16)
+        }
+    }
+
+    private func quickActionButton(_ option: QuickActionOption) -> some View {
+        Button(role: option.role) {
+            selectedQuickActionMedia = nil
+            option.action()
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: option.systemImage)
+                    .font(.system(size: 16, weight: .semibold))
+                Text(option.title)
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+            }
+            .foregroundStyle(.white.opacity(0.95))
+            .padding(.horizontal, 14)
+            .frame(maxWidth: .infinity, minHeight: 52)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.accentColor.opacity(0.18))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(Color.accentColor.opacity(0.32), lineWidth: 1)
+            )
+        }
+        .buttonStyle(PlinkButtonStyle())
     }
 
     @ViewBuilder
@@ -106,14 +197,10 @@ struct RootTabView: View {
                     ),
                     topContent: AnyView(topTitleRow(title: "tabs.home", showsSettingsButton: true)),
                     onSelectMedia: { displayItem in
-                        switch displayItem {
-                        case let .playable(media):
-                            Task { await launcher.play(ratingKey: media.id, type: media.type) }
-                        case let .collection(collection):
-                            mainCoordinator.showCollectionDetail(collection)
-                        case let .playlist(playlist):
-                            Task { await launcher.play(ratingKey: playlist.id, type: playlist.type) }
-                        }
+                        handlePrimarySelection(displayItem)
+                    },
+                    onLongPressMedia: { displayItem in
+                        selectedQuickActionMedia = displayItem
                     }
                 )
                 .toolbar(.hidden, for: .navigationBar)
@@ -134,14 +221,10 @@ struct RootTabView: View {
                     ),
                     topContent: AnyView(topTitleRow(title: "tabs.search", showsSettingsButton: false)),
                     onSelectMedia: { displayItem in
-                        switch displayItem {
-                        case let .playable(media):
-                            Task { await launcher.play(ratingKey: media.id, type: media.type) }
-                        case let .collection(collection):
-                            mainCoordinator.showCollectionDetail(collection)
-                        case let .playlist(playlist):
-                            Task { await launcher.play(ratingKey: playlist.id, type: playlist.type) }
-                        }
+                        handlePrimarySelection(displayItem)
+                    },
+                    onLongPressMedia: { displayItem in
+                        selectedQuickActionMedia = displayItem
                     }
                 )
                 .toolbar(.hidden, for: .navigationBar)
@@ -174,14 +257,10 @@ struct RootTabView: View {
                     LibraryDetailView(
                         library: library,
                         onSelectMedia: { displayItem in
-                            switch displayItem {
-                            case let .playable(media):
-                                Task { await launcher.play(ratingKey: media.id, type: media.type) }
-                            case let .collection(collection):
-                                mainCoordinator.showCollectionDetail(collection)
-                            case let .playlist(playlist):
-                                Task { await launcher.play(ratingKey: playlist.id, type: playlist.type) }
-                            }
+                            handlePrimarySelection(displayItem)
+                        },
+                        onLongPressMedia: { displayItem in
+                            selectedQuickActionMedia = displayItem
                         }
                     )
                 }
@@ -261,6 +340,9 @@ struct RootTabView: View {
                 ),
                 onSelectMedia: { displayItem in
                     mainCoordinator.showMediaDetail(displayItem)
+                },
+                onLongPressMedia: { displayItem in
+                    selectedQuickActionMedia = displayItem
                 }
             )
         case let .playlistDetail(playlist):
@@ -277,6 +359,172 @@ struct RootTabView: View {
                 }
                 .padding()
             )
+        }
+    }
+
+    private func handlePrimarySelection(_ displayItem: MediaDisplayItem) {
+        switch displayItem {
+        case let .playable(media):
+            Task { await launcher.play(ratingKey: media.id, type: media.type) }
+        case let .collection(collection):
+            mainCoordinator.showCollectionDetail(collection)
+        case let .playlist(playlist):
+            Task { await launcher.play(ratingKey: playlist.id, type: playlist.type) }
+        }
+    }
+
+    private func quickActionOptions(for item: MediaDisplayItem) -> [QuickActionOption] {
+        switch item {
+        case let .playable(media):
+            var actions: [QuickActionOption] = [
+                QuickActionOption(
+                    title: String(localized: "common.actions.play"),
+                    systemImage: "play.fill",
+                    role: nil,
+                    action: {
+                        handlePrimarySelection(item)
+                    }
+                ),
+                QuickActionOption(
+                    title: isWatched(media) ? "Mark as unwatched" : "Mark as watched",
+                    systemImage: isWatched(media) ? "checkmark.circle.fill" : "checkmark.circle",
+                    role: nil,
+                    action: {
+                        Task { await toggleWatched(media) }
+                    }
+                )
+            ]
+
+            if let seriesKey = seriesRatingKey(for: media) {
+                actions.append(
+                    QuickActionOption(
+                        title: "Go to series",
+                        systemImage: "tv",
+                        role: nil,
+                        action: {
+                            Task { await showDetail(for: seriesKey) }
+                        }
+                    )
+                )
+            }
+
+            if let seasonKey = seasonRatingKey(for: media) {
+                actions.append(
+                    QuickActionOption(
+                        title: "Go to season",
+                        systemImage: "rectangle.stack",
+                        role: nil,
+                        action: {
+                            Task { await showDetail(for: seasonKey) }
+                        }
+                    )
+                )
+            }
+
+            actions.append(
+                QuickActionOption(
+                    title: "Go to details",
+                    systemImage: "info.circle",
+                    role: nil,
+                    action: {
+                        mainCoordinator.showMediaDetail(media)
+                    }
+                )
+            )
+
+            return actions
+
+        case let .collection(collection):
+            return [
+                QuickActionOption(
+                    title: "Go to details",
+                    systemImage: "info.circle",
+                    role: nil,
+                    action: {
+                        mainCoordinator.showCollectionDetail(collection)
+                    }
+                )
+            ]
+
+        case let .playlist(playlist):
+            return [
+                QuickActionOption(
+                    title: String(localized: "common.actions.play"),
+                    systemImage: "play.fill",
+                    role: nil,
+                    action: {
+                        handlePrimarySelection(item)
+                    }
+                ),
+                QuickActionOption(
+                    title: "Go to details",
+                    systemImage: "info.circle",
+                    role: nil,
+                    action: {
+                        mainCoordinator.showPlaylistDetail(playlist)
+                    }
+                )
+            ]
+        }
+    }
+
+    private func toggleWatched(_ item: MediaItem) async {
+        do {
+            let scrobbleRepository = try ScrobbleRepository(context: plexApiContext)
+            if isWatched(item) {
+                try await scrobbleRepository.markUnwatched(key: item.id)
+            } else {
+                try await scrobbleRepository.markWatched(key: item.id)
+            }
+        } catch {
+            quickActionErrorMessage = error.localizedDescription
+        }
+    }
+
+    private func showDetail(for ratingKey: String) async {
+        do {
+            let metadataRepository = try MetadataRepository(context: plexApiContext)
+            let response = try await metadataRepository.getMetadata(ratingKey: ratingKey)
+            guard
+                let plexItem = response.mediaContainer.metadata?.first,
+                let playable = PlayableMediaItem(plexItem: plexItem)
+            else {
+                return
+            }
+            mainCoordinator.showMediaDetail(playable)
+        } catch {
+            quickActionErrorMessage = error.localizedDescription
+        }
+    }
+
+    private func isWatched(_ item: MediaItem) -> Bool {
+        guard let playableType = PlayableItemType(plexType: item.type) else { return false }
+
+        switch playableType {
+        case .movie, .episode, .clip:
+            return (item.viewCount ?? 0) > 0
+        case .show, .season:
+            guard let leafCount = item.leafCount, let viewedLeafCount = item.viewedLeafCount else {
+                return false
+            }
+            guard leafCount > 0 else { return false }
+            return leafCount == viewedLeafCount
+        }
+    }
+
+    private func seasonRatingKey(for item: MediaItem) -> String? {
+        guard item.type == .episode else { return nil }
+        return item.parentRatingKey
+    }
+
+    private func seriesRatingKey(for item: MediaItem) -> String? {
+        switch item.type {
+        case .episode:
+            return item.grandparentRatingKey ?? item.parentRatingKey
+        case .season:
+            return item.parentRatingKey
+        default:
+            return nil
         }
     }
 }
