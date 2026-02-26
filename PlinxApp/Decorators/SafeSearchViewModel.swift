@@ -19,7 +19,7 @@ final class SafeSearchViewModel {
 
     // MARK: - Private
     private let inner: SearchViewModel
-    private let policy: SafetyPolicy
+    private var policy: SafetyPolicy
 
     init(inner: SearchViewModel, policy: SafetyPolicy = .ratingOnly()) {
         self.inner = inner
@@ -43,6 +43,14 @@ final class SafeSearchViewModel {
         inner.submitSearch()
         items = []
         errorMessage = nil
+    }
+
+    /// Updates the safety policy and re-filters any currently displayed results.
+    /// Call this when `SafetyPolicy` changes (e.g., user updates settings).
+    func updatePolicy(_ newPolicy: SafetyPolicy) {
+        guard newPolicy != policy else { return }
+        policy = newPolicy
+        applyFilters()
     }
 
     // MARK: - Filtering

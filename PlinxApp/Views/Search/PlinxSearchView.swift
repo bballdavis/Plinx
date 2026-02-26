@@ -7,6 +7,7 @@ struct PlinxSearchView: View {
 
     @Environment(PlexAPIContext.self) private var plexApiContext
     @FocusState private var searchFocused: Bool
+    @Environment(\.safetyPolicy) private var safetyPolicy
 
     var body: some View {
         VStack(spacing: 0) {
@@ -18,6 +19,9 @@ struct PlinxSearchView: View {
             Divider().opacity(0.2)
 
             resultsContent
+        }
+        .onChange(of: safetyPolicy) { _, newPolicy in
+            viewModel.updatePolicy(newPolicy)
         }
     }
 

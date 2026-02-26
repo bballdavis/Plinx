@@ -48,7 +48,7 @@ enum PlinxAccentColor: String, CaseIterable, Identifiable {
         case .orange: return .orange
         case .red:    return Color(red: 0.93, green: 0.15, blue: 0.15)
         case .blue:   return Color(red: 0.2, green: 0.5, blue: 0.98)
-        case .green:  return Color(red: 0.2, green: 0.78, blue: 0.35)
+        case .green:  return Color(red: 16.0 / 255.0, green: 185.0 / 255.0, blue: 129.0 / 255.0)
         case .teal:   return Color(red: 0.18, green: 0.72, blue: 0.72)
         case .pink:   return Color(red: 0.95, green: 0.35, blue: 0.6)
         case .yellow: return Color(red: 0.98, green: 0.8, blue: 0.1)

@@ -99,7 +99,7 @@ enum HomeLibraryGrouping {
         guard let lib = library else { return false }
         // "none" agent libraries (e.g. YouTube, Home Videos) are NOT movies/TV
         // even if their Plex section type is declared as "movie".
-        if lib.isNoneAgentLibrary { return false }
+        if isNoneAgentLibrary(lib) { return false }
         return lib.type == .movie || lib.type == .show
     }
 
@@ -107,7 +107,15 @@ enum HomeLibraryGrouping {
     /// "Other Videos" rows (any type that is not movie or show, OR a none-agent library).
     static func isOtherVideo(_ library: Library?) -> Bool {
         guard let lib = library else { return true }   // unmatched → treat as other
-        if lib.isNoneAgentLibrary { return true }      // none-agent (YouTube, etc.) → other
+        if isNoneAgentLibrary(lib) { return true }     // none-agent (YouTube, etc.) → other
         return lib.type != .movie && lib.type != .show
+    }
+
+    /// Compatibility shim for vendor patch drift.
+    ///
+    /// Delegates to `Library.isNoneAgentLibrary` which reads the Plex agent
+    /// string (e.g. "tv.plex.agents.none" for YouTube / Home Videos libs).
+    private static func isNoneAgentLibrary(_ library: Library) -> Bool {
+        library.isNoneAgentLibrary
     }
 }

@@ -111,6 +111,8 @@ targets:
     resources:
       # Privacy manifest (required for App Store)
       - path: Resources/PrivacyInfo.xcprivacy
+      - path: Resources/Assets.xcassets
+      - path: Resources/LaunchScreen.storyboard
       # Localized strings — listed explicitly because xcodegen skips xcstrings
       # and needs lproj bundles spelled out.
       - path: Resources/en.lproj/Plinx.strings
@@ -127,7 +129,7 @@ targets:
       path: Resources/Info.plist
       properties:
         CFBundleDisplayName: Plinx
-        UILaunchStoryboardName: ""
+        UILaunchStoryboardName: LaunchScreen
 
     settings:
       base:

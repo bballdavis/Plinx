@@ -11,6 +11,7 @@ struct PlinxHomeView: View {
 
     @Environment(PlexAPIContext.self) private var plexApiContext
     @Environment(LibraryStore.self) private var libraryStore
+    @Environment(\.safetyPolicy) private var safetyPolicy
 
     // Plinx-specific home screen settings (separate from Library-tab visibility)
     @AppStorage("plinx.homeHiddenLibraryIds") private var homeHiddenIdsJson = "[]"
@@ -42,6 +43,12 @@ struct PlinxHomeView: View {
         }
         .task { await viewModel.load() }
         .refreshable { await viewModel.reload() }
+        .onChange(of: safetyPolicy) { _, newPolicy in
+            // When the parent updates the safety policy (max rating changed,
+            // excludeUnrated toggled) re-filter cached hub data immediately
+            // without a full network reload.
+            viewModel.updatePolicy(newPolicy)
+        }
     }
 
     // MARK: - Subviews
@@ -157,13 +164,19 @@ struct PlinxHomeView: View {
 
         let movieVisible = !visibleMovieEntries.isEmpty
         let showVisible = !visibleShowEntries.isEmpty
+        let movieEnabled = libraries.contains {
+            $0.type == .movie && !HomeLibraryGrouping.isOtherVideo($0) && !hiddenIds.contains($0.id)
+        }
+        let showEnabled = libraries.contains {
+            $0.type == .show && !HomeLibraryGrouping.isOtherVideo($0) && !hiddenIds.contains($0.id)
+        }
 
         var groups: [HubGroup] = []
 
         if movieVisible || showVisible {
             var combined: [MediaDisplayItem] = []
-            let m = visibleMovieEntries.flatMap(\.hub.items)
-            let s = visibleShowEntries.flatMap(\.hub.items)
+            let m = StrimrAdapter.filteredItems(visibleMovieEntries.flatMap(\.hub.items), policy: safetyPolicy)
+            let s = StrimrAdapter.filteredItems(visibleShowEntries.flatMap(\.hub.items), policy: safetyPolicy)
             let maxCount = max(m.count, s.count)
             for i in 0..<maxCount {
                 if i < m.count { combined.append(m[i]) }
@@ -171,7 +184,7 @@ struct PlinxHomeView: View {
             }
             if !combined.isEmpty {
                 let title: String
-                if movieVisible && showVisible {
+                if movieEnabled && showEnabled {
                     title = NSLocalizedString("home.recentlyAdded.tvAndMovies", tableName: "Plinx", comment: "")
                 } else if showVisible {
                     title = NSLocalizedString("home.recentlyAdded.tv", tableName: "Plinx", comment: "")

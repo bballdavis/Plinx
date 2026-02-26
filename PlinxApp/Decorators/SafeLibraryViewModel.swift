@@ -16,7 +16,7 @@ final class SafeLibraryViewModel {
     private(set) var errorMessage: String?
 
     private let inner: LibraryViewModel
-    private let policy: SafetyPolicy
+    private var policy: SafetyPolicy
     private let context: PlexAPIContext
 
     init(inner: LibraryViewModel, policy: SafetyPolicy = .ratingOnly(), context: PlexAPIContext) {
@@ -28,6 +28,14 @@ final class SafeLibraryViewModel {
     func load() async {
         await inner.load()
         errorMessage = inner.errorMessage
+    }
+
+    /// Updates the safety policy used for library artwork selection.
+    /// The primary kid-safety filtering (content items) is enforced by
+    /// `LibraryDetailView`, which reads the policy fresh from the environment
+    /// on every render. This keeps the two in sync.
+    func updatePolicy(_ newPolicy: SafetyPolicy) {
+        policy = newPolicy
     }
 
     func artworkURL(for library: Library) -> URL? {

@@ -48,9 +48,9 @@ final class SafeHomeViewModel {
     /// The wrapped Strimr view model. Accesses Plex API via `PlexAPIContext`.
     private let inner: HomeViewModel
 
-    /// The safety policy governing content filtering. Immutable per session —
-    /// changes to policy require re-creating the decorator.
-    private let policy: SafetyPolicy
+    /// The safety policy governing content filtering.
+    /// Mutable so the owning view can push environment updates via `updatePolicy(_:)`.
+    private(set) var policy: SafetyPolicy
 
     // MARK: - Init
 
@@ -81,6 +81,15 @@ final class SafeHomeViewModel {
     func reload() async {
         isLoading = true
         await inner.reload()
+        applyFilters()
+    }
+
+    /// Updates the safety policy and immediately re-filters cached hub data.
+    /// Call this from the owning view when `SafetyPolicy` changes
+    /// (e.g., user updates max rating or the excludeUnrated toggle).
+    func updatePolicy(_ newPolicy: SafetyPolicy) {
+        guard newPolicy != policy else { return }
+        policy = newPolicy
         applyFilters()
     }
 

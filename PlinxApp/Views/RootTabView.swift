@@ -64,6 +64,7 @@ struct RootTabView: View {
                 .padding(.top, 12)
                 .padding(.trailing, 20)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
         if #available(iOS 18.0, *) {
             // Suppress the iOS 18 adaptive sidebar / top navigation on iPad.
@@ -97,10 +98,16 @@ struct RootTabView: View {
                         }
                     }
                 )
-                .navigationTitle(Text("tabs.home", tableName: "Plinx"))
                 .toolbar(.hidden, for: .navigationBar)
                 .navigationDestination(for: MainCoordinator.Route.self) { route in
                     destination(for: route)
+                }
+            }
+            .tabItem {
+                Label {
+                    Text("tabs.home", tableName: "Plinx")
+                } icon: {
+                    Image(systemName: "house.fill")
                 }
             }
             .tag(MainCoordinator.Tab.home)
@@ -123,10 +130,16 @@ struct RootTabView: View {
                         }
                     }
                 )
-                .navigationTitle(Text("tabs.search", tableName: "Plinx"))
                 .toolbar(.hidden, for: .navigationBar)
                 .navigationDestination(for: MainCoordinator.Route.self) { route in
                     destination(for: route)
+                }
+            }
+            .tabItem {
+                Label {
+                    Text("tabs.search", tableName: "Plinx")
+                } icon: {
+                    Image(systemName: "magnifyingglass")
                 }
             }
             .tag(MainCoordinator.Tab.search)
@@ -146,7 +159,6 @@ struct RootTabView: View {
                         mainCoordinator.libraryPath.append(library)
                     }
                 )
-                .navigationTitle(Text("tabs.library", tableName: "Plinx"))
                 .toolbar(.hidden, for: .navigationBar)
                 .navigationDestination(for: Library.self) { library in
                     LibraryDetailView(
@@ -167,8 +179,16 @@ struct RootTabView: View {
                     destination(for: route)
                 }
             }
+            .tabItem {
+                Label {
+                    Text("tabs.library", tableName: "Plinx")
+                } icon: {
+                    Image(systemName: "books.vertical.fill")
+                }
+            }
             .tag(MainCoordinator.Tab.library)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .sheet(isPresented: $showSettings) {
             NavigationStack {
                 PlinxSettingsView()

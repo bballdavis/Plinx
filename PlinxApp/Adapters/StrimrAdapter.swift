@@ -34,59 +34,27 @@ extension PlayQueueState: Identifiable {}
 
 enum StrimrAdapter {
 
-    private enum RatingContext {
-        case movie
-        case tv
-        case other
-    }
-
-    private static func ratingContext(for type: PlexItemType) -> RatingContext {
-        switch type {
-        case .movie:
-            return .movie
-        case .show, .season, .episode:
-            return .tv
-        case .clip, .collection, .playlist, .unknown:
-            return .other
-        }
-    }
-
-    private static func ratingContext(for type: PlayableItemType) -> RatingContext {
-        switch type {
-        case .movie:
-            return .movie
-        case .show, .season, .episode:
-            return .tv
-        case .clip:
-            return .other
-        }
-    }
-
-    private static func isAllowed(
-        rating: PlinxRating,
-        context: RatingContext,
-        policy: SafetyPolicy
-    ) -> Bool {
-        switch context {
-        case .movie:
-            return rating <= policy.maxMovieRating
-        case .tv:
-            return rating <= policy.maxTVRating
-        case .other:
-            return rating <= policy.maxMovieRating || rating <= policy.maxTVRating
-        }
+    /// Check whether a recognized rating clears the policy ceiling.
+    ///
+    /// Routing is based on the **rating's own scale** (TV vs movie), not the
+    /// item's context type (library type or item type). This ensures:
+    ///   • A TV-PG clip is checked against `maxTVRating`
+    ///   • A movie-rated item inside a TV library is checked against `maxMovieRating`
+    ///   • Behavior is identical to `SafetyInterceptor.passesRatingGate`
+    ///
+    /// "That rating OR BELOW" is enforced by `<=` using `PlinxRating`'s unified
+    /// sort order (TV-Y < G < TV-Y7 < TV-G < PG < TV-PG < PG-13 < TV-14 < R < TV-MA).
+    private static func isAllowed(rating: PlinxRating, policy: SafetyPolicy) -> Bool {
+        rating.isTVRating ? rating <= policy.maxTVRating : rating <= policy.maxMovieRating
     }
 
     // MARK: - Single Item Checks
 
     /// Check a `MediaItem` (base Strimr media type).
-    /// - If the item has a recognized rating, enforce the appropriate max
-    ///   (TV vs movie) from `policy`.
-    /// - Cross-type check: if a TV library has movie-rated content or a movie
-    ///   library has TV-rated content, use the higher of the two maxes (via the
-    ///   unified sort order) to avoid unfairly filtering cross-rated items.
-    /// - If the item has no rating, the result is controlled by
-    ///   `policy.allowUnrated`. Library-level gating is the primary guard.
+    /// - Routes on the **rating's own scale** (TV vs movie), not the item's
+    ///   library type. A TV-PG item in a movie library is checked against
+    ///   `maxTVRating`; a PG item in a TV library against `maxMovieRating`.
+    /// - Missing or unrecognized rating → `policy.allowUnrated` controls.
     static func isAllowed(_ item: MediaItem, policy: SafetyPolicy) -> Bool {
         guard let ratingString = item.contentRating,
               !ratingString.isEmpty else {
@@ -96,7 +64,7 @@ enum StrimrAdapter {
             // Unrecognized rating string — treat as unrated.
             return policy.allowUnrated
         }
-        return isAllowed(rating: rating, context: ratingContext(for: item.type), policy: policy)
+        return isAllowed(rating: rating, policy: policy)
     }
 
     /// Check a `MediaDisplayItem` (union of playable + collection).
@@ -121,7 +89,7 @@ enum StrimrAdapter {
         guard let rating = PlinxRating.from(contentRating: ratingString) else {
             return policy.allowUnrated
         }
-        return isAllowed(rating: rating, context: ratingContext(for: item.type), policy: policy)
+        return isAllowed(rating: rating, policy: policy)
     }
 
     // MARK: - Batch Filtering
