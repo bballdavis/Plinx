@@ -5,6 +5,8 @@ struct PlinxLibraryView: View {
     @State var viewModel: SafeLibraryViewModel
     var onSelectLibrary: (Library) -> Void
 
+    @Environment(\.safetyPolicy) private var safetyPolicy
+
     var body: some View {
         Group {
             if viewModel.isLoading && viewModel.libraries.isEmpty {
@@ -25,6 +27,9 @@ struct PlinxLibraryView: View {
             }
         }
         .task { await viewModel.load() }
+        .onChange(of: safetyPolicy) { _, newPolicy in
+            viewModel.updatePolicy(newPolicy)
+        }
     }
 
     private var libraryList: some View {

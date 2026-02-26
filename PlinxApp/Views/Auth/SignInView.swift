@@ -5,12 +5,13 @@ import PlinxUI
 // Plinx-branded sign-in view (replaces Strimr's SignInView)
 //
 // Strimr's original references Asset Catalog images we don't ship.
-// This replacement uses the Plinx Liquid Glass theme and SF Symbols.
+// This replacement uses the Plinx Liquid Glass theme and Plinx brand assets.
 // ─────────────────────────────────────────────────────────────────────────────
 
 struct SignInView: View {
     @State private var viewModel: SignInViewModel
     @Environment(\.plinxTheme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
 
     init(viewModel: SignInViewModel) {
         _viewModel = State(initialValue: viewModel)
@@ -21,15 +22,10 @@ struct SignInView: View {
             Spacer()
 
             VStack(spacing: 12) {
-                // Plinx branding instead of Strimr icon
-                Image(systemName: "play.circle.fill")
+                Image(colorScheme == .dark ? "LogoFullWhite" : "LogoFullColor")
                     .resizable()
-                    .frame(width: 96, height: 96)
-                    .foregroundStyle(theme.palette.primary)
-
-                Text("Plinx")
-                    .plinxStyle(theme.typography.display)
-                    .foregroundStyle(.white)
+                    .scaledToFit()
+                    .frame(maxWidth: 240)
 
                 Text("signIn.subtitle")
                     .multilineTextAlignment(.center)

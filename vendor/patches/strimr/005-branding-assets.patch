@@ -1,0 +1,38 @@
+diff --git a/Strimr-iOS/Assets.xcassets/Colors/AccentColor.colorset/Contents.json b/Strimr-iOS/Assets.xcassets/Colors/AccentColor.colorset/Contents.json
+index 546d8d7..c54fb4c 100644
+--- a/Strimr-iOS/Assets.xcassets/Colors/AccentColor.colorset/Contents.json
++++ b/Strimr-iOS/Assets.xcassets/Colors/AccentColor.colorset/Contents.json
+@@ -4,9 +4,9 @@
+       "color" : {
+         "color-space" : "display-p3",
+         "components" : {
+-          "alpha" : "1.000",
+-          "blue" : "107",
+-          "green" : "66",
+-          "red" : "255"
++          "alpha" : "1",
++          "blue" : "129",
++          "green" : "185",
++          "red" : "16"
+         }
+       },
+       "idiom" : "universal"
+diff --git a/Strimr-iOS/Assets.xcassets/Colors/BrandPrimary.colorset/Contents.json b/Strimr-iOS/Assets.xcassets/Colors/BrandPrimary.colorset/Contents.json
+index 546d8d7..5cdd8f2 100644
+--- a/Strimr-iOS/Assets.xcassets/Colors/BrandPrimary.colorset/Contents.json
++++ b/Strimr-iOS/Assets.xcassets/Colors/BrandPrimary.colorset/Contents.json
+@@ -4,9 +4,9 @@
+       "color" : {
+         "color-space" : "display-p3",
+         "components" : {
+-          "alpha" : "1.000",
+-          "blue" : "107",
+-          "green" : "66",
+-          "red" : "255"
++          "alpha" : "1",
++          "blue" : "129",
++          "green" : "185",
++          "red" : "16"
+         }
+       },
+       "idiom" : "universal"
