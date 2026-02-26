@@ -41,48 +41,14 @@ struct RootTabView: View {
         )
     }
 
-    private var currentTabTitle: LocalizedStringKey {
-        switch activeRootTab {
-        case .home:
-            return "tabs.home"
-        case .search:
-            return "tabs.search"
-        case .library:
-            return "tabs.libraries"
-        case .more, .seerrDiscover, .libraryDetail:
-            return "tabs.home"
-        }
-    }
-
     var body: some View {
         mainTabView
     }
 
     @ViewBuilder
     private var mainTabView: some View {
-        // Build the base view: native tab bar hidden, with custom top/bottom bars.
+        // Build the base view: native tab bar hidden, with custom bottom bar.
         let base = tabContainer
-            .safeAreaInset(edge: .top, spacing: 0) {
-                HStack(spacing: 12) {
-                    Text(currentTabTitle)
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(.white.opacity(0.95))
-                    Spacer()
-                    Button {
-                        showSettings = true
-                    } label: {
-                        Image(systemName: "gearshape.fill")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.85))
-                            .padding(10)
-                            .background(.ultraThinMaterial, in: Circle())
-                    }
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
-                .padding(.bottom, 10)
-                .background(Color.clear)
-            }
             .toolbar(.hidden, for: .tabBar)
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 KidsMainTabPicker(
@@ -138,6 +104,7 @@ struct RootTabView: View {
                         ),
                         policy: safetyPolicy
                     ),
+                    topContent: AnyView(topTitleRow(title: "tabs.home")),
                     onSelectMedia: { displayItem in
                         switch displayItem {
                         case let .playable(media):
@@ -165,6 +132,7 @@ struct RootTabView: View {
                         inner: SearchViewModel(context: plexApiContext),
                         policy: safetyPolicy
                     ),
+                    topContent: AnyView(topTitleRow(title: "tabs.search")),
                     onSelectMedia: { displayItem in
                         switch displayItem {
                         case let .playable(media):
@@ -196,6 +164,7 @@ struct RootTabView: View {
                         policy: safetyPolicy,
                         context: plexApiContext
                     ),
+                    topContent: AnyView(topTitleRow(title: "tabs.libraries")),
                     onSelectLibrary: { library in
                         mainCoordinator.libraryPath.append(library)
                     }
@@ -227,6 +196,27 @@ struct RootTabView: View {
         case .more, .seerrDiscover, .libraryDetail:
             EmptyView()
         }
+    }
+
+    private func topTitleRow(title: LocalizedStringKey) -> some View {
+        HStack(spacing: 12) {
+            Text(title)
+                .font(.title3.weight(.bold))
+                .foregroundStyle(.white.opacity(0.95))
+            Spacer()
+            Button {
+                showSettings = true
+            } label: {
+                Image(systemName: "gearshape.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.85))
+                    .padding(10)
+                    .background(.ultraThinMaterial, in: Circle())
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 8)
+        .padding(.bottom, 10)
     }
 
     @ViewBuilder

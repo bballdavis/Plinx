@@ -3,6 +3,7 @@ import PlinxUI
 
 struct PlinxLibraryView: View {
     @State var viewModel: SafeLibraryViewModel
+    var topContent: AnyView? = nil
     var onSelectLibrary: (Library) -> Void
 
     @Environment(\.safetyPolicy) private var safetyPolicy
@@ -35,6 +36,10 @@ struct PlinxLibraryView: View {
     private var libraryList: some View {
         ScrollView {
             LazyVStack(spacing: 16) {
+                if let topContent {
+                    topContent
+                }
+
                 ForEach(viewModel.libraries) { library in
                     libraryTile(library)
                 }

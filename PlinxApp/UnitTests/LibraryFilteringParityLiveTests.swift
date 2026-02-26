@@ -6,33 +6,57 @@ import PlinxCore
 final class LibraryFilteringParityLiveTests: XCTestCase {
 
     private let policy = SafetyPolicy.ratingOnly(maxMovie: .pg, maxTV: .tvPg, allowUnrated: false)
-    private struct BrowseParityEntry: Equatable {
+    private struct BrowseParityEntry: Equatable, Hashable {
         let kind: String
         let id: String
     }
 
     func test_liveRecommendedFilteringParity_movieLibrary() async throws {
         let context = try await makeLiveContextOrSkip()
-        let library = try await pickLibrary(type: .movie, context: context)
-        try await assertRecommendedParity(library: library, context: context)
+        let libraries = try await pickLibraries(type: .movie, context: context)
+        for library in libraries {
+            try await assertRecommendedParity(library: library, context: context)
+        }
     }
 
     func test_liveRecommendedFilteringParity_showLibrary() async throws {
         let context = try await makeLiveContextOrSkip()
-        let library = try await pickLibrary(type: .show, context: context)
-        try await assertRecommendedParity(library: library, context: context)
+        let libraries = try await pickLibraries(type: .show, context: context)
+        for library in libraries {
+            try await assertRecommendedParity(library: library, context: context)
+        }
     }
 
     func test_liveBrowseFilteringParity_movieLibrary() async throws {
         let context = try await makeLiveContextOrSkip()
-        let library = try await pickLibrary(type: .movie, context: context)
-        try await assertBrowseParity(library: library, context: context)
+        let libraries = try await pickLibraries(type: .movie, context: context)
+        for library in libraries {
+            try await assertBrowseParity(library: library, context: context)
+        }
     }
 
     func test_liveBrowseFilteringParity_showLibrary() async throws {
         let context = try await makeLiveContextOrSkip()
-        let library = try await pickLibrary(type: .show, context: context)
-        try await assertBrowseParity(library: library, context: context)
+        let libraries = try await pickLibraries(type: .show, context: context)
+        for library in libraries {
+            try await assertBrowseParity(library: library, context: context)
+        }
+    }
+
+    func test_liveBrowseFilteringParity_movieLibrary_fullPagination() async throws {
+        let context = try await makeLiveContextOrSkip()
+        let libraries = try await pickLibraries(type: .movie, context: context)
+        for library in libraries {
+            try await assertBrowseParityFullPagination(library: library, context: context)
+        }
+    }
+
+    func test_liveBrowseFilteringParity_showLibrary_fullPagination() async throws {
+        let context = try await makeLiveContextOrSkip()
+        let libraries = try await pickLibraries(type: .show, context: context)
+        for library in libraries {
+            try await assertBrowseParityFullPagination(library: library, context: context)
+        }
     }
 
     // MARK: - Parity assertions
@@ -96,6 +120,12 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
             pageSize: 20
         )
         let actualEntries = vm.browseItems.map(browseEntry)
+        let uniqueEntries = Set(actualEntries)
+        XCTAssertEqual(
+            uniqueEntries.count,
+            actualEntries.count,
+            "Browse results contain duplicate entries; this causes SwiftUI identity collisions in grids/carousels."
+        )
 
         XCTAssertEqual(
             actualEntries,
@@ -106,6 +136,62 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
             guard case let .media(media) = item else { return true }
             return isAllowedByPolicyInLibraryContext(media, library: library)
         }, "All browse media items must satisfy library-context safety policy")
+    }
+
+    private func assertBrowseParityFullPagination(library: Library, context: PlexAPIContext) async throws {
+        let settings = SettingsManager()
+        settings.setDisplayCollections(false)
+
+        let vm = LibraryBrowseViewModel(library: library, context: context, settingsManager: settings)
+        vm.itemFilter = { [policy] item in
+            if HomeLibraryGrouping.isMoviesOrTV(library), case .collection = item {
+                return false
+            }
+            return StrimrAdapter.isAllowed(item, policy: policy)
+        }
+
+        await vm.load()
+
+        // Keep advancing like the UI "load-more on last visible card" behavior.
+        // Stop when there is no growth for several attempts to avoid infinite loops.
+        var stagnantAttempts = 0
+        var previousCount = vm.browseItems.count
+        let maxLoadMoreAttempts = 300
+
+        for _ in 0..<maxLoadMoreAttempts {
+            await vm.loadMore()
+            let currentCount = vm.browseItems.count
+            if currentCount == previousCount {
+                stagnantAttempts += 1
+            } else {
+                stagnantAttempts = 0
+                previousCount = currentCount
+            }
+            if stagnantAttempts >= 3 {
+                break
+            }
+        }
+
+        let expectedEntries = try await expectedBrowseEntries(
+            library: library,
+            context: context,
+            includeCollections: false,
+            pages: nil,
+            pageSize: 20
+        )
+        let actualEntries = vm.browseItems.map(browseEntry)
+        let uniqueEntries = Set(actualEntries)
+        XCTAssertEqual(
+            uniqueEntries.count,
+            actualEntries.count,
+            "Browse results contain duplicate entries; this causes SwiftUI identity collisions in grids/carousels."
+        )
+
+        XCTAssertEqual(
+            actualEntries,
+            expectedEntries,
+            "Browse entries must match Plex+policy oracle across full pagination (including order)"
+        )
     }
 
     // MARK: - Helpers
@@ -223,18 +309,18 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
         return nil
     }
 
-    private func pickLibrary(type: PlexItemType, context: PlexAPIContext) async throws -> Library {
+    private func pickLibraries(type: PlexItemType, context: PlexAPIContext) async throws -> [Library] {
         let libraryStore = LibraryStore(context: context)
         try await libraryStore.loadLibraries()
 
-        let candidate = libraryStore.libraries.first {
+        let candidates = libraryStore.libraries.filter {
             $0.type == type && !$0.isNoneAgentLibrary && $0.sectionId != nil
         }
 
-        guard let library = candidate else {
+        guard !candidates.isEmpty else {
             throw XCTSkip("No eligible \(type.rawValue) library available for live parity test.")
         }
-        return library
+        return candidates
     }
 
     private func sectionId(for library: Library) throws -> Int {
@@ -259,15 +345,17 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
         library: Library,
         context: PlexAPIContext,
         includeCollections: Bool,
-        pages: Int,
+        pages: Int?,
         pageSize: Int
     ) async throws -> [BrowseParityEntry] {
         let sectionRepository = try SectionRepository(context: context)
         let sectionId = try sectionId(for: library)
         let typeValue: String = library.type == .movie ? "1" : "2"
         var entries: [BrowseParityEntry] = []
+        var start = 0
+        let maxPages = pages ?? 300
 
-        for page in 0..<pages {
+        for page in 0..<maxPages {
             let includeMeta = page == 0
             let queryItems = [
                 URLQueryItem(name: "type", value: typeValue),
@@ -278,7 +366,7 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
             let response = try await sectionRepository.getSectionBrowseItems(
                 path: "/library/sections/\(sectionId)/all",
                 queryItems: queryItems,
-                pagination: PlexPagination(start: page * pageSize, size: pageSize)
+                pagination: PlexPagination(start: start, size: pageSize)
             )
             let metadata = response.mediaContainer.metadata ?? []
             if metadata.isEmpty {
@@ -300,6 +388,12 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
                 }
             }
             entries.append(contentsOf: pageEntries)
+
+            let total = response.mediaContainer.totalSize ?? (start + metadata.count)
+            start += metadata.count
+            if start >= total {
+                break
+            }
         }
 
         return entries
