@@ -59,6 +59,32 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
         }
     }
 
+    func test_liveBrowseFilteringParity_otherVideoLibrary_fullPagination() async throws {
+        let context = try await makeLiveContextOrSkip()
+        let libraries = try await pickOtherVideoLibraries(context: context)
+        for library in libraries {
+            try await assertBrowseParityFullPagination(library: library, context: context)
+        }
+    }
+
+    func test_liveBrowseCompleteness_otherVideoLibrary_unfiltered() async throws {
+        let context = try await makeLiveContextOrSkip()
+        let libraries = try await pickOtherVideoLibraries(context: context)
+
+        let prioritized = libraries.sorted { lhs, rhs in
+            let lhsIsYouTube = lhs.title.lowercased().contains("youtube")
+            let rhsIsYouTube = rhs.title.lowercased().contains("youtube")
+            if lhsIsYouTube == rhsIsYouTube {
+                return lhs.title < rhs.title
+            }
+            return lhsIsYouTube && !rhsIsYouTube
+        }
+
+        for library in prioritized {
+            try await assertBrowseCompletenessUnfiltered(library: library, context: context)
+        }
+    }
+
     // MARK: - Parity assertions
 
     private func assertRecommendedParity(library: Library, context: PlexAPIContext) async throws {
@@ -194,6 +220,50 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
         )
     }
 
+    private func assertBrowseCompletenessUnfiltered(library: Library, context: PlexAPIContext) async throws {
+        let settings = SettingsManager()
+        settings.setDisplayCollections(false)
+
+        let vm = LibraryBrowseViewModel(library: library, context: context, settingsManager: settings)
+        vm.itemFilter = nil
+
+        await vm.load()
+
+        var stagnantAttempts = 0
+        var previousCount = vm.browseItems.count
+        let maxLoadMoreAttempts = 300
+
+        for _ in 0..<maxLoadMoreAttempts {
+            await vm.loadMore()
+            let currentCount = vm.browseItems.count
+            if currentCount == previousCount {
+                stagnantAttempts += 1
+            } else {
+                stagnantAttempts = 0
+                previousCount = currentCount
+            }
+            if stagnantAttempts >= 3 {
+                break
+            }
+        }
+
+        let expectedEntries = try await expectedBrowseEntries(
+            library: library,
+            context: context,
+            includeCollections: false,
+            pages: nil,
+            pageSize: 200,
+            applySafetyFilter: false
+        )
+        let actualEntries = vm.browseItems.map(browseEntry)
+
+        XCTAssertEqual(
+            actualEntries,
+            expectedEntries,
+            "Unfiltered browse entries must match raw Plex oracle across full pagination for library: \(library.title)"
+        )
+    }
+
     // MARK: - Helpers
 
     private func makeLiveContextOrSkip() async throws -> PlexAPIContext {
@@ -323,6 +393,22 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
         return candidates
     }
 
+    private func pickOtherVideoLibraries(context: PlexAPIContext) async throws -> [Library] {
+        let libraryStore = LibraryStore(context: context)
+        try await libraryStore.loadLibraries()
+
+        let candidates = libraryStore.libraries.filter {
+            $0.sectionId != nil && (
+                $0.isNoneAgentLibrary || ($0.type != .movie && $0.type != .show)
+            )
+        }
+
+        guard !candidates.isEmpty else {
+            throw XCTSkip("No eligible Other Videos-style library available for live parity test.")
+        }
+        return candidates
+    }
+
     private func sectionId(for library: Library) throws -> Int {
         guard let sectionId = library.sectionId else {
             throw XCTSkip("Library \(library.title) is missing sectionId.")
@@ -346,11 +432,12 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
         context: PlexAPIContext,
         includeCollections: Bool,
         pages: Int?,
-        pageSize: Int
+        pageSize: Int,
+        applySafetyFilter: Bool = true
     ) async throws -> [BrowseParityEntry] {
         let sectionRepository = try SectionRepository(context: context)
         let sectionId = try sectionId(for: library)
-        let typeValue: String = library.type == .movie ? "1" : "2"
+        let typeValue = defaultBrowseTypeQueryValue(for: library)
         var entries: [BrowseParityEntry] = []
         var start = 0
         let maxPages = pages ?? 300
@@ -361,7 +448,7 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
                 URLQueryItem(name: "type", value: typeValue),
                 URLQueryItem(name: "includeCollections", value: includeCollections ? "1" : "0"),
                 URLQueryItem(name: "includeMeta", value: includeMeta ? "1" : "0")
-            ]
+            ].filter { $0.value != nil }
 
             let response = try await sectionRepository.getSectionBrowseItems(
                 path: "/library/sections/\(sectionId)/all",
@@ -381,7 +468,9 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
                     guard let displayItem = MediaDisplayItem(plexItem: plexItem) else {
                         return nil
                     }
-                    guard isAllowedByPolicyInLibraryContext(displayItem, library: library) else {
+                    if applySafetyFilter,
+                       !isAllowedByPolicyInLibraryContext(displayItem, library: library)
+                    {
                         return nil
                     }
                     return BrowseParityEntry(kind: "media", id: displayItem.id)
@@ -397,6 +486,17 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
         }
 
         return entries
+    }
+
+    private func defaultBrowseTypeQueryValue(for library: Library) -> String? {
+        switch library.type {
+        case .movie where !library.isNoneAgentLibrary:
+            return "1"
+        case .show:
+            return "2"
+        default:
+            return nil
+        }
     }
 
     private func browseEntry(_ item: LibraryBrowseItem) -> BrowseParityEntry {
