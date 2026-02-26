@@ -22,6 +22,7 @@ PLINX_APP_DIR="$PROJECT_ROOT/PlinxApp"
 
 DEVICE_NAME="${1:-iPhone 16 Pro Max}"
 SCHEME="Plinx-iOS"
+DESTINATION=""
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🔨 Plinx iOS Simulator Build"
@@ -29,19 +30,22 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "Device: $DEVICE_NAME"
 echo ""
 
-# Find simulator
+# Find simulator when CoreSimulator is reachable; otherwise fall back to a
+# generic simulator destination so compile failures can still be surfaced.
 echo "📱 Finding simulator..."
-UDID=$(xcrun simctl list devices available | grep "$DEVICE_NAME" | grep -oE '\(([A-F0-9-]+)\)' | head -1 | tr -d '()')
-
-if [ -z "$UDID" ]; then
-    echo "❌ Simulator '$DEVICE_NAME' not found."
-    echo ""
-    echo "Available devices:"
-    xcrun simctl list devices available | grep "iPhone\|iPad"
-    exit 1
+UDID=""
+if SIM_DEVICES=$(xcrun simctl list devices available 2>/dev/null); then
+    UDID=$(echo "$SIM_DEVICES" | grep "$DEVICE_NAME" | grep -oE '\(([A-F0-9-]+)\)' | head -1 | tr -d '()')
 fi
 
-echo "✓ Found: $DEVICE_NAME"
+if [ -n "$UDID" ]; then
+    DESTINATION="platform=iOS Simulator,id=$UDID"
+    echo "✓ Found: $DEVICE_NAME"
+else
+    DESTINATION="generic/platform=iOS Simulator"
+    echo "⚠️  Simulator '$DEVICE_NAME' not found or CoreSimulator unavailable."
+    echo "   Falling back to generic iOS Simulator destination."
+fi
 echo ""
 
 # Generate project
@@ -62,7 +66,7 @@ echo "🔨 Building Plinx-iOS..."
 xcodebuild build \
     -project Plinx.xcodeproj \
     -scheme "$SCHEME" \
-    -destination "platform=iOS Simulator,id=$UDID" \
+    -destination "$DESTINATION" \
     -configuration Debug
 
 BUILD_STATUS=$?
