@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import Foundation
 
 /// The main downloads tab: a 5-column poster grid with an Edit button that
 /// opens the download management list (storage info, delete, etc.).
@@ -7,8 +8,24 @@ import UIKit
 struct PlinxDownloadsGridView: View {
     @Environment(DownloadManager.self) private var downloadManager
     @Environment(PlexAPIContext.self) private var context
+    @EnvironmentObject private var mainCoordinator: MainCoordinator
     @State private var selectedDownload: DownloadItem?
     @State private var showManage = false
+    @State private var layoutMode: LayoutMode = .grid
+
+    private enum LayoutMode {
+        case grid
+        case list
+
+        var iconName: String {
+            switch self {
+            case .grid:
+                return "list.bullet"
+            case .list:
+                return "square.grid.2x2"
+            }
+        }
+    }
 
     // 5-column grid matching the library browse layout
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 5)
@@ -28,14 +45,25 @@ struct PlinxDownloadsGridView: View {
                 if downloadManager.sortedItems.isEmpty {
                     emptyState
                 } else {
-                    LazyVGrid(columns: columns, spacing: 8) {
-                        ForEach(downloadManager.sortedItems) { item in
-                            posterCell(item)
+                    if layoutMode == .grid {
+                        LazyVGrid(columns: columns, spacing: 8) {
+                            ForEach(downloadManager.sortedItems) { item in
+                                gridCell(item)
+                            }
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 16)
+                        .padding(.bottom, 120)
+                    } else {
+                        LazyVStack(spacing: 10) {
+                            ForEach(downloadManager.sortedItems) { item in
+                                listRow(item)
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 16)
+                        .padding(.bottom, 120)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
-                    .padding(.bottom, 120)
                 }
             }
         }
@@ -67,22 +95,19 @@ struct PlinxDownloadsGridView: View {
                 .foregroundStyle(.white.opacity(0.95))
 
             HStack {
+                chromeButton(systemImage: "chevron.left") {
+                    mainCoordinator.tab = .home
+                }
+
                 Spacer()
-                Button {
+                HStack(spacing: 12) {
+                    chromeButton(systemImage: layoutMode.iconName) {
+                        layoutMode = layoutMode == .grid ? .list : .grid
+                    }
+
+                    chromeButton(systemImage: "pencil") {
                     showManage = true
-                } label: {
-                    Image(systemName: "pencil")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(Color.accentColor)
-                        .frame(width: 52, height: 52)
-                        .background(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(.ultraThinMaterial)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(Color.accentColor.opacity(0.35), lineWidth: 1)
-                        )
+                    }
                 }
             }
         }
@@ -92,6 +117,13 @@ struct PlinxDownloadsGridView: View {
     }
 
     // MARK: - Grid cells
+
+    private func gridCell(_ item: DownloadItem) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            posterCell(item)
+            metadataLabels(for: item, titleLineLimit: 1)
+        }
+    }
 
     private func posterCell(_ item: DownloadItem) -> some View {
         let isPortrait = portraitTypes.contains(item.metadata.type)
@@ -122,6 +154,126 @@ struct PlinxDownloadsGridView: View {
                     }
                 }
             }
+        }
+        .buttonStyle(.plain)
+        .opacity(item.isPlayable ? 1 : 0.85)
+    }
+
+    private func listRow(_ item: DownloadItem) -> some View {
+        let isPortrait = portraitTypes.contains(item.metadata.type)
+        let posterSize = isPortrait ? CGSize(width: 60, height: 90) : CGSize(width: 104, height: 58)
+
+        return Button {
+            guard item.isPlayable else { return }
+            selectedDownload = item
+        } label: {
+            HStack(alignment: .top, spacing: 12) {
+                posterImage(for: item)
+                    .frame(width: posterSize.width, height: posterSize.height)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    metadataLabels(for: item, titleLineLimit: 2)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                if item.isPlayable {
+                    Image(systemName: "play.circle.fill")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(Color.accentColor)
+                        .padding(.top, 2)
+                }
+            }
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(.ultraThinMaterial)
+            )
+        }
+        .buttonStyle(.plain)
+        .opacity(item.isPlayable ? 1 : 0.85)
+    }
+
+    private func metadataLabels(for item: DownloadItem, titleLineLimit: Int) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(item.metadata.title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+                .lineLimit(titleLineLimit)
+
+            if let secondary = secondaryLabel(for: item) {
+                Text(secondary)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            if let tertiary = tertiaryLabel(for: item) {
+                Text(tertiary)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func secondaryLabel(for item: DownloadItem) -> String? {
+        switch item.metadata.type {
+        case .episode:
+            return item.metadata.subtitle
+        case .movie:
+            return joinedMeta([item.metadata.year.map(String.init), item.metadata.contentRating])
+        case .season:
+            return item.metadata.parentTitle
+        case .show:
+            return joinedMeta([item.metadata.contentRating, item.metadata.year.map(String.init)])
+        default:
+            return item.metadata.subtitle
+        }
+    }
+
+    private func tertiaryLabel(for item: DownloadItem) -> String? {
+        switch item.status {
+        case .queued:
+            return "Queued"
+        case .downloading:
+            return "Downloading \(Int((item.progress * 100).rounded()))%"
+        case .completed:
+            let size = item.metadata.fileSize ?? item.totalBytes
+            return "Downloaded • \(formattedBytes(size))"
+        case .failed:
+            return "Download failed"
+        }
+    }
+
+    private func joinedMeta(_ parts: [String?]) -> String? {
+        let values = parts.compactMap { value -> String? in
+            guard let value, !value.isEmpty else { return nil }
+            return value
+        }
+        guard !values.isEmpty else { return nil }
+        return values.joined(separator: " • ")
+    }
+
+    private func formattedBytes(_ value: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: value, countStyle: .file)
+    }
+
+    private func chromeButton(systemImage: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 52, height: 52)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(.ultraThinMaterial)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color.accentColor.opacity(0.35), lineWidth: 1)
+                )
         }
         .buttonStyle(.plain)
     }
