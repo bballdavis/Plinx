@@ -19,7 +19,7 @@ struct ParentalGateView: View {
     var body: some View {
         VStack(spacing: 24) {
             PlinxBrandedLoadingView(
-                preferredLogoAssetName: "LogoFullColor",
+                preferredLogoAssetName: "LogoFullWhite",
                 logoAccessibilityIdentifier: "parentalGate.logo",
                 showsProgressView: false
             )
