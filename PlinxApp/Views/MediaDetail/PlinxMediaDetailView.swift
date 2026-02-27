@@ -28,6 +28,7 @@ struct PlinxMediaDetailView: View {
                 )
             }
         }
+        .accessibilityIdentifier("media.detail.screen")
     }
 
     // MARK: - Blocked

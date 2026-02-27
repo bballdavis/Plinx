@@ -187,6 +187,10 @@ targets:
     sources:
       - path: UITests
 
+    resources:
+      - path: ../test_creds.yaml
+        optional: true
+
     dependencies:
       - target: Plinx-iOS
 

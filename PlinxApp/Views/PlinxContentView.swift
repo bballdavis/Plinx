@@ -14,7 +14,7 @@ struct PlinxContentView: View {
 
             switch sessionManager.status {
             case .hydrating:
-                PlinxieLoadingView()
+                PlinxBrandedLoadingView()
             case .signedOut:
                 SignInView(
                     viewModel: SignInViewModel(
