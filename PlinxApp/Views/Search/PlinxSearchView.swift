@@ -11,6 +11,8 @@ struct PlinxSearchView: View {
     @FocusState private var searchFocused: Bool
     @Environment(\.safetyPolicy) private var safetyPolicy
 
+    private var searchAccentColor: Color { PlinxAccentColor.green.color }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
@@ -41,14 +43,14 @@ struct PlinxSearchView: View {
         HStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.7))
+                .foregroundStyle(searchAccentColor)
 
             TextField(text: $viewModel.query) {
                     Text("search.placeholder", tableName: "Plinx")
                 }
                 .font(.body)
                 .foregroundStyle(.white)
-                .tint(.orange)
+                .tint(searchAccentColor)
                 .focused($searchFocused)
                 .submitLabel(.search)
                 .onSubmit { viewModel.submitSearch() }
@@ -84,7 +86,7 @@ struct PlinxSearchView: View {
             ProgressView()
                 .frame(maxWidth: .infinity)
                 .padding(.top, 24)
-                .tint(.orange)
+                .tint(searchAccentColor)
         } else if viewModel.items.isEmpty {
             Text("search.no_results \(viewModel.query)", tableName: "Plinx")
                 .font(.subheadline)
@@ -100,7 +102,7 @@ struct PlinxSearchView: View {
         VStack(spacing: 12) {
             Image(systemName: "sparkle.magnifyingglass")
                 .font(.system(size: 48, weight: .bold))
-                .foregroundStyle(.orange.opacity(0.7))
+                .foregroundStyle(searchAccentColor.opacity(0.7))
             Text("search.placeholder.prompt", tableName: "Plinx")
                 .font(.headline)
                 .foregroundStyle(.secondary)

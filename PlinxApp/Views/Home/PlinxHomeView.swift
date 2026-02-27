@@ -56,12 +56,7 @@ struct PlinxHomeView: View {
     // MARK: - Subviews
 
     private var fullscreenLoading: some View {
-        VStack(spacing: 20) {
-            PlinxieLoadingView()
-            Text("home.loading", tableName: "Plinx")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
+        PlinxBrandedLoadingView(titleKey: "home.loading")
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 

@@ -45,7 +45,7 @@ struct KidsMainTabPicker: View {
         .padding(.vertical, 10)
         .liquidGlassBackground()
         .padding(.horizontal, isRegular ? 40 : 20)
-        .padding(.bottom, 4)
+        .padding(.bottom, 1)
         .accessibilityIdentifier("main.tabPicker")
     }
 

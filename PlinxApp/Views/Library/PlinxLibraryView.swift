@@ -5,18 +5,14 @@ struct PlinxLibraryView: View {
     @State var viewModel: SafeLibraryViewModel
     var topContent: AnyView? = nil
     var onSelectLibrary: (Library) -> Void
+    @State private var artworkRefreshToken = UUID()
 
     @Environment(\.safetyPolicy) private var safetyPolicy
 
     var body: some View {
         Group {
             if viewModel.isLoading && viewModel.libraries.isEmpty {
-                VStack(spacing: 16) {
-                    PlinxieLoadingView()
-                    Text("library.loading.plinx", tableName: "Plinx")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
+                PlinxBrandedLoadingView(titleKey: "library.loading.plinx")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let error = viewModel.errorMessage, viewModel.libraries.isEmpty {
                 PlinxErrorView(message: error) {
@@ -28,6 +24,9 @@ struct PlinxLibraryView: View {
             }
         }
         .task { await viewModel.load() }
+        .onAppear {
+            artworkRefreshToken = UUID()
+        }
         .onChange(of: safetyPolicy) { _, newPolicy in
             viewModel.updatePolicy(newPolicy)
         }
@@ -56,20 +55,14 @@ struct PlinxLibraryView: View {
         Button { onSelectLibrary(library) } label: {
             ZStack(alignment: .bottom) {
                 GeometryReader { proxy in
-                    // Background artwork
                     Group {
-                        if let url = viewModel.artworkURL(for: library) {
-                            AsyncImage(url: url) { phase in
-                                if case .success(let img) = phase {
-                                    adaptiveLibraryArtwork(
-                                        image: img,
-                                        library: library,
-                                        size: proxy.size,
-                                    )
-                                } else {
-                                    libraryPlaceholder(for: library)
-                                }
-                            }
+                        let bannerURLs = viewModel.bannerArtworkURLs(for: library)
+                        if !bannerURLs.isEmpty {
+                            adaptiveLibraryArtwork(
+                                artworkURLs: bannerURLs,
+                                size: proxy.size,
+                                placeholder: libraryPlaceholder(for: library)
+                            )
                         } else {
                             libraryPlaceholder(for: library)
                         }
@@ -79,7 +72,6 @@ struct PlinxLibraryView: View {
                     .clipped()
                 }
 
-                // Gradient + title
                 LinearGradient(
                     colors: [.clear, .black.opacity(0.85)],
                     startPoint: .top,
@@ -107,11 +99,10 @@ struct PlinxLibraryView: View {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .stroke(.white.opacity(0.15), lineWidth: 1)
             )
-            // contentShape ensures the entire visible frame is tappable on all
-            // screen sizes, including iPad where transparent gradient tops would
-            // otherwise fall outside the default hit region.
             .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .task { await viewModel.ensureArtwork(for: library) }
+            .task(id: artworkRefreshToken) {
+                await viewModel.refreshArtwork(for: library)
+            }
         }
         .buttonStyle(SpringyButtonStyle())
     }
@@ -125,35 +116,150 @@ struct PlinxLibraryView: View {
         }
     }
 
-    private func adaptiveLibraryArtwork(image: Image, library: Library, size: CGSize) -> some View {
+    private func adaptiveLibraryArtwork(
+        artworkURLs: [URL],
+        size: CGSize,
+        placeholder: some View,
+    ) -> some View {
         let aspect = size.width / max(size.height, 1)
         let isUltraWide = aspect > 2.1
+        let artwork = artworkURLs.prefix(5)
 
-        return ZStack {
+        guard let first = artwork.first else {
+            return AnyView(placeholder)
+        }
+
+        return AnyView(ZStack {
             if isUltraWide {
-                image
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: size.width, height: size.height)
-                    .blur(radius: 18)
-                    .overlay(Color.black.opacity(0.28))
-
-                image
-                    .resizable()
-                    .scaledToFit()
-                    .frame(
-                        maxWidth: min(size.width * 0.72, library.type == .clip ? size.width * 0.82 : size.height * 1.55),
-                        maxHeight: size.height,
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                ultraWidePanelArtwork(
+                    artworkURLs: Array(artwork),
+                    size: size,
+                    placeholder: placeholder
+                )
             } else {
-                image
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: size.width, height: size.height)
+                AsyncImage(url: first) { phase in
+                    if case .success(let image) = phase {
+                        image
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: size.width, height: size.height)
+                    } else {
+                        placeholder
+                    }
+                }
             }
         }
-        .frame(width: size.width, height: size.height)
+        .frame(width: size.width, height: size.height))
+    }
+
+    private func ultraWidePanelArtwork(
+        artworkURLs: [URL],
+        size: CGSize,
+        placeholder: some View,
+    ) -> some View {
+        let sources: [URL] = Array(artworkURLs)
+        guard !sources.isEmpty else { return AnyView(placeholder) }
+
+        let displayCount = min(sources.count, 5)
+        let panelBaseWidth = size.width / CGFloat(max(displayCount, 1))
+        let overlap: CGFloat = panelBaseWidth * 0.12
+        let panelWidth = panelBaseWidth + overlap
+        let panelAlignments: [Alignment] = (0..<displayCount).map { index in
+            if index == 0 {
+                return .leading
+            } else if index == displayCount - 1 {
+                return .trailing
+            }
+            return .center
+        }
+        let edgeBlurRadius: CGFloat = 5
+        let displaySources = Array(sources.prefix(displayCount))
+
+        return AnyView(ZStack {
+            AsyncImage(url: displaySources.first) { phase in
+                if case .success(let image) = phase {
+                    image
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: size.width, height: size.height)
+                        .blur(radius: 18)
+                        .overlay(Color.black.opacity(0.28))
+                } else {
+                    placeholder
+                }
+            }
+
+            HStack(spacing: -overlap) {
+                ForEach(displaySources.indices, id: \ .self) { index in
+                    AsyncImage(url: displaySources[index]) { phase in
+                        if case .success(let image) = phase {
+                            ZStack {
+                                image
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: panelWidth, height: size.height, alignment: panelAlignments[index])
+                                    .clipped()
+                                    .blur(radius: edgeBlurRadius)
+                                    .overlay(Color.black.opacity(0.16))
+                                    .mask(edgeBlurMask(for: index, total: displaySources.count))
+
+                                image
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: panelWidth, height: size.height, alignment: panelAlignments[index])
+                                    .clipped()
+                            }
+                            .frame(width: panelWidth, height: size.height)
+                            .clipped()
+                            .mask(panelEdgeMask(for: index, total: displaySources.count))
+                        } else {
+                            Color.clear.frame(width: panelWidth, height: size.height)
+                        }
+                    }
+                }
+            }
+            .frame(width: size.width + overlap * CGFloat(max(displaySources.count - 1, 0)), height: size.height)
+            .clipped()
+        }
+        .frame(width: size.width, height: size.height))
+    }
+
+    private func edgeBlurMask(for index: Int, total: Int) -> LinearGradient {
+        var stops: [Gradient.Stop] = [.init(color: .clear, location: 0)]
+
+        if index > 0 {
+            stops += [
+                .init(color: .clear, location: 0.15),
+                .init(color: .white, location: 0.25),
+                .init(color: .clear, location: 0.35),
+            ]
+        }
+
+        if index < total - 1 {
+            stops += [
+                .init(color: .clear, location: 0.65),
+                .init(color: .white, location: 0.75),
+                .init(color: .clear, location: 0.85),
+            ]
+        }
+
+        stops.append(.init(color: .clear, location: 1))
+        return LinearGradient(stops: stops, startPoint: .leading, endPoint: .trailing)
+    }
+
+    private func panelEdgeMask(for index: Int, total: Int) -> LinearGradient {
+        let leadingWhite: CGFloat = index == 0 ? 0.18 : 0.08
+        let trailingWhite: CGFloat = index == total - 1 ? 0.82 : 0.92
+        return LinearGradient(
+            stops: [
+                .init(color: .clear, location: 0),
+                .init(color: .white, location: leadingWhite),
+                .init(color: .white, location: trailingWhite),
+                .init(color: .clear, location: 1),
+            ],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
     }
 }
 

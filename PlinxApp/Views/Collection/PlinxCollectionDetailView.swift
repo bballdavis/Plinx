@@ -15,7 +15,7 @@ struct PlinxCollectionDetailView: View {
     var body: some View {
         Group {
             if viewModel.isLoading && viewModel.items.isEmpty {
-                PlinxieLoadingView()
+                PlinxBrandedLoadingView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let error = viewModel.errorMessage, viewModel.items.isEmpty {
                 PlinxErrorView(message: error) {

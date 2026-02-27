@@ -14,6 +14,7 @@ final class SafeLibraryViewModel {
     var libraries: [Library] { inner.libraries }
     var isLoading: Bool { inner.isLoading }
     private(set) var errorMessage: String?
+    private(set) var bannerArtworkURLs: [String: [URL]] = [:]
 
     private let inner: LibraryViewModel
     private var policy: SafetyPolicy
@@ -42,34 +43,82 @@ final class SafeLibraryViewModel {
         inner.artworkURL(for: library)
     }
 
+    func bannerArtworkURLs(for library: Library) -> [URL] {
+        if let urls = bannerArtworkURLs[library.id], !urls.isEmpty {
+            return urls
+        }
+        if let fallback = inner.artworkURL(for: library) {
+            return [fallback]
+        }
+        return []
+    }
+
     func ensureArtwork(for library: Library) async {
-        guard inner.artworkURLs[library.id] == nil else { return }
+        guard bannerArtworkURLs[library.id]?.isEmpty ?? true else { return }
+        await fetchBannerArtwork(for: library, forceRefresh: false)
+    }
+
+    func refreshArtwork(for library: Library) async {
+        await fetchBannerArtwork(for: library, forceRefresh: true)
+    }
+
+    private func fetchBannerArtwork(for library: Library, forceRefresh: Bool) async {
+        if !forceRefresh, let existing = bannerArtworkURLs[library.id], !existing.isEmpty {
+            return
+        }
+
         guard let sectionId = library.sectionId else { return }
-        
+
         do {
             let sectionRepository = try SectionRepository(context: context)
             let imageRepository = try ImageRepository(context: context)
-            
+
             let itemContainer = try await sectionRepository.getSectionsItems(
                 sectionId: sectionId,
-                params: SectionRepository.SectionItemsParams(sort: "random", limit: 20),
-                pagination: PlexPagination(start: 0, size: 20)
+                params: SectionRepository.SectionItemsParams(sort: "random", limit: 60),
+                pagination: PlexPagination(start: 0, size: 60)
             )
-            
+
             let safeItems = (itemContainer.mediaContainer.metadata ?? []).compactMap { item -> PlexItem? in
                 let displayItem = MediaDisplayItem.playable(MediaItem(plexItem: item))
-                return StrimrAdapter.isAllowed(displayItem, policy: policy) ? item : nil
+                guard StrimrAdapter.isAllowed(displayItem, policy: policy) else { return nil }
+                guard item.art != nil || item.thumb != nil else { return nil }
+                return item
             }
-            
-            if let item = safeItems.first {
-                let path = item.art ?? item.thumb
-                if let url = path.flatMap({ imageRepository.transcodeImageURL(path: $0, width: 800, height: 450) }) {
-                    inner.artworkURLs[library.id] = url
+
+            var uniqueRatingKeys: Set<String> = []
+            var uniqueURLs: Set<String> = []
+            var urls: [URL] = []
+
+            for item in safeItems {
+                guard uniqueRatingKeys.insert(item.ratingKey).inserted else { continue }
+
+                guard
+                    let path = item.art ?? item.thumb,
+                    let url = imageRepository.transcodeImageURL(path: path, width: 800, height: 450),
+                    uniqueURLs.insert(url.absoluteString).inserted
+                else {
+                    continue
                 }
+
+                urls.append(url)
+                if urls.count == 5 { break }
+            }
+
+            if !urls.isEmpty {
+                let randomizedURLs = urls.shuffled()
+                bannerArtworkURLs[library.id] = randomizedURLs
+                inner.artworkURLs[library.id] = randomizedURLs[0]
+                return
             }
         } catch {
-            // Fallback to inner if needed, or just ignore
-            await inner.ensureArtwork(for: library)
+            ErrorReporter.capture(error)
+        }
+
+        // Fallback to vendor single-artwork loader if no validated image found.
+        await inner.ensureArtwork(for: library)
+        if let fallback = inner.artworkURL(for: library) {
+            bannerArtworkURLs[library.id] = [fallback]
         }
     }
 }

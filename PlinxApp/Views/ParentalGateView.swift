@@ -16,7 +16,7 @@ struct ParentalGateView: View {
 
     var body: some View {
         VStack(spacing: 24) {
-            PlinxieLoadingView()
+            PlinxBrandedLoadingView()
                 .frame(height: 200)
 
             Text("parental.gate.title", tableName: "Plinx")

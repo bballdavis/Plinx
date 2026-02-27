@@ -1,4 +1,5 @@
 import XCTest
+import Foundation
 
 final class LiveRenderSmokeUITests: XCTestCase {
 
@@ -18,9 +19,10 @@ final class LiveRenderSmokeUITests: XCTestCase {
             "PLINX_PLEX_PASSWORD",
             "PLINX_PLEX_PIN"
         ]
-        let environment = ProcessInfo.processInfo.environment
-        for key in keys where environment[key] != nil {
-            app.launchEnvironment[key] = environment[key]
+        for key in keys {
+            if let value = resolvedCredential(named: key), !value.isEmpty {
+                app.launchEnvironment[key] = value
+            }
         }
 
         app.launch()
@@ -112,13 +114,111 @@ final class LiveRenderSmokeUITests: XCTestCase {
                              "Landscape thumbnail ratio should be significantly wider than portrait ratio")
     }
 
+    func test_liveQuickActionSheet_containsPlayableButtons() throws {
+        try longPressFirstHomeCardForQuickActions()
+
+        let quickSheet = app.otherElements["quickAction.sheet"]
+        XCTAssertTrue(quickSheet.waitForExistence(timeout: 8), "Quick-action sheet should appear after long press")
+
+        XCTAssertTrue(app.buttons["quickAction.option.play"].exists,
+                      "Playable quick-action sheet should show Play")
+        XCTAssertTrue(app.buttons["quickAction.option.go-details"].exists,
+                      "Playable quick-action sheet should show Go to details")
+    }
+
+    func test_liveQuickAction_goToDetails_opensDetailWithoutErrorAlert() throws {
+        try longPressFirstHomeCardForQuickActions()
+
+        let detailsButton = app.buttons["quickAction.option.go-details"]
+        XCTAssertTrue(detailsButton.waitForExistence(timeout: 8), "Go to details action should be present")
+        detailsButton.tap()
+
+        let detailScreen = app.otherElements["media.detail.screen"]
+        XCTAssertTrue(detailScreen.waitForExistence(timeout: 15),
+                      "Media detail screen should appear after tapping Go to details")
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 3),
+                  "App should remain running after quick-action Go to details")
+
+        let actionFailedAlert = app.alerts["Action Failed"]
+        XCTAssertFalse(actionFailedAlert.exists,
+                       "Action Failed alert should not be shown when Go to details succeeds")
+    }
+
     private var isLiveEnvironmentConfigured: Bool {
-        let env = ProcessInfo.processInfo.environment
-        let hasServer = !(env["PLINX_PLEX_SERVER_URL"] ?? "").isEmpty
-        let hasToken = !(env["PLINX_PLEX_TOKEN"] ?? "").isEmpty
-        let hasUserPass = !(env["PLINX_PLEX_USER"] ?? "").isEmpty && !(env["PLINX_PLEX_PASSWORD"] ?? "").isEmpty
-        let hasPin = !(env["PLINX_PLEX_PIN"] ?? "").isEmpty
+        let hasServer = !(resolvedCredential(named: "PLINX_PLEX_SERVER_URL") ?? "").isEmpty
+        let hasToken = !(resolvedCredential(named: "PLINX_PLEX_TOKEN") ?? "").isEmpty
+        let hasUserPass = !(resolvedCredential(named: "PLINX_PLEX_USER") ?? "").isEmpty
+            && !(resolvedCredential(named: "PLINX_PLEX_PASSWORD") ?? "").isEmpty
+        let hasPin = !(resolvedCredential(named: "PLINX_PLEX_PIN") ?? "").isEmpty
         return hasServer && (hasToken || hasUserPass || hasPin)
+    }
+
+    private func resolvedCredential(named key: String) -> String? {
+        let env = ProcessInfo.processInfo.environment
+        if let value = env[key], !value.isEmpty {
+            return value
+        }
+        return yamlCredential(named: key)
+    }
+
+    private func yamlCredential(named key: String) -> String? {
+        guard
+            let yamlPath = locateTestCredsYAML(),
+            let content = try? String(contentsOfFile: yamlPath, encoding: .utf8)
+        else {
+            return nil
+        }
+
+        for rawLine in content.split(whereSeparator: \.isNewline) {
+            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            guard !line.isEmpty, !line.hasPrefix("#") else { continue }
+            guard let separator = line.firstIndex(of: ":") else { continue }
+
+            let parsedKey = line[..<separator].trimmingCharacters(in: .whitespaces)
+            guard parsedKey == key else { continue }
+
+            var value = line[line.index(after: separator)...].trimmingCharacters(in: .whitespaces)
+            if value.hasPrefix("\""), value.hasSuffix("\""), value.count >= 2 {
+                value.removeFirst()
+                value.removeLast()
+            } else if value.hasPrefix("'"), value.hasSuffix("'"), value.count >= 2 {
+                value.removeFirst()
+                value.removeLast()
+            }
+            return value.isEmpty ? nil : value
+        }
+        return nil
+    }
+
+    private func locateTestCredsYAML() -> String? {
+        if let bundledPath = Bundle(for: Self.self)
+            .url(forResource: "test_creds", withExtension: "yaml")?
+            .path {
+            return bundledPath
+        }
+
+        let fm = FileManager.default
+        var current = URL(fileURLWithPath: fm.currentDirectoryPath)
+
+        for _ in 0..<6 {
+            let candidate = current.appendingPathComponent("test_creds.yaml").path
+            if fm.fileExists(atPath: candidate) {
+                return candidate
+            }
+            current.deleteLastPathComponent()
+        }
+
+        // Fallback from source path:
+        // <repo>/PlinxApp/UITests/LiveRenderSmokeUITests.swift
+        // -> <repo>/test_creds.yaml
+        var sourceURL = URL(fileURLWithPath: #filePath)
+        for _ in 0..<4 { sourceURL.deleteLastPathComponent() }
+        let sourceCandidate = sourceURL.appendingPathComponent("test_creds.yaml").path
+        if fm.fileExists(atPath: sourceCandidate) {
+            return sourceCandidate
+        }
+
+        return nil
     }
 
     private func waitForAny(_ elements: [XCUIElement], timeout: TimeInterval) -> Bool {
@@ -130,6 +230,55 @@ final class LiveRenderSmokeUITests: XCTestCase {
             RunLoop.current.run(until: Date().addingTimeInterval(0.25))
         }
         return false
+    }
+
+    private func longPressFirstHomeCardForQuickActions() throws {
+        let cardCandidates = [
+            "home.card.moviesAndTV.0",
+            "home.card.otherVideos.0",
+        ]
+
+        for identifier in cardCandidates {
+            let card = app.otherElements[identifier]
+            if card.waitForExistence(timeout: 20), card.isHittable {
+                card.press(forDuration: 1.1)
+                return
+            }
+        }
+
+        if try longPressFirstLibraryBrowseItemForQuickActions() {
+            return
+        }
+
+        throw XCTSkip("No home cards were available for quick-action long-press test.")
+    }
+
+    private func longPressFirstLibraryBrowseItemForQuickActions() throws -> Bool {
+        let libraryTab = app.tabBars.buttons["Library"]
+        guard libraryTab.waitForExistence(timeout: 8) else { return false }
+        libraryTab.tap()
+
+        let firstLibraryTile = app.buttons.firstMatch
+        guard firstLibraryTile.waitForExistence(timeout: 8), firstLibraryTile.isHittable else {
+            return false
+        }
+        firstLibraryTile.tap()
+
+        let browseTab = app.buttons["library.detail.tab.browse"]
+        if browseTab.waitForExistence(timeout: 8), browseTab.isHittable {
+            browseTab.tap()
+        }
+
+        let browseItem = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@", "library.browse.item."))
+            .firstMatch
+
+        guard browseItem.waitForExistence(timeout: 12), browseItem.isHittable else {
+            return false
+        }
+
+        browseItem.press(forDuration: 1.1)
+        return true
     }
 
     private func aspectRatio(of element: XCUIElement) -> CGFloat {

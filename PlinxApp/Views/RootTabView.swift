@@ -4,7 +4,7 @@ import PlinxUI
 
 struct RootTabView: View {
     private struct QuickActionOption: Identifiable {
-        let id = UUID()
+        let id: String
         let title: String
         let systemImage: String
         let role: ButtonRole?
@@ -47,7 +47,12 @@ struct RootTabView: View {
     private var tabBinding: Binding<MainCoordinator.Tab> {
         Binding(
             get: { activeRootTab },
-            set: { mainCoordinator.tab = $0 }
+            set: { newValue in
+                if newValue == activeRootTab {
+                    mainCoordinator.popToRoot(for: newValue)
+                }
+                mainCoordinator.tab = newValue
+            }
         )
     }
 
@@ -74,6 +79,7 @@ struct RootTabView: View {
         ZStack(alignment: .bottom) {
             Color.black.opacity(0.45)
                 .ignoresSafeArea()
+                .accessibilityIdentifier("quickAction.backdrop")
                 .onTapGesture {
                     selectedQuickActionMedia = nil
                 }
@@ -101,18 +107,19 @@ struct RootTabView: View {
                         )
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("quickAction.cancel")
             }
             .padding(14)
             .liquidGlassBackground()
             .padding(.horizontal, 16)
             .padding(.bottom, 16)
+            .accessibilityIdentifier("quickAction.sheet")
         }
     }
 
     private func quickActionButton(_ option: QuickActionOption) -> some View {
         Button(role: option.role) {
-            selectedQuickActionMedia = nil
-            option.action()
+            performQuickAction(option.action)
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: option.systemImage)
@@ -134,6 +141,15 @@ struct RootTabView: View {
             )
         }
         .buttonStyle(PlinkButtonStyle())
+        .accessibilityIdentifier("quickAction.option.\(option.id)")
+    }
+
+    private func performQuickAction(_ action: @escaping () -> Void) {
+        selectedQuickActionMedia = nil
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 220_000_000)
+            action()
+        }
     }
 
     @ViewBuilder
@@ -378,6 +394,7 @@ struct RootTabView: View {
         case let .playable(media):
             var actions: [QuickActionOption] = [
                 QuickActionOption(
+                    id: "play",
                     title: String(localized: "common.actions.play"),
                     systemImage: "play.fill",
                     role: nil,
@@ -386,6 +403,7 @@ struct RootTabView: View {
                     }
                 ),
                 QuickActionOption(
+                    id: "toggle-watched",
                     title: isWatched(media) ? "Mark as unwatched" : "Mark as watched",
                     systemImage: isWatched(media) ? "checkmark.circle.fill" : "checkmark.circle",
                     role: nil,
@@ -398,6 +416,7 @@ struct RootTabView: View {
             if let seriesKey = seriesRatingKey(for: media) {
                 actions.append(
                     QuickActionOption(
+                        id: "go-series-\(seriesKey)",
                         title: "Go to series",
                         systemImage: "tv",
                         role: nil,
@@ -411,6 +430,7 @@ struct RootTabView: View {
             if let seasonKey = seasonRatingKey(for: media) {
                 actions.append(
                     QuickActionOption(
+                        id: "go-season-\(seasonKey)",
                         title: "Go to season",
                         systemImage: "rectangle.stack",
                         role: nil,
@@ -423,6 +443,7 @@ struct RootTabView: View {
 
             actions.append(
                 QuickActionOption(
+                    id: "go-details",
                     title: "Go to details",
                     systemImage: "info.circle",
                     role: nil,
@@ -437,6 +458,7 @@ struct RootTabView: View {
         case let .collection(collection):
             return [
                 QuickActionOption(
+                    id: "collection-details-\(collection.id)",
                     title: "Go to details",
                     systemImage: "info.circle",
                     role: nil,
@@ -449,6 +471,7 @@ struct RootTabView: View {
         case let .playlist(playlist):
             return [
                 QuickActionOption(
+                    id: "playlist-play-\(playlist.id)",
                     title: String(localized: "common.actions.play"),
                     systemImage: "play.fill",
                     role: nil,
@@ -457,6 +480,7 @@ struct RootTabView: View {
                     }
                 ),
                 QuickActionOption(
+                    id: "playlist-details-\(playlist.id)",
                     title: "Go to details",
                     systemImage: "info.circle",
                     role: nil,
