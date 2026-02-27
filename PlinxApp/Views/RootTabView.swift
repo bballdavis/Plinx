@@ -310,10 +310,7 @@ struct RootTabView: View {
 
         case .downloads:
             NavigationStack(path: mainCoordinator.pathBinding(for: .downloads)) {
-                DownloadsView()
-                    .safeAreaInset(edge: .top, spacing: 0) {
-                        topTitleRow(title: "tabs.downloads", showsSettingsButton: false)
-                    }
+                PlinxDownloadsGridView()
                     .toolbar(.hidden, for: .navigationBar)
             }
             .opacity(activeRootTab == .downloads ? 1 : 0)
@@ -327,7 +324,8 @@ struct RootTabView: View {
         showsSettingsButton: Bool,
         showsLogo: Bool = false
     ) -> some View {
-        HStack(spacing: 12) {
+        ZStack {
+            // Centre the logo when present; text is left-aligned when there is none.
             if showsLogo {
                 Image("LogoColor")
                     .resizable()
@@ -335,30 +333,35 @@ struct RootTabView: View {
                     .frame(height: 28)
                     .accessibilityHidden(true)
             }
-            Text(title)
-                .font(.title3.weight(.bold))
-                .foregroundStyle(.white.opacity(0.95))
-            Spacer()
-            if showsSettingsButton {
-                Button {
-                    showSettings = true
-                } label: {
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: 22, weight: .semibold))
-                        .foregroundStyle(Color.accentColor)
-                        .frame(width: 52, height: 52)
-                        .background(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(.ultraThinMaterial)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(Color.accentColor.opacity(0.35), lineWidth: 1)
-                        )
+
+            HStack(spacing: 12) {
+                if !showsLogo {
+                    Text(title)
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(.white.opacity(0.95))
                 }
-            } else {
-                Color.clear
-                    .frame(width: 52, height: 52)
+                Spacer()
+                if showsSettingsButton {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gearshape.fill")
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundStyle(Color.accentColor)
+                            .frame(width: 52, height: 52)
+                            .background(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .fill(.ultraThinMaterial)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .stroke(Color.accentColor.opacity(0.35), lineWidth: 1)
+                            )
+                    }
+                } else {
+                    Color.clear
+                        .frame(width: 52, height: 52)
+                }
             }
         }
         .padding(.horizontal, 20)

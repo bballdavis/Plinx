@@ -56,7 +56,12 @@ struct PlinxHomeView: View {
     // MARK: - Subviews
 
     private var fullscreenLoading: some View {
-        PlinxBrandedLoadingView(titleKey: "home.loading")
+        PlinxBrandedLoadingView(
+            titleKey: "home.loading",
+            preferredLogoAssetName: "LogoStackedFullWhite",
+            showsProgressView: true,
+            fillsBackground: true
+        )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
