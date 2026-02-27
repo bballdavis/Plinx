@@ -1,0 +1,13 @@
+{
+  "images" : [
+    {
+      "filename" : "logo_stacked_full_white.png",
+      "idiom" : "universal",
+      "scale" : "1x"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

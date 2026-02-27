@@ -40,19 +40,6 @@ private struct SettingsBody: View {
 
     var body: some View {
         List {
-            // MARK: Branding header
-            Section {
-                // empty — logo only
-            } header: {
-                Image("LogoFullColor")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(height: 60)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .listRowInsets(EdgeInsets())
-            }
-
             // MARK: Content subpages
             Section {
                 NavigationLink(destination: VisibleLibrariesView()) {
@@ -92,6 +79,19 @@ private struct SettingsBody: View {
                 }
             } header: {
                 Text("settings.accent.section", tableName: "Plinx")
+            }
+
+            // MARK: Downloads
+            Section {
+                NavigationLink(destination: SettingsDownloadsView()) {
+                    Label {
+                        Text("settings.downloads.title")
+                    } icon: {
+                        Image(systemName: "arrow.down.circle.fill")
+                    }
+                }
+            } header: {
+                Text("settings.downloads.title")
             }
 
             // MARK: Content rating — movie
@@ -136,6 +136,13 @@ private struct SettingsBody: View {
                         Text("settings.safety.touchlock.title", tableName: "Plinx")
                     } icon: {
                         Image(systemName: "lock.fill")
+                    }
+                }
+                NavigationLink(destination: SetPinView()) {
+                    Label {
+                        Text("Set Parental PIN", tableName: "Plinx")
+                    } icon: {
+                        Image(systemName: "key.fill")
                     }
                 }
             } header: {
