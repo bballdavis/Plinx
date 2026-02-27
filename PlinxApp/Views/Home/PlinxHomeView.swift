@@ -83,7 +83,7 @@ struct PlinxHomeView: View {
         switch sectionId {
         case "continueWatching":
             if let hub = viewModel.continueWatching, hub.hasItems {
-                hubRow(hub, layout: .landscape, sectionKey: "continueWatching")
+                hubRow(hub, layout: .portrait, sectionKey: "continueWatching")
             }
         case "moviesAndTV":
             ForEach(moviesTVGroups) { group in
@@ -280,7 +280,7 @@ struct PlinxHomeView: View {
         let ratio: CGFloat = isLandscape ? 16.0 / 9.0 : 2.0 / 3.0
 
         return VStack(alignment: .leading, spacing: 6) {
-            ZStack(alignment: .bottomLeading) {
+            ZStack(alignment: .bottom) {
                 MediaImageView(
                     viewModel: MediaImageViewModel(
                         context: plexApiContext,
@@ -294,14 +294,17 @@ struct PlinxHomeView: View {
                 .accessibilityIdentifier("home.thumbnail.\(sectionKey).\(index)")
 
                 if let pct = item.viewProgressPercentage, pct > 0 {
-                    GeometryReader { geo in
-                        Capsule()
+                    ZStack(alignment: .leading) {
+                        Rectangle()
+                            .fill(Color.white.opacity(0.30))
+                        Rectangle()
                             .fill(Color.accentColor)
-                            .frame(width: geo.size.width * CGFloat(min(pct / 100, 1)), height: 3)
-                            .padding(.horizontal, 4)
-                            .padding(.bottom, 4)
+                            .frame(width: cardWidth * CGFloat(min(pct / 100.0, 1.0)))
                     }
-                    .frame(width: cardWidth, height: cardWidth / ratio)
+                    .frame(height: 5)
+                    .padding(.horizontal, 4)
+                    .padding(.bottom, 4)
+                    .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
                 }
             }
 
