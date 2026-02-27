@@ -1,6 +1,7 @@
 {
   "images" : [
     {
+      "filename" : "rating.rt.svg",
       "idiom" : "universal"
     }
   ],
@@ -9,6 +10,6 @@
     "version" : 1
   },
   "properties" : {
-    "template-rendering-intent" : "template"
+    "template-rendering-intent" : "original"
   }
 }

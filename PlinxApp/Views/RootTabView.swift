@@ -324,44 +324,43 @@ struct RootTabView: View {
         showsSettingsButton: Bool,
         showsLogo: Bool = false
     ) -> some View {
-        ZStack {
-            // Centre the logo when present; text is left-aligned when there is none.
+        HStack(spacing: 12) {
             if showsLogo {
                 Image("LogoColor")
                     .resizable()
                     .scaledToFit()
-                    .frame(height: 28)
+                    .frame(height: 35)
                     .accessibilityHidden(true)
-            }
 
-            HStack(spacing: 12) {
-                if !showsLogo {
-                    Text(title)
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(.white.opacity(0.95))
-                }
-                Spacer()
-                if showsSettingsButton {
-                    Button {
-                        showSettings = true
-                    } label: {
-                        Image(systemName: "gearshape.fill")
-                            .font(.system(size: 22, weight: .semibold))
-                            .foregroundStyle(Color.accentColor)
-                            .frame(width: 52, height: 52)
-                            .background(
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .fill(.ultraThinMaterial)
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .stroke(Color.accentColor.opacity(0.35), lineWidth: 1)
-                            )
-                    }
-                } else {
-                    Color.clear
+                Text(title)
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.95))
+            } else {
+                Text(title)
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.95))
+            }
+            Spacer()
+            if showsSettingsButton {
+                Button {
+                    showSettings = true
+                } label: {
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(Color.accentColor)
                         .frame(width: 52, height: 52)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(.ultraThinMaterial)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(Color.accentColor.opacity(0.35), lineWidth: 1)
+                        )
                 }
+            } else {
+                Color.clear
+                    .frame(width: 52, height: 52)
             }
         }
         .padding(.horizontal, 20)
@@ -455,34 +454,6 @@ struct RootTabView: View {
                     }
                 )
             ]
-
-            if let seriesKey = seriesRatingKey(for: media) {
-                actions.append(
-                    QuickActionOption(
-                        id: "go-series-\(seriesKey)",
-                        title: "Go to series",
-                        systemImage: "tv",
-                        role: nil,
-                        action: {
-                            Task { await showDetail(for: seriesKey) }
-                        }
-                    )
-                )
-            }
-
-            if let seasonKey = seasonRatingKey(for: media) {
-                actions.append(
-                    QuickActionOption(
-                        id: "go-season-\(seasonKey)",
-                        title: "Go to season",
-                        systemImage: "rectangle.stack",
-                        role: nil,
-                        action: {
-                            Task { await showDetail(for: seasonKey) }
-                        }
-                    )
-                )
-            }
 
             // Download option — handles show/season/episode/movie/clip
             let downloadTitle: String
@@ -580,22 +551,6 @@ struct RootTabView: View {
         }
     }
 
-    private func showDetail(for ratingKey: String) async {
-        do {
-            let metadataRepository = try MetadataRepository(context: plexApiContext)
-            let response = try await metadataRepository.getMetadata(ratingKey: ratingKey)
-            guard
-                let plexItem = response.mediaContainer.metadata?.first,
-                let playable = PlayableMediaItem(plexItem: plexItem)
-            else {
-                return
-            }
-            mainCoordinator.showMediaDetail(playable)
-        } catch {
-            quickActionErrorMessage = error.localizedDescription
-        }
-    }
-
     private func isWatched(_ item: MediaItem) -> Bool {
         guard let playableType = PlayableItemType(plexType: item.type) else { return false }
 
@@ -611,19 +566,4 @@ struct RootTabView: View {
         }
     }
 
-    private func seasonRatingKey(for item: MediaItem) -> String? {
-        guard item.type == .episode else { return nil }
-        return item.parentRatingKey
-    }
-
-    private func seriesRatingKey(for item: MediaItem) -> String? {
-        switch item.type {
-        case .episode:
-            return item.grandparentRatingKey ?? item.parentRatingKey
-        case .season:
-            return item.parentRatingKey
-        default:
-            return nil
-        }
-    }
 }
