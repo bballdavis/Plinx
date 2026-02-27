@@ -58,10 +58,9 @@ enum StrimrAdapter {
     static func isAllowed(_ item: MediaItem, policy: SafetyPolicy) -> Bool {
         guard let ratingString = item.contentRating,
               !ratingString.isEmpty else {
-            // Clip-type content (other videos, YouTube, etc.) does not carry
-            // MPAA/TV ratings — pass it through so continue-watching includes
-            // these items. Rated clips still go through the policy check below.
-            if item.type == .clip { return true }
+            // Clip-type content (other videos, YouTube, etc.) typically does not
+            // carry MPAA/TV ratings. Respect the "Exclude Unrated" toggle.
+            if item.type == .clip { return policy.allowUnrated }
             return policy.allowUnrated
         }
         guard let rating = PlinxRating.from(contentRating: ratingString) else {
@@ -88,8 +87,9 @@ enum StrimrAdapter {
     static func isAllowed(_ item: PlayableMediaItem, policy: SafetyPolicy) -> Bool {
         guard let ratingString = item.contentRating,
               !ratingString.isEmpty else {
-            // Clip-type content passes through without a rating.
-            if item.type == .clip { return true }
+            // Clip-type content typically has no MPAA/TV rating. Respect the
+            // "Exclude Unrated" toggle rather than always passing through.
+            if item.type == .clip { return policy.allowUnrated }
             return policy.allowUnrated
         }
         guard let rating = PlinxRating.from(contentRating: ratingString) else {

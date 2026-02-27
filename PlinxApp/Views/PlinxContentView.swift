@@ -17,7 +17,13 @@ struct PlinxContentView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            // Match the launch screen colour during hydration to eliminate the
+            // black flash between the storyboard splash and the SwiftUI tree.
+            if sessionManager.status == .hydrating {
+                LinearGradient.plinxBrandGreen.ignoresSafeArea()
+            } else {
+                Color.black.ignoresSafeArea()
+            }
 
             rootContent
         }
@@ -60,7 +66,11 @@ struct PlinxContentView: View {
     private var sessionContent: some View {
             switch sessionManager.status {
             case .hydrating:
-                PlinxBrandedLoadingView(showsProgressView: false, fillsBackground: true)
+                PlinxBrandedLoadingView(
+                    preferredLogoAssetName: "LogoStackedFullWhite",
+                    showsProgressView: false,
+                    fillsBackground: false
+                )
             case .signedOut:
                 SignInView(
                     viewModel: SignInViewModel(

@@ -10,6 +10,8 @@
 "parental.gate.title" = "Parents Only";
 "parental.gate.unlock" = "Unlock";
 "parental.gate.placeholder" = "Answer";
+"parental.gate.pin.title" = "Enter PIN";
+"parental.gate.pin.wrong" = "Incorrect PIN. Try again.";
 
 /* Media */
 "media.unavailable.title" = "Content Not Available";
