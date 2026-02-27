@@ -11,7 +11,6 @@ import PlinxUI
 struct SignInView: View {
     @State private var viewModel: SignInViewModel
     @Environment(\.plinxTheme) private var theme
-    @Environment(\.colorScheme) private var colorScheme
 
     init(viewModel: SignInViewModel) {
         _viewModel = State(initialValue: viewModel)
@@ -22,10 +21,10 @@ struct SignInView: View {
             Spacer()
 
             VStack(spacing: 12) {
-                Image(colorScheme == .dark ? "LogoFullWhite" : "LogoFullColor")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: 240)
+                PlinxBrandLogoView(
+                    preferredAssetName: PlinxBrandingSemantics.fullColorLogoAssetName,
+                    accessibilityIdentifier: "signIn.logo.fullColor"
+                )
 
                 Text("signIn.subtitle")
                     .multilineTextAlignment(.center)
@@ -37,20 +36,22 @@ struct SignInView: View {
             } label: {
                 HStack {
                     if viewModel.isAuthenticating {
-                        ProgressView().tint(.white)
+                        ProgressView().tint(theme.palette.primary)
                     }
                     Text(viewModel.isAuthenticating
                          ? "signIn.button.waiting"
                          : "signIn.button.continue")
-                        .fontWeight(.semibold)
+                        .plinxStyle(theme.typography.button)
                 }
+                .foregroundStyle(theme.palette.onPrimary)
                 .frame(maxWidth: .infinity)
-                .padding()
-                .background(theme.palette.primary)
-                .foregroundStyle(.white)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .liquidGlassStyle(variant: theme.glass)
             }
+            .buttonStyle(PlinkButtonStyle(springs: theme.springs))
             .disabled(viewModel.isAuthenticating)
+            .opacity(viewModel.isAuthenticating ? 0.7 : 1)
+            .accessibilityIdentifier("signIn.primaryButton")
+            .accessibilityValue(PlinxBrandingSemantics.signInPrimaryButtonStyleValue)
 
             if viewModel.isAuthenticating {
                 Button("signIn.button.cancel") {

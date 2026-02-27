@@ -179,7 +179,6 @@ struct RootTabView: View {
         .sheet(isPresented: $showSettings) {
             NavigationStack {
                 PlinxSettingsView()
-                    .navigationTitle(Text("tabs.settings", tableName: "Plinx"))
                     .navigationBarTitleDisplayMode(.large)
                     .toolbar {
                         ToolbarItem(placement: .topBarTrailing) {
@@ -211,7 +210,7 @@ struct RootTabView: View {
                         ),
                         policy: safetyPolicy
                     ),
-                    topContent: AnyView(topTitleRow(title: "tabs.home", showsSettingsButton: true)),
+                    topContent: AnyView(topTitleRow(title: "tabs.home", showsSettingsButton: true, showsLogo: true)),
                     onSelectMedia: { displayItem in
                         handlePrimarySelection(displayItem)
                     },
@@ -293,8 +292,19 @@ struct RootTabView: View {
         }
     }
 
-    private func topTitleRow(title: LocalizedStringKey, showsSettingsButton: Bool) -> some View {
+    private func topTitleRow(
+        title: LocalizedStringKey,
+        showsSettingsButton: Bool,
+        showsLogo: Bool = false
+    ) -> some View {
         HStack(spacing: 12) {
+            if showsLogo {
+                Image("LogoFullColor")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: 28)
+                    .accessibilityHidden(true)
+            }
             Text(title)
                 .font(.title3.weight(.bold))
                 .foregroundStyle(.white.opacity(0.95))

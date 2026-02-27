@@ -8,13 +8,59 @@ struct PlinxContentView: View {
     @Environment(LibraryStore.self) private var libraryStore
     @EnvironmentObject private var mainCoordinator: MainCoordinator
 
+    private var uiTestScreenOverride: String? {
+        guard ProcessInfo.processInfo.arguments.contains("--ui-testing") else {
+            return nil
+        }
+        return ProcessInfo.processInfo.environment["PLINX_UI_TEST_SCREEN"]
+    }
+
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
+            rootContent
+        }
+        .fullScreenCover(item: $mainCoordinator.selectedPlayQueue) { playQueue in
+            PlayerWrapper(
+                viewModel: PlayerViewModel(
+                    playQueue: playQueue,
+                    context: plexApiContext,
+                    shouldResumeFromOffset: mainCoordinator.shouldResumeFromOffset
+                )
+            )
+            .onDisappear {
+                mainCoordinator.resetPlayer()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var rootContent: some View {
+        if let uiTestScreenOverride {
+            switch uiTestScreenOverride {
+            case "parentalGate":
+                ParentalGateView(onAllowed: {})
+            case "signIn":
+                SignInView(
+                    viewModel: SignInViewModel(
+                        sessionManager: sessionManager,
+                        context: plexApiContext,
+                    ),
+                )
+            default:
+                sessionContent
+            }
+        } else {
+            sessionContent
+        }
+    }
+
+    @ViewBuilder
+    private var sessionContent: some View {
             switch sessionManager.status {
             case .hydrating:
-                PlinxBrandedLoadingView()
+                PlinxBrandedLoadingView(fillsBackground: true)
             case .signedOut:
                 SignInView(
                     viewModel: SignInViewModel(
@@ -43,18 +89,5 @@ struct PlinxContentView: View {
             case .ready:
                 RootTabView()
             }
-        }
-        .fullScreenCover(item: $mainCoordinator.selectedPlayQueue) { playQueue in
-            PlayerWrapper(
-                viewModel: PlayerViewModel(
-                    playQueue: playQueue,
-                    context: plexApiContext,
-                    shouldResumeFromOffset: mainCoordinator.shouldResumeFromOffset
-                )
-            )
-            .onDisappear {
-                mainCoordinator.resetPlayer()
-            }
-        }
     }
 }

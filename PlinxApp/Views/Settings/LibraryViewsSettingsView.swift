@@ -69,7 +69,7 @@ private struct LibraryViewSectionsConfigurationView: View {
                 Section {
                     HStack {
                         Spacer()
-                        ProgressView()
+                        ProgressView().tint(.accentColor)
                         Spacer()
                     }
                 }

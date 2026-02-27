@@ -103,7 +103,7 @@ struct ProfileSwitcherView: View {
     private var loadingState: some View {
         if viewModel.isLoading {
             HStack(spacing: 12) {
-                ProgressView().tint(.white)
+                ProgressView().tint(theme.palette.primary)
                 Text("auth.profile.loading")
                     .foregroundStyle(.white.opacity(0.7))
             }
@@ -183,7 +183,7 @@ struct ProfileSwitcherView: View {
             if viewModel.switchingUserUUID == user.uuid {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(Color.black.opacity(0.35))
-                ProgressView().tint(.white)
+                ProgressView().tint(theme.palette.primary)
             }
         }
     }

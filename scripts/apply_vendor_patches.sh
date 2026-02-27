@@ -30,6 +30,8 @@ if [ ! -d "$STRIMR_DIR" ]; then
 fi
 
 BRAND_SRC_DIR="$REPO_ROOT/assets/branding"
+ICON_COMPOSER_SRC_DIR="$REPO_ROOT/.local_dev/assets/Plinx_icon_Pack.icon"
+APP_ICONSET_DIR="$REPO_ROOT/PlinxApp/Resources/Assets.xcassets/AppIcon.appiconset"
 
 pushd "$STRIMR_DIR" > /dev/null
 
@@ -73,15 +75,35 @@ copy_brand_asset() {
     cp -f "$src" "$dst"
 }
 
+sync_icon_composer_bundle() {
+    if [ ! -f "$ICON_COMPOSER_SRC_DIR/icon.json" ]; then
+        echo "⚠️  Icon Composer bundle not found at $ICON_COMPOSER_SRC_DIR; skipping composer sync."
+        return
+    fi
+
+    mkdir -p "$APP_ICONSET_DIR/Assets"
+    cp -f "$ICON_COMPOSER_SRC_DIR/icon.json" "$APP_ICONSET_DIR/icon.json"
+
+    if [ -d "$ICON_COMPOSER_SRC_DIR/Assets" ]; then
+        find "$ICON_COMPOSER_SRC_DIR/Assets" -type f | while IFS= read -r src; do
+            rel="${src#"$ICON_COMPOSER_SRC_DIR/Assets/"}"
+            dst="$APP_ICONSET_DIR/Assets/$rel"
+            mkdir -p "$(dirname "$dst")"
+            cp -f "$src" "$dst"
+        done
+    fi
+}
+
 # Vendor Strimr catalog assets (patched in vendor submodule)
 copy_brand_asset "$BRAND_SRC_DIR/appicon_ios_1024.jpg" \
     "$STRIMR_DIR/Strimr-iOS/Assets.xcassets/AppIcon.appiconset/logo_ios-100.jpg"
 copy_brand_asset "$BRAND_SRC_DIR/logo_color.png" \
     "$STRIMR_DIR/Strimr-iOS/Assets.xcassets/Icon.imageset/logo_ios.png"
 
+# App-local icon source-of-truth from Icon Composer package
+sync_icon_composer_bundle
+
 # App-local catalog assets used by Plinx views + launch screen
-copy_brand_asset "$BRAND_SRC_DIR/appicon_ios_1024.jpg" \
-    "$REPO_ROOT/PlinxApp/Resources/Assets.xcassets/AppIcon.appiconset/appicon_ios_1024.jpg"
 copy_brand_asset "$BRAND_SRC_DIR/logo_color.png" \
     "$REPO_ROOT/PlinxApp/Resources/Assets.xcassets/LogoColor.imageset/logo_color.png"
 copy_brand_asset "$BRAND_SRC_DIR/logo_dark.png" \

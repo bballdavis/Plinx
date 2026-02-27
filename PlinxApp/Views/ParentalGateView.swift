@@ -3,6 +3,8 @@ import PlinxCore
 import PlinxUI
 
 struct ParentalGateView: View {
+    @Environment(\.plinxTheme) private var theme
+
     @State private var challenge: MathGate.Challenge
     @State private var answerText = ""
     private var mathGate = MathGate()
@@ -16,12 +18,18 @@ struct ParentalGateView: View {
 
     var body: some View {
         VStack(spacing: 24) {
-            PlinxBrandedLoadingView()
+            PlinxBrandedLoadingView(
+                preferredLogoAssetName: "LogoFullColor",
+                logoAccessibilityIdentifier: "parentalGate.logo",
+                showsProgressView: false
+            )
                 .frame(height: 200)
 
             Text("parental.gate.title", tableName: "Plinx")
                 .font(.title2.bold())
-                .foregroundStyle(PlinxTheme().palette.primary)
+                .foregroundStyle(theme.palette.background)
+                .accessibilityIdentifier("parentalGate.title")
+                .accessibilityValue(PlinxBrandingSemantics.parentalGateTitleColorValue)
 
             Text(challenge.prompt)
                 .font(.system(size: 48, weight: .black, design: .rounded))
@@ -46,5 +54,9 @@ struct ParentalGateView: View {
             }
         }
         .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background {
+            LinearGradient.plinxBrandGreen.ignoresSafeArea()
+        }
     }
 }

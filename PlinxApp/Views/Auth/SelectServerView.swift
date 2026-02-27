@@ -58,6 +58,7 @@ struct SelectServerView: View {
         if viewModel.isLoading, viewModel.servers.isEmpty {
             ProgressView("serverSelection.loading")
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .tint(theme.palette.primary)
         } else if viewModel.servers.isEmpty {
             emptyState
         } else {
@@ -84,7 +85,7 @@ struct SelectServerView: View {
             } label: {
                 HStack {
                     if viewModel.isLoading {
-                        ProgressView().tint(.white)
+                        ProgressView().tint(theme.palette.primary)
                     }
                     Text("serverSelection.retry")
                         .fontWeight(.semibold)
