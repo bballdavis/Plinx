@@ -19,13 +19,13 @@
     {
       "layers" : [
         {
-          "image-name" : "icon_color 2.png",
-          "name" : "icon_color 2",
+          "image-name" : "icon_color copy.png",
+          "name" : "icon_color copy",
           "position" : {
             "scale" : 1.75,
             "translation-in-points" : [
-              -19.0859375,
-              58.4921875
+              -21.75,
+              18.1171875
             ]
           }
         }
@@ -42,7 +42,8 @@
   ],
   "supported-platforms" : {
     "squares" : [
-      "iOS"
+      "iOS",
+      "macOS"
     ]
   }
 }

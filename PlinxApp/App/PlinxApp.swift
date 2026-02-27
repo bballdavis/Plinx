@@ -53,6 +53,11 @@ struct PlinxApp: App {
     // We inject a default idle instance so the feature is present but dormant.
     @State private var watchTogetherViewModel: WatchTogetherViewModel
 
+    //── Strimr DownloadManager (required by MediaDetailHeaderSection's @Environment) ──
+    // MediaDetailHeaderSection reads @Environment(DownloadManager.self). Without this
+    // injection the app crashes with an assertion failure when navigating to media detail.
+    @State private var downloadManager: DownloadManager
+
     // ── Plinx Safety Layer ──────────────────────────────────────────────
     @AppStorage("plinx.maxMovieRating") private var maxMovieRatingRaw = PlinxRating.pg.rawValue
     @AppStorage("plinx.maxTVRating") private var maxTVRatingRaw = PlinxRating.tvPg.rawValue
@@ -102,6 +107,10 @@ struct PlinxApp: App {
             context: context
         ))
 
+        // DownloadManager: inject so MediaDetailHeaderSection's @Environment(DownloadManager.self)
+        // resolves. Plinx supports downloads as a passthrough from Strimr.
+        _downloadManager = State(initialValue: DownloadManager(settingsManager: settings))
+
         // Layer 2: Plinx safety + theming are initialized via property defaults.
         // The ViewFactory is created in `body` since it needs the live state refs.
     }
@@ -118,6 +127,7 @@ struct PlinxApp: App {
                 .environment(libraryStore)
                 .environmentObject(mainCoordinator)
                 .environment(watchTogetherViewModel)
+                .environment(downloadManager)
                 // ── Plinx layer injection ───────────────────────────
                 .environment(\.plinxTheme, theme)
                 .environment(\.safetyPolicy, safetyPolicy)

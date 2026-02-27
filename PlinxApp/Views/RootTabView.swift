@@ -299,7 +299,7 @@ struct RootTabView: View {
     ) -> some View {
         HStack(spacing: 12) {
             if showsLogo {
-                Image("LogoFullColor")
+                Image("LogoColor")
                     .resizable()
                     .scaledToFit()
                     .frame(height: 28)

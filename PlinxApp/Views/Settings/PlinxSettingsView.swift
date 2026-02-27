@@ -40,6 +40,19 @@ private struct SettingsBody: View {
 
     var body: some View {
         List {
+            // MARK: Branding header
+            Section {
+                // empty — logo only
+            } header: {
+                Image("LogoFullWhite")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: 60)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .listRowInsets(EdgeInsets())
+            }
+
             // MARK: Content subpages
             Section {
                 NavigationLink(destination: VisibleLibrariesView()) {
