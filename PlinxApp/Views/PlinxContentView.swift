@@ -60,7 +60,7 @@ struct PlinxContentView: View {
     private var sessionContent: some View {
             switch sessionManager.status {
             case .hydrating:
-                PlinxBrandedLoadingView(fillsBackground: true)
+                PlinxBrandedLoadingView(showsProgressView: false, fillsBackground: true)
             case .signedOut:
                 SignInView(
                     viewModel: SignInViewModel(

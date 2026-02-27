@@ -44,7 +44,7 @@ private struct SettingsBody: View {
             Section {
                 // empty — logo only
             } header: {
-                Image("LogoFullWhite")
+                Image("LogoFullColor")
                     .resizable()
                     .scaledToFit()
                     .frame(height: 60)

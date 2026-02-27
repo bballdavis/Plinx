@@ -23,6 +23,7 @@
 "tabs.home" = "Home";
 "tabs.library" = "Library";
 "tabs.search" = "Search";
+"tabs.downloads" = "Downloads";
 "tabs.settings" = "Settings";
 
 /* Home */

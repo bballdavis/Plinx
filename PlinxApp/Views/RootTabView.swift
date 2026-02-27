@@ -15,6 +15,7 @@ struct RootTabView: View {
     @Environment(PlexAPIContext.self) private var plexApiContext
     @Environment(SettingsManager.self) private var settingsManager
     @Environment(LibraryStore.self) private var libraryStore
+    @Environment(DownloadManager.self) private var downloadManager
     @EnvironmentObject private var mainCoordinator: MainCoordinator
     @Environment(\.safetyPolicy) private var safetyPolicy
     @Environment(\.openURL) private var openURL
@@ -38,9 +39,25 @@ struct RootTabView: View {
             return .search
         case .library, .libraryDetail:
             return .library
+        case .downloads:
+            return .downloads
         case .home, .more, .seerrDiscover:
             return .home
         }
+    }
+
+    /// Tabs shown in the picker — downloads tab auto-hides when empty.
+    private var visibleTabs: [KidsMainTabPicker.TabItem] {
+        var tabs = KidsMainTabPicker.TabItem.mainTabs()
+        if !downloadManager.sortedItems.isEmpty {
+            tabs.append(KidsMainTabPicker.TabItem(
+                id: "downloads",
+                tab: .downloads,
+                iconName: "arrow.down.circle.fill",
+                title: LocalizedStringResource("tabs.downloads", table: "Plinx")
+            ))
+        }
+        return tabs
     }
 
     /// Maps coordinator tab to tab-bar selection.
@@ -159,7 +176,7 @@ struct RootTabView: View {
             .toolbar(.hidden, for: .tabBar)
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 KidsMainTabPicker(
-                    tabs: KidsMainTabPicker.TabItem.mainTabs(),
+                    tabs: visibleTabs,
                     selectedTab: tabBinding
                 )
             }
@@ -174,6 +191,7 @@ struct RootTabView: View {
             tabStack(for: .home)
             tabStack(for: .search)
             tabStack(for: .library)
+            tabStack(for: .downloads)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .sheet(isPresented: $showSettings) {
@@ -289,6 +307,18 @@ struct RootTabView: View {
 
         case .more, .seerrDiscover, .libraryDetail:
             EmptyView()
+
+        case .downloads:
+            NavigationStack(path: mainCoordinator.pathBinding(for: .downloads)) {
+                DownloadsView()
+                    .safeAreaInset(edge: .top, spacing: 0) {
+                        topTitleRow(title: "tabs.downloads", showsSettingsButton: false)
+                    }
+                    .toolbar(.hidden, for: .navigationBar)
+            }
+            .opacity(activeRootTab == .downloads ? 1 : 0)
+            .allowsHitTesting(activeRootTab == .downloads)
+            .accessibilityHidden(activeRootTab != .downloads)
         }
     }
 

@@ -4,6 +4,7 @@ struct PlinxMediaDetailView: View {
     @State var viewModel: SafeMediaDetailViewModel
     var onPlay: (String, PlexItemType) -> Void
     var onSelectRelated: (MediaDisplayItem) -> Void
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ZStack {
@@ -26,6 +27,32 @@ struct PlinxMediaDetailView: View {
                         await viewModel.loadDetails()
                     }
                 )
+            }
+        }
+        .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button {
+                    dismiss()
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 14, weight: .bold))
+                        Text("Back")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(.ultraThinMaterial)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color.accentColor.opacity(0.4), lineWidth: 1)
+                    )
+                }
             }
         }
         .accessibilityIdentifier("media.detail.screen")
