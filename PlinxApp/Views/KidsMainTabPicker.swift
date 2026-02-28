@@ -112,7 +112,7 @@ extension KidsMainTabPicker {
                 TabItem(
                     id: "library",
                     tab: .library,
-                    iconName: "square.grid.2x2.fill",
+                    iconName: "books.vertical.fill",
                     title: LocalizedStringResource("tabs.library", table: "Plinx")
                 ),
             ]
