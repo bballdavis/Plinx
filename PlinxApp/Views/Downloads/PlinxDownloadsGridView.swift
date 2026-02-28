@@ -27,8 +27,8 @@ struct PlinxDownloadsGridView: View {
         }
     }
 
-    // 5-column grid matching the library browse layout
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 5)
+    // 7-column grid — ~25% smaller thumbs than the previous 5-column layout
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 7)
 
     var body: some View {
         ScrollView {
@@ -161,7 +161,7 @@ struct PlinxDownloadsGridView: View {
 
     private func listRow(_ item: DownloadItem) -> some View {
         let isPortrait = portraitTypes.contains(item.metadata.type)
-        let posterSize = isPortrait ? CGSize(width: 60, height: 90) : CGSize(width: 104, height: 58)
+        let posterSize = isPortrait ? CGSize(width: 45, height: 68) : CGSize(width: 78, height: 44)
 
         return Button {
             guard item.isPlayable else { return }
@@ -240,8 +240,7 @@ struct PlinxDownloadsGridView: View {
         case .downloading:
             return "Downloading \(Int((item.progress * 100).rounded()))%"
         case .completed:
-            let size = item.metadata.fileSize ?? item.totalBytes
-            return "Downloaded • \(formattedBytes(size))"
+            return nil
         case .failed:
             return "Download failed"
         }

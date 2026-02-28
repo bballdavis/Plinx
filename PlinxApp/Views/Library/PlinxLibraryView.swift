@@ -81,10 +81,10 @@ struct PlinxLibraryView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Image(systemName: library.iconName)
-                            .font(.system(size: 18, weight: .bold))
+                            .font(.system(size: 27, weight: .bold))
                             .foregroundStyle(.white.opacity(0.8))
                         Text(library.title)
-                            .font(.headline.bold())
+                            .font(.title3.bold())
                             .foregroundStyle(.white)
                             .lineLimit(2)
                     }
