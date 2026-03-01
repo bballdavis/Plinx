@@ -98,6 +98,7 @@ struct PlinxContentView: View {
                 }
             case .ready:
                 RootTabView()
+                    .id(sessionManager.plexServer?.clientIdentifier ?? "no-server")
             }
     }
 }

@@ -63,6 +63,20 @@ private struct SettingsBody: View {
                         Image(systemName: "rectangle.3.group.fill")
                     }
                 }
+                NavigationLink(
+                    destination: DefaultServerSettingsView(
+                        viewModel: ServerSelectionViewModel(
+                            sessionManager: sessionManager,
+                            context: plexApiContext
+                        )
+                    )
+                ) {
+                    Label {
+                        Text("Default Server")
+                    } icon: {
+                        Image(systemName: "server.rack")
+                    }
+                }
             } header: {
                 Text("settings.content.section", tableName: "Plinx")
             }

@@ -9,7 +9,6 @@ import PlinxUI
 
 struct SelectServerView: View {
     @Environment(SessionManager.self) private var sessionManager
-    @Environment(\.plinxTheme) private var theme
     @State var viewModel: ServerSelectionViewModel
     @State private var isShowingLogoutConfirmation = false
 
@@ -19,6 +18,7 @@ struct SelectServerView: View {
             content
         }
         .padding(24)
+        .tint(.accentColor)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button(role: .destructive) {
@@ -58,17 +58,44 @@ struct SelectServerView: View {
         if viewModel.isLoading, viewModel.servers.isEmpty {
             ProgressView("serverSelection.loading")
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .tint(theme.palette.primary)
+                .tint(.accentColor)
         } else if viewModel.servers.isEmpty {
             emptyState
         } else {
-            ScrollView {
-                LazyVStack(spacing: 12) {
-                    ForEach(viewModel.servers, id: \.clientIdentifier) { server in
-                        serverRow(server)
+            VStack(spacing: 16) {
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        ForEach(viewModel.servers, id: \.clientIdentifier) { server in
+                            serverRow(server)
+                        }
                     }
+                    .padding(.vertical, 8)
                 }
-                .padding(.vertical, 8)
+
+                Toggle("Set as Default", isOn: $viewModel.setAsDefault)
+                    .font(.headline)
+                    .padding(14)
+                    .background(Color.secondary.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .tint(.accentColor)
+
+                Button {
+                    Task { await viewModel.saveSelection() }
+                } label: {
+                    HStack(spacing: 10) {
+                        if viewModel.isSelecting {
+                            ProgressView().tint(.white)
+                        }
+                        Text("Save")
+                            .fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.accentColor)
+                    .foregroundStyle(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                .disabled(!viewModel.canSaveSelection)
             }
         }
     }
@@ -85,14 +112,14 @@ struct SelectServerView: View {
             } label: {
                 HStack {
                     if viewModel.isLoading {
-                        ProgressView().tint(theme.palette.primary)
+                        ProgressView().tint(.accentColor)
                     }
                     Text("serverSelection.retry")
                         .fontWeight(.semibold)
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(theme.palette.primary)
+                .background(Color.accentColor)
                 .foregroundStyle(.white)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
@@ -102,16 +129,18 @@ struct SelectServerView: View {
     }
 
     private func serverRow(_ server: PlexCloudResource) -> some View {
-        Button {
-            Task { await viewModel.select(server: server) }
+        let isSelected = viewModel.selectedServerID == server.clientIdentifier
+
+        return Button {
+            viewModel.chooseServer(server)
         } label: {
             HStack(spacing: 12) {
                 Circle()
-                    .fill(theme.palette.primary.opacity(0.2))
+                    .fill(Color.accentColor.opacity(0.2))
                     .frame(width: 44, height: 44)
                     .overlay(
                         Image(systemName: "server.rack")
-                            .foregroundStyle(theme.palette.primary)
+                            .foregroundStyle(Color.accentColor)
                     )
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -125,12 +154,17 @@ struct SelectServerView: View {
 
                 Spacer()
 
-                Image(systemName: "chevron.right")
-                    .foregroundStyle(Color(.tertiaryLabel))
+                Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(isSelected ? Color.accentColor : Color(.tertiaryLabel))
             }
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.secondary.opacity(0.08))
+            .background(isSelected ? Color.accentColor.opacity(0.16) : Color.secondary.opacity(0.08))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(isSelected ? Color.accentColor.opacity(0.4) : Color.clear, lineWidth: 1)
+            )
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .buttonStyle(.plain)
