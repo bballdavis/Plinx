@@ -167,7 +167,7 @@ struct PlinxDownloadsGridView: View {
             guard item.isPlayable else { return }
             selectedDownload = item
         } label: {
-            HStack(alignment: .top, spacing: 12) {
+            HStack(alignment: .center, spacing: 12) {
                 posterImage(for: item)
                     .frame(width: posterSize.width, height: posterSize.height)
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -179,9 +179,9 @@ struct PlinxDownloadsGridView: View {
 
                 if item.isPlayable {
                     Image(systemName: "play.circle.fill")
-                        .font(.system(size: 20, weight: .semibold))
+                        .font(.system(size: 40, weight: .semibold))
                         .foregroundStyle(Color.accentColor)
-                        .padding(.top, 2)
+                        .frame(maxHeight: .infinity, alignment: .center)
                 }
             }
             .padding(10)
@@ -197,20 +197,20 @@ struct PlinxDownloadsGridView: View {
     private func metadataLabels(for item: DownloadItem, titleLineLimit: Int) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(item.metadata.title)
-                .font(.subheadline.weight(.semibold))
+                .font(.title3.weight(.semibold))
                 .foregroundStyle(.primary)
                 .lineLimit(titleLineLimit)
 
             if let secondary = secondaryLabel(for: item) {
                 Text(secondary)
-                    .font(.footnote)
+                    .font(.headline)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
 
             if let tertiary = tertiaryLabel(for: item) {
                 Text(tertiary)
-                    .font(.footnote)
+                    .font(.headline)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
@@ -262,9 +262,9 @@ struct PlinxDownloadsGridView: View {
     private func chromeButton(systemImage: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.system(size: 20, weight: .semibold))
+                .font(.system(size: 30, weight: .semibold))
                 .foregroundStyle(Color.accentColor)
-                .frame(width: 52, height: 52)
+                .frame(width: 78, height: 78)
                 .background(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .fill(.ultraThinMaterial)
