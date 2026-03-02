@@ -3,15 +3,16 @@
 Plinx is built upon the **Strimr** media engine. We maintain a philosophy of staying as close to upstream as possible to benefit from their core improvements while contributing back generic enhancements.
 
 ## The Vendor Strategy
-- **Upstream:** `https://github.com/wunax/strimr`
+- **Fork:** `https://github.com/bballdavis/strimr` (`origin`)
+- **Upstream:** `https://github.com/wunax/strimr` (`upstream`)
 - **Location:** `vendor/strimr` (git submodule; canonical lowercase path)
 
-Branch-first source of truth:
-- **Canonical state:** commits on local `plinx-strimr-patching` branch in `vendor/strimr`
-- **Replay artifacts:** `vendor/Patches/strimr/*.patch` (numbered patches for deterministic re-apply)
-- **Machine-readable index:** `vendor/Patches/strimr/manifest.yaml`
+Git-history-as-patch-series:
+- **Canonical state:** commits on `plinx-patches` branch in the fork (`origin/plinx-patches`)
+- **Upstream tracking:** `upstream/main` — fetch from here to sync, never push
+- **Fork's `main`** stays in sync with `upstream/main` for clean PR comparisons
 
-We treat `vendor/strimr` as a managed dependency. We do not modify files inside this folder directly unless working on the local patch branch and capturing those changes as patch artifacts + manifest updates.
+We treat `vendor/strimr` as a managed dependency. All Plinx-specific edits live as commits on `plinx-patches`. Generic improvements are PRed from a feature branch to `wunax/strimr`, then rebased into `plinx-patches` after merge.
 
 ## Contribution Workflow
 
@@ -23,51 +24,44 @@ Our goal is to be a "good citizen" of the Strimr ecosystem. **Whenever we develo
 
 ## Maintenance Procedures
 
-### Updating the Submodule
-To pull the latest changes from Strimr:
-1. Update the submodule:
-   ```bash
-   git submodule update --remote --merge vendor/strimr
-   ```
-
-2. Re-apply Plinx-specific patches:
-   We treat vendor modifications like **migrations**. If Strimr's core changes, we re-run our patch artifacts after validation:
-   ```bash
-   ./scripts/validate_vendor_patches.sh
-   ./scripts/apply_vendor_patches.sh
-   ```
-
-3. If a patch fails (due to upstream structural changes):
-   - Resolve conflicts in `vendor/strimr`.
-   - Re-generate the specific atomic patch in `vendor/Patches/strimr/`.
-   - Update `vendor/Patches/strimr/manifest.yaml` entry metadata + file lists.
-   - Re-run strict governance validation:
-     ```bash
-     ./scripts/validate_vendor_patches.sh --strict-clean --compare-working-tree
-     ```
-   - Commit the new patch to the Plinx repository.
-
-4. Commit the new submodule pointer:
-   ```bash
-   git add vendor/strimr vendor/Patches/strimr
-   git commit -m "chore: sync Strimr upstream and re-apply patches"
-   ```
-
-### Patch Organization
-Plinx maintaining the following patches for Strimr:
-- `001-engine-clip-support`: Adds Plex `clip` ("Other Videos") item type support.
-- `002-ui-landscape-layout`: Implements 16:9 landscape card support for clip libraries.
-- `003-logging-and-filtering`: Provides OSLog hooks and promoted hub classification.
-- `004-localization-baseline`: Adds Plinx localization strings to the vendor layer.
-- `005-branding-assets`: Applies Plinx color asset overrides in vendor catalogs.
-- `006-library-player-session-sync`: Captures current library/session/player flow updates not covered by earlier baseline patches.
-
-Governance checks:
+### Syncing with Upstream
 
 ```bash
-./scripts/validate_vendor_patches.sh
-./scripts/validate_vendor_patches.sh --strict-clean --compare-working-tree
+cd vendor/strimr
+git fetch upstream
+git rebase upstream/main      # rebases plinx-patches on top of new upstream commits
+# resolve any conflicts, then:
+git push origin plinx-patches --force-with-lease
+
+# Keep fork's main in sync:
+git checkout main
+git merge upstream/main --ff-only
+git push origin main
+git checkout plinx-patches
+
+# Bump the Plinx submodule pin:
+cd ../..
+git add vendor/strimr
+git commit -m "chore: sync Strimr upstream and rebase plinx-patches"
 ```
+
+### Patch Organization
+
+Plinx patches live as commits on `plinx-patches`. View the full set:
+
+```bash
+cd vendor/strimr
+git log --oneline upstream/main..HEAD
+```
+
+Areas currently covered:
+- Engine `clip` item type support (Plex "Other Videos")
+- 16:9 landscape card layout for clip libraries
+- OSLog hooks and hub classification filtering
+- Plinx localization strings in the vendor layer
+- Color asset overrides in vendor catalogs
+- Library/session/player flow extensions
+- Kids UX improvements (icon tab picker, hide browse controls, playlist filtering)
 
 ### Build Guardrails
 Currently, our CI focus is on the `Plinx-iOS` target. While Strimr supports tvOS, we prioritize iOS stability and Liquid Glass performance first. tvOS support is maintained as "experimental/legacy" inside the vendor folder for future exploration.
