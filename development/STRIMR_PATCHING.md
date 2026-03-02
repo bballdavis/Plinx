@@ -1,82 +1,83 @@
 # Strimr Patching Workflow
 
-Plinx vendors a patched version of Strimr with kid-safe customizations. Since we don't have push access to upstream, we maintain patches on a local git branch.
+Plinx vendors a patched version of Strimr with kid-safe customizations. We maintain patches as commits on a dedicated branch in our fork of Strimr.
 
 ## How It Works
 
-- **`vendor/strimr`** is a git submodule pinned to a specific commit
-- **`plinx-strimr-patching`** is a local development branch containing all Plinx patches
-- **Branch-first truth:** the branch history is canonical; numbered patch files are replay artifacts used for deterministic apply/review
-- **Manifest tracking:** `vendor/Patches/strimr/manifest.yaml` is the machine-readable index of patch metadata + file coverage
-- When cloning Plinx, you automatically get the patched version (submodule commit is pinned, no need for the branch to exist remotely)
-- The branch stays local-only; push attempts are disabled
-
-## Patch Governance
-
-Run validator before and after patch updates:
-
-```bash
-./scripts/validate_vendor_patches.sh
-./scripts/validate_vendor_patches.sh --strict-clean --compare-working-tree
-```
-
-Apply workflow now runs baseline validation automatically:
-
-```bash
-./scripts/apply_vendor_patches.sh
-./scripts/apply_vendor_patches.sh --strict
-```
-
-Strict mode enforces a clean `vendor/strimr` tree and verifies that any working-tree vendor edits are covered by patch files.
+- **`vendor/strimr`** is a git submodule pointing to `bballdavis/strimr`, pinned to a specific commit on the `plinx-patches` branch
+- **`plinx-patches`** is our working branch — git history *is* the patch series; no numbered patch files needed
+- `origin` → `https://github.com/bballdavis/strimr.git` (our fork, push here)
+- `upstream` → `https://github.com/wunax/strimr.git` (wunax upstream, pull-only)
+- When cloning Plinx, run `git submodule update --init` to get the pinned, patched state automatically
 
 ## Common Tasks
 
-### View Current Patches
+### View Current Plinx Patches
 
 ```bash
 cd vendor/strimr
-git log --oneline main..HEAD
+git log --oneline upstream/main..HEAD
 ```
 
 ### Add a Patch
 
 ```bash
 cd vendor/strimr
-# Make your edits
+# Make your edits, then:
 git add .
 git commit -m "feat(plinx): description"
+git push origin plinx-patches
 
-# Regenerate/update numbered patch artifact(s) and manifest metadata
+# Update submodule pin in Plinx
 cd ../..
-./scripts/validate_vendor_patches.sh
+git add vendor/strimr
+git commit -m "chore(strimr): bump plinx-patches to <short-sha>"
+```
+
+### Amend or Reorder Commits
+
+```bash
+cd vendor/strimr
+git rebase -i upstream/main
+git push origin plinx-patches --force-with-lease
 ```
 
 ### Sync with Upstream
 
 ```bash
 cd vendor/strimr
-git fetch origin main
-git rebase origin/main
-# Resolve conflicts if any, then: git rebase --continue
+git fetch upstream
+git rebase upstream/main
+# Resolve any conflicts, then:
+git push origin plinx-patches --force-with-lease
+
+# Sync fork's main branch too:
+git checkout main
+git merge upstream/main
+git push origin main
+git checkout plinx-patches
 ```
 
-### Amend or Reorder Patches
-
-```bash
-cd vendor/strimr
-git rebase -i main
-```
-
-### Publish Patches (Update Submodule Pin)
-
-After committing patches locally:
+### Update Submodule Pin (after any push)
 
 ```bash
 cd /Users/philipdavis/Repos/Plinx
-./scripts/validate_vendor_patches.sh --strict-clean --compare-working-tree
-git add vendor/strimr vendor/Patches/strimr
-git commit -m "chore(strimr): update patches (commit abc1234)"
+git add vendor/strimr
+git commit -m "chore(strimr): update plinx-patches pin to $(cd vendor/strimr && git rev-parse --short HEAD)"
 ```
+
+### Open a PR to Upstream (generic fix)
+
+1. Create a feature branch off `main` in the fork:
+   ```bash
+   cd vendor/strimr
+   git checkout main
+   git checkout -b fix/my-generic-fix
+   # Commit the generic change
+   git push origin fix/my-generic-fix
+   ```
+2. Open a PR from `bballdavis/strimr:fix/my-generic-fix` → `wunax/strimr:main` on GitHub.
+3. Once merged, sync (see "Sync with Upstream" above) and rebase `plinx-patches`.
 
 ## Important Notes
 
