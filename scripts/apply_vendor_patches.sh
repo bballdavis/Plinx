@@ -3,30 +3,77 @@
 # Plinx Vendor Patch Coordinator (Migration-Style)
 # This script applies Plinx-specific patches to the Strimr submodule.
 
-set -e
+set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STRIMR_DIR="$REPO_ROOT/vendor/strimr"
+PATCH_DIR="$REPO_ROOT/vendor/Patches/strimr"
+MANIFEST_PATH="$PATCH_DIR/manifest.yaml"
+VALIDATOR="$REPO_ROOT/scripts/validate_vendor_patches.sh"
+STRICT_MODE=false
 
-if [ -d "$REPO_ROOT/vendor/Patches/Strimr" ]; then
-    PATCH_DIR="$REPO_ROOT/vendor/Patches/Strimr"
-elif [ -d "$REPO_ROOT/vendor/Patches/strimr" ]; then
-    PATCH_DIR="$REPO_ROOT/vendor/Patches/strimr"
-elif [ -d "$REPO_ROOT/vendor/patches/strimr" ]; then
-    PATCH_DIR="$REPO_ROOT/vendor/patches/strimr"
-else
-    echo "❌ Error: Strimr patch directory not found. Checked:"
-    echo "   - $REPO_ROOT/vendor/Patches/Strimr"
-    echo "   - $REPO_ROOT/vendor/Patches/strimr"
-    echo "   - $REPO_ROOT/vendor/patches/strimr"
-    exit 1
-fi
+usage() {
+    cat <<'EOF'
+Usage: ./scripts/apply_vendor_patches.sh [--strict]
+
+Options:
+  --strict    Run validator in strict mode before applying patches
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --strict)
+            STRICT_MODE=true
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "❌ Error: unknown option '$1'"
+            usage
+            exit 2
+            ;;
+    esac
+    shift
+done
 
 echo "⚡ Plinx Vendor Migrations: Applying patches to Strimr..."
 
 if [ ! -d "$STRIMR_DIR" ]; then
     echo "❌ Error: Strimr directory not found at $STRIMR_DIR"
     exit 1
+fi
+
+if [ ! -d "$PATCH_DIR" ]; then
+    echo "❌ Error: Strimr patch directory not found at $PATCH_DIR"
+    echo "   Canonical path is vendor/Patches/strimr"
+    exit 1
+fi
+
+if [ ! -f "$MANIFEST_PATH" ]; then
+    echo "❌ Error: patch manifest not found at $MANIFEST_PATH"
+    exit 1
+fi
+
+if [ ! -x "$VALIDATOR" ]; then
+    echo "❌ Error: validator script is missing or not executable: $VALIDATOR"
+    exit 1
+fi
+
+if [ -d "$REPO_ROOT/vendor/Patches/Strimr" ] && [ ! "$REPO_ROOT/vendor/Patches/Strimr" -ef "$PATCH_DIR" ]; then
+    echo "⚠️  Legacy path detected: vendor/Patches/Strimr (canonical path is vendor/Patches/strimr)"
+fi
+if [ -d "$REPO_ROOT/vendor/patches/strimr" ] && [ ! "$REPO_ROOT/vendor/patches/strimr" -ef "$PATCH_DIR" ]; then
+    echo "⚠️  Legacy path detected: vendor/patches/strimr (canonical path is vendor/Patches/strimr)"
+fi
+
+echo "🔎 Running patch governance validation..."
+if [ "$STRICT_MODE" = true ]; then
+    "$VALIDATOR" --strict-clean --compare-working-tree
+else
+    "$VALIDATOR"
 fi
 
 BRAND_SRC_DIR="$REPO_ROOT/assets/branding"
@@ -41,17 +88,30 @@ git reset --hard HEAD
 git clean -fd
 
 # 2. Apply patches in numeric order
+applied_count=0
+export LC_ALL=C
 for patch in "$PATCH_DIR"/*.patch; do
     if [ -f "$patch" ]; then
-        echo "🔄 Applying $(basename "$patch")..."
+        patch_name="$(basename "$patch")"
+        echo "🔄 Applying $patch_name..."
         if git apply --check "$patch" > /dev/null 2>&1; then
             git apply "$patch"
+            applied_count=$((applied_count + 1))
         else
-            echo "⚠️  Conflict detected in $(basename "$patch")."
-            echo "   Attempting to apply with 3-way merge or manual intervention may be required."
-            git apply --reject "$patch" || true
-            echo "❌ Patch $(basename "$patch") failed to apply cleanly. See .rej files in Vendor/Strimr."
-            exit 1
+            echo "⚠️  Patch check failed for $patch_name; attempting 3-way apply..."
+            if git apply --3way "$patch"; then
+                applied_count=$((applied_count + 1))
+            else
+                echo "⚠️  3-way apply failed for $patch_name; attempting --reject for diagnostics..."
+                git apply --reject "$patch" || true
+                echo "❌ Patch $patch_name failed to apply cleanly."
+                echo "   Suggested remediation:"
+                echo "   - cd vendor/strimr"
+                echo "   - git status --short"
+                echo "   - resolve *.rej conflicts, then refresh patch + manifest entries"
+                echo "   - rerun ./scripts/validate_vendor_patches.sh --strict-clean --compare-working-tree"
+                exit 1
+            fi
         fi
     fi
 done
@@ -115,4 +175,6 @@ copy_brand_asset "$BRAND_SRC_DIR/logo_full_color.png" \
 copy_brand_asset "$BRAND_SRC_DIR/logo_full_white.png" \
     "$REPO_ROOT/PlinxApp/Resources/Assets.xcassets/LogoFullWhite.imageset/logo_full_white.png"
 
-echo "✅ All patches applied successfully."
+manifest_version="$(awk -F ': *' '/^schema_version:/{print $2; exit}' "$MANIFEST_PATH")"
+manifest_version="${manifest_version:-unknown}"
+echo "✅ All patches applied successfully. Applied $applied_count patch(es). Manifest schema_version=$manifest_version"

@@ -197,17 +197,9 @@ struct RootTabView: View {
         .sheet(isPresented: $showSettings) {
             NavigationStack {
                 PlinxSettingsView()
-                    .navigationBarTitleDisplayMode(.large)
-                    .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button {
-                                showSettings = false
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundStyle(.secondary)
-                                    .font(.title3)
-                            }
-                        }
+                    .toolbar(.hidden, for: .navigationBar)
+                    .safeAreaInset(edge: .top, spacing: 0) {
+                        settingsHeaderRow
                     }
             }
             .presentationDetents([.large])
@@ -317,6 +309,34 @@ struct RootTabView: View {
             .allowsHitTesting(activeRootTab == .downloads)
             .accessibilityHidden(activeRootTab != .downloads)
         }
+    }
+
+    private var settingsHeaderRow: some View {
+        HStack(spacing: 12) {
+            Text("tabs.settings", tableName: "Plinx")
+                .font(.title3.weight(.bold))
+                .foregroundStyle(.white.opacity(0.95))
+            Spacer()
+            Button {
+                showSettings = false
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 52, height: 52)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(.ultraThinMaterial)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(Color.accentColor.opacity(0.35), lineWidth: 1)
+                    )
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 8)
+        .padding(.bottom, 10)
     }
 
     private func topTitleRow(
