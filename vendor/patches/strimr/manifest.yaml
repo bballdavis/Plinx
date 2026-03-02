@@ -1,0 +1,122 @@
+schema_version: 1
+
+upstream:
+  remote: https://github.com/wunax/strimr.git
+  base_sha: 2ecbcedff6f39ff94cf60914ded99c6c28cec729
+
+vendor_branch:
+  name: plinx-strimr-patching
+  head_sha: 701cb25689dddfd5f1b7678ef3208d85825af0cb
+  head_sha_note: "Tracks the validated tip of the local patch branch; update after rebasing vendor/strimr and regenerating numbered patch artifacts."
+
+patches:
+  - id: "001"
+    file: 001-engine-clip-support.patch
+    intent: "Add clip item-type playback/detail support in core and iOS surfaces"
+    upstream_status: local-only
+    upstream_ref: "local-only: clip-first behavior and kid-focused library policy are product-specific to Plinx and intentionally not proposed upstream."
+    safety_impact: medium
+    telemetry_impact: none
+    applies_to: "origin/main@2ecbcedff6f39ff94cf60914ded99c6c28cec729"
+    files:
+      - Shared/Features/MediaDetail/MediaDetailViewModel.swift
+      - Shared/Features/Search/SearchResultCard.swift
+      - Shared/Models/Library.swift
+      - Shared/Models/MediaDisplayItem.swift
+      - Shared/Models/MediaItem+WatchStatus.swift
+      - Shared/Models/MediaItem.swift
+      - Shared/Models/PlayableMediaItem.swift
+      - Shared/Models/Plex/PlexMediaModels.swift
+      - Strimr-iOS/Features/Downloads/DownloadModels.swift
+      - Strimr-iOS/Features/MediaDetail/MediaDetailHeaderSection.swift
+      - Strimr-iOS/Features/WatchTogether/WatchTogetherView.swift
+    owner: "Philip Davis"
+    last_validated: "2026-03-01"
+
+  - id: "002"
+    file: 002-ui-landscape-layout.patch
+    intent: "Support landscape-first library card layouts for clip-heavy libraries"
+    upstream_status: local-only
+    upstream_ref: "local-only: landscape-by-default library presentation is a Plinx product policy for kid browsing and stays local."
+    safety_impact: low
+    telemetry_impact: none
+    applies_to: "origin/main@2ecbcedff6f39ff94cf60914ded99c6c28cec729"
+    files:
+      - Shared/Views/Media/MediaImageViewModel.swift
+      - Strimr-iOS/Features/Library/Detail/LibraryBrowseView.swift
+      - Strimr-iOS/Features/Library/Detail/LibraryDetailView.swift
+    owner: "Philip Davis"
+    last_validated: "2026-03-01"
+
+  - id: "003"
+    file: 003-logging-and-filtering.patch
+    intent: "Add promoted-hub filtering/classification and local OSLog diagnostics"
+    upstream_status: candidate-upstream
+    upstream_ref: ".local_dev/upstream_contributions/STRIMR_TARGETED_PR_PLAN_2026-03-01.md (PR-01, PR-02)."
+    safety_impact: medium
+    telemetry_impact: none
+    applies_to: "origin/main@2ecbcedff6f39ff94cf60914ded99c6c28cec729"
+    files:
+      - Shared/Features/Home/HomeViewModel.swift
+      - Shared/Features/Library/LibraryRecommendedViewModel.swift
+      - Strimr-iOS/Features/Library/Detail/LibraryBrowseViewModel.swift
+      - Strimr-iOS/Features/Library/Detail/LibraryRecommendedView.swift
+    owner: "Philip Davis"
+    last_validated: "2026-03-01"
+
+  - id: "004"
+    file: 004-localization-baseline.patch
+    intent: "Add baseline English localization strings required by Plinx vendor layer"
+    upstream_status: local-only
+    upstream_ref: "local-only: includes Plinx-required vendor localization baseline and wording that is intentionally product-specific."
+    safety_impact: low
+    telemetry_impact: none
+    applies_to: "origin/main@2ecbcedff6f39ff94cf60914ded99c6c28cec729"
+    files:
+      - en.lproj/Localizable.strings
+    owner: "Philip Davis"
+    last_validated: "2026-03-01"
+
+  - id: "005"
+    file: 005-branding-assets.patch
+    intent: "Set vendor color assets for Plinx-specific brand palette"
+    upstream_status: local-only
+    upstream_ref: "local-only: Plinx brand palette assets are proprietary branding and are not upstream candidates."
+    safety_impact: low
+    telemetry_impact: none
+    applies_to: "origin/main@2ecbcedff6f39ff94cf60914ded99c6c28cec729"
+    files:
+      - Strimr-iOS/Assets.xcassets/Colors/AccentColor.colorset/Contents.json
+      - Strimr-iOS/Assets.xcassets/Colors/BrandPrimary.colorset/Contents.json
+    owner: "Philip Davis"
+    last_validated: "2026-03-01"
+
+  - id: "006"
+    file: 006-library-player-session-sync.patch
+    intent: "Capture library/session/player UX and defaults updates needed by current Plinx vendor stack"
+    upstream_status: needs-split
+    upstream_ref: ".local_dev/upstream_contributions/STRIMR_TARGETED_PR_PLAN_2026-03-01.md (PR-03, PR-04 split guidance) and .local_dev/upstream_contributions/README.md."
+    safety_impact: medium
+    telemetry_impact: none
+    applies_to: "origin/main@2ecbcedff6f39ff94cf60914ded99c6c28cec729"
+    files:
+      - Shared/Features/Auth/ServerSelection/ServerSelectionViewModel.swift
+      - Shared/Features/Library/LibraryBrowseControlsViewModel.swift
+      - Shared/Features/MainCoordinator.swift
+      - Shared/Library/MPV/MPVPlayerViewController.swift
+      - Shared/Models/AppSettings.swift
+      - Shared/Session/SessionManager.swift
+      - Shared/Store/SettingsManager.swift
+      - Shared/Views/Media/Card/LandscapeMediaCard.swift
+      - Shared/Views/Media/Card/MediaCard.swift
+      - Shared/Views/Media/Card/PortraitMediaCard.swift
+      - Shared/Views/Media/MediaCarousel.swift
+      - Strimr-iOS/Features/Library/Detail/LibraryCollectionsView.swift
+      - Strimr-iOS/Features/Library/Detail/LibraryCollectionsViewModel.swift
+      - Strimr-iOS/Features/Library/Detail/LibraryPlaylistsView.swift
+      - Strimr-iOS/Features/MediaDetail/MediaDetailView.swift
+      - Strimr-iOS/Features/MediaDetail/SeasonEpisodesSection.swift
+      - Strimr-iOS/Features/Player/Controls/PlayerControlsView.swift
+      - Strimr-iOS/Features/Player/PlayerView.swift
+    owner: "Philip Davis"
+    last_validated: "2026-03-01"
