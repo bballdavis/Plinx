@@ -64,6 +64,10 @@
 "settings.accent.title" = "Accent Color";
 "settings.accent.description" = "Choose the highlight color used throughout Plinx.";
 
+/* Settings — Playback */
+"settings.playback.section" = "Playback";
+"settings.playback.pauseWhenScreenTurnsOff.title" = "Pause playback when screen turns off";
+
 /* Settings — Safety */
 "settings.safety.title" = "Content Safety";
 "settings.safety.rating.title" = "Maximum Rating";

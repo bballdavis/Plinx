@@ -5,6 +5,8 @@ struct PlinxMediaDetailView: View {
     var onPlay: (String, PlexItemType) -> Void
     var onSelectRelated: (MediaDisplayItem) -> Void
 
+    @Environment(\.dismiss) private var dismiss
+
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
@@ -28,7 +30,39 @@ struct PlinxMediaDetailView: View {
                 )
             }
         }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            detailHeader
+        }
+        .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
         .accessibilityIdentifier("media.detail.screen")
+    }
+
+    // MARK: - Plinx back-button chrome
+
+    private var detailHeader: some View {
+        HStack(spacing: 10) {
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 60, height: 60)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(.ultraThinMaterial)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color.accentColor.opacity(0.35), lineWidth: 1)
+                    )
+            }
+            .buttonStyle(.plain)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 4)
     }
 
     // MARK: - Blocked

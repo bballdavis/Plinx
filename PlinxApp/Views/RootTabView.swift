@@ -279,7 +279,7 @@ struct RootTabView: View {
                 )
                 .toolbar(.hidden, for: .navigationBar)
                 .navigationDestination(for: Library.self) { library in
-                    LibraryDetailView(
+                    PlinxLibraryDetailView(
                         library: library,
                         onSelectMedia: { displayItem in
                             handlePrimarySelection(displayItem)

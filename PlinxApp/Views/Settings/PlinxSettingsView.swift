@@ -35,6 +35,7 @@ private struct SettingsBody: View {
     @AppStorage("plinx.maxMovieRating") private var maxMovieRatingRaw = PlinxRating.pg.rawValue
     @AppStorage("plinx.maxTVRating")    private var maxTVRatingRaw    = PlinxRating.tvPg.rawValue
     @AppStorage("plinx.excludeUnrated") private var excludeUnrated    = true
+    @AppStorage("plinx.pauseWhenScreenTurnsOff") private var pauseWhenScreenTurnsOff = true
 
     @State private var isPresentingProfileSwitcher = false
 
@@ -106,6 +107,19 @@ private struct SettingsBody: View {
                 }
             } header: {
                 Text("settings.downloads.title")
+            }
+
+            // MARK: Playback
+            Section {
+                Toggle(isOn: $pauseWhenScreenTurnsOff) {
+                    Label {
+                        Text("settings.playback.pauseWhenScreenTurnsOff.title", tableName: "Plinx")
+                    } icon: {
+                        Image(systemName: "pause.circle.fill")
+                    }
+                }
+            } header: {
+                Text("settings.playback.section", tableName: "Plinx")
             }
 
             // MARK: Content rating — movie
