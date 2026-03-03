@@ -47,7 +47,8 @@ struct PlinxLibraryDetailView: View {
                     onSelectMedia: onSelectMedia,
                     onLongPressMedia: onLongPressMedia,
                     topContent: scrollingTopContent,
-                    overrideLayout: preferredCarouselLayout
+                    overrideLayout: preferredCarouselLayout,
+                    showsControls: false
                 )
             case .collections:
                 LibraryCollectionsView(
