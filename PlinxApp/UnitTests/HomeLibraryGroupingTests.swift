@@ -197,4 +197,28 @@ final class HomeLibraryGroupingTests: XCTestCase {
         XCTAssertFalse(HomeLibraryGrouping.isMoviesOrTV(matched),
             "Matched YouTube library must NOT land in movies/TV grouping")
     }
+
+    func test_isLikelyOtherVideoHub_trueForYoutubeTitle() {
+        let hub = Hub(id: "hub.home.recentlyadded.dynamic", title: "Recently Added Youtube Videos", items: [])
+        XCTAssertTrue(
+            HomeLibraryGrouping.isLikelyOtherVideoHub(hub, recentlyAddedPrefix: prefix),
+            "YouTube recently-added hubs should be treated as other-video when library metadata is unavailable"
+        )
+    }
+
+    func test_isLikelyOtherVideoHub_falseForMovieHub() {
+        let hub = Hub(id: "hub.home.recentlyadded.movies", title: "Recently Added Movies", items: [])
+        XCTAssertFalse(
+            HomeLibraryGrouping.isLikelyOtherVideoHub(hub, recentlyAddedPrefix: prefix),
+            "Standard movie hubs must not be misclassified as other-video"
+        )
+    }
+
+    func test_isLikelyOtherVideoHub_trueForGenericVideosHub() {
+        let hub = Hub(id: "hub.home.recentlyadded.videos", title: "Recently Added Videos", items: [])
+        XCTAssertTrue(
+            HomeLibraryGrouping.isLikelyOtherVideoHub(hub, recentlyAddedPrefix: prefix),
+            "Generic Videos recently-added hubs should be classified as other-video when library metadata is unavailable"
+        )
+    }
 }

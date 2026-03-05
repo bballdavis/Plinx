@@ -91,6 +91,26 @@ enum HomeLibraryGrouping {
         }
     }
 
+    /// Heuristic fallback used when library metadata is unavailable at filter time.
+    /// This keeps known Other Video hubs (YouTube/Home Videos/clip-style) visible
+    /// instead of dropping them under strict unrated filtering.
+    static func isLikelyOtherVideoHub(_ hub: Hub, recentlyAddedPrefix: String) -> Bool {
+        let hubId = hub.id.lowercased()
+        let rawTitle = hub.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let strippedTitle = rawTitle
+            .replacingOccurrences(of: recentlyAddedPrefix, with: "", options: [.caseInsensitive])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        let idHints = ["youtube", "homevideo", "home-video", "othervideo", "other-video", "::clip", ".clip", ".videos"]
+        let titleHints = ["youtube", "home video", "home videos", "other video", "other videos", "clips", "videos"]
+
+        if idHints.contains(where: { hubId.contains($0) }) {
+            return true
+        }
+        return titleHints.contains(where: { strippedTitle.contains($0) })
+    }
+
     // MARK: - Grouping helpers
 
     /// Returns `true` if a recently-added hub entry belongs in the combined

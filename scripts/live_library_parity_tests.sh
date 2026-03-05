@@ -12,6 +12,7 @@ DESTINATION="${1:-$DEFAULT_DESTINATION}"
 APP_BUNDLE_ID="com.example.plinx"
 
 TEST_TARGET='Plinx-iOS-UnitTests/LibraryFilteringParityLiveTests'
+REQUIRED_TEST_CASE='test_liveHomeRecentlyAdded_otherVideoHubVisibleUnderStrictPolicy'
 
 RED=$'\033[0;31m'
 GREEN=$'\033[0;32m'
@@ -136,6 +137,13 @@ run_tests() {
   if [[ -n "$summary" ]]; then
     echo "$summary"
   fi
+
+  if ! grep -q "$REQUIRED_TEST_CASE" "$LOG_PATH"; then
+    fail "Required test case '$REQUIRED_TEST_CASE' was not executed"
+    echo "Full log: $LOG_PATH"
+    return 1
+  fi
+  pass "Verified required test case ran: $REQUIRED_TEST_CASE"
 
   if grep -q "with [1-9][0-9]* tests skipped" "$LOG_PATH"; then
     warn "One or more tests were skipped"
