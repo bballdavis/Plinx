@@ -4,17 +4,16 @@ Convenient shell scripts for building and running the Plinx iOS app on the simul
 
 ## Strimr Source Of Truth
 
-All build/test scripts first run `scripts/sync_strimr_patches.sh`, which:
-- Ensures `vendor/strimr` is on branch `plinx-patches`
-- Fast-forwards to the latest `origin/plinx-patches`
-
-This keeps local app builds aligned with the latest Plinx patch branch while `main` can stay aligned to upstream.
-
-To skip this behavior for one run:
+Build and test scripts build from local files only. It's your responsibility to ensure `vendor/strimr` is on the `plinx-patches` branch and in a clean state before running any build command:
 
 ```bash
-PLINX_SKIP_STRIMR_SYNC=1 ./scripts/build_only.sh
+cd vendor/strimr
+git checkout plinx-patches
+git pull origin plinx-patches  # If you want the latest remote tip
+git status                     # Verify clean working tree
 ```
+
+If `vendor/strimr` is on the wrong branch or has uncommitted changes, the build will fail. This is intentional — developers are responsible for managing their local git state.
 
 ## Scripts
 
