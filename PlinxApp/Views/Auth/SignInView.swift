@@ -70,6 +70,6 @@ struct SignInView: View {
             Spacer()
         }
         .padding(24)
-        .background(theme.palette.background.ignoresSafeArea())
+        .background(Color.white.ignoresSafeArea())
     }
 }

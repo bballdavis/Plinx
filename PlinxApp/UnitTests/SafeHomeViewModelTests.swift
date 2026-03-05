@@ -54,6 +54,62 @@ final class SafeHomeViewModelTests: XCTestCase {
 
         XCTAssertTrue(safe.recentlyAdded.isEmpty, "Movie hubs with unrated movie items must still be filtered under strict policy")
     }
+
+    func test_recentlyAdded_otherVideoHub_preservedWhenLibraryStoreUnavailable() {
+        let context = PlexAPIContext()
+        let settings = SettingsManager()
+        let libraryStore = LibraryStore(context: context)
+        libraryStore.libraries = []
+
+        let inner = HomeViewModel(context: context, settingsManager: settings, libraryStore: libraryStore)
+        let unratedMovieLikeItem = MediaItem.fixture(type: .movie, contentRating: nil)
+        inner.recentlyAdded = [
+            Hub(
+                id: "hub.home.recentlyadded.videos",
+                title: "Recently Added Videos",
+                items: [.playable(unratedMovieLikeItem)]
+            )
+        ]
+
+        let safe = SafeHomeViewModel(inner: inner, policy: permissivePolicy, libraryStore: libraryStore)
+        safe.updatePolicy(strictPolicy)
+
+        XCTAssertEqual(
+            safe.recentlyAdded.count,
+            1,
+            "Other-video hubs should remain visible even when library metadata is unavailable"
+        )
+        XCTAssertEqual(safe.recentlyAdded.first?.items.count, 1)
+    }
+
+    func test_recentlyAdded_otherVideoHub_stillRejectsExplicitlyDisallowedRating() {
+        let context = PlexAPIContext()
+        let settings = SettingsManager()
+        let libraryStore = LibraryStore(context: context)
+        libraryStore.libraries = [
+            Library(
+                id: "6",
+                title: "Youtube Videos",
+                type: .movie,
+                sectionId: 6,
+                agent: "tv.plex.agents.none"
+            )
+        ]
+
+        let inner = HomeViewModel(context: context, settingsManager: settings, libraryStore: libraryStore)
+        let disallowedRatedItem = MediaItem.fixture(type: .movie, contentRating: "R")
+        inner.recentlyAdded = [
+            Hub(id: "hub.home.recentlyadded.6", title: "Recently Added Videos", items: [.playable(disallowedRatedItem)])
+        ]
+
+        let safe = SafeHomeViewModel(inner: inner, policy: permissivePolicy, libraryStore: libraryStore)
+        safe.updatePolicy(strictPolicy)
+
+        XCTAssertTrue(
+            safe.recentlyAdded.isEmpty,
+            "Other-video hubs should only bypass unrated filtering; explicit disallowed ratings must still be filtered"
+        )
+    }
 }
 
 private extension MediaItem {

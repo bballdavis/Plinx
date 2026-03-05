@@ -81,6 +81,7 @@ final class SafeHomeViewModel {
     /// Initial data load. Called once when the view appears.
     func load() async {
         isLoading = true
+        await ensureLibraryMetadataLoaded()
         await inner.load()
         applyFilters()
     }
@@ -88,6 +89,7 @@ final class SafeHomeViewModel {
     /// Pull-to-refresh reload. Clears and re-fetches from the Plex server.
     func reload() async {
         isLoading = true
+        await ensureLibraryMetadataLoaded()
         await inner.reload()
         applyFilters()
     }
@@ -114,23 +116,38 @@ final class SafeHomeViewModel {
         errorMessage = inner.errorMessage
     }
 
-    private func filterRecentlyAddedHub(_ hub: Hub) -> Hub? {
-        guard let libraries = libraryStore?.libraries, !libraries.isEmpty else {
-            return StrimrAdapter.filtered(hub, policy: policy)
-        }
+    private func ensureLibraryMetadataLoaded() async {
+        guard let libraryStore else { return }
+        guard libraryStore.libraries.isEmpty else { return }
+        // Best effort: typed library metadata avoids brittle string fallback when
+        // classifying recently-added hubs as movie/TV vs other-video.
+        try? await libraryStore.loadLibraries()
+    }
 
+    private func filterRecentlyAddedHub(_ hub: Hub) -> Hub? {
         let recentlyAddedPrefix = NSLocalizedString(
             "home.recentlyAdded.prefix",
             tableName: "Plinx",
             comment: ""
         )
-        let matchedLibrary = HomeLibraryGrouping.matchLibrary(
+
+        let libraries = libraryStore?.libraries ?? []
+        let matchedLibrary = libraries.isEmpty ? nil : HomeLibraryGrouping.matchLibrary(
             for: hub,
             in: libraries,
             recentlyAddedPrefix: recentlyAddedPrefix
         )
+        let isOtherVideoHub: Bool
+        if let matchedLibrary {
+            isOtherVideoHub = HomeLibraryGrouping.isOtherVideo(matchedLibrary)
+        } else {
+            isOtherVideoHub = HomeLibraryGrouping.isLikelyOtherVideoHub(
+                hub,
+                recentlyAddedPrefix: recentlyAddedPrefix
+            )
+        }
 
-        guard let matchedLibrary, HomeLibraryGrouping.isOtherVideo(matchedLibrary) else {
+        guard isOtherVideoHub else {
             return StrimrAdapter.filtered(hub, policy: policy)
         }
 
