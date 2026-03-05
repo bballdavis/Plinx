@@ -4,6 +4,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+"$SCRIPT_DIR/sync_strimr_patches.sh"
+
 CREDENTIALS_FILE="$PROJECT_ROOT/test_creds.yaml"
 LOG_PATH="/tmp/plinx_live_library_parity.log"
 RESULT_BUNDLE="/tmp/Plinx_live_library_parity.xcresult"

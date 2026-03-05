@@ -2,6 +2,20 @@
 
 Convenient shell scripts for building and running the Plinx iOS app on the simulator, plus UI/logic tests.
 
+## Strimr Source Of Truth
+
+All build/test scripts first run `scripts/sync_strimr_patches.sh`, which:
+- Ensures `vendor/strimr` is on branch `plinx-patches`
+- Fast-forwards to the latest `origin/plinx-patches`
+
+This keeps local app builds aligned with the latest Plinx patch branch while `main` can stay aligned to upstream.
+
+To skip this behavior for one run:
+
+```bash
+PLINX_SKIP_STRIMR_SYNC=1 ./scripts/build_only.sh
+```
+
 ## Scripts
 
 ### `ui_tests.sh` — Run UI & Logic Tests

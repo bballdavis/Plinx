@@ -21,6 +21,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 PLINX_APP_DIR="$PROJECT_ROOT/PlinxApp"
 
+"$SCRIPT_DIR/sync_strimr_patches.sh"
+
 # Configuration
 DEVICE_NAME="${1:-iPhone 16 Pro Max}"
 BUNDLE_ID="com.example.plinx"
