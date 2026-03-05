@@ -93,8 +93,9 @@
 
 /* Settings — About */
 "settings.about.title" = "Legal & Open Source";
-"settings.about.strimr" = "Strimr Open Source (GPL-2.0)";
-"settings.about.description" = "Plinx is built on Strimr, licensed under the GPL-2.0. Source code is available at the link above.";
+"settings.about.strimr" = "Strimr Main Repository (GPL-3.0)";
+"settings.about.plinx" = "Plinx Main Repository (GPL-3.0)";
+"settings.about.description" = "Plinx and Strimr are licensed under GPL-3.0. Source code and license text are available at the links above. This software is provided without any warranty.";
 
 /* Player */
 "player.vlc.missing" = "VLC Player Engine not installed in this build.";

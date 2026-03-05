@@ -206,6 +206,15 @@ private struct SettingsBody: View {
                     }
                 }
                 .foregroundStyle(.primary)
+
+                Link(destination: URL(string: "https://github.com/bballdavis/Plinx")!) {
+                    Label {
+                        Text("settings.about.plinx", tableName: "Plinx")
+                    } icon: {
+                        Image(systemName: "chevron.left.forwardslash.chevron.right")
+                    }
+                }
+                .foregroundStyle(.primary)
             } header: {
                 Text("settings.about.title", tableName: "Plinx")
             } footer: {
