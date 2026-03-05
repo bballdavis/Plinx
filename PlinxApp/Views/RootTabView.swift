@@ -39,7 +39,7 @@ struct RootTabView: View {
             return .search
         case .library, .libraryDetail(_):
             return .library
-        case .more:
+        case .downloads, .more:
             return .more
         case .home, .seerrDiscover:
             return .home
@@ -295,7 +295,7 @@ struct RootTabView: View {
             .allowsHitTesting(activeRootTab == .library)
             .accessibilityHidden(activeRootTab != .library)
 
-        case .more:
+        case .downloads, .more:
             NavigationStack(path: mainCoordinator.pathBinding(for: .more)) {
                 PlinxDownloadsGridView()
                     .toolbar(.hidden, for: .navigationBar)

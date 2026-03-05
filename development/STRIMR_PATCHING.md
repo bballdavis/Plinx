@@ -81,11 +81,10 @@ git commit -m "chore(strimr): update plinx-patches pin to $(cd vendor/strimr && 
 
 ## Important Notes
 
-- ✅ **Always rebase `plinx-strimr-patching` on upstream `main` before adding new patches**
-- ⚠️ **Never manually switch branches in `vendor/strimr`** — the parent repo expects `plinx-strimr-patching`
-- 🔒 Push is disabled on this branch (intentional; it's local-only)
-- 📌 Version management happens by updating the submodule commit in the main Plinx repo, not by syncing the branch
-- 📌 Keep `vendor/Patches/strimr/manifest.yaml` in sync with every patch file update
+- ✅ Keep `vendor/strimr` on `plinx-patches` for all Plinx app builds.
+- ✅ Keep fork `main` fast-forwarded to `upstream/main`; use `main` for upstream PR branches.
+- ✅ Rebase `plinx-patches` onto `upstream/main` when syncing upstream changes.
+- 📌 Version management happens by updating the submodule commit in the main Plinx repo.
 
 ## Checking What We've Patched
 
