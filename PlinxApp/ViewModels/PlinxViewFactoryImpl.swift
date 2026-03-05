@@ -53,7 +53,7 @@ final class PlinxViewFactoryImpl: PlinxViewFactory {
             settingsManager: settingsManager,
             libraryStore: libraryStore
         )
-        let safe = SafeHomeViewModel(inner: inner, policy: safetyPolicy)
+        let safe = SafeHomeViewModel(inner: inner, policy: safetyPolicy, libraryStore: libraryStore)
         return AnyView(
             PlinxHomeView(viewModel: safe) { displayItem in
                 onSelectMedia(displayItem.toPlinxAction())

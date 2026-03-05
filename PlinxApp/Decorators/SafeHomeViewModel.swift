@@ -52,15 +52,23 @@ final class SafeHomeViewModel {
     /// Mutable so the owning view can push environment updates via `updatePolicy(_:)`.
     private(set) var policy: SafetyPolicy
 
+    /// Library metadata used to classify home hubs (movies/TV vs other-video).
+    private let libraryStore: LibraryStore?
+
     // MARK: - Init
 
     /// - Parameters:
     ///   - inner: The Strimr `HomeViewModel` to decorate.
     ///   - policy: Safety policy. Defaults to `.ratingOnly()` (no label gate,
     ///     max rating = G).
-    init(inner: HomeViewModel, policy: SafetyPolicy = .ratingOnly()) {
+    init(
+        inner: HomeViewModel,
+        policy: SafetyPolicy = .ratingOnly(),
+        libraryStore: LibraryStore? = nil
+    ) {
         self.inner = inner
         self.policy = policy
+        self.libraryStore = libraryStore
     }
 
     /// `true` if there is any displayable content after safety filtering.
@@ -101,10 +109,37 @@ final class SafeHomeViewModel {
         continueWatching = inner.continueWatching.flatMap {
             StrimrAdapter.filtered($0, policy: policy)
         }
-        recentlyAdded = inner.recentlyAdded.compactMap {
-            StrimrAdapter.filtered($0, policy: policy)
-        }
+        recentlyAdded = inner.recentlyAdded.compactMap(filterRecentlyAddedHub)
         isLoading = inner.isLoading
         errorMessage = inner.errorMessage
+    }
+
+    private func filterRecentlyAddedHub(_ hub: Hub) -> Hub? {
+        guard let libraries = libraryStore?.libraries, !libraries.isEmpty else {
+            return StrimrAdapter.filtered(hub, policy: policy)
+        }
+
+        let recentlyAddedPrefix = NSLocalizedString(
+            "home.recentlyAdded.prefix",
+            tableName: "Plinx",
+            comment: ""
+        )
+        let matchedLibrary = HomeLibraryGrouping.matchLibrary(
+            for: hub,
+            in: libraries,
+            recentlyAddedPrefix: recentlyAddedPrefix
+        )
+
+        guard let matchedLibrary, HomeLibraryGrouping.isOtherVideo(matchedLibrary) else {
+            return StrimrAdapter.filtered(hub, policy: policy)
+        }
+
+        let otherVideoPolicy = SafetyPolicy(
+            labelMatchMode: policy.labelMatchMode,
+            maxMovieRating: policy.maxMovieRating,
+            maxTVRating: policy.maxTVRating,
+            allowUnrated: true
+        )
+        return StrimrAdapter.filtered(hub, policy: otherVideoPolicy)
     }
 }

@@ -136,11 +136,7 @@ final class StrimrAdapterSafetyTests: XCTestCase {
 
     func test_hubWithClipItems_survivesStrictFilter() throws {
         let clipItem = MediaItem.fixture(type: .clip, contentRating: nil)
-        let playable = try XCTUnwrap(
-            PlayableMediaItem(mediaItem: clipItem),
-            "PlayableMediaItem should be created from a clip MediaItem"
-        )
-        let hub = Hub(id: "hub.clip.recent", title: "Other Videos", items: [.playable(playable)])
+        let hub = Hub(id: "hub.clip.recent", title: "Other Videos", items: [.playable(clipItem)])
         let filtered = StrimrAdapter.filtered(hub, policy: strictPolicy)
         XCTAssertNotNil(
             filtered,
@@ -151,8 +147,7 @@ final class StrimrAdapterSafetyTests: XCTestCase {
 
     func test_hubWithMovieNoRating_removedByStrictFilter() throws {
         let movieItem = MediaItem.fixture(type: .movie, contentRating: nil)
-        let playable = try XCTUnwrap(PlayableMediaItem(mediaItem: movieItem))
-        let hub = Hub(id: "hub.movie.new", title: "New Movies", items: [.playable(playable)])
+        let hub = Hub(id: "hub.movie.new", title: "New Movies", items: [.playable(movieItem)])
         let filtered = StrimrAdapter.filtered(hub, policy: strictPolicy)
         XCTAssertNil(
             filtered,

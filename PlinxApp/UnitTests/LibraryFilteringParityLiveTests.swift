@@ -256,6 +256,13 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
             applySafetyFilter: false
         )
         let actualEntries = vm.browseItems.map(browseEntry)
+        let uniqueEntries = Set(actualEntries)
+
+        XCTAssertEqual(
+            uniqueEntries.count,
+            actualEntries.count,
+            "Unfiltered browse results contain duplicate entries; duplicates cause identity collisions and visible blank cells in the grid."
+        )
 
         XCTAssertEqual(
             actualEntries,
