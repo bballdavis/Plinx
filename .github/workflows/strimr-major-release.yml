@@ -61,13 +61,6 @@ jobs:
           git add vendor/strimr
           git commit -m "chore(vendor): update Strimr to ${{ steps.new.outputs.short }}"
 
-      - name: Apply vendor patches
-        run: |
-          ./scripts/apply_vendor_patches.sh || {
-            echo "⚠️ Patch application failed; manual conflict resolution may be needed."
-            exit 1
-          }
-
       - name: Install XcodeGen
         run: brew install xcodegen
 
@@ -75,9 +68,6 @@ jobs:
         run: |
           cd PlinxApp
           xcodegen generate
-
-      - name: Validate: Build StrimrEngine
-        run: swift build --package-path Packages/StrimrEngine
 
       - name: Validate: Build PlinxCore
         run: swift build --package-path Packages/PlinxCore
@@ -90,7 +80,7 @@ jobs:
           xcodebuild build \
             -project PlinxApp/Plinx.xcodeproj \
             -scheme Plinx-iOS \
-            -destination "platform=iOS Simulator,name=iPhone 16 Pro Max" \
+            -destination "generic/platform=iOS Simulator" \
             -configuration Debug \
             -quiet
 
@@ -102,15 +92,6 @@ jobs:
           swift test --package-path Packages/PlinxUI || {
             echo "⚠️ PlinxUI tests failed; check before merging."
           }
-
-      - name: Commit patch updates (if any)
-        run: |
-          if [[ -n "$(git status --porcelain vendor/patches/strimr)" ]]; then
-            git add vendor/patches/strimr
-            git commit -m "chore(patches): regenerate patches after Strimr update to ${{ steps.new.outputs.short }}"
-          else
-            echo "No patch updates required."
-          fi
 
       - name: Create pull request
         if: ${{ github.event.inputs.dry_run != 'true' }}

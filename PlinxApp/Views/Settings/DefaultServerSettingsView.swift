@@ -23,29 +23,6 @@ struct DefaultServerSettingsView: View {
                         serverOptionRow(server)
                     }
                 }
-
-                Section {
-                    Button {
-                        viewModel.setAsDefault = true
-                        Task { await viewModel.saveSelection() }
-                    } label: {
-                        HStack {
-                            if viewModel.isSelecting {
-                                ProgressView().tint(.white)
-                            }
-                            Text("Save Default Server")
-                                .fontWeight(.semibold)
-                                .frame(maxWidth: .infinity)
-                        }
-                    }
-                    .listRowBackground(Color.accentColor)
-                    .foregroundStyle(.white)
-                    .disabled(!viewModel.canSaveSelection)
-                } footer: {
-                    Text("Changing the default server also switches your active server and refreshes library data.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
             }
         }
         .navigationTitle("Default Server")
@@ -60,11 +37,13 @@ struct DefaultServerSettingsView: View {
     }
 
     private func serverOptionRow(_ server: PlexCloudResource) -> some View {
-        let isSelected = viewModel.selectedServerID == server.clientIdentifier
+        let isSelected = viewModel.selectingServerID == server.clientIdentifier
         let isCurrent = sessionManager.plexServer?.clientIdentifier == server.clientIdentifier
 
         return Button {
-            viewModel.chooseServer(server)
+            Task {
+                await viewModel.select(server: server)
+            }
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: "server.rack")
@@ -83,10 +62,17 @@ struct DefaultServerSettingsView: View {
 
                 Spacer()
 
-                Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
-                    .foregroundStyle(isSelected ? Color.accentColor : Color(.tertiaryLabel))
+                if isSelected {
+                    ProgressView()
+                        .tint(.accentColor)
+                } else {
+                    Image(systemName: "chevron.right")
+                        .foregroundStyle(Color(.tertiaryLabel))
+                }
             }
+            .opacity(viewModel.isSelecting && !isSelected ? 0.6 : 1)
         }
         .buttonStyle(.plain)
+        .disabled(viewModel.isSelecting)
     }
 }

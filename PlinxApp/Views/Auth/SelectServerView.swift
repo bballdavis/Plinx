@@ -62,40 +62,13 @@ struct SelectServerView: View {
         } else if viewModel.servers.isEmpty {
             emptyState
         } else {
-            VStack(spacing: 16) {
-                ScrollView {
-                    LazyVStack(spacing: 12) {
-                        ForEach(viewModel.servers, id: \.clientIdentifier) { server in
-                            serverRow(server)
-                        }
+            ScrollView {
+                LazyVStack(spacing: 12) {
+                    ForEach(viewModel.servers, id: \.clientIdentifier) { server in
+                        serverRow(server)
                     }
-                    .padding(.vertical, 8)
                 }
-
-                Toggle("Set as Default", isOn: $viewModel.setAsDefault)
-                    .font(.headline)
-                    .padding(14)
-                    .background(Color.secondary.opacity(0.08))
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .tint(.accentColor)
-
-                Button {
-                    Task { await viewModel.saveSelection() }
-                } label: {
-                    HStack(spacing: 10) {
-                        if viewModel.isSelecting {
-                            ProgressView().tint(.white)
-                        }
-                        Text("Save")
-                            .fontWeight(.semibold)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.accentColor)
-                    .foregroundStyle(.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                }
-                .disabled(!viewModel.canSaveSelection)
+                .padding(.vertical, 8)
             }
         }
     }
@@ -129,10 +102,10 @@ struct SelectServerView: View {
     }
 
     private func serverRow(_ server: PlexCloudResource) -> some View {
-        let isSelected = viewModel.selectedServerID == server.clientIdentifier
-
         return Button {
-            viewModel.chooseServer(server)
+            Task {
+                await viewModel.select(server: server)
+            }
         } label: {
             HStack(spacing: 12) {
                 Circle()
@@ -154,20 +127,26 @@ struct SelectServerView: View {
 
                 Spacer()
 
-                Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
-                    .font(.title3)
-                    .foregroundStyle(isSelected ? Color.accentColor : Color(.tertiaryLabel))
+                if viewModel.selectingServerID == server.clientIdentifier {
+                    ProgressView()
+                        .tint(.accentColor)
+                } else {
+                    Image(systemName: "chevron.right")
+                        .foregroundStyle(Color(.tertiaryLabel))
+                }
             }
+            .opacity(
+                viewModel.isSelecting && viewModel.selectingServerID != server.clientIdentifier
+                    ? 0.6
+                    : 1,
+            )
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(isSelected ? Color.accentColor.opacity(0.16) : Color.secondary.opacity(0.08))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(isSelected ? Color.accentColor.opacity(0.4) : Color.clear, lineWidth: 1)
-            )
+            .background(Color.secondary.opacity(0.08))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .buttonStyle(.plain)
+        .disabled(viewModel.isSelecting)
     }
 
     private func connectionSummary(for server: PlexCloudResource) -> some View {

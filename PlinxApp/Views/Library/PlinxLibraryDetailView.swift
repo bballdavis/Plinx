@@ -31,38 +31,7 @@ struct PlinxLibraryDetailView: View {
     // MARK: - Body
 
     var body: some View {
-        Group {
-            switch selectedTab {
-            case .recommended:
-                LibraryRecommendedView(
-                    viewModel: makeRecommendedViewModel(),
-                    onSelectMedia: onSelectMedia,
-                    onLongPressMedia: onLongPressMedia,
-                    topContent: scrollingTopContent,
-                    overrideLayout: preferredCarouselLayout
-                )
-            case .browse:
-                LibraryBrowseView(
-                    viewModel: makeBrowseViewModel(),
-                    onSelectMedia: onSelectMedia,
-                    onLongPressMedia: onLongPressMedia,
-                    topContent: scrollingTopContent,
-                    overrideLayout: preferredCarouselLayout,
-                    showsControls: false
-                )
-            case .collections:
-                LibraryCollectionsView(
-                    viewModel: makeCollectionsViewModel(),
-                    onSelectMedia: onSelectMedia,
-                    onLongPressMedia: onLongPressMedia,
-                    topContent: scrollingTopContent
-                )
-            case .playlists:
-                // Playlists tab is intentionally hidden from `availableTabs`,
-                // but we keep the case to satisfy exhaustive matching.
-                EmptyView()
-            }
-        }
+        selectedTabContent
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .navigationBarBackButtonHidden(true)
         .toolbarBackground(.hidden, for: .navigationBar)
@@ -70,6 +39,38 @@ struct PlinxLibraryDetailView: View {
             if !displayCollections, selectedTab == .collections {
                 selectedTab = .recommended
             }
+        }
+    }
+
+    @ViewBuilder
+    private var selectedTabContent: some View {
+        switch selectedTab {
+        case .recommended:
+            LibraryRecommendedView(
+                viewModel: makeRecommendedViewModel(),
+                onSelectMedia: onSelectMedia,
+                onLongPressMedia: onLongPressMedia,
+                topContent: scrollingTopContent,
+                overrideLayout: { _ in preferredCarouselLayout }
+            )
+        case .browse:
+            LibraryBrowseView(
+                viewModel: makeBrowseViewModel(),
+                onSelectMedia: onSelectMedia,
+                onLongPressMedia: onLongPressMedia,
+                topContent: scrollingTopContent,
+                overrideLayout: preferredCarouselLayout,
+                showsControls: false
+            )
+        case .collections:
+            LibraryCollectionsView(
+                viewModel: makeCollectionsViewModel(),
+                onSelectMedia: onSelectMedia,
+                onLongPressMedia: onLongPressMedia,
+                topContent: scrollingTopContent
+            )
+        case .playlists:
+            EmptyView()
         }
     }
 

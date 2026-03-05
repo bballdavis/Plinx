@@ -37,27 +37,16 @@ struct RootTabView: View {
         switch mainCoordinator.tab {
         case .search:
             return .search
-        case .library, .libraryDetail:
+        case .library, .libraryDetail(_):
             return .library
-        case .downloads:
-            return .downloads
         case .home, .more, .seerrDiscover:
             return .home
         }
     }
 
-    /// Tabs shown in the picker — downloads tab auto-hides when empty.
+    /// Tabs shown in the picker.
     private var visibleTabs: [KidsMainTabPicker.TabItem] {
-        var tabs = KidsMainTabPicker.TabItem.mainTabs()
-        if !downloadManager.sortedItems.isEmpty {
-            tabs.append(KidsMainTabPicker.TabItem(
-                id: "downloads",
-                tab: .downloads,
-                iconName: "arrow.down.circle.fill",
-                title: LocalizedStringResource("tabs.downloads", table: "Plinx")
-            ))
-        }
-        return tabs
+        KidsMainTabPicker.TabItem.mainTabs()
     }
 
     /// Maps coordinator tab to tab-bar selection.
@@ -65,9 +54,6 @@ struct RootTabView: View {
         Binding(
             get: { activeRootTab },
             set: { newValue in
-                if newValue == activeRootTab {
-                    mainCoordinator.popToRoot(for: newValue)
-                }
                 mainCoordinator.tab = newValue
             }
         )
@@ -191,7 +177,6 @@ struct RootTabView: View {
             tabStack(for: .home)
             tabStack(for: .search)
             tabStack(for: .library)
-            tabStack(for: .downloads)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .sheet(isPresented: $showSettings) {
@@ -297,17 +282,8 @@ struct RootTabView: View {
             .allowsHitTesting(activeRootTab == .library)
             .accessibilityHidden(activeRootTab != .library)
 
-        case .more, .seerrDiscover, .libraryDetail:
+        case .more, .seerrDiscover, .libraryDetail(_):
             EmptyView()
-
-        case .downloads:
-            NavigationStack(path: mainCoordinator.pathBinding(for: .downloads)) {
-                PlinxDownloadsGridView()
-                    .toolbar(.hidden, for: .navigationBar)
-            }
-            .opacity(activeRootTab == .downloads ? 1 : 0)
-            .allowsHitTesting(activeRootTab == .downloads)
-            .accessibilityHidden(activeRootTab != .downloads)
         }
     }
 
