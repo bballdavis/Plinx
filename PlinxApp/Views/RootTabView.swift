@@ -39,14 +39,20 @@ struct RootTabView: View {
             return .search
         case .library, .libraryDetail(_):
             return .library
-        case .home, .more, .seerrDiscover:
+        case .more:
+            return .more
+        case .home, .seerrDiscover:
             return .home
         }
     }
 
+    private var hasDownloadsContent: Bool {
+        !downloadManager.sortedItems.isEmpty
+    }
+
     /// Tabs shown in the picker.
     private var visibleTabs: [KidsMainTabPicker.TabItem] {
-        KidsMainTabPicker.TabItem.mainTabs()
+        KidsMainTabPicker.TabItem.mainTabs(includeDownloads: hasDownloadsContent)
     }
 
     /// Maps coordinator tab to tab-bar selection.
@@ -54,13 +60,18 @@ struct RootTabView: View {
         Binding(
             get: { activeRootTab },
             set: { newValue in
-                mainCoordinator.tab = newValue
+                handleTabSelection(newValue)
             }
         )
     }
 
     var body: some View {
         mainTabView
+            .onChange(of: hasDownloadsContent) { _, hasDownloads in
+                guard !hasDownloads, activeRootTab == .more else { return }
+                mainCoordinator.resetToRoot(for: .more)
+                mainCoordinator.tab = .home
+            }
             .overlay(alignment: .bottom) {
                 if let item = selectedQuickActionMedia {
                     quickActionSheet(for: item)
@@ -176,6 +187,7 @@ struct RootTabView: View {
         ZStack {
             tabStack(for: .home)
             tabStack(for: .search)
+            tabStack(for: .more)
             tabStack(for: .library)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -203,7 +215,8 @@ struct RootTabView: View {
                             settingsManager: settingsManager,
                             libraryStore: libraryStore
                         ),
-                        policy: safetyPolicy
+                        policy: safetyPolicy,
+                        libraryStore: libraryStore
                     ),
                     topContent: AnyView(topTitleRow(title: "tabs.home", showsSettingsButton: true, showsLogo: true)),
                     onSelectMedia: { displayItem in
@@ -282,9 +295,26 @@ struct RootTabView: View {
             .allowsHitTesting(activeRootTab == .library)
             .accessibilityHidden(activeRootTab != .library)
 
-        case .more, .seerrDiscover, .libraryDetail(_):
+        case .more:
+            NavigationStack(path: mainCoordinator.pathBinding(for: .more)) {
+                PlinxDownloadsGridView()
+                    .toolbar(.hidden, for: .navigationBar)
+                    .navigationDestination(for: MainCoordinator.Route.self) { route in
+                        destination(for: route)
+                    }
+            }
+            .opacity(activeRootTab == .more ? 1 : 0)
+            .allowsHitTesting(activeRootTab == .more)
+            .accessibilityHidden(activeRootTab != .more)
+
+        case .seerrDiscover, .libraryDetail(_):
             EmptyView()
         }
+    }
+
+    private func handleTabSelection(_ newValue: MainCoordinator.Tab) {
+        mainCoordinator.resetToRoot(for: newValue)
+        mainCoordinator.tab = newValue
     }
 
     private var settingsHeaderRow: some View {

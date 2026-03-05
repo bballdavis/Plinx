@@ -135,11 +135,7 @@ struct PlinxLibraryDetailView: View {
     /// Portrait (poster) for standard movie/TV libraries; landscape (letterbox)
     /// for "none"-agent libraries (YouTube, Home Videos) and clip libraries.
     private var preferredCarouselLayout: MediaCarousel.Layout? {
-        if library.isNoneAgentLibrary { return .landscape }
-        switch library.type {
-        case .movie, .show: return nil
-        default:            return .landscape
-        }
+        LibraryCardLayoutPolicy.prefersLandscape(for: library) ? .landscape : nil
     }
 
     // MARK: - ViewModel factories (Plinx-side safety injection)

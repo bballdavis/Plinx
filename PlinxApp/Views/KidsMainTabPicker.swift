@@ -95,8 +95,8 @@ extension KidsMainTabPicker {
         let title: LocalizedStringResource
 
         /// The default main tabs for the Plinx app.
-        static func mainTabs() -> [TabItem] {
-            [
+        static func mainTabs(includeDownloads: Bool = false) -> [TabItem] {
+            var tabs: [TabItem] = [
                 TabItem(
                     id: "home",
                     tab: .home,
@@ -109,13 +109,29 @@ extension KidsMainTabPicker {
                     iconName: "magnifyingglass",
                     title: LocalizedStringResource("tabs.search", table: "Plinx")
                 ),
+            ]
+
+            if includeDownloads {
+                tabs.append(
+                    TabItem(
+                        id: "downloads",
+                        tab: .more,
+                        iconName: "arrow.down.circle.fill",
+                        title: LocalizedStringResource("tabs.downloads", table: "Plinx")
+                    )
+                )
+            }
+
+            tabs.append(contentsOf: [
                 TabItem(
                     id: "library",
                     tab: .library,
                     iconName: "books.vertical.fill",
                     title: LocalizedStringResource("tabs.library", table: "Plinx")
                 ),
-            ]
+            ])
+
+            return tabs
         }
     }
 }
