@@ -580,8 +580,12 @@ struct RootTabView: View {
             } else {
                 try await scrobbleRepository.markWatched(key: item.id)
             }
-            // Refresh home view to show updated watch status
+            
+            // Reload data from server to get updated watch status
             await homeViewModel?.reload()
+            
+            // Close menu after data is refreshed
+            selectedQuickActionMedia = nil
         } catch {
             quickActionErrorMessage = error.localizedDescription
         }
