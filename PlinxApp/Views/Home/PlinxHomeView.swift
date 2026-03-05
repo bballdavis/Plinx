@@ -10,6 +10,9 @@ struct PlinxHomeView: View {
     var topContent: AnyView? = nil
     var onSelectMedia: (MediaDisplayItem) -> Void
     var onLongPressMedia: (MediaDisplayItem) -> Void = { _ in }
+    /// Returns whether a given display item should show as watched.
+    /// Injected by parent to reflect optimistic local overrides.
+    var isItemWatched: (MediaDisplayItem) -> Bool = { $0.isFullyWatched }
 
     @Environment(PlexAPIContext.self) private var plexApiContext
     @Environment(LibraryStore.self) private var libraryStore
@@ -283,6 +286,8 @@ struct PlinxHomeView: View {
         let isLandscape = layout == .landscape
         let cardWidth: CGFloat = isLandscape ? 200 : 110
         let ratio: CGFloat = isLandscape ? 16.0 / 9.0 : 2.0 / 3.0
+        let isContinueWatching = sectionKey == "continueWatching"
+        let watched = isItemWatched(item)
 
         return VStack(alignment: .leading, spacing: 6) {
             ZStack(alignment: .bottom) {
@@ -296,6 +301,20 @@ struct PlinxHomeView: View {
                 .frame(width: cardWidth, height: cardWidth / ratio)
                 .clipped()
                 .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+                .overlay(alignment: .topTrailing) {
+                    // Show watched badge except on continue watching cards
+                    if !isContinueWatching && watched {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(Color.accentColor)
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.white)
+                        }
+                        .frame(width: 24, height: 24)
+                        .padding(8)
+                    }
+                }
                 .accessibilityIdentifier("home.thumbnail.\(sectionKey).\(index)")
 
                 if let pct = item.viewProgressPercentage, pct > 0 {

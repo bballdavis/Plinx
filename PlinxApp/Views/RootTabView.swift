@@ -24,6 +24,9 @@ struct RootTabView: View {
     @State private var selectedQuickActionMedia: MediaDisplayItem?
     @State private var quickActionErrorMessage: String?
     @State private var homeViewModel: SafeHomeViewModel?
+    /// Local overrides for watched status, keyed by media item id.
+    /// Updated instantly on toggle; cleared when home data reloads.
+    @State private var watchedOverrides: [String: Bool] = [:]
 
     private var launcher: PlaybackLauncher {
         PlaybackLauncher(
@@ -227,6 +230,9 @@ struct RootTabView: View {
                     },
                     onLongPressMedia: { displayItem in
                         selectedQuickActionMedia = displayItem
+                    },
+                    isItemWatched: { displayItem in
+                        isWatchedDisplay(displayItem)
                     }
                 )
                 .toolbar(.hidden, for: .navigationBar)
@@ -573,25 +579,35 @@ struct RootTabView: View {
     }
 
     private func toggleWatched(_ item: MediaItem) async {
+        let wasWatched = isWatched(item)
+        
+        // Optimistic local update — instant UI feedback
+        watchedOverrides[item.id] = !wasWatched
+        selectedQuickActionMedia = nil
+        
         do {
             let scrobbleRepository = try ScrobbleRepository(context: plexApiContext)
-            if isWatched(item) {
+            if wasWatched {
                 try await scrobbleRepository.markUnwatched(key: item.id)
             } else {
                 try await scrobbleRepository.markWatched(key: item.id)
             }
-            
-            // Reload data from server to get updated watch status
+            // Reload from server to get authoritative state
             await homeViewModel?.reload()
-            
-            // Close menu after data is refreshed
-            selectedQuickActionMedia = nil
+            // Clear override now that server data is fresh
+            watchedOverrides.removeValue(forKey: item.id)
         } catch {
+            // Revert optimistic update on failure
+            watchedOverrides.removeValue(forKey: item.id)
             quickActionErrorMessage = error.localizedDescription
         }
     }
 
     private func isWatched(_ item: MediaItem) -> Bool {
+        // Check local override first (instant feedback)
+        if let override = watchedOverrides[item.id] {
+            return override
+        }
         guard let playableType = PlayableItemType(plexType: item.type) else { return false }
 
         switch playableType {
@@ -604,6 +620,11 @@ struct RootTabView: View {
             guard leafCount > 0 else { return false }
             return leafCount == viewedLeafCount
         }
+    }
+
+    private func isWatchedDisplay(_ item: MediaDisplayItem) -> Bool {
+        guard let media = item.playableItem else { return false }
+        return isWatched(media)
     }
 
 }
