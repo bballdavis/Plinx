@@ -276,7 +276,17 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Strimr Open Source (GPL-2.0)"
+            "value" : "Strimr Main Repository (GPL-3.0)"
+          }
+        }
+      }
+    },
+    "settings.about.plinx" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plinx Main Repository (GPL-3.0)"
           }
         }
       }
@@ -296,7 +306,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Plinx is built on Strimr, licensed under the GPL-2.0. Source code is available at the link above."
+            "value" : "Plinx and Strimr are licensed under GPL-3.0. Source code and license text are available at the links above. This software is provided without any warranty."
           }
         }
       }
