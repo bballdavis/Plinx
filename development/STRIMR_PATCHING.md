@@ -100,3 +100,16 @@ git shortlog main..HEAD      # See summary by author
 ./scripts/build_only.sh      # Quick build test
 ./scripts/ui_tests.sh        # Full test suite
 ```
+
+## Before Building
+
+Ensure `vendor/strimr` is on the correct branch with no uncommitted changes:
+
+```bash
+cd vendor/strimr
+git checkout plinx-patches
+git pull origin plinx-patches  # Sync to latest remote tip (optional)
+git status                     # Verify clean working tree
+```
+
+All build and test scripts build from local files only. They do not manage git state for you.

@@ -1,5 +1,6 @@
 #!/bin/bash
-# Ensures vendor/strimr is on the latest origin/plinx-patches commit.
+# Verifies vendor/strimr is on the plinx-patches branch with no local changes.
+# Does NOT pull from remote; syncing is the developer's responsibility.
 
 set -euo pipefail
 
@@ -9,35 +10,29 @@ SUBMODULE_DIR="$PROJECT_ROOT/vendor/strimr"
 TARGET_BRANCH="plinx-patches"
 
 if [[ "${PLINX_SKIP_STRIMR_SYNC:-0}" == "1" ]]; then
-  echo "[strimr-sync] Skipped (PLINX_SKIP_STRIMR_SYNC=1)."
+  echo "[strimr-verify] Skipped (PLINX_SKIP_STRIMR_SYNC=1)."
   exit 0
 fi
 
 if ! git -C "$SUBMODULE_DIR" rev-parse --git-dir >/dev/null 2>&1; then
-  echo "[strimr-sync] Missing submodule at $SUBMODULE_DIR"
-  echo "[strimr-sync] Run: git submodule update --init --recursive"
+  echo "[strimr-verify] Missing submodule at $SUBMODULE_DIR"
+  echo "[strimr-verify] Run: git submodule update --init --recursive"
   exit 1
 fi
 
 cd "$SUBMODULE_DIR"
 
 if [[ -n "$(git status --porcelain)" ]]; then
-  echo "[strimr-sync] Refusing to sync: vendor/strimr has local changes."
-  echo "[strimr-sync] Commit/stash changes in vendor/strimr, then retry."
+  echo "[strimr-verify] Error: vendor/strimr has uncommitted changes."
+  echo "[strimr-verify] Commit or stash changes before building."
   exit 1
 fi
 
-git fetch origin "$TARGET_BRANCH"
-
 current_branch="$(git rev-parse --abbrev-ref HEAD)"
 if [[ "$current_branch" != "$TARGET_BRANCH" ]]; then
-  if git show-ref --verify --quiet "refs/heads/$TARGET_BRANCH"; then
-    git checkout "$TARGET_BRANCH"
-  else
-    git checkout -b "$TARGET_BRANCH" "origin/$TARGET_BRANCH"
-  fi
+  echo "[strimr-verify] Error: vendor/strimr is on '$current_branch', not '$TARGET_BRANCH'."
+  echo "[strimr-verify] Switch to $TARGET_BRANCH and sync with remote as needed."
+  exit 1
 fi
 
-git pull --ff-only origin "$TARGET_BRANCH"
-
-echo "[strimr-sync] vendor/strimr now on $(git rev-parse --short HEAD) ($TARGET_BRANCH)"
+echo "[strimr-verify] vendor/strimr is on $(git rev-parse --short HEAD) ($TARGET_BRANCH) ✓"

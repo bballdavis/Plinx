@@ -23,6 +23,7 @@ struct RootTabView: View {
     @State private var showSettings = false
     @State private var selectedQuickActionMedia: MediaDisplayItem?
     @State private var quickActionErrorMessage: String?
+    @State private var homeViewModel: SafeHomeViewModel?
 
     private var launcher: PlaybackLauncher {
         PlaybackLauncher(
@@ -207,17 +208,19 @@ struct RootTabView: View {
     private func tabStack(for tab: MainCoordinator.Tab) -> some View {
         switch tab {
         case .home:
+            let viewModel = homeViewModel ?? SafeHomeViewModel(
+                inner: HomeViewModel(
+                    context: plexApiContext,
+                    settingsManager: settingsManager,
+                    libraryStore: libraryStore
+                ),
+                policy: safetyPolicy,
+                libraryStore: libraryStore
+            )
+            
             NavigationStack(path: mainCoordinator.pathBinding(for: .home)) {
                 PlinxHomeView(
-                    viewModel: SafeHomeViewModel(
-                        inner: HomeViewModel(
-                            context: plexApiContext,
-                            settingsManager: settingsManager,
-                            libraryStore: libraryStore
-                        ),
-                        policy: safetyPolicy,
-                        libraryStore: libraryStore
-                    ),
+                    viewModel: viewModel,
                     topContent: AnyView(topTitleRow(title: "tabs.home", showsSettingsButton: true, showsLogo: true)),
                     onSelectMedia: { displayItem in
                         handlePrimarySelection(displayItem)
@@ -234,6 +237,11 @@ struct RootTabView: View {
             .opacity(activeRootTab == .home ? 1 : 0)
             .allowsHitTesting(activeRootTab == .home)
             .accessibilityHidden(activeRootTab != .home)
+            .onAppear {
+                if homeViewModel == nil {
+                    homeViewModel = viewModel
+                }
+            }
 
         case .search:
             NavigationStack(path: mainCoordinator.pathBinding(for: .search)) {
@@ -572,6 +580,8 @@ struct RootTabView: View {
             } else {
                 try await scrobbleRepository.markWatched(key: item.id)
             }
+            // Refresh home view to show updated watch status
+            await homeViewModel?.reload()
         } catch {
             quickActionErrorMessage = error.localizedDescription
         }
