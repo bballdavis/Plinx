@@ -23,10 +23,7 @@ struct PlinxMediaDetailView: View {
                     onShuffle: { ratingKey, type in
                         onPlay(ratingKey, type)
                     },
-                    onSelectMedia: onSelectRelated,
-                    loadDetailsAction: {
-                        await viewModel.loadDetails()
-                    }
+                    onSelectMedia: onSelectRelated
                 )
             }
         }

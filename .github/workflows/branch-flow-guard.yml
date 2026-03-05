@@ -1,0 +1,22 @@
+name: Branch Flow Guard
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  enforce-dev-into-main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR source branch
+        shell: bash
+        run: |
+          if [[ "${{ github.head_ref }}" != "dev" ]]; then
+            echo "PRs into main must come from dev. Current source branch: ${{ github.head_ref }}"
+            exit 1
+          fi
+          echo "Branch flow check passed: dev -> main"

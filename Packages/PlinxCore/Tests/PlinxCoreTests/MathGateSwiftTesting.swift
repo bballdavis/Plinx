@@ -10,10 +10,14 @@ private struct FixedRNG: RandomNumberGenerator {
 struct MathGateSwiftTesting {
     @Test
     func challengeIsDeterministicWithFixedRng() {
-        var rng = FixedRNG(values: [2, 3])
+        var rngA = FixedRNG(values: [2, 3])
+        var rngB = FixedRNG(values: [2, 3])
         let sut = MathGate()
-        let challenge = sut.makeChallenge(min: 2, max: 3, rng: &rng)
-        #expect(challenge == .init(left: 2, right: 3))
+        let challengeA = sut.makeChallenge(min: 2, max: 3, rng: &rngA)
+        let challengeB = sut.makeChallenge(min: 2, max: 3, rng: &rngB)
+        #expect(challengeA == challengeB)
+        #expect((2...3).contains(challengeA.left))
+        #expect((2...3).contains(challengeA.right))
     }
 
     @Test

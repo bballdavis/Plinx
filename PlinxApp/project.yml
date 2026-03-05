@@ -38,7 +38,7 @@ packages:
   # StrimrEngine is intentionally NOT listed here.
   # Vendor sources compile directly into the app target for `internal` access.
   # The StrimrEngine package at ../Packages/StrimrEngine/ exists for:
-  #   - Independent build validation (`cd Packages/StrimrEngine && swift build`)
+  #   - Independent source compilation validation via app target build
   #   - Future migration when Strimr types become `public`
   MPVKit:
     url: https://github.com/wunax/MPVKit
@@ -74,7 +74,7 @@ targets:
       # decorators and adapters access to Strimr's internal types.
       # When StrimrEngine supports direct import, remove these paths
       # and add `- package: StrimrEngine` to dependencies instead.
-      - path: ../Vendor/Strimr/Shared
+      - path: ../vendor/strimr/Shared
         name: StrimrShared
         excludes:
           # VLC player — Plinx uses MPVKit exclusively
@@ -91,7 +91,7 @@ targets:
           # in iOS 26 SDK (resolves to BackgroundStyle, not Color).
           # Replaced by Adapters/PlinxMediaBackdropGradient.swift.
           - "Views/Media/MediaBackdropGradient.swift"
-      - path: ../Vendor/Strimr/Strimr-iOS/Features
+      - path: ../vendor/strimr/Strimr-iOS/Features
         name: StrimrIOSFeatures
         excludes:
           # Strimr's own app entry point — we use PlinxApp.swift
@@ -116,7 +116,7 @@ targets:
       # Localized strings — listed explicitly because xcodegen skips xcstrings
       # and needs lproj bundles spelled out.
       - path: Resources/en.lproj/Plinx.strings
-      - path: ../Vendor/Strimr/en.lproj/Localizable.strings
+      - path: ../vendor/strimr/Localizable.xcstrings
 
     dependencies:
       - package: PlinxCore
