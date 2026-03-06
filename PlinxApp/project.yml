@@ -49,7 +49,7 @@ packages:
 
 settings:
   base:
-    PRODUCT_BUNDLE_IDENTIFIER: com.example.plinx
+    PRODUCT_BUNDLE_IDENTIFIER: com.bballdavis.plinx
     CURRENT_PROJECT_VERSION: 1
     MARKETING_VERSION: 0.1.0
     SWIFT_OBJC_INTEROP_MODE: objcxx
@@ -171,7 +171,7 @@ targets:
     settings:
       base:
         PRODUCT_NAME: PlinxUnitTests
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.plinx.unittests
+        PRODUCT_BUNDLE_IDENTIFIER: com.bballdavis.plinx.unittests
         GENERATE_INFOPLIST_FILE: YES
         SWIFT_STRICT_CONCURRENCY: minimal
         OTHER_SWIFT_FLAGS: "-Xfrontend -strict-concurrency=minimal"
@@ -197,5 +197,5 @@ targets:
     settings:
       base:
         PRODUCT_NAME: PlinxUITests
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.plinx.uitests
+        PRODUCT_BUNDLE_IDENTIFIER: com.bballdavis.plinx.uitests
         GENERATE_INFOPLIST_FILE: YES
