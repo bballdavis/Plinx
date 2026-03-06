@@ -182,6 +182,7 @@ struct RootTabView: View {
                 )
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .environment(\.watchedOverrides, watchedOverrides)
 
         // Keep root tab chrome fully custom (KidsMainTabPicker only).
         base
@@ -592,10 +593,10 @@ struct RootTabView: View {
             } else {
                 try await scrobbleRepository.markWatched(key: item.id)
             }
-            // Reload from server to get authoritative state
+            // Reload from server to refresh home data. Keep the successful
+            // local override in place so independently owned library view
+            // models cannot briefly revert to stale watch state.
             await homeViewModel?.reload()
-            // Clear override now that server data is fresh
-            watchedOverrides.removeValue(forKey: item.id)
         } catch {
             // Revert optimistic update on failure
             watchedOverrides.removeValue(forKey: item.id)

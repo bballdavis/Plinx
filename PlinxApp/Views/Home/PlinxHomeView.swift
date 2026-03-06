@@ -312,6 +312,10 @@ struct PlinxHomeView: View {
                                 .foregroundStyle(.white)
                         }
                         .frame(width: 24, height: 24)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .stroke(Color.black.opacity(0.3), lineWidth: 1)
+                        )
                         .padding(8)
                     }
                 }
