@@ -50,13 +50,13 @@ struct RootTabView: View {
         }
     }
 
-    private var hasDownloadsContent: Bool {
-        !downloadManager.sortedItems.isEmpty
+    private var hasDownloadedVideos: Bool {
+        !downloadManager.completedItems.isEmpty
     }
 
     /// Tabs shown in the picker.
     private var visibleTabs: [KidsMainTabPicker.TabItem] {
-        KidsMainTabPicker.TabItem.mainTabs(includeDownloads: hasDownloadsContent)
+        KidsMainTabPicker.TabItem.mainTabs(includeDownloads: hasDownloadedVideos)
     }
 
     /// Maps coordinator tab to tab-bar selection.
@@ -71,7 +71,7 @@ struct RootTabView: View {
 
     var body: some View {
         mainTabView
-            .onChange(of: hasDownloadsContent) { _, hasDownloads in
+            .onChange(of: hasDownloadedVideos) { _, hasDownloads in
                 guard !hasDownloads, activeRootTab == .more else { return }
                 mainCoordinator.resetToRoot(for: .more)
                 mainCoordinator.tab = .home
