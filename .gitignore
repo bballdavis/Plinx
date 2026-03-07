@@ -19,6 +19,7 @@ AGENTS.md
 .build/
 .swiftpm/xcode/package.xcworkspace/
 .swiftpm/configuration/
+Packages/*/.swiftpm/
 
 # Carthage
 Carthage/Build/
