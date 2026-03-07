@@ -50,6 +50,8 @@ packages:
 settings:
   base:
     PRODUCT_BUNDLE_IDENTIFIER: com.bballdavis.plinx
+    # Team ID for code signing (do NOT include this in the bundle identifier)
+    DEVELOPMENT_TEAM: Z8F9MLDQGX
     CURRENT_PROJECT_VERSION: 1
     MARKETING_VERSION: 0.1.0
     SWIFT_OBJC_INTEROP_MODE: objcxx
