@@ -79,6 +79,9 @@ Loads `test_creds.yaml`, injects Plex credentials into the test process, and run
 ### `run_iphone_sim.sh` — Build, Install & Run
 
 Generates the Xcode project, builds the app, and launches it on a simulator.
+The script now supports a special `generic` argument which avoids
+looking up a particular device UDID; this is useful in CI or when you
+just want to build for "any iPhone simulator".
 
 ```bash
 # Run on iPhone 16 Pro Max (default)
@@ -86,7 +89,15 @@ Generates the Xcode project, builds the app, and launches it on a simulator.
 
 # Run on a specific device
 ./scripts/run_iphone_sim.sh "iPhone 15"
+
+# Build/install on whatever simulator is available (no UDID lookup)
+./scripts/run_iphone_sim.sh generic
 ```
+
+The bundle identifier is automatically read from the built app, so you
+no longer need to keep the hard‑coded placeholder in the script. It
+also avoids the missing‑bundle‑ID error that could occur when the
+`Index.noindex` build tree was accidentally used.
 
 **What it does:**
 1. Finds and boots the specified simulator
@@ -102,6 +113,10 @@ Generates the Xcode project, builds the app, and launches it on a simulator.
 ### `build_only.sh` — Build Only
 
 Generates the project and builds the app without installing or running.
+The script automatically falls back to a generic simulator destination
+when the named device cannot be found (or when CoreSimulator isn't
+reachable), and it will now avoid reporting the bogus app from
+`Index.noindex`.
 
 ```bash
 # Build for iPhone 16 Pro Max (default)
@@ -109,6 +124,9 @@ Generates the project and builds the app without installing or running.
 
 # Build for a specific device
 ./scripts/build_only.sh "iPhone 15"
+
+# If the chosen device isn't available, it will build with
+# `generic/platform=iOS Simulator` instead and still report a path.
 ```
 
 **What it does:**

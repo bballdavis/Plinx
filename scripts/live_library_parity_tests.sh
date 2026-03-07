@@ -10,7 +10,8 @@ LOG_PATH="/tmp/plinx_live_library_parity.log"
 RESULT_BUNDLE="/tmp/Plinx_live_library_parity.xcresult"
 DEFAULT_DESTINATION='platform=iOS Simulator,id=881AC958-79D3-476D-A40E-1290AC561623'
 DESTINATION="${1:-$DEFAULT_DESTINATION}"
-APP_BUNDLE_ID="com.example.plinx"
+# bundle ID is inferred from project settings once the Xcode project exists
+APP_BUNDLE_ID=""
 
 TEST_TARGET='Plinx-iOS-UnitTests/LibraryFilteringParityLiveTests'
 REQUIRED_TEST_CASE='test_liveHomeRecentlyAdded_otherVideoHubVisibleUnderStrictPolicy'
@@ -107,6 +108,20 @@ run_tests() {
     cd "$PROJECT_ROOT/PlinxApp"
     xcodegen generate >/tmp/plinx_xcodegen_live_parity.log 2>&1
   )
+
+  # determine the bundle identifier from the generated project so that
+  # we can write defaults and uninstall/install correctly.  this mirrors
+  # the logic used in run_iphone_sim.sh
+  APP_BUNDLE_ID=$(xcodebuild -project "$PROJECT_ROOT/PlinxApp/Plinx.xcodeproj" \
+                   -scheme Plinx-iOS -showBuildSettings \
+                   | grep PRODUCT_BUNDLE_IDENTIFIER \
+                   | head -1 \
+                   | awk -F" = " '{print $2}' || true)
+  if [ -z "$APP_BUNDLE_ID" ]; then
+    fail "unable to read PRODUCT_BUNDLE_IDENTIFIER from Xcode project"
+    exit 1
+  fi
+  info "Bundle ID: $APP_BUNDLE_ID"
 
   rm -rf "$RESULT_BUNDLE"
   : >"$LOG_PATH"

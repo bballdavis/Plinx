@@ -150,6 +150,7 @@ targets:
 
     settings:
       base:
+        CODE_SIGN_STYLE: Automatic
         # Ensure vendor code compiles with our Swift version
         SWIFT_VERSION: 5.0
         # Vendor code (Strimr) has actor-isolation violations that are
@@ -161,6 +162,11 @@ targets:
         # isolation checks to errors even under Swift 5 + minimal mode.
         # Remove once Strimr fixes its actor isolation (file upstream PR).
         OTHER_SWIFT_FLAGS: "-Xfrontend -strict-concurrency=minimal -Xfrontend -disable-dynamic-actor-isolation"
+      configs:
+        Debug:
+          CODE_SIGN_IDENTITY: Apple Development
+        Release:
+          CODE_SIGN_IDENTITY: Apple Distribution
 
     scheme:
       shared: true

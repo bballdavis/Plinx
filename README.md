@@ -15,7 +15,7 @@
 - **Hard-coded Filtering:** Plinx automatically intercepts any media missing the "Kids" label or exceeding "TV-Y" / "G" ratings.
 - **Parental Gate:** Access to settings is protected by a Plinxie-themed math challenge.
 - **Physical Protection:** Immediate playback cessation and memory clearing on backgrounding; includes a **Baby Lock** triple-tap gesture to prevent accidental inputs.
-- **Zero Collection:** We collect no data. Period. See `PrivacyInfo.xcprivacy`.
+- **Zero Collection:** We collect no data. Period. See `PrivacyInfo.xcprivacy` and the full text in `PRIVACY_POLICY.md`.
 
 ## ❤️ Credits & Foundations
 

@@ -23,7 +23,11 @@ PLINX_APP_DIR="$PROJECT_ROOT/PlinxApp"
 
 # Configuration
 DEVICE_NAME="${1:-iPhone 16 Pro Max}"
-BUNDLE_ID="com.example.plinx"
+# We used to hardcode the bundle identifier here, which could
+# be incorrect and also caused uninstall/launch commands to fail if
+# the app changed.  Instead we will infer it from the built product
+# after the build completes.
+# BUNDLE_ID="com.example.plinx"
 SCHEME="Plinx-iOS"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -33,19 +37,30 @@ echo "Device: $DEVICE_NAME"
 echo "Bundle: $BUNDLE_ID"
 echo ""
 
-# Step 1: Check if simulator exists
-echo "📱 Finding simulator..."
-UDID=$(xcrun simctl list devices available | grep "$DEVICE_NAME" | grep -oE '\(([A-F0-9-]+)\)' | head -1 | tr -d '()')
+# Step 1: Determine destination for build.  The user may pass
+# the literal string "generic" to request a generic iOS Simulator
+# destination, avoiding the need to look up a specific device UUID.
+# This is handy when running in CI or when you don't care about a
+# particular simulator instance.
+echo "📱 Determining destination..."
+if [ "$DEVICE_NAME" = "generic" ]; then
+    echo "→ using generic iOS Simulator destination"
+    DEST="platform=iOS Simulator"
+else
+    UDID=$(xcrun simctl list devices available | grep "$DEVICE_NAME" | grep -oE '\(([A-F0-9-]+)\)' | head -1 | tr -d '()')
 
-if [ -z "$UDID" ]; then
-    echo "❌ Simulator '$DEVICE_NAME' not found."
-    echo ""
-    echo "Available devices:"
-    xcrun simctl list devices available | grep "iPhone\|iPad"
-    exit 1
+    if [ -z "$UDID" ]; then
+        echo "❌ Simulator '$DEVICE_NAME' not found."
+        echo ""
+        echo "Available devices:"
+        xcrun simctl list devices available | grep "iPhone\|iPad"
+        exit 1
+    fi
+
+    echo "✓ Found: $DEVICE_NAME ($UDID)"
+    DEST="platform=iOS Simulator,id=$UDID"
 fi
 
-echo "✓ Found: $DEVICE_NAME ($UDID)"
 echo ""
 
 # Step 2: Boot simulator if not running
@@ -84,10 +99,11 @@ echo ""
 # Step 4: Build the app
 echo "🔨 Building Plinx-iOS..."
 BUILD_LOG="/tmp/plinx_build_iphone.log"
+# use the computed destination string (may be generic)
 xcodebuild build \
     -project Plinx.xcodeproj \
     -scheme "$SCHEME" \
-    -destination "platform=iOS Simulator,id=$UDID" \
+    -destination "$DEST" \
     -configuration Debug \
     2>&1 | tee "$BUILD_LOG" | grep -E "error:|warning:|Build succeeded|BUILD FAILED" || true
 
@@ -101,8 +117,13 @@ fi
 echo "✓ Build succeeded"
 echo ""
 
-# Step 5: Find the built app
-APP_PATH=$(find "$HOME/Library/Developer/Xcode/DerivedData" -name "Plinx.app" -type d 2>/dev/null | grep -E "Debug-iphonesimulator" | head -1)
+# Step 5: Find the built app.  Avoid returning the stub inside
+# Index.noindex which frequently lacks a valid Info.plist and causes
+# "Missing bundle ID" install errors.
+APP_PATH=$(find "$HOME/Library/Developer/Xcode/DerivedData" -name "Plinx.app" -type d 2>/dev/null \
+    | grep -E "Debug-iphonesimulator" \
+    | grep -v "Index\.noindex" \
+    | head -1)
 
 if [ -z "$APP_PATH" ]; then
     echo "❌ Could not find built Plinx.app in DerivedData"
@@ -112,9 +133,30 @@ fi
 echo "📦 App location: $APP_PATH"
 echo ""
 
+# derive the bundle identifier from the built app rather than relying on
+# a hardcoded constant.  this also avoids the placeholder value used
+# earlier in the script.
+BUNDLE_ID=$(defaults read "$APP_PATH/Info" CFBundleIdentifier 2>/dev/null || true)
+if [ -z "$BUNDLE_ID" ]; then
+    echo "❌ could not read bundle identifier from built app"
+    exit 1
+fi
+
+echo "Bundle ID: $BUNDLE_ID"
+echo ""
+
 # Step 6: Uninstall previous version (if present)
 echo "🧹 Uninstalling previous version..."
-xcrun simctl uninstall "$UDID" "$BUNDLE_ID" 2>/dev/null || true
+# when using a generic destination UDID may be empty but uninstall
+# still works if we omit it.
+if [ -n "$UDID" ]; then
+    xcrun simctl uninstall "$UDID" "$BUNDLE_ID" 2>/dev/null || true
+else
+    # try uninstalling from all simulators (harmless if not installed)
+    for d in $(xcrun simctl list devices available | grep -oE '\(([A-F0-9-]+)\)' | tr -d '()'); do
+        xcrun simctl uninstall "$d" "$BUNDLE_ID" 2>/dev/null || true
+    done
+fi
 
 # Step 7: Install app
 echo "📥 Installing app..."
