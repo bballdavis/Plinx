@@ -34,6 +34,7 @@ xcodebuild archive \
   -project PlinxApp/Plinx.xcodeproj \
   -scheme "$SCHEME" \
   -configuration "$CONFIGURATION" \
+  -destination "generic/platform=iOS" \
   -archivePath "$ARCHIVE_PATH" \
   -derivedDataPath ./build/DerivedData \
   CODE_SIGN_IDENTITY="Apple Distribution" \

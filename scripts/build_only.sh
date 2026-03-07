@@ -80,7 +80,10 @@ fi
 echo ""
 echo "✓ Build succeeded"
 echo ""
-BUILD_APP=$(find "$HOME/Library/Developer/Xcode/DerivedData" -name "Plinx.app" -type d 2>/dev/null | grep -E "Debug-iphonesimulator" | head -1)
+BUILD_APP=$(find "$HOME/Library/Developer/Xcode/DerivedData" -name "Plinx.app" -type d 2>/dev/null \
+    | grep -E "Debug-iphonesimulator" \
+    | grep -v "Index\.noindex" \
+    | head -1)
 if [ -n "$BUILD_APP" ]; then
     echo "📦 App location: $BUILD_APP"
 else
