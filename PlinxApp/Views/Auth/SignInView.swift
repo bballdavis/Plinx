@@ -28,7 +28,7 @@ struct SignInView: View {
 
                 Text("signIn.subtitle")
                     .multilineTextAlignment(.center)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.accentColor)
             }
 
             Button {
@@ -36,16 +36,25 @@ struct SignInView: View {
             } label: {
                 HStack {
                     if viewModel.isAuthenticating {
-                        ProgressView().tint(theme.palette.primary)
+                        ProgressView().tint(Color.accentColor)
                     }
                     Text(viewModel.isAuthenticating
                          ? "signIn.button.waiting"
                          : "signIn.button.continue")
                         .plinxStyle(theme.typography.button)
                 }
-                .foregroundStyle(theme.palette.onPrimary)
+                .foregroundStyle(Color.accentColor)
                 .frame(maxWidth: .infinity)
-                .liquidGlassStyle(variant: theme.glass)
+                .padding(.horizontal, 14)
+                .frame(minHeight: 52)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color.accentColor.opacity(0.18))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color.accentColor.opacity(0.32), lineWidth: 1)
+                )
             }
             .buttonStyle(PlinkButtonStyle(springs: theme.springs))
             .disabled(viewModel.isAuthenticating)
