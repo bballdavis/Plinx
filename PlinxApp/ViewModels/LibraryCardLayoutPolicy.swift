@@ -13,4 +13,8 @@ enum LibraryCardLayoutPolicy {
             return true
         }
     }
+
+    static func bannerArtworkDisplayCount(isPhonePortrait: Bool) -> Int {
+        isPhonePortrait ? 3 : 5
+    }
 }

@@ -23,4 +23,18 @@ final class LibraryCardLayoutPolicyTests: XCTestCase {
         )
         XCTAssertTrue(LibraryCardLayoutPolicy.prefersLandscape(for: library))
     }
+
+    func test_bannerArtworkDisplayCount_usesThreeForPhonePortrait() {
+        XCTAssertEqual(
+            LibraryCardLayoutPolicy.bannerArtworkDisplayCount(isPhonePortrait: true),
+            3
+        )
+    }
+
+    func test_bannerArtworkDisplayCount_usesFiveOtherwise() {
+        XCTAssertEqual(
+            LibraryCardLayoutPolicy.bannerArtworkDisplayCount(isPhonePortrait: false),
+            5
+        )
+    }
 }

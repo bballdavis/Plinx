@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import PlinxUI
 
 struct PlinxLibraryView: View {
@@ -8,6 +9,8 @@ struct PlinxLibraryView: View {
     @State private var artworkRefreshToken = UUID()
 
     @Environment(\.safetyPolicy) private var safetyPolicy
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
 
     var body: some View {
         Group {
@@ -116,6 +119,13 @@ struct PlinxLibraryView: View {
         }
     }
 
+    private var bannerArtworkDisplayCount: Int {
+        let isPhonePortrait = UIDevice.current.userInterfaceIdiom == .phone
+            && horizontalSizeClass == .compact
+            && verticalSizeClass == .regular
+        return LibraryCardLayoutPolicy.bannerArtworkDisplayCount(isPhonePortrait: isPhonePortrait)
+    }
+
     private func adaptiveLibraryArtwork(
         artworkURLs: [URL],
         size: CGSize,
@@ -123,7 +133,7 @@ struct PlinxLibraryView: View {
     ) -> some View {
         let aspect = size.width / max(size.height, 1)
         let isUltraWide = aspect > 2.1
-        let artwork = artworkURLs.prefix(5)
+        let artwork = artworkURLs.prefix(bannerArtworkDisplayCount)
 
         guard let first = artwork.first else {
             return AnyView(placeholder)
@@ -160,7 +170,7 @@ struct PlinxLibraryView: View {
         let sources: [URL] = Array(artworkURLs)
         guard !sources.isEmpty else { return AnyView(placeholder) }
 
-        let displayCount = min(sources.count, 5)
+        let displayCount = min(sources.count, bannerArtworkDisplayCount)
         let panelBaseWidth = size.width / CGFloat(max(displayCount, 1))
         let overlap: CGFloat = panelBaseWidth * 0.12
         let panelWidth = panelBaseWidth + overlap

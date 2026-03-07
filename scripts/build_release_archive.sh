@@ -37,6 +37,7 @@ xcodebuild archive \
   -destination "generic/platform=iOS" \
   -archivePath "$ARCHIVE_PATH" \
   -derivedDataPath ./build/DerivedData \
+  CODE_SIGN_IDENTITY="Apple Distribution" \
   CODE_SIGN_STYLE="Automatic"
 
 echo ""
