@@ -28,6 +28,14 @@
 "tabs.downloads" = "Downloads";
 "tabs.settings" = "Settings";
 
+/* Downloads */
+"downloads.empty.title" = "No downloads";
+"downloads.empty.message" = "Downloaded content will appear here.";
+"downloads.offline.banner" = "Offline - playing downloaded content";
+"downloads.status.queued" = "Queued";
+"downloads.status.downloading %lld" = "Downloading %lld%%";
+"downloads.status.failed" = "Download failed";
+
 /* Home */
 "home.loading" = "Loading your shows…";
 "home.section.continueWatching" = "Continue Watching";
@@ -60,9 +68,18 @@
 "settings.homescreen.sections.footer" = "Drag to control which section appears first on the Home tab.";
 
 /* Settings — Appearance */
+"settings.appearance.section" = "Appearance";
+"settings.appearance.title" = "Appearance";
+"settings.appearance.description" = "Adjust colors and shared navigation button sizing across Plinx.";
+"settings.appearance.buttons.title" = "Button Size";
+"settings.appearance.buttons.description" = "Controls the shared chrome buttons used for back, close, settings, and downloads actions.";
+"settings.appearance.buttons.small" = "Small";
+"settings.appearance.buttons.medium" = "Medium";
+"settings.appearance.buttons.large" = "Large";
 "settings.accent.section" = "Appearance";
 "settings.accent.title" = "Accent Color";
 "settings.accent.description" = "Choose the highlight color used throughout Plinx.";
+"settings.downloads.title" = "Downloads";
 
 /* Settings — Playback */
 "settings.playback.section" = "Playback";

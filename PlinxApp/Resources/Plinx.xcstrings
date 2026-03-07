@@ -131,12 +131,82 @@
         }
       }
     },
+    "tabs.downloads" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloads"
+          }
+        }
+      }
+    },
     "tabs.settings" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Settings"
+          }
+        }
+      }
+    },
+    "downloads.empty.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No downloads"
+          }
+        }
+      }
+    },
+    "downloads.empty.message" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloaded content will appear here."
+          }
+        }
+      }
+    },
+    "downloads.offline.banner" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Offline - playing downloaded content"
+          }
+        }
+      }
+    },
+    "downloads.status.queued" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Queued"
+          }
+        }
+      }
+    },
+    "downloads.status.downloading %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloading %lld%%"
+          }
+        }
+      }
+    },
+    "downloads.status.failed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download failed"
           }
         }
       }
@@ -381,6 +451,86 @@
         }
       }
     },
+    "settings.appearance.section" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appearance"
+          }
+        }
+      }
+    },
+    "settings.appearance.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appearance"
+          }
+        }
+      }
+    },
+    "settings.appearance.description" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adjust colors and shared navigation button sizing across Plinx."
+          }
+        }
+      }
+    },
+    "settings.appearance.buttons.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Button Size"
+          }
+        }
+      }
+    },
+    "settings.appearance.buttons.description" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Controls the shared chrome buttons used for back, close, settings, and downloads actions."
+          }
+        }
+      }
+    },
+    "settings.appearance.buttons.small" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Small"
+          }
+        }
+      }
+    },
+    "settings.appearance.buttons.medium" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Medium"
+          }
+        }
+      }
+    },
+    "settings.appearance.buttons.large" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Large"
+          }
+        }
+      }
+    },
     "settings.accent.title" : {
       "localizations" : {
         "en" : {
@@ -397,6 +547,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Choose the highlight color used throughout Plinx."
+          }
+        }
+      }
+    },
+    "settings.downloads.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloads"
           }
         }
       }

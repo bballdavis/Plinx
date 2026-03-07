@@ -27,6 +27,12 @@ struct RootTabView: View {
     /// Local overrides for watched status, keyed by media item id.
     /// Updated instantly on toggle; cleared when home data reloads.
     @State private var watchedOverrides: [String: Bool] = [:]
+    @AppStorage(PlinxChromeButtonSizePreference.storageKey)
+    private var chromeButtonSizeRaw = PlinxChromeButtonSizePreference.defaultValue.rawValue
+
+    private var chromeButtonSize: PlinxChromeButtonSizePreference {
+        PlinxChromeButtonSizePreference(rawValue: chromeButtonSizeRaw) ?? .medium
+    }
 
     private var launcher: PlaybackLauncher {
         PlaybackLauncher(
@@ -338,21 +344,8 @@ struct RootTabView: View {
                 .font(.title3.weight(.bold))
                 .foregroundStyle(.white.opacity(0.95))
             Spacer()
-            Button {
+            PlinxChromeButton(systemImage: "xmark") {
                 showSettings = false
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
-                    .frame(width: 52, height: 52)
-                    .background(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(.ultraThinMaterial)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(Color.accentColor.opacity(0.35), lineWidth: 1)
-                    )
             }
         }
         .padding(.horizontal, 20)
@@ -383,25 +376,12 @@ struct RootTabView: View {
             }
             Spacer()
             if showsSettingsButton {
-                Button {
+                PlinxChromeButton(systemImage: "gearshape.fill") {
                     showSettings = true
-                } label: {
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: 22, weight: .semibold))
-                        .foregroundStyle(Color.accentColor)
-                        .frame(width: 52, height: 52)
-                        .background(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(.ultraThinMaterial)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(Color.accentColor.opacity(0.35), lineWidth: 1)
-                        )
                 }
             } else {
                 Color.clear
-                    .frame(width: 52, height: 52)
+                    .frame(width: chromeButtonSize.sideLength, height: chromeButtonSize.sideLength)
             }
         }
         .padding(.horizontal, 20)

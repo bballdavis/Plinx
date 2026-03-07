@@ -34,7 +34,11 @@ struct PlinxDownloadsGridView: View {
         ScrollView {
             LazyVStack(spacing: 0) {
                 if downloadManager.isOffline {
-                    Label("downloads.offline.banner", systemImage: "wifi.slash")
+                    Label {
+                        Text("downloads.offline.banner", tableName: "Plinx")
+                    } icon: {
+                        Image(systemName: "wifi.slash")
+                    }
                         .foregroundStyle(.orange)
                         .font(.subheadline.weight(.semibold))
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -90,7 +94,7 @@ struct PlinxDownloadsGridView: View {
 
     private var titleRow: some View {
         ZStack {
-            Text("tabs.downloads")
+            Text("tabs.downloads", tableName: "Plinx")
                 .font(.title3.weight(.bold))
                 .foregroundStyle(.white.opacity(0.95))
 
@@ -236,13 +240,16 @@ struct PlinxDownloadsGridView: View {
     private func tertiaryLabel(for item: DownloadItem) -> String? {
         switch item.status {
         case .queued:
-            return "Queued"
+            return NSLocalizedString("downloads.status.queued", tableName: "Plinx", comment: "")
         case .downloading:
-            return "Downloading \(Int((item.progress * 100).rounded()))%"
+            return String.localizedStringWithFormat(
+                NSLocalizedString("downloads.status.downloading %lld", tableName: "Plinx", comment: ""),
+                Int64((item.progress * 100).rounded())
+            )
         case .completed:
             return nil
         case .failed:
-            return "Download failed"
+            return NSLocalizedString("downloads.status.failed", tableName: "Plinx", comment: "")
         }
     }
 
@@ -260,21 +267,7 @@ struct PlinxDownloadsGridView: View {
     }
 
     private func chromeButton(systemImage: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: systemImage)
-                .font(.system(size: 30, weight: .semibold))
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 78, height: 78)
-                .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(.ultraThinMaterial)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(Color.accentColor.opacity(0.35), lineWidth: 1)
-                )
-        }
-        .buttonStyle(.plain)
+        PlinxChromeButton(systemImage: systemImage, action: action)
     }
 
     private var portraitTypes: Set<PlexItemType> {
@@ -307,9 +300,9 @@ struct PlinxDownloadsGridView: View {
             Image(systemName: "arrow.down.circle")
                 .font(.system(size: 44))
                 .foregroundStyle(.secondary)
-            Text("downloads.empty.title")
+            Text("downloads.empty.title", tableName: "Plinx")
                 .font(.headline)
-            Text("downloads.empty.message")
+            Text("downloads.empty.message", tableName: "Plinx")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -338,21 +331,8 @@ struct PlinxDownloadsManageView: View {
 
     private var manageHeader: some View {
         HStack(spacing: 12) {
-            Button {
+            PlinxChromeButton(systemImage: "chevron.left") {
                 dismiss()
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
-                    .frame(width: 52, height: 52)
-                    .background(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(.ultraThinMaterial)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(Color.accentColor.opacity(0.35), lineWidth: 1)
-                    )
             }
             Spacer()
         }
