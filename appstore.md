@@ -43,11 +43,4 @@ Choose words customers might search for; separate them with commas and avoid spa
 
 ---
 
-## Privacy Policy
-
-Plinx is a zero‑collection app; we do not gather or transmit any personal information.  All data stays on the device and communication is only with Plex services.  When you submit to App Store Connect you can provide a URL pointing at the full privacy policy (see `PRIVACY_POLICY.md` in this repo).
-
-
----
-
 You can update this file each time the App Store metadata changes so there’s a history of the copy used for past releases.
