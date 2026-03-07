@@ -81,7 +81,7 @@ echo ""
 echo "⚙️  Generating Xcode project..."
 cd "$PLINX_APP_DIR"
 XGEN_LOG="/tmp/plinx_xcodegen_iphone.log"
-xcodegen generate 2>&1 | tee "$XGEN_LOG"
+bash "$PROJECT_ROOT/scripts/generate_xcodeproj.sh" 2>&1 | tee "$XGEN_LOG"
 
 if [ "${PIPESTATUS[0]}" -ne 0 ]; then
     echo "❌ XcodeGen failed"

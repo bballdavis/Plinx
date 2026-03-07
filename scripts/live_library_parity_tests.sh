@@ -106,7 +106,7 @@ run_tests() {
   info "Generating Xcode project"
   (
     cd "$PROJECT_ROOT/PlinxApp"
-    xcodegen generate >/tmp/plinx_xcodegen_live_parity.log 2>&1
+    bash "$PROJECT_ROOT/scripts/generate_xcodeproj.sh" >/tmp/plinx_xcodegen_live_parity.log 2>&1
   )
 
   # determine the bundle identifier from the generated project so that

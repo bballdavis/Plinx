@@ -46,11 +46,9 @@ packages:
   #   - Independent source compilation validation via app target build
   #   - Future migration when Strimr types become `public`
   MPVKit:
-    url: https://github.com/wunax/MPVKit
-    exactVersion: 0.41.2
+    path: ../../MPVKit
   Sentry:
-    url: https://github.com/getsentry/sentry-cocoa.git
-    exactVersion: 9.1.0
+    path: ../../sentry-cocoa
 
 settings:
   base:

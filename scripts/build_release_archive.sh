@@ -68,9 +68,7 @@ echo ""
 
 # Generate project from XcodeGen
 echo "📋 Generating Xcode project..."
-cd PlinxApp
-xcodegen generate --quiet
-cd ..
+bash ./scripts/generate_xcodeproj.sh --quiet
 
 # Build archive
 echo "🏗️  Building archive..."

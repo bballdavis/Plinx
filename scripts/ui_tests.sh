@@ -215,7 +215,7 @@ run_live_ui_tests() {
 
     cd "$PROJECT_ROOT/PlinxApp"
 
-    xcodegen generate >/tmp/plinx_xcodegen.log 2>&1
+    bash "$PROJECT_ROOT/scripts/generate_xcodeproj.sh" >/tmp/plinx_xcodegen.log 2>&1
     rm -rf /tmp/Plinx_live_ui.xcresult
 
     if xcodebuild test \
