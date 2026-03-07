@@ -216,6 +216,21 @@ Or just run a script with an invalid name—it will show the available options.
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen) installed (used by build scripts)
 - iOS Simulator runtime
 
+## Local Dependency Mirrors
+
+For local stability, Plinx references sibling clones of forked package repositories directly from [PlinxApp/project.yml](PlinxApp/project.yml):
+
+```bash
+/Users/philipdavis/Repos/
+  Plinx/
+  MPVKit/
+  sentry-cocoa/
+```
+
+These are referenced via `../../MPVKit` and `../../sentry-cocoa` from the `PlinxApp` directory, which means GUI archive/distribute flows in Xcode use the same local package sources as the shell scripts once the project has been generated.
+
+This removes dependency on cloning the package source from upstream during project generation and package resolution. It does not, by itself, eliminate all remote binary artifact downloads if the package manifests still point to release ZIPs.
+
 ## Troubleshooting
 
 **Simulator not found:**

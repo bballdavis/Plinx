@@ -51,7 +51,7 @@ echo ""
 # Generate project
 echo "⚙️  Generating Xcode project..."
 cd "$PLINX_APP_DIR"
-xcodegen generate
+bash "$PROJECT_ROOT/scripts/generate_xcodeproj.sh"
 
 if [ ! -d "Plinx.xcodeproj" ]; then
     echo "❌ XcodeGen failed"
