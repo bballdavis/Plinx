@@ -156,6 +156,48 @@ Removes all generated and cached build files.
 
 ---
 
+### `build_release_archive.sh` — Build Release Archive For TestFlight
+
+Builds a signed archive for App Store Connect and validates the packaged app bundle before upload.
+
+```bash
+# Build with an auto-generated unique build number
+./scripts/build_release_archive.sh
+
+# Build with an explicit App Store build number
+./scripts/build_release_archive.sh --build-number 4
+
+# Build with explicit version and build number
+./scripts/build_release_archive.sh --marketing-version 1.0 --build-number 4
+```
+
+**What it does:**
+- Generates the Xcode project from `project.yml`
+- Archives the Release build for `generic/platform=iOS`
+- Overrides `CURRENT_PROJECT_VERSION` with a unique build number by default
+- Runs `validate_testflight_archive.sh` to catch missing launch screen and privacy manifest issues locally
+
+### `validate_testflight_archive.sh` — Validate Archive Contents
+
+Validates the app bundle inside an `.xcarchive` before you upload it.
+
+```bash
+# Validate the default archive path
+./scripts/validate_testflight_archive.sh
+
+# Validate a specific archive
+./scripts/validate_testflight_archive.sh ./build/Plinx.xcarchive
+```
+
+**What it checks:**
+- `CFBundleShortVersionString` and `CFBundleVersion` are present
+- `UILaunchStoryboardName` is present
+- The compiled launch storyboard exists in the app bundle
+- `PrivacyInfo.xcprivacy` exists in the app bundle
+- `Assets.car` exists in the app bundle
+
+---
+
 ## Available Simulators
 
 To see available iOS simulators:
