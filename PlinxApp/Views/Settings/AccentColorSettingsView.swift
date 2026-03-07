@@ -8,6 +8,74 @@ import SwiftUI
 // in PlinxApp, making the change immediate and app-wide.
 // ─────────────────────────────────────────────────────────────────────────────
 
+struct AppearanceSettingsView: View {
+    @AppStorage("plinx.chromeButtonSize") private var chromeButtonSizeRaw = PlinxChromeButtonSizePreference.defaultValue.rawValue
+
+    private var chromeButtonSize: PlinxChromeButtonSizePreference {
+        PlinxChromeButtonSizePreference(rawValue: chromeButtonSizeRaw) ?? .medium
+    }
+
+    private var sliderBinding: Binding<Double> {
+        Binding(
+            get: { chromeButtonSize.sliderIndex },
+            set: { chromeButtonSizeRaw = PlinxChromeButtonSizePreference.from(sliderIndex: $0).rawValue }
+        )
+    }
+
+    var body: some View {
+        List {
+            Section {
+                NavigationLink(destination: AccentColorSettingsView()) {
+                    Label {
+                        Text("settings.accent.title", tableName: "Plinx")
+                    } icon: {
+                        Image(systemName: "paintpalette.fill")
+                            .foregroundStyle(Color.accentColor)
+                    }
+                }
+            } footer: {
+                Text("settings.appearance.description", tableName: "Plinx")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("settings.appearance.buttons.title", tableName: "Plinx")
+                        Spacer()
+                        Text(chromeButtonSize.localizedLabel)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Slider(value: sliderBinding, in: 0...2, step: 1)
+                        .tint(.accentColor)
+
+                    HStack {
+                        Text("settings.appearance.buttons.small", tableName: "Plinx")
+                        Spacer()
+                        Text("settings.appearance.buttons.medium", tableName: "Plinx")
+                        Spacer()
+                        Text("settings.appearance.buttons.large", tableName: "Plinx")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 4)
+            } footer: {
+                Text("settings.appearance.buttons.description", tableName: "Plinx")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .navigationTitle(Text("settings.appearance.title", tableName: "Plinx"))
+        .navigationBarTitleDisplayMode(.large)
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(Color.black.ignoresSafeArea())
+    }
+}
+
 struct AccentColorSettingsView: View {
     @AppStorage("plinx.accentColorName") private var accentColorName = PlinxAccentColor.green.rawValue
 

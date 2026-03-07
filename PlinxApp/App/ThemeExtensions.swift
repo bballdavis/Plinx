@@ -60,3 +60,110 @@ enum PlinxAccentColor: String, CaseIterable, Identifiable {
         rawValue.capitalized
     }
 }
+
+enum PlinxChromeButtonSizePreference: String, CaseIterable, Identifiable {
+    static let storageKey = "plinx.chromeButtonSize"
+    static let defaultValue: Self = .medium
+
+    case small, medium, large
+
+    var id: String { rawValue }
+
+    var sideLength: CGFloat {
+        switch self {
+        case .small:
+            return 39
+        case .medium:
+            return 52
+        case .large:
+            return 78
+        }
+    }
+
+    var iconFontSize: CGFloat {
+        switch self {
+        case .small:
+            return 17
+        case .medium:
+            return 22
+        case .large:
+            return 30
+        }
+    }
+
+    var cornerRadius: CGFloat {
+        switch self {
+        case .small:
+            return 12
+        case .medium, .large:
+            return 14
+        }
+    }
+
+    var sliderIndex: Double {
+        switch self {
+        case .small:
+            return 0
+        case .medium:
+            return 1
+        case .large:
+            return 2
+        }
+    }
+
+    var localizationKey: String {
+        switch self {
+        case .small:
+            return "settings.appearance.buttons.small"
+        case .medium:
+            return "settings.appearance.buttons.medium"
+        case .large:
+            return "settings.appearance.buttons.large"
+        }
+    }
+
+    var localizedLabel: String {
+        NSLocalizedString(localizationKey, tableName: "Plinx", comment: "")
+    }
+
+    static func from(sliderIndex: Double) -> Self {
+        switch Int(sliderIndex.rounded()) {
+        case 0:
+            return .small
+        case 2:
+            return .large
+        default:
+            return .medium
+        }
+    }
+}
+
+struct PlinxChromeButton: View {
+    let systemImage: String
+    let action: () -> Void
+
+    @AppStorage(PlinxChromeButtonSizePreference.storageKey)
+    private var chromeButtonSizeRaw = PlinxChromeButtonSizePreference.defaultValue.rawValue
+
+    private var sizePreference: PlinxChromeButtonSizePreference {
+        PlinxChromeButtonSizePreference(rawValue: chromeButtonSizeRaw) ?? .medium
+    }
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: sizePreference.iconFontSize, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+                .frame(width: sizePreference.sideLength, height: sizePreference.sideLength)
+                .background(
+                    RoundedRectangle(cornerRadius: sizePreference.cornerRadius, style: .continuous)
+                        .fill(.ultraThinMaterial)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: sizePreference.cornerRadius, style: .continuous)
+                        .stroke(Color.accentColor.opacity(0.35), lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+}

@@ -84,29 +84,29 @@ private struct SettingsBody: View {
 
             // MARK: Appearance
             Section {
-                NavigationLink(destination: AccentColorSettingsView()) {
+                NavigationLink(destination: AppearanceSettingsView()) {
                     Label {
-                        Text("settings.accent.title", tableName: "Plinx")
+                        Text("settings.appearance.title", tableName: "Plinx")
                     } icon: {
                         Image(systemName: "paintpalette.fill")
                             .foregroundStyle(Color.accentColor)
                     }
                 }
             } header: {
-                Text("settings.accent.section", tableName: "Plinx")
+                Text("settings.appearance.section", tableName: "Plinx")
             }
 
             // MARK: Downloads
             Section {
                 NavigationLink(destination: SettingsDownloadsView()) {
                     Label {
-                        Text("settings.downloads.title")
+                        Text("settings.downloads.title", tableName: "Plinx")
                     } icon: {
                         Image(systemName: "arrow.down.circle.fill")
                     }
                 }
             } header: {
-                Text("settings.downloads.title")
+                Text("settings.downloads.title", tableName: "Plinx")
             }
 
             // MARK: Playback
