@@ -49,7 +49,7 @@ struct RootTabView: View {
             return .search
         case .library, .libraryDetail(_):
             return .library
-        case .downloads, .more:
+        case .more:
             return .more
         case .home, .seerrDiscover:
             return .home
@@ -57,6 +57,10 @@ struct RootTabView: View {
     }
 
     private var hasDownloadActivity: Bool {
+        // CRITICAL: Check for ANY download items (queued, downloading, completed, failed)
+        // NOT just completedItems. The downloads tab should show if there's any
+        // download activity in progress, failed, or already completed.
+        // See: Known regression where this checked only completedItems (commit 4357449)
         !downloadManager.items.isEmpty
     }
 
@@ -316,7 +320,7 @@ struct RootTabView: View {
             .allowsHitTesting(activeRootTab == .library)
             .accessibilityHidden(activeRootTab != .library)
 
-        case .downloads, .more:
+        case .more:
             NavigationStack(path: mainCoordinator.pathBinding(for: .more)) {
                 PlinxDownloadsGridView()
                     .toolbar(.hidden, for: .navigationBar)
