@@ -69,13 +69,13 @@ jobs:
           cd PlinxApp
           xcodegen generate
 
-      - name: Validate: Build PlinxCore
+      - name: "Validate: Build PlinxCore"
         run: swift build --package-path Packages/PlinxCore
 
-      - name: Validate: Build PlinxUI
+      - name: "Validate: Build PlinxUI"
         run: swift build --package-path Packages/PlinxUI
 
-      - name: Validate: Build Plinx-iOS App
+      - name: "Validate: Build Plinx-iOS App"
         run: |
           xcodebuild build \
             -project PlinxApp/Plinx.xcodeproj \

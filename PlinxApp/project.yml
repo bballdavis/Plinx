@@ -28,7 +28,12 @@ options:
   minimumXcodeGenVersion: 2.37.0
   deploymentTarget:
     iOS: 17.0
-  postGenCommand: python3 ../.local_dev/patch_resources.py
+  postGenCommand: >-
+    if [ -f ../.local_dev/patch_resources.py ]; then
+      python3 ../.local_dev/patch_resources.py;
+    else
+      echo "Skipping local resource patch script in non-local environment.";
+    fi
 
 packages:
   PlinxCore:
