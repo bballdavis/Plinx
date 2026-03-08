@@ -143,22 +143,44 @@ enum PlinxNavigationPreference {
     static let defaultShowSearchInMainNavigation = false
 }
 
+enum PlinxAnimationPreference {
+    static let playfulAnimationsStorageKey = "plinx.playfulAnimationsEnabled"
+    static let defaultPlayfulAnimationsEnabled = false
+}
+
 struct PlinxChromeButton: View {
     let systemImage: String
     let action: () -> Void
 
     @AppStorage(PlinxChromeButtonSizePreference.storageKey)
     private var chromeButtonSizeRaw = PlinxChromeButtonSizePreference.defaultValue.rawValue
+    @AppStorage(PlinxAnimationPreference.playfulAnimationsStorageKey)
+    private var playfulAnimationsEnabled = PlinxAnimationPreference.defaultPlayfulAnimationsEnabled
+
+    @State private var isAnimatingTap = false
 
     private var sizePreference: PlinxChromeButtonSizePreference {
         PlinxChromeButtonSizePreference(rawValue: chromeButtonSizeRaw) ?? .medium
     }
 
+    private var isBackButton: Bool {
+        systemImage == "chevron.left"
+    }
+
+    private var usesPlayfulTapAnimation: Bool {
+        playfulAnimationsEnabled && isBackButton
+    }
+
     var body: some View {
-        Button(action: action) {
+        Button(action: handleTap) {
             Image(systemName: systemImage)
                 .font(.system(size: sizePreference.iconFontSize, weight: .semibold))
                 .foregroundStyle(Color.accentColor)
+                .rotationEffect(.degrees(usesPlayfulTapAnimation && isAnimatingTap ? -16 : 0))
+                .offset(
+                    x: usesPlayfulTapAnimation && isAnimatingTap ? -7 : 0,
+                    y: usesPlayfulTapAnimation && isAnimatingTap ? -2 : 0
+                )
                 .frame(width: sizePreference.sideLength, height: sizePreference.sideLength)
                 .background(
                     RoundedRectangle(cornerRadius: sizePreference.cornerRadius, style: .continuous)
@@ -169,6 +191,30 @@ struct PlinxChromeButton: View {
                         .stroke(Color.accentColor.opacity(0.35), lineWidth: 1)
                 )
         }
+        .scaleEffect(usesPlayfulTapAnimation && isAnimatingTap ? 0.9 : 1.0)
+        .offset(y: usesPlayfulTapAnimation && isAnimatingTap ? -3 : 0)
+        .shadow(
+            color: usesPlayfulTapAnimation && isAnimatingTap ? Color.accentColor.opacity(0.22) : .clear,
+            radius: usesPlayfulTapAnimation && isAnimatingTap ? 16 : 0,
+            y: usesPlayfulTapAnimation && isAnimatingTap ? 8 : 0
+        )
+        .animation(.interpolatingSpring(stiffness: 340, damping: 18), value: isAnimatingTap)
         .buttonStyle(.plain)
+    }
+
+    private func handleTap() {
+        guard usesPlayfulTapAnimation else {
+            action()
+            return
+        }
+
+        guard !isAnimatingTap else { return }
+
+        isAnimatingTap = true
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 110_000_000)
+            action()
+            isAnimatingTap = false
+        }
     }
 }

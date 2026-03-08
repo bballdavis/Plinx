@@ -521,6 +521,26 @@
         }
       }
     },
+    "settings.appearance.animations.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playful Animations"
+          }
+        }
+      }
+    },
+    "settings.appearance.animations.description" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adds bouncier motion to the main navigation and back buttons."
+          }
+        }
+      }
+    },
     "settings.appearance.buttons.small" : {
       "localizations" : {
         "en" : {
