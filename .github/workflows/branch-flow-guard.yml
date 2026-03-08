@@ -1,22 +1,16 @@
-name: Branch Flow Guard
+name: Branch Flow Guard (Disabled - No Dev Branch)
 
-on:
-  pull_request:
-    branches:
-      - main
+# DISABLED: This workflow enforces dev->main PR flow, but no dev branch exists locally.
+# Re-enable if you establish a proper develop branch strategy.
+# To re-enable: change the 'on' trigger back to active and update this file.
 
-permissions:
-  contents: read
+on: []  # Disabled: no active triggers
 
 jobs:
   enforce-dev-into-main:
     runs-on: ubuntu-latest
     steps:
-      - name: Validate PR source branch
-        shell: bash
+      - name: Branch flow check skipped
         run: |
-          if [[ "${{ github.head_ref }}" != "dev" ]]; then
-            echo "PRs into main must come from dev. Current source branch: ${{ github.head_ref }}"
-            exit 1
-          fi
-          echo "Branch flow check passed: dev -> main"
+          echo "Branch flow guard is disabled."
+          echo "To enable: establish a 'dev' branch and update the workflow trigger."

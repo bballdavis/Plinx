@@ -23,6 +23,8 @@ struct KidsMainTabPicker: View {
 
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Namespace private var selectionAnimation
+    @AppStorage(PlinxAnimationPreference.playfulAnimationsStorageKey)
+    private var playfulAnimationsEnabled = PlinxAnimationPreference.defaultPlayfulAnimationsEnabled
 
     private var isRegular: Bool { sizeClass == .regular }
 
@@ -71,7 +73,7 @@ struct KidsMainTabPicker: View {
                 ZStack {
                     if isSelected {
                         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                            .fill(Color.accentColor.opacity(0.18))
+                            .fill(Color.accentColor.opacity(playfulAnimationsEnabled ? 0.24 : 0.18))
                             .matchedGeometryEffect(id: "selectedTabBackground", in: selectionAnimation)
                     }
                 }
@@ -83,12 +85,23 @@ struct KidsMainTabPicker: View {
                         lineWidth: 1
                     )
             )
-            .scaleEffect(isSelected ? 1.03 : 1.0)
-            .offset(y: isSelected ? -2 : 0)
+            .scaleEffect(isSelected ? (playfulAnimationsEnabled ? 1.08 : 1.03) : 1.0)
+            .offset(y: isSelected ? (playfulAnimationsEnabled ? -5 : -2) : 0)
+            .rotationEffect(.degrees(isSelected && playfulAnimationsEnabled ? 1.4 : 0))
+            .shadow(
+                color: isSelected && playfulAnimationsEnabled ? Color.accentColor.opacity(0.25) : .clear,
+                radius: isSelected && playfulAnimationsEnabled ? 18 : 0,
+                y: isSelected && playfulAnimationsEnabled ? 10 : 0
+            )
             .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         }
         .buttonStyle(PlinkButtonStyle())
-        .animation(.interpolatingSpring(stiffness: 280, damping: 20), value: selectedTab)
+        .animation(
+            playfulAnimationsEnabled
+                ? .interpolatingSpring(stiffness: 220, damping: 13)
+                : .interpolatingSpring(stiffness: 280, damping: 20),
+            value: selectedTab
+        )
         .accessibilityIdentifier("main.tab.\(item.id)")
     }
 }

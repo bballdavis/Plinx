@@ -77,6 +77,8 @@
 "settings.appearance.description" = "Adjust colors and shared navigation button sizing across Plinx.";
 "settings.appearance.buttons.title" = "Button Size";
 "settings.appearance.buttons.description" = "Controls the shared chrome buttons used for back, close, settings, and downloads actions.";
+"settings.appearance.animations.title" = "Playful Animations";
+"settings.appearance.animations.description" = "Adds bouncier motion to the main navigation and back buttons.";
 "settings.appearance.buttons.small" = "Small";
 "settings.appearance.buttons.medium" = "Medium";
 "settings.appearance.buttons.large" = "Large";

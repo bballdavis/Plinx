@@ -10,6 +10,8 @@ import SwiftUI
 
 struct AppearanceSettingsView: View {
     @AppStorage("plinx.chromeButtonSize") private var chromeButtonSizeRaw = PlinxChromeButtonSizePreference.defaultValue.rawValue
+    @AppStorage(PlinxAnimationPreference.playfulAnimationsStorageKey)
+    private var playfulAnimationsEnabled = PlinxAnimationPreference.defaultPlayfulAnimationsEnabled
 
     private var chromeButtonSize: PlinxChromeButtonSizePreference {
         PlinxChromeButtonSizePreference(rawValue: chromeButtonSizeRaw) ?? .medium
@@ -64,6 +66,21 @@ struct AppearanceSettingsView: View {
                 .padding(.vertical, 4)
             } footer: {
                 Text("settings.appearance.buttons.description", tableName: "Plinx")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Toggle(isOn: $playfulAnimationsEnabled) {
+                    Label {
+                        Text("settings.appearance.animations.title", tableName: "Plinx")
+                    } icon: {
+                        Image(systemName: "sparkles")
+                            .foregroundStyle(.accentColor)
+                    }
+                }
+            } footer: {
+                Text("settings.appearance.animations.description", tableName: "Plinx")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
