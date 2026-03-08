@@ -28,6 +28,9 @@
 "tabs.downloads" = "Downloads";
 "tabs.settings" = "Settings";
 
+/* Search */
+"search.live.minimum %lld" = "Type %lld more letter(s) to start live search.";
+
 /* Downloads */
 "downloads.empty.title" = "No downloads";
 "downloads.empty.message" = "Downloaded content will appear here.";

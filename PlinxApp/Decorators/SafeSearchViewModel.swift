@@ -97,6 +97,10 @@ final class SafeSearchViewModel {
         hasQuery && !hasSearched && trimmedQuery.count < Self.minimumLiveSearchCharacters
     }
 
+    var remainingCharactersForLiveSearch: Int {
+        max(Self.minimumLiveSearchCharacters - trimmedQuery.count, 0)
+    }
+
     // MARK: - Filtering
 
     private var trimmedQuery: String {
