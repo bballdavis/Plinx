@@ -76,7 +76,7 @@ struct AppearanceSettingsView: View {
                         Text("settings.appearance.animations.title", tableName: "Plinx")
                     } icon: {
                         Image(systemName: "sparkles")
-                            .foregroundStyle(.accentColor)
+                            .foregroundStyle(Color.accentColor)
                     }
                 }
             } footer: {

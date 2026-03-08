@@ -12,14 +12,21 @@ This Privacy Policy explains how Plinx ("Plinx", "we", "us", or "our") handles i
 
 ## Information We Collect
 
-Plinx does not collect, transmit, or store any information including:
+**Plinx collects no data of any kind.**
+
+This includes but is not limited to:
 
 - Personal identifiers (name, email, account IDs)
 - Usage analytics
 - Location, contacts, or media
 - Crash reports or diagnostics
+- Telemetry or event tracking
 
 All processing happens locally on your device.
+
+### Crash Reporting
+
+Plinx does not include any crash reporting, analytics, or telemetry frameworks. Unlike many apps, we have intentionally excluded crash reporting SDKs (such as Sentry) to align our implementation with our zero-collection commitment. If the app crashes, you will not be tracked or reported to any external service.
 
 ## Data Storage
 
