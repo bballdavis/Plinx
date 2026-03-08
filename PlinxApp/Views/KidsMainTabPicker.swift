@@ -25,6 +25,7 @@ struct KidsMainTabPicker: View {
     @Namespace private var selectionAnimation
     @AppStorage(PlinxAnimationPreference.playfulAnimationsStorageKey)
     private var playfulAnimationsEnabled = PlinxAnimationPreference.defaultPlayfulAnimationsEnabled
+    @State private var playfulSelectionTrigger = 0
 
     private var isRegular: Bool { sizeClass == .regular }
 
@@ -49,6 +50,10 @@ struct KidsMainTabPicker: View {
         .liquidGlassBackground()
         .padding(.horizontal, isRegular ? 40 : 20)
         .padding(.bottom, 1)
+        .onChange(of: selectedTab) { _, _ in
+            guard playfulAnimationsEnabled else { return }
+            playfulSelectionTrigger &+= 1
+        }
         .accessibilityIdentifier("main.tabPicker")
     }
 
@@ -63,9 +68,17 @@ struct KidsMainTabPicker: View {
             VStack(spacing: 5) {
                 Image(systemName: item.iconName)
                     .font(.system(size: iconPointSize, weight: .semibold))
+                    .symbolEffect(
+                        .bounce.byLayer,
+                        value: playfulAnimationsEnabled && isSelected ? playfulSelectionTrigger : 0
+                    )
+                    .scaleEffect(isSelected ? (playfulAnimationsEnabled ? 1.18 : 1.0) : 1.0)
+                    .rotationEffect(.degrees(isSelected && playfulAnimationsEnabled ? -6 : 0))
+                    .offset(y: isSelected && playfulAnimationsEnabled ? 1 : 0)
                 Text(item.title)
                     .font(labelFont.bold())
                     .lineLimit(1)
+                    .scaleEffect(isSelected && playfulAnimationsEnabled ? 1.05 : 1.0)
             }
             .foregroundStyle(isSelected ? Color.accentColor : Color.white.opacity(0.7))
             .frame(minWidth: buttonMinWidth, minHeight: buttonHeight)
@@ -73,7 +86,7 @@ struct KidsMainTabPicker: View {
                 ZStack {
                     if isSelected {
                         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                            .fill(Color.accentColor.opacity(playfulAnimationsEnabled ? 0.24 : 0.18))
+                            .fill(Color.accentColor.opacity(playfulAnimationsEnabled ? 0.3 : 0.18))
                             .matchedGeometryEffect(id: "selectedTabBackground", in: selectionAnimation)
                     }
                 }
@@ -85,20 +98,20 @@ struct KidsMainTabPicker: View {
                         lineWidth: 1
                     )
             )
-            .scaleEffect(isSelected ? (playfulAnimationsEnabled ? 1.08 : 1.03) : 1.0)
-            .offset(y: isSelected ? (playfulAnimationsEnabled ? -5 : -2) : 0)
-            .rotationEffect(.degrees(isSelected && playfulAnimationsEnabled ? 1.4 : 0))
+            .scaleEffect(isSelected ? (playfulAnimationsEnabled ? 1.14 : 1.03) : 1.0)
+            .offset(y: isSelected ? (playfulAnimationsEnabled ? -4 : -2) : 0)
+            .rotationEffect(.degrees(isSelected && playfulAnimationsEnabled ? 2.5 : 0))
             .shadow(
                 color: isSelected && playfulAnimationsEnabled ? Color.accentColor.opacity(0.25) : .clear,
-                radius: isSelected && playfulAnimationsEnabled ? 18 : 0,
-                y: isSelected && playfulAnimationsEnabled ? 10 : 0
+                radius: isSelected && playfulAnimationsEnabled ? 24 : 0,
+                y: isSelected && playfulAnimationsEnabled ? 11 : 0
             )
             .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         }
         .buttonStyle(PlinkButtonStyle())
         .animation(
             playfulAnimationsEnabled
-                ? .interpolatingSpring(stiffness: 220, damping: 13)
+                ? .interpolatingSpring(stiffness: 170, damping: 10)
                 : .interpolatingSpring(stiffness: 280, damping: 20),
             value: selectedTab
         )
