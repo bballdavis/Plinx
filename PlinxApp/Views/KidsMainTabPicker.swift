@@ -22,6 +22,7 @@ struct KidsMainTabPicker: View {
     @Binding var selectedTab: MainCoordinator.Tab
 
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Namespace private var selectionAnimation
 
     private var isRegular: Bool { sizeClass == .regular }
 
@@ -67,8 +68,13 @@ struct KidsMainTabPicker: View {
             .foregroundStyle(isSelected ? Color.accentColor : Color.white.opacity(0.7))
             .frame(minWidth: buttonMinWidth, minHeight: buttonHeight)
             .background(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(isSelected ? Color.accentColor.opacity(0.18) : Color.clear)
+                ZStack {
+                    if isSelected {
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .fill(Color.accentColor.opacity(0.18))
+                            .matchedGeometryEffect(id: "selectedTabBackground", in: selectionAnimation)
+                    }
+                }
             )
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -77,10 +83,12 @@ struct KidsMainTabPicker: View {
                         lineWidth: 1
                     )
             )
+            .scaleEffect(isSelected ? 1.03 : 1.0)
+            .offset(y: isSelected ? -2 : 0)
             .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         }
         .buttonStyle(PlinkButtonStyle())
-        .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isSelected)
+        .animation(.interpolatingSpring(stiffness: 280, damping: 20), value: selectedTab)
         .accessibilityIdentifier("main.tab.\(item.id)")
     }
 }

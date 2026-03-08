@@ -83,7 +83,7 @@ struct PlinxSearchView: View {
         if viewModel.query.isEmpty {
             emptyPrompt
         } else if viewModel.shouldShowTypingPrompt {
-            emptyPrompt
+            liveSearchPrompt
         } else if viewModel.isLoading && viewModel.items.isEmpty {
             ProgressView()
                 .frame(maxWidth: .infinity)
@@ -108,6 +108,20 @@ struct PlinxSearchView: View {
             Text("search.placeholder.prompt", tableName: "Plinx")
                 .font(.headline)
                 .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 20)
+    }
+
+    private var liveSearchPrompt: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "text.magnifyingglass")
+                .font(.system(size: 44, weight: .bold))
+                .foregroundStyle(searchAccentColor.opacity(0.7))
+            Text("search.live.minimum \(Int64(viewModel.remainingCharactersForLiveSearch))", tableName: "Plinx")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 20)

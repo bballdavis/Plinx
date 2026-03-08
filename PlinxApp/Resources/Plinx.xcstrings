@@ -251,6 +251,16 @@
         }
       }
     },
+    "search.live.minimum %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Type %lld more letter(s) to start live search."
+          }
+        }
+      }
+    },
     "search.no_results %@" : {
       "localizations" : {
         "en" : {
