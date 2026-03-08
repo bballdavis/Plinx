@@ -17,8 +17,11 @@
 #   PlinxApp (this target)
 #     ├── Strimr sources (compiled inline, internal access)
 #     ├── PlinxUI (SPM) → PlinxCore (SPM)
-#     ├── MPVKit (SPM)
-#     └── Sentry (SPM)
+#     └── MPVKit (SPM)
+#
+# Note: Sentry (crash reporting SDK) has been removed entirely as part of the
+# zero-collection privacy commitment. Plinx provides its own no-op ErrorReporter
+# (PlinxApp/App/ErrorReporter.swift) to satisfy Strimr's dependencies.
 #
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -47,8 +50,6 @@ packages:
   #   - Future migration when Strimr types become `public`
   MPVKit:
     path: ../../MPVKit
-  Sentry:
-    path: ../../sentry-cocoa
 
 settings:
   base:
@@ -96,6 +97,10 @@ targets:
           # in iOS 26 SDK (resolves to BackgroundStyle, not Color).
           # Replaced by Adapters/PlinxMediaBackdropGradient.swift.
           - "Views/Media/MediaBackdropGradient.swift"
+          # ErrorReporter would initialize Sentry. Plinx has zero data collection,
+          # so we provide our own no-op ErrorReporter instead (App/ErrorReporter.swift).
+          # See DATA_COLLECTION_AUDIT.md for privacy rationale.
+          - "Monitoring/ErrorReporter.swift"
       - path: ../vendor/strimr/Strimr-iOS/Features
         name: StrimrIOSFeatures
         excludes:
@@ -128,7 +133,6 @@ targets:
       - package: PlinxUI
       - package: MPVKit
         product: MPVKit-GPL
-      - package: Sentry
 
     info:
       path: Resources/Info.plist

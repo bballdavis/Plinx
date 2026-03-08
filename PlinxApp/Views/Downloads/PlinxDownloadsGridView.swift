@@ -137,27 +137,12 @@ struct PlinxDownloadsGridView: View {
             guard item.isPlayable else { return }
             selectedDownload = item
         } label: {
-            ZStack(alignment: .bottom) {
-                posterImage(for: item)
-                    .aspectRatio(ratio, contentMode: .fill)
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-
-                // Download-in-progress indicator
-                if item.status == .downloading || item.status == .queued {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .strokeBorder(Color.accentColor, lineWidth: 2)
+            Color.clear
+                .aspectRatio(2.0 / 3.0, contentMode: .fit)
+                .overlay {
+                    posterArtwork(for: item, ratio: ratio)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 }
-                if item.status == .downloading {
-                    VStack {
-                        Spacer()
-                        ProgressView(value: item.progress)
-                            .progressViewStyle(.linear)
-                            .tint(Color.accentColor)
-                            .padding(.horizontal, 4)
-                            .padding(.bottom, 4)
-                    }
-                }
-            }
         }
         .buttonStyle(.plain)
         .opacity(item.isPlayable ? 1 : 0.85)
@@ -272,6 +257,31 @@ struct PlinxDownloadsGridView: View {
 
     private var portraitTypes: Set<PlexItemType> {
         [.movie, .show, .season, .episode]
+    }
+
+    private func posterArtwork(for item: DownloadItem, ratio: CGFloat) -> some View {
+        ZStack(alignment: .bottom) {
+            posterImage(for: item)
+
+            if item.status == .downloading {
+                VStack {
+                    Spacer()
+                    ProgressView(value: item.progress)
+                        .progressViewStyle(.linear)
+                        .tint(Color.accentColor)
+                        .padding(.horizontal, 4)
+                        .padding(.bottom, 4)
+                }
+            }
+        }
+        .aspectRatio(ratio, contentMode: .fit)
+        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .overlay {
+            if item.status == .downloading || item.status == .queued {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(Color.accentColor, lineWidth: 2)
+            }
+        }
     }
 
     @ViewBuilder
