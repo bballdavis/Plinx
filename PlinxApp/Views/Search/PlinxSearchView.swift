@@ -82,6 +82,8 @@ struct PlinxSearchView: View {
     private var resultsContent: some View {
         if viewModel.query.isEmpty {
             emptyPrompt
+        } else if viewModel.shouldShowTypingPrompt {
+            emptyPrompt
         } else if viewModel.isLoading && viewModel.items.isEmpty {
             ProgressView()
                 .frame(maxWidth: .infinity)
