@@ -182,8 +182,11 @@ struct RootTabView: View {
 
     @ViewBuilder
     private var mainTabView: some View {
-        // Build the base view: native tab bar hidden, with custom bottom bar.
+        // Expand to the full window before attaching the bottom inset.
+        // This avoids first-pass layout glitches where the custom tab bar can
+        // anchor to an intermediate-height container on iPhone launch.
         let base = tabContainer
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .toolbar(.hidden, for: .tabBar)
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 KidsMainTabPicker(
@@ -191,7 +194,6 @@ struct RootTabView: View {
                     selectedTab: tabBinding
                 )
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .environment(\.watchedOverrides, watchedOverrides)
 
         // Keep root tab chrome fully custom (KidsMainTabPicker only).
