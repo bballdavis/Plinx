@@ -36,6 +36,8 @@ private struct SettingsBody: View {
     @AppStorage("plinx.maxTVRating")    private var maxTVRatingRaw    = PlinxRating.tvPg.rawValue
     @AppStorage("plinx.excludeUnrated") private var excludeUnrated    = true
     @AppStorage("plinx.pauseWhenScreenTurnsOff") private var pauseWhenScreenTurnsOff = true
+    @AppStorage(PlinxNavigationPreference.showSearchInMainNavigationStorageKey)
+    private var showSearchInMainNavigation = PlinxNavigationPreference.defaultShowSearchInMainNavigation
 
     @State private var isPresentingProfileSwitcher = false
 
@@ -55,6 +57,13 @@ private struct SettingsBody: View {
                         Text("settings.homescreen.title", tableName: "Plinx")
                     } icon: {
                         Image(systemName: "house.fill")
+                    }
+                }
+                Toggle(isOn: $showSearchInMainNavigation) {
+                    Label {
+                        Text("settings.navigation.showSearchInMainNavigation", tableName: "Plinx")
+                    } icon: {
+                        Image(systemName: "magnifyingglass")
                     }
                 }
                 NavigationLink(destination: LibraryViewsSettingsView()) {

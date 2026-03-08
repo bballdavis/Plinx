@@ -59,6 +59,7 @@
 "settings.libraries.title" = "Visible Libraries";
 "settings.libraries.description" = "Only selected libraries appear in the Plinx home and library screens.";
 "settings.libraries.noneFound" = "No libraries found.";
+"settings.navigation.showSearchInMainNavigation" = "Show \"Search\" in main navigation";
 
 /* Settings — Home Screen */
 "settings.homescreen.title" = "Home Screen";

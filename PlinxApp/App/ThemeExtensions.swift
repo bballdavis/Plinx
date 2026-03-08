@@ -138,6 +138,11 @@ enum PlinxChromeButtonSizePreference: String, CaseIterable, Identifiable {
     }
 }
 
+enum PlinxNavigationPreference {
+    static let showSearchInMainNavigationStorageKey = "plinx.showSearchInMainNavigation"
+    static let defaultShowSearchInMainNavigation = false
+}
+
 struct PlinxChromeButton: View {
     let systemImage: String
     let action: () -> Void

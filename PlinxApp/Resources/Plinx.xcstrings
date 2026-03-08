@@ -441,6 +441,16 @@
         }
       }
     },
+    "settings.navigation.showSearchInMainNavigation" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show \"Search\" in main navigation"
+          }
+        }
+      }
+    },
     "settings.accent.section" : {
       "localizations" : {
         "en" : {
