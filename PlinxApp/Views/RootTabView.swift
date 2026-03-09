@@ -29,8 +29,6 @@ struct RootTabView: View {
     @State private var watchedOverrides: [String: Bool] = [:]
     @AppStorage(PlinxChromeButtonSizePreference.storageKey)
     private var chromeButtonSizeRaw = PlinxChromeButtonSizePreference.defaultValue.rawValue
-    @AppStorage(PlinxNavigationPreference.showSearchInMainNavigationStorageKey)
-    private var showSearchInMainNavigation = PlinxNavigationPreference.defaultShowSearchInMainNavigation
 
     private var chromeButtonSize: PlinxChromeButtonSizePreference {
         PlinxChromeButtonSizePreference(rawValue: chromeButtonSizeRaw) ?? .medium
@@ -68,10 +66,7 @@ struct RootTabView: View {
 
     /// Tabs shown in the picker.
     private var visibleTabs: [KidsMainTabPicker.TabItem] {
-        KidsMainTabPicker.TabItem.mainTabs(
-            includeDownloads: hasDownloadActivity,
-            showSearchInMainNavigation: showSearchInMainNavigation
-        )
+        KidsMainTabPicker.TabItem.mainTabs(includeDownloads: hasDownloadActivity)
     }
 
     /// Maps coordinator tab to tab-bar selection.
@@ -89,11 +84,6 @@ struct RootTabView: View {
             .onChange(of: hasDownloadActivity) { _, hasDownloads in
                 guard !hasDownloads, activeRootTab == .more else { return }
                 mainCoordinator.resetToRoot(for: .more)
-                mainCoordinator.tab = .home
-            }
-            .onChange(of: showSearchInMainNavigation) { _, isVisible in
-                guard !isVisible, activeRootTab == .search else { return }
-                mainCoordinator.resetToRoot(for: .home)
                 mainCoordinator.tab = .home
             }
             .overlay(alignment: .bottom) {
@@ -247,14 +237,7 @@ struct RootTabView: View {
             NavigationStack(path: mainCoordinator.pathBinding(for: .home)) {
                 PlinxHomeView(
                     viewModel: viewModel,
-                    topContent: AnyView(
-                        topTitleRow(
-                            title: "tabs.home",
-                            showsSettingsButton: true,
-                            showsSearchButton: !showSearchInMainNavigation,
-                            showsLogo: true
-                        )
-                    ),
+                    topContent: AnyView(topTitleRow(title: "tabs.home", showsSettingsButton: true, showsLogo: true)),
                     onSelectMedia: { displayItem in
                         handlePrimarySelection(displayItem)
                     },
@@ -379,7 +362,6 @@ struct RootTabView: View {
     private func topTitleRow(
         title: LocalizedStringKey,
         showsSettingsButton: Bool,
-        showsSearchButton: Bool = false,
         showsLogo: Bool = false
     ) -> some View {
         HStack(spacing: 12) {
@@ -399,18 +381,11 @@ struct RootTabView: View {
                     .foregroundStyle(.white.opacity(0.95))
             }
             Spacer()
-            if showsSearchButton {
-                PlinxChromeButton(systemImage: "magnifyingglass") {
-                    handleTabSelection(.search)
-                }
-                .accessibilityIdentifier("home.header.search")
-            }
             if showsSettingsButton {
                 PlinxChromeButton(systemImage: "gearshape.fill") {
                     showSettings = true
                 }
-                .accessibilityIdentifier("home.header.settings")
-            } else if !showsSearchButton {
+            } else {
                 Color.clear
                     .frame(width: chromeButtonSize.sideLength, height: chromeButtonSize.sideLength)
             }

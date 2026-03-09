@@ -70,7 +70,7 @@ struct PlinxHomeView: View {
 
     private var scrollContent: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 28) {
+            LazyVStack(alignment: .leading, spacing: 14) {
                 if let topContent {
                     topContent
                 }
@@ -79,7 +79,7 @@ struct PlinxHomeView: View {
                     homeSectionView(sectionId)
                 }
             }
-            .padding(.top, 16)
+            .padding(.top, 8)
             // Extra bottom padding ensures content scrolls clear of the
             // floating KidsMainTabPicker (≈ 88pt) + comfortable overshoot.
             .padding(.bottom, 120)

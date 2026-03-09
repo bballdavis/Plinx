@@ -22,7 +22,7 @@ struct PlinxContentView: View {
             if sessionManager.status == .hydrating {
                 LinearGradient.plinxBrandGreen.ignoresSafeArea()
             } else {
-                Color.black.ignoresSafeArea()
+                Color.appBackground.ignoresSafeArea()
             }
 
             rootContent

@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import PlinxCore
 import PlinxUI
 
@@ -56,15 +57,14 @@ struct ParentalGateView: View {
                 .foregroundStyle(theme.palette.background)
                 .accessibilityIdentifier("parentalGate.title")
 
-            SecureField("", text: $pinEntry)
-                .textFieldStyle(.roundedBorder)
-                .keyboardType(.numberPad)
-                .multilineTextAlignment(.center)
-                .font(.largeTitle)
+            NumberPadEntryField(
+                text: $pinEntry,
+                placeholder: "",
+                isSecure: true,
+                maximumDigits: 6
+            )
                 .frame(maxWidth: 200)
-                .onChange(of: pinEntry) { _, val in
-                    let digits = val.filter { $0.isNumber }
-                    pinEntry = String(digits.prefix(6))
+                .onChange(of: pinEntry) { _, _ in
                     pinError = false
                 }
 
@@ -98,13 +98,10 @@ struct ParentalGateView: View {
             Text(challenge.prompt)
                 .font(.system(size: 48, weight: .black, design: .rounded))
 
-            TextField(text: $answerText) {
-                Text("parental.gate.placeholder", tableName: "Plinx")
-            }
-                .textFieldStyle(.roundedBorder)
-                .keyboardType(.numberPad)
-                .multilineTextAlignment(.center)
-                .font(.largeTitle)
+            NumberPadEntryField(
+                text: $answerText,
+                placeholder: NSLocalizedString("parental.gate.placeholder", tableName: "Plinx", comment: "")
+            )
                 .frame(maxWidth: 200)
 
             LiquidGlassButton(LocalizedStringResource("parental.gate.unlock", table: "Plinx")) {
@@ -116,6 +113,85 @@ struct ParentalGateView: View {
                     answerText = ""
                 }
             }
+        }
+    }
+}
+
+private struct NumberPadEntryField: UIViewRepresentable {
+    @Binding var text: String
+    let placeholder: String
+    var isSecure: Bool = false
+    var maximumDigits: Int? = nil
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text, maximumDigits: maximumDigits)
+    }
+
+    func makeUIView(context: Context) -> UITextField {
+        let textField = UITextField(frame: .zero)
+        textField.delegate = context.coordinator
+        textField.borderStyle = .roundedRect
+        textField.keyboardType = .numberPad
+        textField.keyboardAppearance = .light
+        textField.textColor = .black
+        textField.tintColor = .black
+        textField.textAlignment = .center
+        textField.font = .preferredFont(forTextStyle: .largeTitle)
+        textField.adjustsFontForContentSizeCategory = true
+        textField.placeholder = placeholder
+        textField.isSecureTextEntry = isSecure
+        textField.addTarget(context.coordinator, action: #selector(Coordinator.textDidChange(_:)), for: .editingChanged)
+        return textField
+    }
+
+    func updateUIView(_ uiView: UITextField, context: Context) {
+        if uiView.text != text {
+            uiView.text = text
+        }
+        uiView.placeholder = placeholder
+        uiView.isSecureTextEntry = isSecure
+    }
+
+    final class Coordinator: NSObject, UITextFieldDelegate {
+        @Binding private var text: String
+        private let maximumDigits: Int?
+
+        init(text: Binding<String>, maximumDigits: Int?) {
+            _text = text
+            self.maximumDigits = maximumDigits
+        }
+
+        @objc func textDidChange(_ sender: UITextField) {
+            let filtered = filteredText(from: sender.text ?? "")
+            if sender.text != filtered {
+                sender.text = filtered
+            }
+            text = filtered
+        }
+
+        func textField(
+            _ textField: UITextField,
+            shouldChangeCharactersIn range: NSRange,
+            replacementString string: String
+        ) -> Bool {
+            let current = textField.text ?? ""
+            guard let stringRange = Range(range, in: current) else { return false }
+            let updated = current.replacingCharacters(in: stringRange, with: string)
+            let filtered = filteredText(from: updated)
+
+            if filtered != updated {
+                textField.text = filtered
+                text = filtered
+                return false
+            }
+
+            return true
+        }
+
+        private func filteredText(from source: String) -> String {
+            let digitsOnly = source.filter { $0.isNumber }
+            guard let maximumDigits else { return digitsOnly }
+            return String(digitsOnly.prefix(maximumDigits))
         }
     }
 }

@@ -158,7 +158,7 @@ public extension PlinxTheme.Palette {
         primary: .blue,
         secondary: .orange,
         accent: .pink,
-        background: Color(red: 0.05, green: 0.05, blue: 0.08),
+        background: Color(red: 0.045, green: 0.07, blue: 0.055),
         surface: Color(white: 0.12),
         onPrimary: .white,
         success: .green,

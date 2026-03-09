@@ -89,7 +89,7 @@ struct AppearanceSettingsView: View {
         .navigationBarTitleDisplayMode(.large)
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
-        .background(Color.black.ignoresSafeArea())
+        .background(Color.appBackground.ignoresSafeArea())
     }
 }
 
@@ -117,7 +117,7 @@ struct AccentColorSettingsView: View {
         .navigationBarTitleDisplayMode(.large)
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
-        .background(Color.black.ignoresSafeArea())
+        .background(Color.appBackground.ignoresSafeArea())
     }
 
     private func colorSwatch(_ option: PlinxAccentColor) -> some View {
