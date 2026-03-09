@@ -84,7 +84,7 @@ struct SetPinView: View {
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
-        .background(Color.black.ignoresSafeArea())
+        .background(Color.appBackground.ignoresSafeArea())
         .navigationTitle("Set PIN")
         .navigationBarTitleDisplayMode(.inline)
     }

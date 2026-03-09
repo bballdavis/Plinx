@@ -28,7 +28,7 @@ struct VisibleLibrariesView: View {
         .navigationBarTitleDisplayMode(.large)
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
-        .background(Color.black.ignoresSafeArea())
+        .background(Color.appBackground.ignoresSafeArea())
         .task {
             if libraryStore.libraries.isEmpty {
                 try? await libraryStore.loadLibraries()

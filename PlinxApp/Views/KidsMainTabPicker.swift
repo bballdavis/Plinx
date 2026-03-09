@@ -26,6 +26,7 @@ struct KidsMainTabPicker: View {
     @AppStorage(PlinxAnimationPreference.playfulAnimationsStorageKey)
     private var playfulAnimationsEnabled = PlinxAnimationPreference.defaultPlayfulAnimationsEnabled
     @State private var playfulSelectionTrigger = 0
+    @State private var playfulTiltDirection: Double = 1
 
     private var isRegular: Bool { sizeClass == .regular }
 
@@ -46,13 +47,15 @@ struct KidsMainTabPicker: View {
             }
         }
         .padding(.horizontal, isRegular ? 20 : 16)
-        .padding(.vertical, 10)
+        .padding(.top, playfulAnimationsEnabled ? (isRegular ? 18 : 16) : 10)
+        .padding(.bottom, playfulAnimationsEnabled ? 8 : 10)
         .liquidGlassBackground()
         .padding(.horizontal, isRegular ? 40 : 20)
         .padding(.bottom, 1)
         .onChange(of: selectedTab) { _, _ in
             guard playfulAnimationsEnabled else { return }
             playfulSelectionTrigger &+= 1
+            playfulTiltDirection = Bool.random() ? 1 : -1
         }
         .accessibilityIdentifier("main.tabPicker")
     }
@@ -73,8 +76,7 @@ struct KidsMainTabPicker: View {
                         value: playfulAnimationsEnabled && isSelected ? playfulSelectionTrigger : 0
                     )
                     .scaleEffect(isSelected ? (playfulAnimationsEnabled ? 1.18 : 1.0) : 1.0)
-                    .rotationEffect(.degrees(isSelected && playfulAnimationsEnabled ? -6 : 0))
-                    .offset(y: isSelected && playfulAnimationsEnabled ? 1 : 0)
+                    .rotationEffect(.degrees(isSelected && playfulAnimationsEnabled ? -6 * playfulTiltDirection : 0))
                 Text(item.title)
                     .font(labelFont.bold())
                     .lineLimit(1)
@@ -99,8 +101,8 @@ struct KidsMainTabPicker: View {
                     )
             )
             .scaleEffect(isSelected ? (playfulAnimationsEnabled ? 1.14 : 1.03) : 1.0)
-            .offset(y: isSelected ? (playfulAnimationsEnabled ? -4 : -2) : 0)
-            .rotationEffect(.degrees(isSelected && playfulAnimationsEnabled ? 2.5 : 0))
+            .offset(y: isSelected ? (playfulAnimationsEnabled ? 0 : -2) : 0)
+            .rotationEffect(.degrees(isSelected && playfulAnimationsEnabled ? 2.5 * playfulTiltDirection : 0))
             .shadow(
                 color: isSelected && playfulAnimationsEnabled ? Color.accentColor.opacity(0.25) : .clear,
                 radius: isSelected && playfulAnimationsEnabled ? 24 : 0,

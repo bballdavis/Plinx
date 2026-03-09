@@ -59,13 +59,6 @@ private struct SettingsBody: View {
                         Image(systemName: "house.fill")
                     }
                 }
-                Toggle(isOn: $showSearchInMainNavigation) {
-                    Label {
-                        Text("settings.navigation.showSearchInMainNavigation", tableName: "Plinx")
-                    } icon: {
-                        Image(systemName: "magnifyingglass")
-                    }
-                }
                 NavigationLink(destination: LibraryViewsSettingsView()) {
                     Label {
                         Text("Library Views")
@@ -85,6 +78,13 @@ private struct SettingsBody: View {
                         Text("Default Server")
                     } icon: {
                         Image(systemName: "server.rack")
+                    }
+                }
+                Toggle(isOn: $showSearchInMainNavigation) {
+                    Label {
+                        Text("settings.navigation.showSearchInMainNavigation", tableName: "Plinx")
+                    } icon: {
+                        Image(systemName: "magnifyingglass")
                     }
                 }
             } header: {
@@ -244,7 +244,7 @@ private struct SettingsBody: View {
         .navigationTitle(Text("tabs.settings", tableName: "Plinx"))
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
-        .background(Color.black.ignoresSafeArea())
+        .background(Color.appBackground.ignoresSafeArea())
         .task {
             if libraryStore.libraries.isEmpty {
                 try? await libraryStore.loadLibraries()

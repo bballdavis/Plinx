@@ -37,7 +37,7 @@ struct PlinxLibraryView: View {
 
     private var libraryList: some View {
         ScrollView {
-            LazyVStack(spacing: 16) {
+            LazyVStack(spacing: 10) {
                 if let topContent {
                     topContent
                 }
@@ -47,7 +47,7 @@ struct PlinxLibraryView: View {
                         .padding(.horizontal, 20)
                 }
             }
-            .padding(.top, 16)
+            .padding(.top, 8)
             // Extra padding to prevent content from disappearing behind the
             // floating KidsMainTabPicker tab bar (~88pt).
             .padding(.bottom, 120)

@@ -29,7 +29,7 @@ struct DefaultServerSettingsView: View {
         .navigationBarTitleDisplayMode(.large)
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
-        .background(Color.black.ignoresSafeArea())
+        .background(Color.appBackground.ignoresSafeArea())
         .tint(.accentColor)
         .task {
             await viewModel.load()

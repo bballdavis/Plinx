@@ -118,7 +118,7 @@ struct HomeScreenSettingsView: View {
         .listStyle(.insetGrouped)
         .environment(\.editMode, .constant(.active))
         .scrollContentBackground(.hidden)
-        .background(Color.black.ignoresSafeArea())
+        .background(Color.appBackground.ignoresSafeArea())
         .task {
             if libraryStore.libraries.isEmpty {
                 try? await libraryStore.loadLibraries()
