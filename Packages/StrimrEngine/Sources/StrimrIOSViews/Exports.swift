@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //
 // Companion to StrimrEngine/Exports.swift for the iOS-specific view layer.
-// This target wraps Vendor/Strimr/Strimr-iOS/Features/ — the iOS SwiftUI views
+// This target wraps the sibling Strimr checkout's Strimr-iOS/Features tree —
 // that Plinx progressively replaces with Liquid Glass equivalents.
 //
 // Once all views in the Progressive Replacement Schedule are done (Phase 6),

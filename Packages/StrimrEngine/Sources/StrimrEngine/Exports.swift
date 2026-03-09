@@ -2,13 +2,13 @@
 // StrimrEngine/Exports.swift
 // ─────────────────────────────────────────────────────────────────────────────
 //
-// This file lives in the StrimrEngine module alongside vendor code (via symlink).
+// This file lives in the StrimrEngine module alongside Strimr code (via symlink).
 // It serves as the PUBLIC API surface for types that PlinxCore, PlinxUI, and
 // PlinxApp need when importing StrimrEngine as a module.
 //
 // ═══════════════════════════════════════════════════════════════════════════════
 // CURRENT STATUS: Strimr types are `internal`. This file defines public
-// protocols that mirror key Strimr interfaces. The vendor types are extended
+// protocols that mirror key Strimr interfaces. The Strimr types are extended
 // to conform to these protocols (in-module, so internal access works).
 //
 // FUTURE: When Strimr adds `public` access upstream, these protocols become
@@ -24,7 +24,7 @@ import Observation
 //
 // Below is every Strimr type that Plinx code references, grouped by layer.
 // Each needs `public` access for full module isolation. Until then, the
-// PlinxApp target compiles vendor sources directly for `internal` access, and
+// PlinxApp target compiles Strimr sources directly for `internal` access, and
 // the `StrimrAdapter` in PlinxApp bridges to PlinxCore's public model types.
 //
 // ┌─────────────────────────────────────────────────────────┐

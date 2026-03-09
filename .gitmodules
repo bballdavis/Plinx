@@ -1,4 +1,0 @@
-[submodule "vendor/strimr"]
-	path = vendor/strimr
-        url = https://github.com/bballdavis/strimr.git
-        branch = plinx-patches
