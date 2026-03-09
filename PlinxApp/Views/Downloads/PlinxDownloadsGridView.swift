@@ -39,7 +39,7 @@ struct PlinxDownloadsGridView: View {
     }
 
     private var gridPosterHeight: CGFloat {
-        isPortraitViewport ? 188 : 176
+        isPortraitViewport ? 235 : 220
     }
 
     private let gridTextHeight: CGFloat = 74
@@ -251,7 +251,7 @@ struct PlinxDownloadsGridView: View {
     private func metadataLabels(for item: DownloadItem, titleLineLimit: Int) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(item.metadata.title)
-                .font(.title3.weight(.semibold))
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.primary)
                 .lineLimit(titleLineLimit)
 
@@ -351,9 +351,19 @@ struct PlinxDownloadsGridView: View {
         ratio: CGFloat,
         rotatesLandscapeThumbnail: Bool
     ) -> some View {
-        ZStack(alignment: .bottom) {
-            posterImageView(poster)
-                .rotationEffect(.degrees(rotatesLandscapeThumbnail ? -90 : 0))
+        // For landscape thumbnails rotated into a portrait card, we pre-frame the image
+        // at the transposed dimensions before applying the -90° rotation, then re-frame
+        // the result at portrait dimensions so the layout footprint matches the card size.
+        let resolvedPosterWidth = gridPosterHeight * ratio
+        return ZStack(alignment: .bottom) {
+            if rotatesLandscapeThumbnail {
+                posterImageView(poster)
+                    .frame(width: gridPosterHeight, height: resolvedPosterWidth)
+                    .rotationEffect(.degrees(-90))
+                    .frame(width: resolvedPosterWidth, height: gridPosterHeight)
+            } else {
+                posterImageView(poster)
+            }
 
             if item.status == .downloading {
                 VStack {
@@ -366,7 +376,7 @@ struct PlinxDownloadsGridView: View {
                 }
             }
         }
-        .aspectRatio(ratio, contentMode: .fit)
+        .frame(width: resolvedPosterWidth, height: gridPosterHeight)
         .clipped()
         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         .overlay {
