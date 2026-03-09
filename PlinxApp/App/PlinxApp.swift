@@ -90,6 +90,8 @@ struct PlinxApp: App {
     // MARK: - Init (Dependency Construction)
 
     init() {
+        let processEnvironment = ProcessInfo.processInfo.environment
+
         // Layer 1: Strimr infrastructure (no Plinx knowledge)
         let context = PlexAPIContext()
         let store = LibraryStore(context: context)
@@ -109,6 +111,7 @@ struct PlinxApp: App {
 
         // DownloadManager: inject so MediaDetailHeaderSection's @Environment(DownloadManager.self)
         // resolves. Plinx supports downloads as a passthrough from Strimr.
+        DownloadUITestFixtures.seedIfNeeded(environment: processEnvironment)
         _downloadManager = State(initialValue: DownloadManager(settingsManager: settings))
 
         // Layer 2: Plinx safety + theming are initialized via property defaults.
