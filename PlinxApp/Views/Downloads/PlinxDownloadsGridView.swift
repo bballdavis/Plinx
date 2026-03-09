@@ -213,15 +213,16 @@ struct PlinxDownloadsGridView: View {
             guard item.isPlayable else { return }
             selectedDownload = item
         } label: {
+            // Always use gridPosterHeight so text labels align across mixed portrait/landscape rows.
+            // The artwork is centered within the fixed-height area.
             Color.clear
-                .frame(width: cardWidth, height: posterHeight)
+                .frame(width: cardWidth, height: gridPosterHeight)
                 .overlay {
                     posterArtwork(
                         for: item,
                         poster: poster,
                         posterSize: posterSize
                     )
-                    .frame(width: posterWidth, height: posterHeight)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 }
         }
