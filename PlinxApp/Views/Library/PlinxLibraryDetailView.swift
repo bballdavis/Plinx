@@ -27,6 +27,8 @@ struct PlinxLibraryDetailView: View {
     var onLongPressMedia: (MediaDisplayItem) -> Void = { _ in }
 
     @State private var selectedTab: LibraryDetailTab = .recommended
+    @State private var browseQuickSort: LibraryBrowseControlsViewModel.QuickSort = .newest
+    @State private var browseRefreshIdentity = UUID()
 
     // MARK: - Body
 
@@ -62,6 +64,7 @@ struct PlinxLibraryDetailView: View {
                 overrideLayout: preferredCarouselLayout,
                 showsControls: false
             )
+            .id(browseRefreshIdentity)
         case .collections:
             LibraryCollectionsView(
                 viewModel: makeCollectionsViewModel(),
@@ -92,8 +95,16 @@ struct PlinxLibraryDetailView: View {
                     Spacer(minLength: 0)
                 }
 
-                PlinxLibraryTabPicker(tabs: availableTabs, selectedTab: $selectedTab)
-                    .frame(height: 76)
+                ZStack(alignment: .trailing) {
+                    PlinxLibraryTabPicker(tabs: availableTabs, selectedTab: $selectedTab)
+                        .frame(height: 76)
+                        .frame(maxWidth: .infinity, alignment: .center)
+
+                    if selectedTab == .browse {
+                        browseQuickSortButtons
+                            .padding(.trailing, 2)
+                    }
+                }
             }
             .padding(.top, 4)
         )
@@ -139,6 +150,7 @@ struct PlinxLibraryDetailView: View {
             context: plexApiContext,
             settingsManager: settingsManager
         )
+        vm.controls.preferredQuickSort = browseQuickSort
         let policy = safetyPolicy
         let libType = library.type
         vm.itemFilter = { item in
@@ -148,6 +160,53 @@ struct PlinxLibraryDetailView: View {
             return StrimrAdapter.isAllowed(item, policy: policy)
         }
         return vm
+    }
+
+    private var browseQuickSortButtons: some View {
+        HStack(spacing: 8) {
+            if selectedTab == .browse {
+                quickSortButton(
+                    iconName: "textformat.abc",
+                    accessibilityID: "library.browse.sort.alphabetical",
+                    quickSort: .alphabetical
+                )
+
+                quickSortButton(
+                    iconName: "clock.arrow.circlepath",
+                    accessibilityID: "library.browse.sort.new",
+                    quickSort: .newest
+                )
+            }
+        }
+    }
+
+    private func quickSortButton(
+        iconName: String,
+        accessibilityID: String,
+        quickSort: LibraryBrowseControlsViewModel.QuickSort
+    ) -> some View {
+        let isSelected = browseQuickSort == quickSort
+
+        return Button {
+            guard browseQuickSort != quickSort else { return }
+            browseQuickSort = quickSort
+            browseRefreshIdentity = UUID()
+        } label: {
+            Image(systemName: iconName)
+                .font(.system(size: 18, weight: .semibold))
+                .frame(width: 40, height: 40)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(isSelected ? Color.accentColor : Color.white.opacity(0.10))
+                )
+                .foregroundStyle(isSelected ? Color.white : Color.white.opacity(0.72))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(isSelected ? Color.clear : Color.white.opacity(0.15), lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(accessibilityID)
     }
 
     private func makeCollectionsViewModel() -> LibraryCollectionsViewModel {

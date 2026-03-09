@@ -145,7 +145,7 @@ enum PlinxNavigationPreference {
 
 enum PlinxAnimationPreference {
     static let playfulAnimationsStorageKey = "plinx.playfulAnimationsEnabled"
-    static let defaultPlayfulAnimationsEnabled = false
+    static let defaultPlayfulAnimationsEnabled = true
 }
 
 struct PlinxChromeButton: View {

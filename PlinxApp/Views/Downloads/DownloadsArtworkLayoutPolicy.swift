@@ -6,17 +6,12 @@ struct DownloadsArtworkLayoutPolicy {
     static let minimumClampedLandscapeRatio: CGFloat = 1.2
     static let maximumLandscapeAspectRatio: CGFloat = 2.2
 
-    static func isPortraitArtworkType(_ type: PlexItemType) -> Bool {
-        switch type {
-        case .movie, .show, .season, .episode:
-            true
-        default:
-            false
-        }
+    static func isPortraitArtworkType(_ artworkLayoutStyle: DownloadArtworkLayoutStyle) -> Bool {
+        artworkLayoutStyle.isPortrait
     }
 
-    static func displayAspectRatio(for type: PlexItemType, imageSize: CGSize?) -> CGFloat {
-        if isPortraitArtworkType(type) {
+    static func displayAspectRatio(for artworkLayoutStyle: DownloadArtworkLayoutStyle, imageSize: CGSize?) -> CGFloat {
+        if isPortraitArtworkType(artworkLayoutStyle) {
             return portraitAspectRatio
         }
 

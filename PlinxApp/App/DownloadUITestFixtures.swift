@@ -143,7 +143,7 @@ enum DownloadUITestFixtures {
             return CGSize(width: 720, height: 405)
         }
 
-        if DownloadsArtworkLayoutPolicy.isPortraitArtworkType(item.metadata.type) {
+        if DownloadsArtworkLayoutPolicy.isPortraitArtworkType(item.metadata.resolvedArtworkLayoutStyle) {
             return CGSize(width: 480, height: 720)
         }
 

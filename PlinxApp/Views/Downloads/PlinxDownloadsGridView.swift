@@ -1,6 +1,13 @@
 import SwiftUI
-import UIKit
 import Foundation
+
+#if canImport(UIKit)
+import UIKit
+private typealias PlatformImage = UIImage
+#elseif canImport(AppKit)
+import AppKit
+private typealias PlatformImage = NSImage
+#endif
 
 /// The main downloads tab: a 5-column poster grid with an Edit button that
 /// opens the download management list (storage info, delete, etc.).
@@ -31,8 +38,9 @@ struct PlinxDownloadsGridView: View {
     private let gridSpacing: CGFloat = 10
 
     private struct GridPosterLayout {
-        let posterRatio: CGFloat
+        let posterSize: CGSize
         let posterWidth: CGFloat
+        let posterHeight: CGFloat
         let cardWidth: CGFloat
     }
 
@@ -129,6 +137,17 @@ struct PlinxDownloadsGridView: View {
                 )
             }
         }
+        .task(id: artworkReconciliationID) {
+            await downloadManager.reconcileArtworkMetadataIfNeeded(context: context)
+        }
+    }
+
+    private var artworkReconciliationID: String {
+        downloadManager.sortedItems
+            .map { item in
+                "\(item.id):\(item.metadata.artworkLayoutStyle?.rawValue ?? "unknown")"
+            }
+            .joined(separator: "|")
     }
 
     // MARK: - Header
@@ -171,8 +190,9 @@ struct PlinxDownloadsGridView: View {
             posterCell(
                 item,
                 poster: localPoster,
-                ratio: layout.posterRatio,
+                posterSize: layout.posterSize,
                 posterWidth: layout.posterWidth,
+                posterHeight: layout.posterHeight,
                 cardWidth: layout.cardWidth
             )
             metadataLabels(for: item, titleLineLimit: 2)
@@ -183,9 +203,10 @@ struct PlinxDownloadsGridView: View {
 
     private func posterCell(
         _ item: DownloadItem,
-        poster: UIImage?,
-        ratio: CGFloat,
+        poster: PlatformImage?,
+        posterSize: CGSize,
         posterWidth: CGFloat,
+        posterHeight: CGFloat,
         cardWidth: CGFloat
     ) -> some View {
         return Button {
@@ -193,14 +214,14 @@ struct PlinxDownloadsGridView: View {
             selectedDownload = item
         } label: {
             Color.clear
-                .frame(width: cardWidth, height: gridPosterHeight)
+                .frame(width: cardWidth, height: posterHeight)
                 .overlay {
                     posterArtwork(
                         for: item,
                         poster: poster,
-                        ratio: ratio
+                        posterSize: posterSize
                     )
-                    .frame(width: posterWidth, height: gridPosterHeight)
+                    .frame(width: posterWidth, height: posterHeight)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 }
         }
@@ -209,7 +230,7 @@ struct PlinxDownloadsGridView: View {
     }
 
     private func listRow(_ item: DownloadItem) -> some View {
-        let isPortrait = DownloadsArtworkLayoutPolicy.isPortraitArtworkType(item.metadata.type)
+        let isPortrait = item.metadata.prefersPortraitArtwork
         let posterSize = isPortrait ? CGSize(width: 45, height: 68) : CGSize(width: 78, height: 44)
 
         return Button {
@@ -338,10 +359,9 @@ struct PlinxDownloadsGridView: View {
 
     private func posterArtwork(
         for item: DownloadItem,
-        poster: UIImage?,
-        ratio: CGFloat
+        poster: PlatformImage?,
+        posterSize: CGSize
     ) -> some View {
-        let resolvedPosterWidth = gridPosterHeight * ratio
         return ZStack(alignment: .bottom) {
             posterImageView(poster)
                 .accessibilityIdentifier("downloads.thumbnail.\(item.id)")
@@ -358,7 +378,7 @@ struct PlinxDownloadsGridView: View {
                 }
             }
         }
-        .frame(width: resolvedPosterWidth, height: gridPosterHeight)
+        .frame(width: posterSize.width, height: posterSize.height)
         .clipped()
         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         .overlay {
@@ -369,35 +389,36 @@ struct PlinxDownloadsGridView: View {
         }
     }
 
-    private func gridPosterLayout(for item: DownloadItem, poster: UIImage?) -> GridPosterLayout {
-        let ratio = posterRatio(for: item, poster: poster)
-        let posterWidth = gridPosterWidth(for: ratio)
+    private func gridPosterLayout(for item: DownloadItem, poster: PlatformImage?) -> GridPosterLayout {
+        let posterSize = posterFrameSize(for: item)
+        let posterWidth = posterSize.width
         let cardWidth = gridCardWidth(for: posterWidth)
         return GridPosterLayout(
-            posterRatio: ratio,
+            posterSize: posterSize,
             posterWidth: posterWidth,
+            posterHeight: posterSize.height,
             cardWidth: cardWidth
         )
     }
 
-    private func posterRatio(
-        for item: DownloadItem,
-        poster: UIImage?
-    ) -> CGFloat {
-        DownloadsArtworkLayoutPolicy.displayAspectRatio(for: item.metadata.type, imageSize: poster?.size)
-    }
+    private func posterFrameSize(for item: DownloadItem) -> CGSize {
+        if item.metadata.prefersPortraitArtwork {
+            let width = min(gridPosterHeight * DownloadsArtworkLayoutPolicy.portraitAspectRatio, gridMaxCardWidth)
+            return CGSize(width: width, height: gridPosterHeight)
+        }
 
-    private func gridPosterWidth(for ratio: CGFloat) -> CGFloat {
-        min(gridPosterHeight * ratio, gridMaxCardWidth)
+        let rotatedHeight = min(gridPosterHeight * DownloadsArtworkLayoutPolicy.portraitAspectRatio, 160)
+        let rotatedWidth = min(gridPosterHeight, gridMaxCardWidth)
+        return CGSize(width: rotatedWidth, height: rotatedHeight)
     }
 
     private func gridCardWidth(for posterWidth: CGFloat) -> CGFloat {
         max(posterWidth, gridMinCardWidth)
     }
 
-    private func localPosterImage(for item: DownloadItem) -> UIImage? {
+    private func localPosterImage(for item: DownloadItem) -> PlatformImage? {
         guard let posterURL = downloadManager.localPosterURL(for: item) else { return nil }
-        return UIImage(contentsOfFile: posterURL.path)
+        return PlatformImage(contentsOfFile: posterURL.path)
     }
 
     @ViewBuilder
@@ -410,11 +431,17 @@ struct PlinxDownloadsGridView: View {
     }
 
     @ViewBuilder
-    private func posterImageView(_ image: UIImage?) -> some View {
+    private func posterImageView(_ image: PlatformImage?) -> some View {
         if let image {
+#if canImport(UIKit)
             Image(uiImage: image)
                 .resizable()
                 .scaledToFill()
+#elseif canImport(AppKit)
+            Image(nsImage: image)
+                .resizable()
+                .scaledToFill()
+#endif
         } else {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .fill(Color.gray.opacity(0.2))
