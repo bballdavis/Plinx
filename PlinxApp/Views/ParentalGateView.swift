@@ -130,15 +130,21 @@ private struct NumberPadEntryField: UIViewRepresentable {
     func makeUIView(context: Context) -> UITextField {
         let textField = UITextField(frame: .zero)
         textField.delegate = context.coordinator
-        textField.borderStyle = .roundedRect
+        textField.borderStyle = .none
         textField.keyboardType = .numberPad
         textField.keyboardAppearance = .light
-        textField.textColor = .black
-        textField.tintColor = .black
+        textField.textColor = .white
+        textField.tintColor = .white
         textField.textAlignment = .center
-        textField.font = .preferredFont(forTextStyle: .largeTitle)
+        textField.font = .preferredFont(forTextStyle: .title2)
         textField.adjustsFontForContentSizeCategory = true
-        textField.placeholder = placeholder
+        textField.backgroundColor = UIColor.black.withAlphaComponent(0.6)
+        textField.layer.cornerRadius = 12
+        textField.layer.masksToBounds = true
+        textField.attributedPlaceholder = NSAttributedString(
+            string: placeholder,
+            attributes: [.foregroundColor: UIColor.white.withAlphaComponent(0.55)]
+        )
         textField.isSecureTextEntry = isSecure
         textField.addTarget(context.coordinator, action: #selector(Coordinator.textDidChange(_:)), for: .editingChanged)
         return textField
@@ -148,7 +154,10 @@ private struct NumberPadEntryField: UIViewRepresentable {
         if uiView.text != text {
             uiView.text = text
         }
-        uiView.placeholder = placeholder
+        uiView.attributedPlaceholder = NSAttributedString(
+            string: placeholder,
+            attributes: [.foregroundColor: UIColor.white.withAlphaComponent(0.55)]
+        )
         uiView.isSecureTextEntry = isSecure
     }
 

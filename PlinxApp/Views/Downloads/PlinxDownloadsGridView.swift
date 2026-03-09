@@ -251,11 +251,22 @@ struct PlinxDownloadsGridView: View {
                 .foregroundStyle(.primary)
                 .lineLimit(titleLineLimit)
 
-            if let secondary = secondaryLabel(for: item) {
-                Text(secondary)
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+            if secondaryLeadingLabel(for: item) != nil || secondaryTrailingLabel(for: item) != nil {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    if let secondary = secondaryLeadingLabel(for: item) {
+                        Text(secondary)
+                            .lineLimit(1)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    if let trailing = secondaryTrailingLabel(for: item) {
+                        Text(trailing)
+                            .lineLimit(1)
+                    }
+                }
+                .font(.headline)
+                .foregroundStyle(.secondary)
             }
 
             if let tertiary = tertiaryLabel(for: item) {
@@ -268,7 +279,7 @@ struct PlinxDownloadsGridView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func secondaryLabel(for item: DownloadItem) -> String? {
+    private func secondaryLeadingLabel(for item: DownloadItem) -> String? {
         switch item.metadata.type {
         case .episode:
             return item.metadata.subtitle
@@ -278,9 +289,19 @@ struct PlinxDownloadsGridView: View {
             return item.metadata.parentTitle
         case .show:
             return joinedMeta([item.metadata.contentRating, item.metadata.year.map(String.init)])
+        case .clip:
+            return item.metadata.year.map(String.init)
         default:
             return item.metadata.subtitle
         }
+    }
+
+    private func secondaryTrailingLabel(for item: DownloadItem) -> String? {
+        guard item.metadata.type == .clip, let duration = item.metadata.duration else {
+            return nil
+        }
+
+        return duration.mediaDurationText()
     }
 
     private func tertiaryLabel(for item: DownloadItem) -> String? {

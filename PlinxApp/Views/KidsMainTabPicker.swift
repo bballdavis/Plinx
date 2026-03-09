@@ -47,8 +47,7 @@ struct KidsMainTabPicker: View {
             }
         }
         .padding(.horizontal, isRegular ? 20 : 16)
-        .padding(.top, playfulAnimationsEnabled ? (isRegular ? 18 : 16) : 10)
-        .padding(.bottom, playfulAnimationsEnabled ? 8 : 10)
+        .padding(.vertical, playfulAnimationsEnabled ? (isRegular ? 12 : 10) : 10)
         .liquidGlassBackground()
         .padding(.horizontal, isRegular ? 40 : 20)
         .padding(.bottom, 1)
