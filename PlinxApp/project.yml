@@ -4,10 +4,10 @@
 #
 # Architecture: "Skin, Don't Fork"
 #
-# Strimr vendor sources compile INTO the Plinx-iOS app target (not as a
+# Strimr sibling-repo sources compile INTO the Plinx-iOS app target (not as a
 # separate framework). This is required because Strimr uses `internal` access
 # on all types — compiling in the same module is the only way to access them
-# without modifying vendor code.
+# without modifying Strimr source.
 #
 # The StrimrEngine SPM package exists alongside for CI validation and future
 # migration (when Strimr adds `public` access). It is NOT listed as an app
@@ -44,7 +44,7 @@ packages:
   PlinxUI:
     path: ../Packages/PlinxUI
   # StrimrEngine is intentionally NOT listed here.
-  # Vendor sources compile directly into the app target for `internal` access.
+  # Strimr sources compile directly into the app target for `internal` access.
   # The StrimrEngine package at ../Packages/StrimrEngine/ exists for:
   #   - Independent source compilation validation via app target build
   #   - Future migration when Strimr types become `public`
@@ -75,12 +75,12 @@ targets:
       - path: Adapters
       - path: ViewModels
 
-      # ── Strimr vendor sources (compiled into app module) ────────────
+      # ── Strimr sibling-repo sources (compiled into app module) ──────
       # These compile as part of the Plinx-iOS module, giving our
       # decorators and adapters access to Strimr's internal types.
       # When StrimrEngine supports direct import, remove these paths
       # and add `- package: StrimrEngine` to dependencies instead.
-      - path: ../vendor/strimr/Shared
+      - path: ../../strimr/Shared
         name: StrimrShared
         excludes:
           # VLC player — Plinx uses MPVKit exclusively
@@ -101,7 +101,7 @@ targets:
           # so we provide our own no-op ErrorReporter instead (App/ErrorReporter.swift).
           # See DATA_COLLECTION_AUDIT.md for privacy rationale.
           - "Monitoring/ErrorReporter.swift"
-      - path: ../vendor/strimr/Strimr-iOS/Features
+      - path: ../../strimr/Strimr-iOS/Features
         name: StrimrIOSFeatures
         excludes:
           # Strimr's own app entry point — we use PlinxApp.swift
@@ -126,7 +126,7 @@ targets:
       # Localized strings — listed explicitly because xcodegen skips xcstrings
       # and needs lproj bundles spelled out.
       - path: Resources/en.lproj/Plinx.strings
-      - path: ../vendor/strimr/Localizable.xcstrings
+      - path: ../../strimr/Localizable.xcstrings
 
     dependencies:
       - package: PlinxCore
@@ -153,9 +153,9 @@ targets:
     settings:
       base:
         CODE_SIGN_STYLE: Automatic
-        # Ensure vendor code compiles with our Swift version
+        # Ensure Strimr code compiles with our Swift version
         SWIFT_VERSION: 5.0
-        # Vendor code (Strimr) has actor-isolation violations that are
+        # Strimr code has actor-isolation violations that are
         # errors in the Swift 6 compiler even with Swift 5 language mode.
         # Minimal concurrency turns them into warnings until vendor fixes.
         SWIFT_STRICT_CONCURRENCY: minimal
