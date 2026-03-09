@@ -102,7 +102,7 @@ struct ParentalGateView: View {
                 text: $answerText,
                 placeholder: NSLocalizedString("parental.gate.placeholder", tableName: "Plinx", comment: "")
             )
-                .frame(width: 84)
+                .frame(maxWidth: 200)
 
             LiquidGlassButton(LocalizedStringResource("parental.gate.unlock", table: "Plinx")) {
                 if let answer = Int(answerText), mathGate.validate(answer: answer, for: challenge) {
@@ -130,21 +130,13 @@ private struct NumberPadEntryField: UIViewRepresentable {
     func makeUIView(context: Context) -> UITextField {
         let textField = UITextField(frame: .zero)
         textField.delegate = context.coordinator
-        textField.borderStyle = .none
+        textField.borderStyle = .roundedRect
         textField.keyboardType = .numberPad
         textField.keyboardAppearance = .light
-        textField.textColor = .white
-        textField.tintColor = .white
-        textField.textAlignment = .center
-        textField.font = .preferredFont(forTextStyle: .title2)
+        textField.font = .preferredFont(forTextStyle: .largeTitle)
         textField.adjustsFontForContentSizeCategory = true
-        textField.backgroundColor = UIColor.black.withAlphaComponent(0.6)
-        textField.layer.cornerRadius = 12
-        textField.layer.masksToBounds = true
-        textField.attributedPlaceholder = NSAttributedString(
-            string: placeholder,
-            attributes: [.foregroundColor: UIColor.white.withAlphaComponent(0.55)]
-        )
+        textField.textAlignment = .center
+        textField.placeholder = placeholder
         textField.isSecureTextEntry = isSecure
         textField.addTarget(context.coordinator, action: #selector(Coordinator.textDidChange(_:)), for: .editingChanged)
         return textField
@@ -154,10 +146,7 @@ private struct NumberPadEntryField: UIViewRepresentable {
         if uiView.text != text {
             uiView.text = text
         }
-        uiView.attributedPlaceholder = NSAttributedString(
-            string: placeholder,
-            attributes: [.foregroundColor: UIColor.white.withAlphaComponent(0.55)]
-        )
+        uiView.placeholder = placeholder
         uiView.isSecureTextEntry = isSecure
     }
 
