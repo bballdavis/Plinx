@@ -31,6 +31,13 @@ struct PlinxDownloadsGridView: View {
     private let portraitPosterRatio: CGFloat = 2.0 / 3.0
     private let gridSpacing: CGFloat = 10
 
+    private struct GridPosterLayout {
+        let posterRatio: CGFloat
+        let posterWidth: CGFloat
+        let cardWidth: CGFloat
+        let rotatesLandscapeThumbnail: Bool
+    }
+
     private var gridPosterHeight: CGFloat {
         isPortraitViewport ? 188 : 176
     }
@@ -160,24 +167,21 @@ struct PlinxDownloadsGridView: View {
 
     private func gridCell(_ item: DownloadItem) -> some View {
         let localPoster = localPosterImage(for: item)
-        let rotatesLandscapeThumbnail = shouldRotateLandscapeThumbnail(for: item)
-        let ratio = posterRatio(for: item, poster: localPoster, rotatesLandscapeThumbnail: rotatesLandscapeThumbnail)
-        let posterWidth = gridPosterWidth(for: ratio)
-        let cardWidth = gridCardWidth(for: posterWidth)
+        let layout = gridPosterLayout(for: item, poster: localPoster)
 
         return VStack(alignment: .leading, spacing: 6) {
             posterCell(
                 item,
                 poster: localPoster,
-                ratio: ratio,
-                posterWidth: posterWidth,
-                cardWidth: cardWidth,
-                rotatesLandscapeThumbnail: rotatesLandscapeThumbnail
+                ratio: layout.posterRatio,
+                posterWidth: layout.posterWidth,
+                cardWidth: layout.cardWidth,
+                rotatesLandscapeThumbnail: layout.rotatesLandscapeThumbnail
             )
             metadataLabels(for: item, titleLineLimit: 2)
-                .frame(width: cardWidth, height: gridTextHeight, alignment: .topLeading)
+                .frame(width: layout.cardWidth, height: gridTextHeight, alignment: .topLeading)
         }
-        .frame(width: cardWidth, height: gridCardHeight, alignment: .topLeading)
+        .frame(width: layout.cardWidth, height: gridCardHeight, alignment: .topLeading)
     }
 
     private func posterCell(
@@ -363,6 +367,7 @@ struct PlinxDownloadsGridView: View {
             }
         }
         .aspectRatio(ratio, contentMode: .fit)
+        .clipped()
         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         .overlay {
             if item.status == .downloading || item.status == .queued {
@@ -374,6 +379,31 @@ struct PlinxDownloadsGridView: View {
 
     private func shouldRotateLandscapeThumbnail(for item: DownloadItem) -> Bool {
         item.metadata.type == .clip && isPortraitViewport
+    }
+
+    private func gridPosterLayout(for item: DownloadItem, poster: UIImage?) -> GridPosterLayout {
+        let rotatesLandscapeThumbnail = shouldRotateLandscapeThumbnail(for: item)
+
+        if rotatesLandscapeThumbnail {
+            let portraitWidth = gridPosterHeight * portraitPosterRatio
+            let cardWidth = max(portraitWidth, gridMinCardWidth)
+            return GridPosterLayout(
+                posterRatio: portraitPosterRatio,
+                posterWidth: portraitWidth,
+                cardWidth: cardWidth,
+                rotatesLandscapeThumbnail: true
+            )
+        }
+
+        let ratio = posterRatio(for: item, poster: poster, rotatesLandscapeThumbnail: false)
+        let posterWidth = gridPosterWidth(for: ratio)
+        let cardWidth = gridCardWidth(for: posterWidth)
+        return GridPosterLayout(
+            posterRatio: ratio,
+            posterWidth: posterWidth,
+            cardWidth: cardWidth,
+            rotatesLandscapeThumbnail: false
+        )
     }
 
     private func posterRatio(
