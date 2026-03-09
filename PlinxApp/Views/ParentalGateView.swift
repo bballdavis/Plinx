@@ -102,7 +102,7 @@ struct ParentalGateView: View {
                 text: $answerText,
                 placeholder: NSLocalizedString("parental.gate.placeholder", tableName: "Plinx", comment: "")
             )
-                .frame(maxWidth: 200)
+                .frame(width: 84)
 
             LiquidGlassButton(LocalizedStringResource("parental.gate.unlock", table: "Plinx")) {
                 if let answer = Int(answerText), mathGate.validate(answer: answer, for: challenge) {

@@ -100,7 +100,7 @@ struct KidsMainTabPicker: View {
                     )
             )
             .scaleEffect(isSelected ? (playfulAnimationsEnabled ? 1.14 : 1.03) : 1.0)
-            .offset(y: isSelected ? (playfulAnimationsEnabled ? 0 : -2) : 0)
+            .offset(y: isSelected ? (playfulAnimationsEnabled ? 0 : 1) : 0)
             .rotationEffect(.degrees(isSelected && playfulAnimationsEnabled ? 2.5 * playfulTiltDirection : 0))
             .shadow(
                 color: isSelected && playfulAnimationsEnabled ? Color.accentColor.opacity(0.25) : .clear,
