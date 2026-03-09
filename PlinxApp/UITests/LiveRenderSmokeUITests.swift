@@ -92,6 +92,24 @@ final class LiveRenderSmokeUITests: XCTestCase {
         XCTAssertLessThan(ratio, 1.0, "Movies/TV thumbnail should be portrait (height > width)")
     }
 
+    func test_liveContinueWatchingThumbnailIsLandscape() throws {
+        guard isLiveEnvironmentConfigured else {
+            throw XCTSkip("Live Plex env vars are not configured.")
+        }
+
+        let continueRow = app.otherElements["home.hub.continueWatching"]
+        XCTAssertTrue(continueRow.waitForExistence(timeout: 40), "Continue Watching section did not render")
+
+        let continueThumb = app.otherElements["home.thumbnail.continueWatching.0"]
+        XCTAssertTrue(continueThumb.waitForExistence(timeout: 15), "Expected first thumbnail in Continue Watching section")
+
+        let ratio = aspectRatio(of: continueThumb)
+        if ratio <= 1.2 {
+            attachScreenshot(name: "continue-watching-not-landscape")
+        }
+        XCTAssertGreaterThan(ratio, 1.2, "Continue Watching thumbnail should be landscape (width > height)")
+    }
+
     func test_liveLandscapeAndPortraitDiffer() throws {
         guard isLiveEnvironmentConfigured else {
             throw XCTSkip("Live Plex env vars are not configured.")

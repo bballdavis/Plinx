@@ -91,7 +91,7 @@ struct PlinxHomeView: View {
         switch sectionId {
         case "continueWatching":
             if let hub = viewModel.continueWatching, hub.hasItems {
-                hubRow(hub, layout: .portrait, sectionKey: "continueWatching")
+                hubRow(hub, layout: .landscape, sectionKey: "continueWatching")
             }
         case "moviesAndTV":
             ForEach(moviesTVGroups) { group in
@@ -288,13 +288,14 @@ struct PlinxHomeView: View {
         let ratio: CGFloat = isLandscape ? 16.0 / 9.0 : 2.0 / 3.0
         let isContinueWatching = sectionKey == "continueWatching"
         let watched = isItemWatched(item)
+        let artworkKind: MediaImageViewModel.ArtworkKind = isLandscape ? .art : .thumb
 
         return VStack(alignment: .leading, spacing: 6) {
             ZStack(alignment: .bottom) {
                 MediaImageView(
                     viewModel: MediaImageViewModel(
                         context: plexApiContext,
-                        artworkKind: .thumb,
+                        artworkKind: artworkKind,
                         media: item
                     )
                 )
