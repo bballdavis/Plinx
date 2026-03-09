@@ -17,6 +17,7 @@ struct PlinxHomeView: View {
     @Environment(PlexAPIContext.self) private var plexApiContext
     @Environment(LibraryStore.self) private var libraryStore
     @Environment(\.safetyPolicy) private var safetyPolicy
+    @State private var artworkRefreshToken = UUID()
 
     // Plinx-specific home screen settings (separate from Library-tab visibility)
     @AppStorage("plinx.homeHiddenLibraryIds") private var homeHiddenIdsJson = "[]"
@@ -47,7 +48,7 @@ struct PlinxHomeView: View {
             }
         }
         .task { await viewModel.load() }
-        .refreshable { await viewModel.reload() }
+        .refreshable { await refreshContent() }
         .onChange(of: safetyPolicy) { _, newPolicy in
             // When the parent updates the safety policy (max rating changed,
             // excludeUnrated toggled) re-filter cached hub data immediately
@@ -84,6 +85,13 @@ struct PlinxHomeView: View {
             // floating KidsMainTabPicker (≈ 88pt) + comfortable overshoot.
             .padding(.bottom, 120)
         }
+        .id(artworkRefreshToken)
+    }
+
+    private func refreshContent() async {
+        await viewModel.reload()
+        URLCache.shared.removeAllCachedResponses()
+        artworkRefreshToken = UUID()
     }
 
     @ViewBuilder

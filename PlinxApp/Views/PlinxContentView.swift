@@ -54,6 +54,10 @@ struct PlinxContentView: View {
                         context: plexApiContext,
                     ),
                 )
+            case DownloadUITestFixtures.screenName:
+                NavigationStack {
+                    PlinxDownloadsGridView()
+                }
             default:
                 sessionContent
             }

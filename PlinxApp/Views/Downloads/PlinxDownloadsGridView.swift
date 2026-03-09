@@ -28,7 +28,6 @@ struct PlinxDownloadsGridView: View {
         }
     }
 
-    private let portraitPosterRatio: CGFloat = 2.0 / 3.0
     private let gridSpacing: CGFloat = 10
 
     private struct GridPosterLayout {
@@ -210,7 +209,7 @@ struct PlinxDownloadsGridView: View {
     }
 
     private func listRow(_ item: DownloadItem) -> some View {
-        let isPortrait = portraitTypes.contains(item.metadata.type)
+        let isPortrait = DownloadsArtworkLayoutPolicy.isPortraitArtworkType(item.metadata.type)
         let posterSize = isPortrait ? CGSize(width: 45, height: 68) : CGSize(width: 78, height: 44)
 
         return Button {
@@ -337,10 +336,6 @@ struct PlinxDownloadsGridView: View {
         PlinxChromeButton(systemImage: systemImage, action: action)
     }
 
-    private var portraitTypes: Set<PlexItemType> {
-        [.movie, .show, .season, .episode]
-    }
-
     private func posterArtwork(
         for item: DownloadItem,
         poster: UIImage?,
@@ -349,6 +344,7 @@ struct PlinxDownloadsGridView: View {
         let resolvedPosterWidth = gridPosterHeight * ratio
         return ZStack(alignment: .bottom) {
             posterImageView(poster)
+                .accessibilityIdentifier("downloads.thumbnail.\(item.id)")
 
             if item.status == .downloading {
                 VStack {
@@ -358,6 +354,7 @@ struct PlinxDownloadsGridView: View {
                         .tint(Color.accentColor)
                         .padding(.horizontal, 4)
                         .padding(.bottom, 4)
+                        .accessibilityIdentifier("downloads.progress.\(item.id)")
                 }
             }
         }
@@ -387,10 +384,7 @@ struct PlinxDownloadsGridView: View {
         for item: DownloadItem,
         poster: UIImage?
     ) -> CGFloat {
-        let isPortrait = portraitTypes.contains(item.metadata.type)
-        return isPortrait
-            ? portraitPosterRatio
-            : artworkAspectRatio(for: poster)
+        DownloadsArtworkLayoutPolicy.displayAspectRatio(for: item.metadata.type, imageSize: poster?.size)
     }
 
     private func gridPosterWidth(for ratio: CGFloat) -> CGFloat {
@@ -399,20 +393,6 @@ struct PlinxDownloadsGridView: View {
 
     private func gridCardWidth(for posterWidth: CGFloat) -> CGFloat {
         max(posterWidth, gridMinCardWidth)
-    }
-
-    private func artworkAspectRatio(for poster: UIImage?) -> CGFloat {
-        let baseRatio: CGFloat
-        if let poster {
-            let size = poster.size
-            let width = max(size.width, 1)
-            let height = max(size.height, 1)
-            baseRatio = width / height
-        } else {
-            baseRatio = 16.0 / 9.0
-        }
-
-        return max(1.2, min(2.2, baseRatio))
     }
 
     private func localPosterImage(for item: DownloadItem) -> UIImage? {
