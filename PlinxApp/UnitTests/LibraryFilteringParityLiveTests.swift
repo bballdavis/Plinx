@@ -48,6 +48,11 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
         let libraries = try await pickLibraries(type: .movie, context: context)
         for library in libraries {
             try await assertBrowseParityFullPagination(library: library, context: context)
+            try await assertBrowseParityFullPagination(
+                library: library,
+                context: context,
+                quickSort: .newest
+            )
         }
     }
 
@@ -56,6 +61,11 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
         let libraries = try await pickLibraries(type: .show, context: context)
         for library in libraries {
             try await assertBrowseParityFullPagination(library: library, context: context)
+            try await assertBrowseParityFullPagination(
+                library: library,
+                context: context,
+                quickSort: .newest
+            )
         }
     }
 
@@ -64,6 +74,11 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
         let libraries = try await pickOtherVideoLibraries(context: context)
         for library in libraries {
             try await assertBrowseParityFullPagination(library: library, context: context)
+            try await assertBrowseParityFullPagination(
+                library: library,
+                context: context,
+                quickSort: .newest
+            )
         }
     }
 
@@ -182,7 +197,8 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
         settings.setDisplayCollections(false)
 
         let vm = LibraryBrowseViewModel(library: library, context: context, settingsManager: settings)
-        vm.itemFilter = { [policy] item in
+        let effectivePolicy = effectivePolicyFor(library)
+        vm.itemFilter = { [policy = effectivePolicy] item in
             if HomeLibraryGrouping.isMoviesOrTV(library), case .collection = item {
                 return false
             }
@@ -217,12 +233,18 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
         }, "All browse media items must satisfy library-context safety policy")
     }
 
-    private func assertBrowseParityFullPagination(library: Library, context: PlexAPIContext) async throws {
+    private func assertBrowseParityFullPagination(
+        library: Library,
+        context: PlexAPIContext,
+        quickSort: LibraryBrowseControlsViewModel.QuickSort? = nil
+    ) async throws {
         let settings = SettingsManager()
         settings.setDisplayCollections(false)
 
         let vm = LibraryBrowseViewModel(library: library, context: context, settingsManager: settings)
-        vm.itemFilter = { [policy] item in
+        vm.controls.preferredQuickSort = quickSort
+        let effectivePolicy = effectivePolicyFor(library)
+        vm.itemFilter = { [policy = effectivePolicy] item in
             if HomeLibraryGrouping.isMoviesOrTV(library), case .collection = item {
                 return false
             }
@@ -256,7 +278,8 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
             context: context,
             includeCollections: false,
             pages: nil,
-            pageSize: 20
+            pageSize: 20,
+            quickSort: quickSort
         )
         let actualEntries = vm.browseItems.map(browseEntry)
         let uniqueEntries = Set(actualEntries)
@@ -416,8 +439,15 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
 
     private func locateTestCredsYAML() -> String? {
         let fm = FileManager.default
-        var current = URL(fileURLWithPath: fm.currentDirectoryPath)
 
+        // Most reliable path when running inside the iOS Simulator: the file is
+        // bundled as a resource of the unit-test target, accessible via the bundle.
+        if let bundlePath = Bundle(for: Self.self).path(forResource: "test_creds", ofType: "yaml") {
+            return bundlePath
+        }
+
+        // macOS fallback: walk up from the working directory.
+        var current = URL(fileURLWithPath: fm.currentDirectoryPath)
         for _ in 0..<5 {
             let candidate = current.appendingPathComponent("test_creds.yaml").path
             if fm.fileExists(atPath: candidate) {
@@ -426,9 +456,7 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
             current.deleteLastPathComponent()
         }
 
-        // Fallback: resolve from this source file path:
-        // <repo>/PlinxApp/UnitTests/LibraryFilteringParityLiveTests.swift
-        // -> <repo>/test_creds.yaml
+        // Last resort: resolve from this source file path.
         var sourceURL = URL(fileURLWithPath: #filePath)
         for _ in 0..<4 { sourceURL.deleteLastPathComponent() }
         let sourceCandidate = sourceURL.appendingPathComponent("test_creds.yaml").path
@@ -493,11 +521,20 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
         includeCollections: Bool,
         pages: Int?,
         pageSize: Int,
-        applySafetyFilter: Bool = true
+        applySafetyFilter: Bool = true,
+        quickSort: LibraryBrowseControlsViewModel.QuickSort? = nil
     ) async throws -> [BrowseParityEntry] {
         let sectionRepository = try SectionRepository(context: context)
         let sectionId = try sectionId(for: library)
         let typeValue = defaultBrowseTypeQueryValue(for: library)
+        let sortValue = try await preferredSortQueryValue(
+            quickSort,
+            library: library,
+            context: context,
+            includeCollections: includeCollections,
+            typeValue: typeValue,
+            sectionRepository: sectionRepository
+        )
         var entries: [BrowseParityEntry] = []
         var start = 0
         let maxPages = pages ?? 300
@@ -507,7 +544,8 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
             let queryItems = [
                 URLQueryItem(name: "type", value: typeValue),
                 URLQueryItem(name: "includeCollections", value: includeCollections ? "1" : "0"),
-                URLQueryItem(name: "includeMeta", value: includeMeta ? "1" : "0")
+                URLQueryItem(name: "includeMeta", value: includeMeta ? "1" : "0"),
+                URLQueryItem(name: "sort", value: sortValue)
             ].filter { $0.value != nil }
 
             let response = try await sectionRepository.getSectionBrowseItems(
@@ -559,6 +597,39 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
         }
     }
 
+    private func preferredSortQueryValue(
+        _ quickSort: LibraryBrowseControlsViewModel.QuickSort?,
+        library: Library,
+        context: PlexAPIContext,
+        includeCollections: Bool,
+        typeValue: String?,
+        sectionRepository: SectionRepository
+    ) async throws -> String? {
+        guard let quickSort else { return nil }
+
+        let controls = LibraryBrowseControlsViewModel(context: context)
+        controls.preferredQuickSort = quickSort
+
+        let queryItems = [
+            URLQueryItem(name: "type", value: typeValue),
+            URLQueryItem(name: "includeCollections", value: includeCollections ? "1" : "0"),
+            URLQueryItem(name: "includeMeta", value: "1")
+        ].filter { $0.value != nil }
+
+        let response = try await sectionRepository.getSectionBrowseItems(
+            path: "/library/sections/\(try sectionId(for: library))/all",
+            queryItems: queryItems,
+            pagination: PlexPagination(start: 0, size: 1)
+        )
+
+        guard let meta = response.mediaContainer.meta else { return nil }
+        controls.applyMeta(meta)
+
+        return controls.selectedSort.map { selection in
+            selection.direction == .asc ? selection.sort.key : selection.sort.descKey
+        }
+    }
+
     private func browseEntry(_ item: LibraryBrowseItem) -> BrowseParityEntry {
         switch item {
         case let .folder(folder):
@@ -568,11 +639,23 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
         }
     }
 
+    private func effectivePolicyFor(_ library: Library) -> SafetyPolicy {
+        // None-agent libraries (YouTube Videos, Home Videos, etc.) are personally
+        // curated and typically lack MPAA/TV content ratings. Allow unrated items
+        // through while still respecting the rating ceiling for any rated item.
+        guard library.isNoneAgentLibrary else { return policy }
+        return SafetyPolicy.ratingOnly(
+            maxMovie: policy.maxMovieRating,
+            maxTV: policy.maxTVRating,
+            allowUnrated: true
+        )
+    }
+
     private func isAllowedInAppContext(_ item: MediaDisplayItem, library: Library) -> Bool {
         if HomeLibraryGrouping.isMoviesOrTV(library), case .collection = item {
             return false
         }
-        return StrimrAdapter.isAllowed(item, policy: policy)
+        return StrimrAdapter.isAllowed(item, policy: effectivePolicyFor(library))
     }
 
     private func isAllowedByPolicyInLibraryContext(_ item: MediaDisplayItem, library: Library) -> Bool {
@@ -583,16 +666,18 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
         case .collection, .playlist:
             return true
         case let .playable(media):
-            return isAllowedByPolicyRating(media.contentRating)
+            let effectiveAllowUnrated = library.isNoneAgentLibrary || policy.allowUnrated
+            return isAllowedByPolicyRating(media.contentRating, allowUnrated: effectiveAllowUnrated)
         }
     }
 
-    private func isAllowedByPolicyRating(_ contentRating: String?) -> Bool {
+    private func isAllowedByPolicyRating(_ contentRating: String?, allowUnrated: Bool? = nil) -> Bool {
+        let effectiveAllowUnrated = allowUnrated ?? policy.allowUnrated
         guard let contentRating, !contentRating.isEmpty else {
-            return policy.allowUnrated
+            return effectiveAllowUnrated
         }
         guard let rating = PlinxRating.from(contentRating: contentRating) else {
-            return policy.allowUnrated
+            return effectiveAllowUnrated
         }
         if rating.isTVRating {
             return rating <= policy.maxTVRating

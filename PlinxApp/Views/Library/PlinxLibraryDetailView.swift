@@ -153,11 +153,18 @@ struct PlinxLibraryDetailView: View {
         vm.controls.preferredQuickSort = browseQuickSort
         let policy = safetyPolicy
         let libType = library.type
+        // None-agent libraries (YouTube Videos, Home Videos, etc.) are personally
+        // curated and typically lack MPAA/TV content ratings. Allow unrated items
+        // through while still respecting the rating ceiling for any item that does
+        // carry an explicit rating (e.g., a TV-MA clip still gets blocked).
+        let effectivePolicy = library.isNoneAgentLibrary
+            ? SafetyPolicy.ratingOnly(maxMovie: policy.maxMovieRating, maxTV: policy.maxTVRating, allowUnrated: true)
+            : policy
         vm.itemFilter = { item in
             if (libType == .movie || libType == .show), case .collection = item {
                 return false
             }
-            return StrimrAdapter.isAllowed(item, policy: policy)
+            return StrimrAdapter.isAllowed(item, policy: effectivePolicy)
         }
         return vm
     }
