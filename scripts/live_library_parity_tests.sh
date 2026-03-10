@@ -10,11 +10,12 @@ LOG_PATH="/tmp/plinx_live_library_parity.log"
 RESULT_BUNDLE="/tmp/Plinx_live_library_parity.xcresult"
 DEFAULT_DESTINATION='platform=iOS Simulator,id=881AC958-79D3-476D-A40E-1290AC561623'
 DESTINATION="${1:-$DEFAULT_DESTINATION}"
-# bundle ID is inferred from project settings once the Xcode project exists
-APP_BUNDLE_ID=""
+# Bundle ID for simulator defaults injection. Can be overridden but should
+# match the app's PRODUCT_BUNDLE_IDENTIFIER in project.yml.
+APP_BUNDLE_ID="${PLINX_APP_BUNDLE_ID:-com.bballdavis.plinx}"
 
-TEST_TARGET='Plinx-iOS-UnitTests/LibraryFilteringParityLiveTests'
-REQUIRED_TEST_CASE='test_liveHomeRecentlyAdded_otherVideoHubVisibleUnderStrictPolicy'
+TEST_TARGET="${PLINX_TEST_TARGET:-Plinx-iOS-UnitTests/LibraryFilteringParityLiveTests}"
+REQUIRED_TEST_CASE="${PLINX_REQUIRED_TEST_CASE:-test_liveHomeRecentlyAdded_otherVideoHubVisibleUnderStrictPolicy}"
 
 RED=$'\033[0;31m'
 GREEN=$'\033[0;32m'
@@ -123,6 +124,11 @@ run_tests() {
   fi
   info "Bundle ID: $APP_BUNDLE_ID"
 
+  # Write credentials to simulator defaults right before the test run so that
+  # hosted tests (which use the app's UserDefaults domain) can find them even
+  # when the test_creds.yaml bundle resource isn't available.
+  configure_simulator_defaults
+
   rm -rf "$RESULT_BUNDLE"
   : >"$LOG_PATH"
 
@@ -181,7 +187,6 @@ run_tests() {
 
 main() {
   load_credentials
-  configure_simulator_defaults
   run_tests
 }
 

@@ -185,6 +185,15 @@ targets:
     sources:
       - path: UnitTests
 
+    # Bundle the live-test credentials file so tests running inside the iOS Simulator
+    # can load it via Bundle(for: Self.self) — the host filesystem is inaccessible
+    # from inside the simulator sandbox.
+    # The file is copied to PlinxApp/UnitTests/test_creds.yaml (gitignored)
+    # so XcodeGen can include it as an in-tree resource.
+    resources:
+      - path: UnitTests/test_creds.yaml
+        optional: true
+
     dependencies:
       - target: Plinx-iOS
 
@@ -208,7 +217,7 @@ targets:
       - path: UITests
 
     resources:
-      - path: ../test_creds.yaml
+      - path: UITests/test_creds.yaml
         optional: true
 
     dependencies:
