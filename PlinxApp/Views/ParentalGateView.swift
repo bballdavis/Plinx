@@ -25,6 +25,8 @@ struct ParentalGateView: View {
     }
 
     private var usePIN: Bool { !storedPin.isEmpty }
+    private let entryFieldSize = CGSize(width: 100, height: 32)
+    private let entryFieldSlotHeight: CGFloat = 72
 
     var body: some View {
         VStack(spacing: 24) {
@@ -63,7 +65,8 @@ struct ParentalGateView: View {
                 isSecure: true,
                 maximumDigits: 6
             )
-                .frame(maxWidth: 200)
+                .frame(width: entryFieldSize.width, height: entryFieldSize.height)
+                .frame(maxWidth: .infinity, minHeight: entryFieldSlotHeight, maxHeight: entryFieldSlotHeight, alignment: .center)
                 .onChange(of: pinEntry) { _, _ in
                     pinError = false
                 }
@@ -102,7 +105,8 @@ struct ParentalGateView: View {
                 text: $answerText,
                 placeholder: NSLocalizedString("parental.gate.placeholder", tableName: "Plinx", comment: "")
             )
-                .frame(maxWidth: 200)
+                .frame(width: entryFieldSize.width, height: entryFieldSize.height)
+                .frame(maxWidth: .infinity, minHeight: entryFieldSlotHeight, maxHeight: entryFieldSlotHeight, alignment: .center)
 
             LiquidGlassButton(LocalizedStringResource("parental.gate.unlock", table: "Plinx")) {
                 if let answer = Int(answerText), mathGate.validate(answer: answer, for: challenge) {
@@ -133,7 +137,7 @@ private struct NumberPadEntryField: UIViewRepresentable {
         textField.borderStyle = .roundedRect
         textField.keyboardType = .numberPad
         textField.keyboardAppearance = .light
-        textField.font = .preferredFont(forTextStyle: .largeTitle)
+        textField.font = .preferredFont(forTextStyle: .title2)
         textField.adjustsFontForContentSizeCategory = true
         textField.textAlignment = .center
         textField.placeholder = placeholder

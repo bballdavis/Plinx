@@ -223,6 +223,7 @@ struct PlinxDownloadsGridView: View {
                         poster: poster,
                         posterSize: posterSize
                     )
+                    .frame(width: posterWidth, height: posterHeight)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 }
         }

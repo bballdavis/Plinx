@@ -29,14 +29,17 @@ struct KidsMainTabPicker: View {
     @State private var playfulTiltDirection: Double = 1
 
     private var isRegular: Bool { sizeClass == .regular }
+    private var usesCompactDistribution: Bool { !isRegular && tabs.count >= 4 }
 
     // Size tokens — compact (iPhone) vs regular (iPad)
     private var buttonMinWidth: CGFloat  { isRegular ? 96 : 110 }
     private var buttonHeight: CGFloat    { isRegular ? 64 : 72 }
-    private var iconPointSize: CGFloat   { isRegular ? 22 : 26 }
-    private var labelFont: Font          { isRegular ? .caption : .subheadline }
+    private var iconPointSize: CGFloat   { isRegular ? 22 : (usesCompactDistribution ? 22 : 26) }
+    private var labelFont: Font          { isRegular ? .caption : (usesCompactDistribution ? .caption2 : .subheadline) }
     private var cornerRadius: CGFloat    { isRegular ? 14 : 16 }
-    private var hSpacing: CGFloat        { isRegular ? 8 : 12 }
+    private var hSpacing: CGFloat        { isRegular ? 8 : (usesCompactDistribution ? 6 : 12) }
+    private var contentHorizontalPadding: CGFloat { isRegular ? 20 : (usesCompactDistribution ? 10 : 16) }
+    private var containerHorizontalPadding: CGFloat { isRegular ? 40 : (usesCompactDistribution ? 12 : 20) }
 
     // MARK: - Body
 
@@ -44,12 +47,13 @@ struct KidsMainTabPicker: View {
         HStack(spacing: hSpacing) {
             ForEach(tabs) { tab in
                 tabButton(tab)
+                    .frame(maxWidth: usesCompactDistribution ? .infinity : nil)
             }
         }
-        .padding(.horizontal, isRegular ? 20 : 16)
+        .padding(.horizontal, contentHorizontalPadding)
         .padding(.vertical, playfulAnimationsEnabled ? (isRegular ? 12 : 10) : 10)
         .liquidGlassBackground()
-        .padding(.horizontal, isRegular ? 40 : 20)
+        .padding(.horizontal, containerHorizontalPadding)
         .padding(.bottom, 1)
         .onChange(of: selectedTab) { _, _ in
             guard playfulAnimationsEnabled else { return }
@@ -79,10 +83,15 @@ struct KidsMainTabPicker: View {
                 Text(item.title)
                     .font(labelFont.bold())
                     .lineLimit(1)
+                    .minimumScaleFactor(usesCompactDistribution ? 0.68 : 0.85)
                     .scaleEffect(isSelected && playfulAnimationsEnabled ? 1.05 : 1.0)
             }
             .foregroundStyle(isSelected ? Color.accentColor : Color.white.opacity(0.7))
-            .frame(minWidth: buttonMinWidth, minHeight: buttonHeight)
+            .frame(
+                minWidth: usesCompactDistribution ? nil : buttonMinWidth,
+                maxWidth: usesCompactDistribution ? .infinity : nil,
+                minHeight: buttonHeight
+            )
             .background(
                 ZStack {
                     if isSelected {
