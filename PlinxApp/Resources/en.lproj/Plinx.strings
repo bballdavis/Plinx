@@ -67,7 +67,7 @@
 /* Settings — Home Screen */
 "settings.homescreen.title" = "Home Screen";
 "settings.homescreen.recentlyadded.title" = "Recently Added Libraries";
-"settings.homescreen.recentlyadded.footer" = "Choose which libraries appear in the Recently Added rows and drag to change the display order.";
+"settings.homescreen.recentlyadded.footer" = "Choose which libraries appear in the Recently Added rows.";
 "settings.homescreen.sections.title" = "Section Order";
 "settings.homescreen.sections.footer" = "Drag to control which section appears first on the Home tab.";
 
@@ -98,6 +98,9 @@
 "settings.safety.rating.dual.description" = "Content rated above these levels won't appear anywhere in Plinx.";
 "settings.safety.movie.rating.title" = "Max Movie Rating";
 "settings.safety.tv.rating.title" = "Max TV Rating";
+"settings.safety.audio.section" = "Audio Safety";
+"settings.safety.maxVolume.title" = "Max Volume";
+"settings.safety.maxVolume.description" = "Limits playback volume for videos started in Plinx. The default cap is 70%.";
 "settings.safety.touchlock.title" = "Baby Lock";
 "settings.safety.touchlock.section" = "Touch Protection";
 "settings.safety.touchlock.description" = "When enabled, all touches are blocked until a triple-tap is detected.";

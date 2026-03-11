@@ -436,7 +436,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Choose which libraries appear in the Recently Added rows and drag to set the display order."
+            "value" : "Choose which libraries appear in the Recently Added rows."
           }
         }
       }
@@ -667,6 +667,36 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Content rated above the limits above won't appear in Plinx. When \"Hide Unrated Items\" is on (recommended), items with no content rating are also hidden — useful for keeping unrated home videos off the home screen."
+          }
+        }
+      }
+    },
+    "settings.safety.audio.section" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Audio Safety"
+          }
+        }
+      }
+    },
+    "settings.safety.maxVolume.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Max Volume"
+          }
+        }
+      }
+    },
+    "settings.safety.maxVolume.description" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limits playback volume for videos started in Plinx. The default cap is 70%."
           }
         }
       }

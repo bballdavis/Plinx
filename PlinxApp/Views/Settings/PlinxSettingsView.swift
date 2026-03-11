@@ -41,6 +41,13 @@ private struct SettingsBody: View {
 
     @State private var isPresentingProfileSwitcher = false
 
+    private var maxVolumeBinding: Binding<Double> {
+        Binding(
+            get: { Double(settingsManager.playback.maxVolumePercent) },
+            set: { settingsManager.setMaxVolumePercent(Int($0.rounded())) }
+        )
+    }
+
     var body: some View {
         List {
             // MARK: Content subpages
@@ -162,6 +169,33 @@ private struct SettingsBody: View {
                 Text("settings.safety.title", tableName: "Plinx")
             } footer: {
                 Text("settings.safety.excludeUnrated.description", tableName: "Plinx")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 12) {
+                        Label {
+                            Text("settings.safety.maxVolume.title", tableName: "Plinx")
+                        } icon: {
+                            Image(systemName: "speaker.wave.2.fill")
+                        }
+
+                        Spacer()
+
+                        Text("\(settingsManager.playback.maxVolumePercent)%")
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Slider(value: maxVolumeBinding, in: 0...100, step: 5)
+                }
+                .padding(.vertical, 4)
+            } header: {
+                Text("settings.safety.audio.section", tableName: "Plinx")
+            } footer: {
+                Text("settings.safety.maxVolume.description", tableName: "Plinx")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
