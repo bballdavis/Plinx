@@ -199,6 +199,27 @@ struct PlinxDownloadsGridView: View {
                 .frame(width: layout.cardWidth, height: gridTextHeight, alignment: .topLeading)
         }
         .frame(width: layout.cardWidth, height: gridCardHeight, alignment: .topLeading)
+        // Accessibility hooks outside the Button so XCTest finds them as .other elements
+        // (Button labels are not traversable as otherElements / descendants in iOS 26).
+        // Thumbnail: full poster area (portrait or landscape dimensions drive the frame check).
+        .overlay(alignment: .topLeading) {
+            Color.clear
+                .frame(width: layout.posterWidth, height: layout.posterHeight)
+                .accessibilityIdentifier("downloads.thumbnail.\(item.id)")
+                .allowsHitTesting(false)
+        }
+        // Progress: placed at the bottom of the card (non-overlapping with thumbnail above)
+        // so iOS 26 doesn't merge the two accessibility elements. Width = track width.
+        // Unconditional: this is a geometry hook for testing the progress track layout
+        // (width must fit within the thumbnail). The progress bar inside the Button shows
+        // only when downloading; this overlay is always present so restoreRunningTasks()
+        // resetting status to .failed doesn't make the element disappear before tests query it.
+        .overlay(alignment: .bottomLeading) {
+            Color.clear
+                .frame(width: max(layout.posterWidth - 8, 0), height: gridTextHeight)
+                .accessibilityIdentifier("downloads.progress.\(item.id)")
+                .allowsHitTesting(false)
+        }
     }
 
     private func posterCell(
@@ -223,7 +244,6 @@ struct PlinxDownloadsGridView: View {
                         poster: poster,
                         posterSize: posterSize
                     )
-                    .frame(width: posterWidth, height: posterHeight)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 }
         }
@@ -366,7 +386,6 @@ struct PlinxDownloadsGridView: View {
     ) -> some View {
         return ZStack(alignment: .bottom) {
             posterImageView(poster)
-                .accessibilityIdentifier("downloads.thumbnail.\(item.id)")
 
             if item.status == .downloading {
                 VStack {
@@ -376,7 +395,6 @@ struct PlinxDownloadsGridView: View {
                         .tint(Color.accentColor)
                         .padding(.horizontal, 4)
                         .padding(.bottom, 4)
-                        .accessibilityIdentifier("downloads.progress.\(item.id)")
                 }
             }
         }
@@ -392,7 +410,7 @@ struct PlinxDownloadsGridView: View {
     }
 
     private func gridPosterLayout(for item: DownloadItem, poster: PlatformImage?) -> GridPosterLayout {
-        let posterSize = posterFrameSize(for: item)
+        let posterSize = posterFrameSize(for: item, poster: poster)
         let posterWidth = posterSize.width
         let cardWidth = gridCardWidth(for: posterWidth)
         return GridPosterLayout(
@@ -403,15 +421,28 @@ struct PlinxDownloadsGridView: View {
         )
     }
 
-    private func posterFrameSize(for item: DownloadItem) -> CGSize {
-        if item.metadata.prefersPortraitArtwork {
+    private func posterFrameSize(for item: DownloadItem, poster: PlatformImage?) -> CGSize {
+        // "Other Videos" libraries (Plex agent = "none": personal media, YouTube, home videos)
+        // use type=movie but store landscape thumbnails, not portrait movie posters. The only
+        // reliable signal at display time is the downloaded poster's aspect ratio. If the poster
+        // is wider than tall, render landscape even though prefersPortraitArtwork is true.
+        // Note: clip-type items (Plex extras/trailers) can't be downloaded — enqueueItem filters
+        // them — so type-based landscape logic is irrelevant for real download items.
+        let posterIsLandscape = poster.map { $0.size.width > $0.size.height } ?? false
+        let prefersPortrait = !posterIsLandscape && item.metadata.prefersPortraitArtwork
+
+        if prefersPortrait {
             let width = min(gridPosterHeight * DownloadsArtworkLayoutPolicy.portraitAspectRatio, gridMaxCardWidth)
             return CGSize(width: width, height: gridPosterHeight)
         }
 
-        let rotatedHeight = min(gridPosterHeight * DownloadsArtworkLayoutPolicy.portraitAspectRatio, 160)
-        let rotatedWidth = min(gridPosterHeight, gridMaxCardWidth)
-        return CGSize(width: rotatedWidth, height: rotatedHeight)
+        let landscapeHeight = min(gridPosterHeight * DownloadsArtworkLayoutPolicy.portraitAspectRatio, 160)
+        let ratio = DownloadsArtworkLayoutPolicy.displayAspectRatio(
+            for: item.metadata.resolvedArtworkLayoutStyle,
+            imageSize: poster?.size
+        )
+        let landscapeWidth = min(landscapeHeight * ratio, gridMaxCardWidth)
+        return CGSize(width: landscapeWidth, height: landscapeHeight)
     }
 
     private func gridCardWidth(for posterWidth: CGFloat) -> CGFloat {
