@@ -10,7 +10,7 @@
 #   ./scripts/ui_tests.sh              # Run all tests
 #   ./scripts/ui_tests.sh --core       # Run PlinxCore only
 #   ./scripts/ui_tests.sh --ui         # Run PlinxUI only
-#   ./scripts/ui_tests.sh --snapshots  # Run snapshot tests on iPhone 17
+#   ./scripts/ui_tests.sh --snapshots  # Run snapshot tests on iPhone 17 Pro Max
 #   ./scripts/ui_tests.sh --record     # Recording mode for snapshot baselines
 #   ./scripts/ui_tests.sh --live       # Live Plex UI smoke tests (Playwright-style)
 #
@@ -145,7 +145,7 @@ run_snapshot_tests() {
             rm -rf /tmp/PlinxUI_snapshots.xcresult
             xcodebuild test \
                 -scheme PlinxUI \
-                -destination 'platform=iOS Simulator,name=iPhone 17' \
+                -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' \
                 -resultBundlePath "/tmp/PlinxUI_snapshots.xcresult" \
                 2>&1 | tee /tmp/snapshots.log
 
@@ -168,13 +168,13 @@ run_snapshot_tests() {
             fi
             ;;
         *)
-            log_info "Running snapshot diffs on iPhone 17..."
+            log_info "Running snapshot diffs on iPhone 17 Pro Max..."
             echo ""
             cd "$PROJECT_ROOT/Packages/PlinxUI"
             rm -rf /tmp/PlinxUI_snapshots.xcresult
             if xcodebuild test \
                 -scheme PlinxUI \
-                -destination 'platform=iOS Simulator,name=iPhone 17' \
+                -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' \
                 -resultBundlePath "/tmp/PlinxUI_snapshots.xcresult" \
                 2>&1 | tee /tmp/snapshots.log; then
                 grep -E "Test Suite|passed|failed" /tmp/snapshots.log || true
@@ -221,7 +221,7 @@ run_live_ui_tests() {
     if xcodebuild test \
         -project Plinx.xcodeproj \
         -scheme Plinx-iOS \
-        -destination 'platform=iOS Simulator,name=iPhone 17' \
+        -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' \
         -resultBundlePath "/tmp/Plinx_live_ui.xcresult" \
         -only-testing:Plinx-iOS-UITests/LaunchSmokeUITests \
         -only-testing:Plinx-iOS-UITests/LiveRenderSmokeUITests \
@@ -268,7 +268,7 @@ main() {
             echo "  ./scripts/ui_tests.sh              # Run all tests"
             echo "  ./scripts/ui_tests.sh --core       # Run PlinxCore tests"
             echo "  ./scripts/ui_tests.sh --ui         # Run PlinxUI tests"
-            echo "  ./scripts/ui_tests.sh --snapshots  # Run snapshot diffs (iPhone 17)"
+            echo "  ./scripts/ui_tests.sh --snapshots  # Run snapshot diffs (iPhone 17 Pro Max)"
             echo "  ./scripts/ui_tests.sh --record     # Record snapshot baselines"
             echo "  ./scripts/ui_tests.sh --live       # Live Plex UI smoke tests"
             echo ""
