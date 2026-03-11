@@ -97,10 +97,6 @@ struct HomeScreenSettingsView: View {
                         }
                     )
                 }
-                .onMove { indices, newOffset in
-                    orderedLibraries.move(fromOffsets: indices, toOffset: newOffset)
-                    persistOrder()
-                }
             } header: {
                 Label {
                     Text("settings.homescreen.recentlyadded.title", tableName: "Plinx")
@@ -172,9 +168,6 @@ struct HomeScreenSettingsView: View {
         hiddenIdsJson = encodeStringArray(Array(ids).sorted())
     }
 
-    private func persistOrder() {
-        orderJson = encodeStringArray(orderedLibraries.map(\.id))
-    }
 }
 
 // MARK: - Row
