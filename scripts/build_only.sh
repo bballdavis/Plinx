@@ -4,7 +4,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 #
 # Usage:
-#   ./scripts/build_only.sh              # iPhone 16 Pro Max (default)
+#   ./scripts/build_only.sh              # iPhone 17 Pro Max (default)
 #   ./scripts/build_only.sh "iPhone 15" # Custom device name
 #
 # The script:
@@ -20,7 +20,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 PLINX_APP_DIR="$PROJECT_ROOT/PlinxApp"
 
-DEVICE_NAME="${1:-iPhone 16 Pro Max}"
+DEVICE_NAME="${1:-iPhone 17 Pro Max}"
 SCHEME="Plinx-iOS"
 DESTINATION=""
 

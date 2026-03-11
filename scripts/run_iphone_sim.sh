@@ -4,7 +4,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 #
 # Usage:
-#   ./scripts/run_iphone_sim.sh              # iPhone 16 Pro Max (default)
+#   ./scripts/run_iphone_sim.sh              # iPhone 17 Pro Max (default)
 #   ./scripts/run_iphone_sim.sh "iPhone 15" # Custom device name
 #
 # The script:
@@ -22,7 +22,7 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 PLINX_APP_DIR="$PROJECT_ROOT/PlinxApp"
 
 # Configuration
-DEVICE_NAME="${1:-iPhone 16 Pro Max}"
+DEVICE_NAME="${1:-iPhone 17 Pro Max}"
 # We used to hardcode the bundle identifier here, which could
 # be incorrect and also caused uninstall/launch commands to fail if
 # the app changed.  Instead we will infer it from the built product
