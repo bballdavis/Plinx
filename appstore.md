@@ -7,8 +7,6 @@ This document holds the copy we use when submitting Plinx to the App Store.  You
 ## App Name
 
 `Plinx` (the short display name).  
->
-> *Note:* the name `Plinx` appears to be claimed already in App Store Connect, which is why you were prompted to append extra text.  It may belong to a placeholder or previously published app that isn't searchable by the public.  For the official listing you can either append a suffix like “‑ Plex app for kids”, or choose another unique name.  The bundle identifier and App Store Connect entry must be unique regardless of the display name.
 
 ---
 
