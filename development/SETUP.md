@@ -5,29 +5,46 @@ This guide covers building and running Plinx locally for development.
 ## Prerequisites
 
 - macOS 14 or later
-- Xcode 16 or later
+- Xcode 26 or later
 - Homebrew
 
 ## Initial Setup
 
-1. **Clone the repository with submodules:**
+1. **Clone the repository:**
    ```bash
-   git clone --recursive https://github.com/bballdavis/Plinx.git
+   git clone https://github.com/bballdavis/Plinx.git
    cd Plinx
    ```
 
-2. **Install XcodeGen:**
+2. **Clone sibling dependencies:**
+   Plinx depends on local-path dependencies (`Strimr` and `MPVKit`) checked out as sibling directories:
+   ```bash
+   cd ..
+   git clone https://github.com/bballdavis/strimr.git
+   git -C strimr checkout plinx-patches
+   git clone https://github.com/wunax/MPVKit.git
+   cd Plinx
+   ```
+   After cloning, your directory structure should look like:
+   ```
+   Parent/
+   ├── Plinx/
+   ├── strimr/
+   └── MPVKit/
+   ```
+
+3. **Install XcodeGen:**
    ```bash
    brew install xcodegen
    ```
 
-3. **Generate the Xcode project:**
+4. **Generate the Xcode project:**
    ```bash
    cd PlinxApp
    xcodegen generate
    ```
 
-4. **Open the project in Xcode:**
+5. **Open the project in Xcode:**
    ```bash
    open Plinx.xcodeproj
    ```
