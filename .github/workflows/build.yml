@@ -26,6 +26,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Fetch sibling repos (strimr, MPVKit)
+        env:
+          STRIMR_REPO: "bballdavis/strimr"
+          STRIMR_REF: "plinx-patches"
+          STRIMR_PAT: ${{ secrets.STRIMR_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "Cloning ${STRIMR_REPO}@${STRIMR_REF} into ../strimr"
+          # Always clone the fork — fail fast if no auth token available
+          AUTH_TOKEN="${STRIMR_PAT:-$GITHUB_TOKEN}"
+          if [ -z "$AUTH_TOKEN" ]; then
+            echo "Error: no STRIMR_PAT or GITHUB_TOKEN available to clone ${STRIMR_REPO}."
+            echo "This workflow requires access to the forked repository; please add STRIMR_PAT as a secret if needed."
+            exit 1
+          fi
+          # Full clone (not shallow) to ensure all branches are available
+          git clone "https://x-access-token:${AUTH_TOKEN}@github.com/${STRIMR_REPO}.git" ../strimr
+          git -C ../strimr checkout ${STRIMR_REF}
+
+          echo "Cloning MPVKit into ../MPVKit"
+          git clone https://github.com/wunax/MPVKit.git ../MPVKit || true
+
       - name: Test PlinxCore (with coverage)
         run: swift test --package-path Packages/PlinxCore --enable-code-coverage
 
@@ -82,6 +105,28 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Fetch sibling repos (strimr, MPVKit)
+        env:
+          STRIMR_REPO: "bballdavis/strimr"
+          STRIMR_REF: "plinx-patches"
+          STRIMR_PAT: ${{ secrets.STRIMR_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "Cloning ${STRIMR_REPO}@${STRIMR_REF} into ../strimr"
+          AUTH_TOKEN="${STRIMR_PAT:-$GITHUB_TOKEN}"
+          if [ -z "$AUTH_TOKEN" ]; then
+            echo "Error: no STRIMR_PAT or GITHUB_TOKEN available to clone ${STRIMR_REPO}."
+            echo "This workflow requires access to the forked repository; please add STRIMR_PAT as a secret if needed."
+            exit 1
+          fi
+          # Full clone (not shallow) to ensure all branches are available
+          git clone "https://x-access-token:${AUTH_TOKEN}@github.com/${STRIMR_REPO}.git" ../strimr
+          git -C ../strimr checkout ${STRIMR_REF}
+
+          echo "Cloning MPVKit into ../MPVKit"
+          git clone https://github.com/wunax/MPVKit.git ../MPVKit || true
 
       - name: Install XcodeGen
         run: brew install xcodegen
