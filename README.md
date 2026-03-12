@@ -2,7 +2,7 @@
 
 A safe, playful Plex client designed specifically for kids. Browse, search, and watch your family's media library on your own, with built-in parental controls to keep age-appropriate content front and center.
 
-**Download from the App Store:** [Download Plinx](https://www.apple.com/app-store) (coming soon)
+[![Download on the App Store](assets/branding/app-store-badge.png)](https://apps.apple.com/app/MYAPPID) (coming soon)
 
 ---
 
