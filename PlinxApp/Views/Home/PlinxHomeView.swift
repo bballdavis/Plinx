@@ -23,11 +23,14 @@ struct PlinxHomeView: View {
     @AppStorage("plinx.homeHiddenLibraryIds") private var homeHiddenIdsJson = "[]"
     @AppStorage("plinx.homeLibraryOrder") private var homeOrderJson = "[]"
     @AppStorage("plinx.homeSectionOrder") private var homeSectionOrderJson = "[]"
+    @AppStorage("plinx.homeCombineMoviesTV") private var combineMoviesTV = true
 
     /// Section IDs in user-configured display order.
     private var orderedHomeSections: [String] {
         let stored = decodeStringArray(homeSectionOrderJson)
-        let defaults = ["continueWatching", "moviesAndTV", "otherVideos"]
+        let defaults: [String] = combineMoviesTV
+            ? ["continueWatching", "moviesAndTV", "otherVideos"]
+            : ["continueWatching", "recentMovies", "recentTV", "otherVideos"]
         if stored.isEmpty { return defaults }
         let storedKnown = stored.filter { defaults.contains($0) }
         let missing = defaults.filter { !Set(stored).contains($0) }
@@ -105,6 +108,18 @@ struct PlinxHomeView: View {
             ForEach(moviesTVGroups) { group in
                 if group.hub.hasItems {
                     hubRow(group.hub, layout: group.layout, sectionKey: "moviesAndTV")
+                }
+            }
+        case "recentMovies":
+            ForEach(recentMoviesGroups) { group in
+                if group.hub.hasItems {
+                    hubRow(group.hub, layout: group.layout, sectionKey: "recentMovies")
+                }
+            }
+        case "recentTV":
+            ForEach(recentTVGroups) { group in
+                if group.hub.hasItems {
+                    hubRow(group.hub, layout: group.layout, sectionKey: "recentTV")
                 }
             }
         case "otherVideos":
@@ -191,29 +206,52 @@ struct PlinxHomeView: View {
         var groups: [HubGroup] = []
 
         if movieVisible || showVisible {
-            var combined: [MediaDisplayItem] = []
-            let m = StrimrAdapter.filteredItems(visibleMovieEntries.flatMap(\.hub.items), policy: safetyPolicy)
-            let s = StrimrAdapter.filteredItems(visibleShowEntries.flatMap(\.hub.items), policy: safetyPolicy)
-            let maxCount = max(m.count, s.count)
-            for i in 0..<maxCount {
-                if i < m.count { combined.append(m[i]) }
-                if i < s.count { combined.append(s[i]) }
-            }
-            if !combined.isEmpty {
-                let title: String
-                if movieEnabled && showEnabled {
-                    title = NSLocalizedString("home.recentlyAdded.tvAndMovies", tableName: "Plinx", comment: "")
-                } else if showVisible {
-                    title = NSLocalizedString("home.recentlyAdded.tv", tableName: "Plinx", comment: "")
-                } else {
-                    title = NSLocalizedString("home.recentlyAdded.movies", tableName: "Plinx", comment: "")
+            if combineMoviesTV {
+                // Combined: interleave movies and TV into a single row.
+                var combined: [MediaDisplayItem] = []
+                let m = StrimrAdapter.filteredItems(visibleMovieEntries.flatMap(\.hub.items), policy: safetyPolicy)
+                let s = StrimrAdapter.filteredItems(visibleShowEntries.flatMap(\.hub.items), policy: safetyPolicy)
+                let maxCount = max(m.count, s.count)
+                for i in 0..<maxCount {
+                    if i < m.count { combined.append(m[i]) }
+                    if i < s.count { combined.append(s[i]) }
                 }
-                let combinedId = "combined.recentlyadded.movies+shows"
-                groups.append(HubGroup(
-                    id: combinedId,
-                    hub: Hub(id: combinedId, title: title, items: combined),
-                    layout: .portrait
-                ))
+                if !combined.isEmpty {
+                    let title: String
+                    if movieEnabled && showEnabled {
+                        title = NSLocalizedString("home.recentlyAdded.tvAndMovies", tableName: "Plinx", comment: "")
+                    } else if showVisible {
+                        title = NSLocalizedString("home.recentlyAdded.tv", tableName: "Plinx", comment: "")
+                    } else {
+                        title = NSLocalizedString("home.recentlyAdded.movies", tableName: "Plinx", comment: "")
+                    }
+                    let combinedId = "combined.recentlyadded.movies+shows"
+                    groups.append(HubGroup(
+                        id: combinedId,
+                        hub: Hub(id: combinedId, title: title, items: combined),
+                        layout: .portrait
+                    ))
+                }
+            } else {
+                // Split: separate rows for movies and TV.
+                let movieItems = StrimrAdapter.filteredItems(visibleMovieEntries.flatMap(\.hub.items), policy: safetyPolicy)
+                if !movieItems.isEmpty {
+                    let title = NSLocalizedString("home.recentlyAdded.movies", tableName: "Plinx", comment: "")
+                    groups.append(HubGroup(
+                        id: "recentlyadded.movies",
+                        hub: Hub(id: "recentlyadded.movies", title: title, items: movieItems),
+                        layout: .portrait
+                    ))
+                }
+                let tvItems = StrimrAdapter.filteredItems(visibleShowEntries.flatMap(\.hub.items), policy: safetyPolicy)
+                if !tvItems.isEmpty {
+                    let title = NSLocalizedString("home.recentlyAdded.tv", tableName: "Plinx", comment: "")
+                    groups.append(HubGroup(
+                        id: "recentlyadded.tv",
+                        hub: Hub(id: "recentlyadded.tv", title: title, items: tvItems),
+                        layout: .portrait
+                    ))
+                }
             }
         }
 
@@ -242,9 +280,20 @@ struct PlinxHomeView: View {
         displayedGroups.filter { $0.id == "combined.recentlyadded.movies+shows" }
     }
 
+    /// Movies-only recently-added groups (for "recentMovies" section in split mode).
+    private var recentMoviesGroups: [HubGroup] {
+        displayedGroups.filter { $0.id == "recentlyadded.movies" }
+    }
+
+    /// TV-only recently-added groups (for "recentTV" section in split mode).
+    private var recentTVGroups: [HubGroup] {
+        displayedGroups.filter { $0.id == "recentlyadded.tv" }
+    }
+
     /// Other-video recently-added groups (for "otherVideos" section).
     private var otherVideoGroups: [HubGroup] {
-        displayedGroups.filter { $0.id != "combined.recentlyadded.movies+shows" }
+        let knownIds: Set<String> = ["combined.recentlyadded.movies+shows", "recentlyadded.movies", "recentlyadded.tv"]
+        return displayedGroups.filter { !knownIds.contains($0.id) }
     }
 
     private func matchedLibrary(for hub: Hub, in libraries: [Library], recentlyAddedPrefix: String) -> Library? {
@@ -256,6 +305,22 @@ struct PlinxHomeView: View {
             let indices = order.enumerated().compactMap { (i, libId) -> Int? in
                 guard let lib = libraries.first(where: { $0.id == libId }),
                       lib.type == .movie || lib.type == .show else { return nil }
+                return i
+            }
+            return indices.min() ?? Int.max
+        }
+        if group.id == "recentlyadded.movies" {
+            let indices = order.enumerated().compactMap { (i, libId) -> Int? in
+                guard let lib = libraries.first(where: { $0.id == libId }),
+                      lib.type == .movie else { return nil }
+                return i
+            }
+            return indices.min() ?? Int.max
+        }
+        if group.id == "recentlyadded.tv" {
+            let indices = order.enumerated().compactMap { (i, libId) -> Int? in
+                guard let lib = libraries.first(where: { $0.id == libId }),
+                      lib.type == .show else { return nil }
                 return i
             }
             return indices.min() ?? Int.max
