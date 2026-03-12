@@ -19,39 +19,12 @@ permissions:
   contents: read
 
 jobs:
-  build-and-test:
+  swift-packages:
+    name: Swift Package Tests
     runs-on: macos-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Install XcodeGen
-        run: |
-          if ! command -v xcodegen >/dev/null 2>&1; then
-            brew install xcodegen
-          fi
-
-      - name: Project Generation
-        run: |
-          cd PlinxApp
-          xcodegen generate
-
-      - name: Build PlinxCore
-        run: swift build --package-path Packages/PlinxCore
-
-      - name: Build PlinxUI
-        run: swift build --package-path Packages/PlinxUI
-
-      - name: Build Plinx-iOS App
-        run: |
-          xcodebuild build \
-            -project PlinxApp/Plinx.xcodeproj \
-            -scheme Plinx-iOS \
-            -destination "generic/platform=iOS Simulator" \
-            -configuration Debug \
-            -quiet
 
       - name: Test PlinxCore (with coverage)
         run: swift test --package-path Packages/PlinxCore --enable-code-coverage
@@ -102,3 +75,36 @@ jobs:
                   exit 1
                 fi
               done
+
+  xcode-build-and-test:
+    name: Xcode Build & Unit Tests
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+        working-directory: PlinxApp
+
+      - name: Build Plinx-iOS
+        run: |
+          xcodebuild build \
+            -project PlinxApp/Plinx.xcodeproj \
+            -scheme Plinx-iOS \
+            -destination "generic/platform=iOS Simulator" \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            -quiet
+
+      - name: Run unit tests
+        run: |
+          xcodebuild test \
+            -project PlinxApp/Plinx.xcodeproj \
+            -scheme Plinx-iOS \
+            -destination "platform=iOS Simulator,name=iPhone 16,OS=latest" \
+            -only-testing:Plinx-iOS-UnitTests \
+            CODE_SIGNING_ALLOWED=NO

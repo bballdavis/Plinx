@@ -1,6 +1,7 @@
 # Local-only (never commit)
 .local_dev/
 .vscode/
+.venv/
 AGENTS.md
 
 # Xcode / Swift
@@ -26,6 +27,9 @@ Carthage/Build/
 
 # Local Environment Variables (Never commit)
 test_creds.yaml
+
+# Build outputs
+build/
 
 # Fastlane
 fastlane/report.xml
