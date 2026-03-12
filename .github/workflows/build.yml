@@ -108,7 +108,7 @@ jobs:
 
       - name: Fetch sibling repos (strimr, MPVKit)
         env:
-          STRIMR_REPO: "wunax/strimr"
+          STRIMR_REPO: "bballdavis/strimr"
           STRIMR_REF: "plinx-patches"
           STRIMR_PAT: ${{ secrets.STRIMR_PAT }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
