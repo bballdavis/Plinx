@@ -69,8 +69,8 @@ Stream with support for 4K, HDR, Dolby Vision, and multiple audio tracks. Pick u
 <table>
 <tr>
 <td align="center"><img src="screenshots/ipad_home.png" width="280" alt="Home screen with recently added rows"><br><sub>Home Screen</sub></td>
-<td align="center"><img src="screenshots/ipad_library.png" width="280" alt="Library picker"><br><sub>Library Selection</sub></td>
-<td align="center"><img src="screenshots/ipad_settings.png" width="280" alt="Settings screen"><br><sub>Settings</sub></td>
+<td align="center"><img src="screenshots/ipad_libraries.png" width="280" alt="Library picker"><br><sub>Library Selection</sub></td>
+<td align="center"><img src="screenshots/ipad_more_details.png" width="280" alt="More details page"><br><sub>Settings</sub></td>
 </tr>
 </table>
 
@@ -79,7 +79,7 @@ Stream with support for 4K, HDR, Dolby Vision, and multiple audio tracks. Pick u
 <table>
 <tr>
 <td align="center"><img src="screenshots/iphone_home.png" width="200" alt="iPhone home screen"><br><sub>Home Screen</sub></td>
-<td align="center"><img src="screenshots/iphone_library.png" width="200" alt="iPhone library"><br><sub>Library</sub></td>
+<td align="center"><img src="screenshots/iphone_parental_gate.png" width="200" alt="Parental gate"><br><sub>Library</sub></td>
 <td align="center"><img src="screenshots/iphone_settings.png" width="200" alt="iPhone settings"><br><sub>Settings</sub></td>
 </tr>
 </table>
