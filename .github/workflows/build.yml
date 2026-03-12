@@ -26,6 +26,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Fetch sibling repos (strimr, MPVKit)
+        env:
+          STRIMR_REPO: "wunax/strimr"
+          STRIMR_REF: "plinx-patches"
+          STRIMR_PAT: ${{ secrets.STRIMR_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "Cloning ${STRIMR_REPO}@${STRIMR_REF} into ../strimr"
+          # Always clone the fork — fail fast if no auth token available
+          AUTH_TOKEN="${STRIMR_PAT:-$GITHUB_TOKEN}"
+          if [ -z "$AUTH_TOKEN" ]; then
+            echo "Error: no STRIMR_PAT or GITHUB_TOKEN available to clone ${STRIMR_REPO}."
+            echo "This workflow requires access to the forked repository; please add STRIMR_PAT as a secret if needed."
+            exit 1
+          fi
+          git clone --depth 1 "https://x-access-token:${AUTH_TOKEN}@github.com/${STRIMR_REPO}.git" ../strimr
+          git -C ../strimr fetch --depth=1 origin ${STRIMR_REF}
+          git -C ../strimr checkout ${STRIMR_REF}
+
+          echo "Cloning MPVKit into ../MPVKit"
+          git clone --depth 1 https://github.com/wunax/MPVKit.git ../MPVKit || true
+          git -C ../MPVKit fetch --depth=1 || true
+
       - name: Test PlinxCore (with coverage)
         run: swift test --package-path Packages/PlinxCore --enable-code-coverage
 
