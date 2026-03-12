@@ -10,8 +10,9 @@ import PlinxCore
 // Library tab while still showing it on the home screen.
 //
 // Persistence keys (app-level AppStorage / UserDefaults.standard):
-//   plinx.homeHiddenLibraryIds  – JSON [String]  library IDs hidden from home
-//   plinx.homeLibraryOrder      – JSON [String]  library IDs in display order
+//   plinx.homeHiddenLibraryIds   – JSON [String]  library IDs hidden from home
+//   plinx.homeLibraryOrder       – JSON [String]  library IDs in display order
+//   plinx.homeCombineMoviesTV    – Bool            combine movies+TV into one section
 // ─────────────────────────────────────────────────────────────────────────────
 
 struct HomeScreenSettingsView: View {
@@ -23,6 +24,8 @@ struct HomeScreenSettingsView: View {
     @AppStorage("plinx.homeLibraryOrder") private var orderJson = "[]"
     /// JSON-encoded [String] of section IDs in display order.
     @AppStorage("plinx.homeSectionOrder") private var sectionOrderJson = "[]"
+    /// Whether to show movies and TV as a single combined section (default: true).
+    @AppStorage("plinx.homeCombineMoviesTV") private var combineMoviesTV = true
 
     /// Live in-memory ordered list of libraries; initialised from stored prefs.
     @State private var orderedLibraries: [Library] = []
@@ -31,16 +34,18 @@ struct HomeScreenSettingsView: View {
 
     // MARK: - Fixed section definitions
 
-    private static let defaultSectionOrder: [String] = [
-        "continueWatching",
-        "moviesAndTV",
-        "otherVideos",
-    ]
+    private var currentDefaultSectionOrder: [String] {
+        combineMoviesTV
+            ? ["continueWatching", "moviesAndTV", "otherVideos"]
+            : ["continueWatching", "recentMovies", "recentTV", "otherVideos"]
+    }
 
     private func sectionDisplayKey(_ id: String) -> String {
         switch id {
         case "continueWatching": return "home.section.continueWatching"
         case "moviesAndTV":      return "home.section.moviesAndTV"
+        case "recentMovies":     return "home.section.recentMovies"
+        case "recentTV":         return "home.section.recentTV"
         case "otherVideos":      return "home.section.otherVideos"
         default:                 return id
         }
@@ -50,6 +55,8 @@ struct HomeScreenSettingsView: View {
         switch id {
         case "continueWatching": return "clock.arrow.circlepath"
         case "moviesAndTV":      return "film.fill"
+        case "recentMovies":     return "film.fill"
+        case "recentTV":         return "tv.fill"
         case "otherVideos":      return "video.fill"
         default:                 return "square.grid.2x2"
         }
@@ -65,6 +72,20 @@ struct HomeScreenSettingsView: View {
 
     var body: some View {
         List {
+            // MARK: Combine Movies & TV toggle
+            Section {
+                Toggle(isOn: $combineMoviesTV) {
+                    Label(
+                        String(localized: "settings.homescreen.combine.label", table: "Plinx"),
+                        systemImage: "film.stack"
+                    )
+                }
+            } footer: {
+                Text("settings.homescreen.combine.footer", tableName: "Plinx")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             // MARK: Section order
             Section {
                 ForEach(orderedSections, id: \.self) { sectionId in
@@ -125,6 +146,9 @@ struct HomeScreenSettingsView: View {
         .onChange(of: libraryStore.libraries) { _, _ in
             buildOrderedList()
         }
+        .onChange(of: combineMoviesTV) { _, newValue in
+            migrateAndRebuildSectionOrder(combining: newValue)
+        }
     }
 
     // MARK: - Helpers
@@ -148,7 +172,7 @@ struct HomeScreenSettingsView: View {
     /// Build the ordered section list, filling in any missing defaults at the end.
     private func buildSectionOrder() {
         let stored = decodeStringArray(sectionOrderJson)
-        let defaults = Self.defaultSectionOrder
+        let defaults = currentDefaultSectionOrder
         if stored.isEmpty {
             orderedSections = defaults
         } else {
@@ -156,6 +180,41 @@ struct HomeScreenSettingsView: View {
             let missing = defaults.filter { !Set(stored).contains($0) }
             orderedSections = storedKnown + missing
         }
+    }
+
+    /// Migrate the in-memory section order when the combine toggle changes,
+    /// swapping between "moviesAndTV" and the discrete "recentMovies"/"recentTV" IDs.
+    private func migrateAndRebuildSectionOrder(combining: Bool) {
+        if combining {
+            // Collapse recentMovies / recentTV → moviesAndTV at the position of the first one found.
+            var result: [String] = []
+            var insertedCombined = false
+            for section in orderedSections {
+                if section == "recentMovies" || section == "recentTV" {
+                    if !insertedCombined {
+                        result.append("moviesAndTV")
+                        insertedCombined = true
+                    }
+                } else {
+                    result.append(section)
+                }
+            }
+            if !insertedCombined { result.append("moviesAndTV") }
+            orderedSections = result
+        } else {
+            // Expand moviesAndTV → recentMovies + recentTV.
+            var result: [String] = []
+            for section in orderedSections {
+                if section == "moviesAndTV" {
+                    result.append("recentMovies")
+                    result.append("recentTV")
+                } else {
+                    result.append(section)
+                }
+            }
+            orderedSections = result
+        }
+        sectionOrderJson = encodeStringArray(orderedSections)
     }
 
     private func toggle(library: Library, enabled: Bool) {

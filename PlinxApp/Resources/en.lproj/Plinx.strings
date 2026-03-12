@@ -43,6 +43,8 @@
 "home.loading" = "Loading your shows…";
 "home.section.continueWatching" = "Continue Watching";
 "home.section.moviesAndTV" = "Movies & TV";
+"home.section.recentMovies" = "Recently Added Movies";
+"home.section.recentTV" = "Recently Added TV";
 "home.section.otherVideos" = "Other Videos";
 "home.recentlyAdded.prefix" = "Recently Added";
 "home.recentlyAdded.tvAndMovies" = "Recently Added TV & Movies";
@@ -66,6 +68,8 @@
 
 /* Settings — Home Screen */
 "settings.homescreen.title" = "Home Screen";
+"settings.homescreen.combine.label" = "Combine Movie & TV Library Recently Watched";
+"settings.homescreen.combine.footer" = "When off, Movies and TV appear as separate sections that can be reordered independently.";
 "settings.homescreen.recentlyadded.title" = "Recently Added Libraries";
 "settings.homescreen.recentlyadded.footer" = "Choose which libraries appear in the Recently Added rows.";
 "settings.homescreen.sections.title" = "Section Order";
