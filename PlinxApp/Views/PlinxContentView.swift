@@ -6,6 +6,7 @@ struct PlinxContentView: View {
     @Environment(PlexAPIContext.self) private var plexApiContext
     @Environment(SettingsManager.self) private var settingsManager
     @Environment(LibraryStore.self) private var libraryStore
+    @Environment(DownloadManager.self) private var downloadManager
     @EnvironmentObject private var mainCoordinator: MainCoordinator
 
     private var uiTestScreenOverride: String? {
@@ -68,6 +69,9 @@ struct PlinxContentView: View {
 
     @ViewBuilder
     private var sessionContent: some View {
+        if downloadManager.isOffline {
+            OfflineRootView()
+        } else {
             switch sessionManager.status {
             case .hydrating:
                 PlinxBrandedLoadingView(
@@ -104,5 +108,6 @@ struct PlinxContentView: View {
                 RootTabView()
                     .id(sessionManager.plexServer?.clientIdentifier ?? "no-server")
             }
+        }
     }
 }
