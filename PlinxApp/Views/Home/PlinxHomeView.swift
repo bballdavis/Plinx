@@ -361,7 +361,11 @@ struct PlinxHomeView: View {
         let ratio: CGFloat = isLandscape ? 16.0 / 9.0 : 2.0 / 3.0
         let isContinueWatching = sectionKey == "continueWatching"
         let watched = isItemWatched(item)
-        let artworkKind: MediaImageViewModel.ArtworkKind = isLandscape ? .art : .thumb
+        let artworkKind = ArtworkSelectionPolicy.artworkKind(
+            forHomeSection: sectionKey,
+            item: item,
+            isLandscape: isLandscape
+        )
 
         return VStack(alignment: .leading, spacing: 6) {
             ZStack(alignment: .bottom) {

@@ -34,14 +34,18 @@ struct PlinxLibraryDetailView: View {
 
     var body: some View {
         selectedTabContent
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .navigationBarBackButtonHidden(true)
-        .toolbarBackground(.hidden, for: .navigationBar)
-        .onChange(of: settingsManager.interface.displayCollections) { _, displayCollections in
-            if !displayCollections, selectedTab == .collections {
-                selectedTab = .recommended
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .environment(
+                \.preferredLandscapeArtworkKind,
+                ArtworkSelectionPolicy.preferredLandscapeArtworkKind(for: library)
+            )
+            .navigationBarBackButtonHidden(true)
+            .toolbarBackground(.hidden, for: .navigationBar)
+            .onChange(of: settingsManager.interface.displayCollections) { _, displayCollections in
+                if !displayCollections, selectedTab == .collections {
+                    selectedTab = .recommended
+                }
             }
-        }
     }
 
     @ViewBuilder
