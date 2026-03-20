@@ -127,15 +127,7 @@ struct PlinxDownloadsGridView: View {
             PlinxDownloadsManageView()
         }
         .fullScreenCover(item: $selectedDownload) { item in
-            if let localURL = downloadManager.localVideoURL(for: item) {
-                PlayerWrapper(
-                    viewModel: PlayerViewModel(
-                        localMedia: downloadManager.localMediaItem(for: item),
-                        localPlaybackURL: localURL,
-                        context: context,
-                    ),
-                )
-            }
+            OfflineDownloadPlayerView(item: item)
         }
         .task(id: artworkReconciliationID) {
             await downloadManager.reconcileArtworkMetadataIfNeeded(context: context)
