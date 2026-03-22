@@ -40,9 +40,9 @@ struct OfflineRootView: View {
             switch selectedTab {
             case .library:
                 NavigationStack {
-                    OfflineLibraryView(snapshot: snapshot) { item in
+                    OfflineLibraryView(snapshot: snapshot, onSelectDownload: { item in
                         selectedDownload = item
-                    }
+                    }, onRefresh: checkConnectivity)
                 }
             case .more:
                 NavigationStack {
@@ -50,9 +50,9 @@ struct OfflineRootView: View {
                 }
             default:
                 NavigationStack {
-                    OfflineHomeView(snapshot: snapshot) { item in
+                    OfflineHomeView(snapshot: snapshot, onSelectDownload: { item in
                         selectedDownload = item
-                    }
+                    }, onRefresh: checkConnectivity)
                 }
             }
         }
@@ -69,11 +69,38 @@ struct OfflineRootView: View {
             OfflineDownloadPlayerView(item: item)
         }
     }
+
+    /// Pull-to-refresh handler.  NWPathMonitor updates `isOffline` automatically,
+    /// so a brief yield is enough: if connectivity was restored, PlinxContentView
+    /// will have already switched away.  If still offline, the bounce-back
+    /// confirms "still offline" to the user without further action.
+    private func checkConnectivity() async {
+        try? await Task.sleep(for: .milliseconds(300))
+    }
+}
+
+private struct OfflineBadge: View {
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "wifi.slash")
+                .font(.system(size: 10, weight: .bold))
+            Text("Offline")
+                .font(.caption.weight(.semibold))
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .background(
+            Capsule()
+                .fill(Color.orange.opacity(0.85))
+        )
+    }
 }
 
 private struct OfflineHomeView: View {
     let snapshot: OfflineContentSnapshot
     let onSelectDownload: (DownloadItem) -> Void
+    let onRefresh: () async -> Void
 
     var body: some View {
         ScrollView {
@@ -94,19 +121,28 @@ private struct OfflineHomeView: View {
             .padding(.top, 8)
             .padding(.bottom, 120)
         }
+        .refreshable { await onRefresh() }
     }
 
     private var headerRow: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Offline Mode")
-                .font(.title2.weight(.bold))
-                .foregroundStyle(.white)
-            Text("Showing downloaded videos only.")
-                .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.7))
+        HStack(spacing: 10) {
+            Image("LogoColor")
+                .resizable()
+                .scaledToFit()
+                .frame(height: 30)
+                .accessibilityHidden(true)
+
+            Text("Home")
+                .font(.title3.weight(.bold))
+                .foregroundStyle(.white.opacity(0.95))
+
+            OfflineBadge()
+
+            Spacer()
         }
         .padding(.horizontal, 20)
-        .padding(.top, 4)
+        .padding(.top, 8)
+        .padding(.bottom, 10)
     }
 
     private func sectionView(_ section: OfflineHomeSection) -> some View {
@@ -133,21 +169,23 @@ private struct OfflineHomeView: View {
 private struct OfflineLibraryView: View {
     let snapshot: OfflineContentSnapshot
     let onSelectDownload: (DownloadItem) -> Void
+    let onRefresh: () async -> Void
 
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 10) {
                     Text("Library")
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(.white)
-                    Text("Downloaded libraries available offline.")
-                        .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.7))
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(.white.opacity(0.95))
+
+                    OfflineBadge()
+
+                    Spacer()
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 20)
-                .padding(.top, 12)
+                .padding(.top, 8)
+                .padding(.bottom, 10)
 
                 if snapshot.libraries.isEmpty {
                     offlineEmptyState(
@@ -168,6 +206,7 @@ private struct OfflineLibraryView: View {
             }
             .padding(.bottom, 120)
         }
+        .refreshable { await onRefresh() }
     }
 }
 
