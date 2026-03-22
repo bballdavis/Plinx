@@ -12,15 +12,42 @@ struct AppearanceSettingsView: View {
     @AppStorage("plinx.chromeButtonSize") private var chromeButtonSizeRaw = PlinxChromeButtonSizePreference.defaultValue.rawValue
     @AppStorage(PlinxAnimationPreference.playfulAnimationsStorageKey)
     private var playfulAnimationsEnabled = PlinxAnimationPreference.defaultPlayfulAnimationsEnabled
+    @AppStorage(LibraryCardLayoutPolicy.hotReloadLibraryArtworkStorageKey)
+    private var hotReloadLibraryArtwork = false
+    @AppStorage(LibraryCardLayoutPolicy.bannerArtworkCountStorageKey)
+    private var storedBannerArtworkCount = 0
 
     private var chromeButtonSize: PlinxChromeButtonSizePreference {
         PlinxChromeButtonSizePreference(rawValue: chromeButtonSizeRaw) ?? .medium
+    }
+
+    private var bannerArtworkMaximum: Int {
+        LibraryCardLayoutPolicy.maximumBannerArtworkDisplayCount(userInterfaceIdiom: UIDevice.current.userInterfaceIdiom)
+    }
+
+    private var bannerArtworkCount: Int {
+        LibraryCardLayoutPolicy.resolvedBannerArtworkDisplayCount(
+            storedCount: storedBannerArtworkCount,
+            userInterfaceIdiom: UIDevice.current.userInterfaceIdiom
+        )
     }
 
     private var sliderBinding: Binding<Double> {
         Binding(
             get: { chromeButtonSize.sliderIndex },
             set: { chromeButtonSizeRaw = PlinxChromeButtonSizePreference.from(sliderIndex: $0).rawValue }
+        )
+    }
+
+    private var bannerArtworkCountBinding: Binding<Double> {
+        Binding(
+            get: { Double(bannerArtworkCount) },
+            set: {
+                storedBannerArtworkCount = LibraryCardLayoutPolicy.resolvedBannerArtworkDisplayCount(
+                    storedCount: Int($0.rounded()),
+                    userInterfaceIdiom: UIDevice.current.userInterfaceIdiom
+                )
+            }
         )
     }
 
@@ -66,6 +93,38 @@ struct AppearanceSettingsView: View {
                 .padding(.vertical, 4)
             } footer: {
                 Text("settings.appearance.buttons.description", tableName: "Plinx")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Toggle(isOn: $hotReloadLibraryArtwork) {
+                    Label("Refresh library banners on every tab visit", systemImage: "photo.stack")
+                }
+
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("Library banner thumbnails")
+                        Spacer()
+                        Text("\(bannerArtworkCount)")
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Slider(value: bannerArtworkCountBinding, in: 1...Double(bannerArtworkMaximum), step: 1)
+                        .tint(.accentColor)
+
+                    HStack {
+                        Text("1")
+                        Spacer()
+                        Text("\(bannerArtworkMaximum)")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 4)
+            } footer: {
+                Text("When refresh is off, banner art loads once per app launch. iPhone supports up to 3 thumbnails; iPad supports up to 5.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
