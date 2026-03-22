@@ -7,7 +7,10 @@ enum ArtworkSelectionPolicy {
         isLandscape: Bool,
     ) -> MediaImageViewModel.ArtworkKind {
         guard isLandscape else { return .thumb }
-        if sectionKey == "otherVideos" || item.type == .clip {
+        // Use thumb for other videos, clips, and continue watching clips
+        if sectionKey == "otherVideos"
+            || sectionKey == "continueWatching.otherVideos"
+            || item.type == .clip {
             return .thumb
         }
         return .art
