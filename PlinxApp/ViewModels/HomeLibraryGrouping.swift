@@ -16,7 +16,26 @@
 
 enum HomeLibraryGrouping {
 
+    struct ContinueWatchingRow: Identifiable, Equatable {
+        let id: String
+        let title: String
+        let sectionKey: String
+        let items: [MediaDisplayItem]
+    }
+
     // MARK: - Public matching interface
+
+    static func continueWatchingRows(from hub: Hub?) -> [ContinueWatchingRow] {
+        guard let hub, hub.hasItems else { return [] }
+        return [
+            ContinueWatchingRow(
+                id: hub.id,
+                title: hub.title,
+                sectionKey: "continueWatching",
+                items: hub.items
+            )
+        ]
+    }
 
     /// Match a recently-added `Hub` to the best-fitting `Library` in the store.
     ///
