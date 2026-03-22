@@ -21,7 +21,11 @@ This guide covers building and running Plinx locally for development.
    ```bash
    cd ..
    git clone https://github.com/bballdavis/strimr.git
+   # Choose the correct Strimr branch based on which Plinx branch you're working on:
+   # For Plinx main: use plinx-patches
    git -C strimr checkout plinx-patches
+   # For Plinx dev: use dev-plinx
+   # git -C strimr checkout dev-plinx
    git clone https://github.com/wunax/MPVKit.git
    cd Plinx
    ```
@@ -86,12 +90,19 @@ See [TESTING.md](TESTING.md) for comprehensive testing instructions, including u
   
 - **Packages/StrimrEngine/** — Vendored Strimr media engine
   
-- **vendor/strimr/** — Strimr submodule (checked out to `plinx-patches` branch)
+- **vendor/strimr/** — Strimr sibling checkout (branch depends on Plinx branch)
 
 ## Strimr Integration
 
-Plinx uses the `plinx-patches` branch of Strimr, which includes Plinx-specific enhancements on top of upstream Strimr:
+Plinx uses branch-specific versions of the Strimr fork:
 
+- **Plinx `main` branch** → Strimr `plinx-patches` branch
+  - Stable Plinx-specific enhancements on upstream Strimr
+  
+- **Plinx `dev` branch** → Strimr `dev-plinx` branch  
+  - Development branch for new features and experimental work
+
+Plinx-specific enhancements include:
 - Clip and video library support
 - Download quality selection
 - Library browse improvements (landscape layout, long-press, pagination)
@@ -101,12 +112,19 @@ Plinx uses the `plinx-patches` branch of Strimr, which includes Plinx-specific e
 - Collections opt-in behavior
 - Authentication branding
 
-To update Strimr to the latest upstream changes:
+To update Strimr to the latest upstream changes (depending on which branch you're on):
 
 ```bash
+# If on locally on Plinx main, working with plinx-patches:
 cd vendor/strimr
 git fetch origin
 git rebase origin/main plinx-patches
+cd ../..
+
+# If locally on Plinx dev, working with dev-plinx:
+cd vendor/strimr
+git fetch origin
+git rebase origin/main dev-plinx
 cd ../..
 ```
 
