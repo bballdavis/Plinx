@@ -78,6 +78,18 @@ final class ArtworkSelectionPolicyTests: XCTestCase {
         XCTAssertEqual(kind, .thumb)
     }
 
+    func test_continueWatchingUsesThumbArtworkForMovieItemsInLandscape() {
+        let item = makeDisplayItem(id: "movie-1", type: .movie)
+
+        let kind = ArtworkSelectionPolicy.artworkKind(
+            forHomeSection: "continueWatching",
+            item: item,
+            isLandscape: true
+        )
+
+        XCTAssertEqual(kind, .thumb)
+    }
+
     private func makeDisplayItem(id: String, type: PlexItemType) -> MediaDisplayItem {
         .playable(
             MediaItem(
