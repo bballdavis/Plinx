@@ -101,8 +101,13 @@ struct PlinxHomeView: View {
     private func homeSectionView(_ sectionId: String) -> some View {
         switch sectionId {
         case "continueWatching":
-            if let hub = viewModel.continueWatching, hub.hasItems {
+            // Render TV episodes (regular continue watching)
+            if let hub = continueWatchingEpisodesHub, hub.hasItems {
                 hubRow(hub, layout: .landscape, sectionKey: "continueWatching")
+            }
+            // Render clips/other videos (YouTube, home videos) separately
+            if let hub = continueWatchingClipsHub, hub.hasItems {
+                hubRow(hub, layout: .landscape, sectionKey: "continueWatching.otherVideos")
             }
         case "moviesAndTV":
             ForEach(moviesTVGroups) { group in
@@ -274,6 +279,26 @@ struct PlinxHomeView: View {
             < orderIndexForGroup(b, order: order, libraries: libraries)
         }
     }
+
+    // MARK: - Continue watching grouping
+
+    /// Episodes and shows in continue watching (typical TV progress items).
+    private var continueWatchingEpisodesHub: Hub? {
+        guard let baseHub = viewModel.continueWatching, baseHub.hasItems else { return nil }
+        let episodes = baseHub.items.filter { $0.type == .episode }
+        guard !episodes.isEmpty else { return nil }
+        return Hub(id: baseHub.id, title: baseHub.title, items: episodes)
+    }
+
+    /// Clips and other videos in continue watching (YouTube, home videos, etc.).
+    private var continueWatchingClipsHub: Hub? {
+        guard let baseHub = viewModel.continueWatching, baseHub.hasItems else { return nil }
+        let clips = baseHub.items.filter { $0.type == .clip }
+        guard !clips.isEmpty else { return nil }
+        return Hub(id: "\(baseHub.id).clips", title: baseHub.title, items: clips)
+    }
+
+    // MARK: - Recently added grouping
 
     /// Combined movie+TV recently-added groups (for "moviesAndTV" section).
     private var moviesTVGroups: [HubGroup] {
