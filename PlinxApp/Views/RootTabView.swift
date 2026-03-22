@@ -283,7 +283,11 @@ struct RootTabView: View {
             NavigationStack(path: mainCoordinator.pathBinding(for: .search)) {
                 PlinxSearchView(
                     viewModel: SafeSearchViewModel(
-                        inner: SearchViewModel(context: plexApiContext),
+                        inner: SearchViewModel(
+                            context: plexApiContext,
+                            settingsManager: settingsManager,
+                            libraryStore: libraryStore
+                        ),
                         policy: safetyPolicy
                     ),
                     topContent: AnyView(topTitleRow(title: "tabs.search", showsSettingsButton: false)),
