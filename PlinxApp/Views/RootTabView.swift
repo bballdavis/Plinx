@@ -283,7 +283,11 @@ struct RootTabView: View {
             NavigationStack(path: mainCoordinator.pathBinding(for: .search)) {
                 PlinxSearchView(
                     viewModel: SafeSearchViewModel(
-                        inner: SearchViewModel(context: plexApiContext),
+                        inner: SearchViewModel(
+                            context: plexApiContext,
+                            settingsManager: settingsManager,
+                            libraryStore: libraryStore
+                        ),
                         policy: safetyPolicy
                     ),
                     topContent: AnyView(topTitleRow(title: "tabs.search", showsSettingsButton: false)),
@@ -507,37 +511,52 @@ struct RootTabView: View {
                 )
             ]
 
-            // Download option — handles show/season/episode/movie/clip
-            let downloadTitle: String
-            let downloadIcon = "arrow.down.circle"
-            switch media.type {
-            case .show:
-                downloadTitle = "Download All Episodes"
-            case .season:
-                downloadTitle = "Download Season"
-            default:
-                downloadTitle = "Download Video"
-            }
-            actions.append(
-                QuickActionOption(
-                    id: "download-\(media.id)",
-                    title: downloadTitle,
-                    systemImage: downloadIcon,
-                    role: nil,
-                    action: {
-                        Task {
-                            switch media.type {
-                            case .show:
-                                await downloadManager.enqueueShow(ratingKey: media.id, context: plexApiContext)
-                            case .season:
-                                await downloadManager.enqueueSeason(ratingKey: media.id, context: plexApiContext)
-                            default:
-                                await downloadManager.enqueueItem(ratingKey: media.id, context: plexApiContext)
+            switch QuickActionDownloadActionPolicy.action(for: media, downloadItems: downloadManager.items) {
+            case .download:
+                let downloadTitle: String
+                switch media.type {
+                case .show:
+                    downloadTitle = "Download All Episodes"
+                case .season:
+                    downloadTitle = "Download Season"
+                default:
+                    downloadTitle = "Download Video"
+                }
+
+                actions.append(
+                    QuickActionOption(
+                        id: "download-\(media.id)",
+                        title: downloadTitle,
+                        systemImage: "arrow.down.circle",
+                        role: nil,
+                        action: {
+                            Task {
+                                switch media.type {
+                                case .show:
+                                    await downloadManager.enqueueShow(ratingKey: media.id, context: plexApiContext)
+                                case .season:
+                                    await downloadManager.enqueueSeason(ratingKey: media.id, context: plexApiContext)
+                                default:
+                                    await downloadManager.enqueueItem(ratingKey: media.id, context: plexApiContext)
+                                }
                             }
                         }
-                    }
+                    )
                 )
-            )
+            case .goToDownloads:
+                actions.append(
+                    QuickActionOption(
+                        id: "go-downloads-\(media.id)",
+                        title: "Go to downloads",
+                        systemImage: "arrow.down.circle.fill",
+                        role: nil,
+                        action: {
+                            mainCoordinator.resetToRoot(for: .more)
+                            mainCoordinator.tab = .more
+                        }
+                    )
+                )
+            }
 
             actions.append(
                 QuickActionOption(

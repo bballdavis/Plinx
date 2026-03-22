@@ -221,4 +221,59 @@ final class HomeLibraryGroupingTests: XCTestCase {
             "Generic Videos recently-added hubs should be classified as other-video when library metadata is unavailable"
         )
     }
+
+    func test_continueWatchingRows_keepMixedContentInSingleRow() {
+        let hub = Hub(
+            id: "continue",
+            title: "Continue Watching",
+            items: [
+                makeDisplayItem(id: "movie-1", type: .movie),
+                makeDisplayItem(id: "episode-1", type: .episode),
+                makeDisplayItem(id: "clip-1", type: .clip)
+            ]
+        )
+
+        let rows = HomeLibraryGrouping.continueWatchingRows(from: hub)
+
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows.first?.sectionKey, "continueWatching")
+        XCTAssertEqual(rows.first?.items.map(\.id), ["movie-1", "episode-1", "clip-1"])
+    }
+}
+
+private func makeDisplayItem(id: String, type: PlexItemType) -> MediaDisplayItem {
+    .playable(
+        MediaItem(
+            id: id,
+            guid: "guid://\(id)",
+            summary: nil,
+            title: id,
+            type: type,
+            parentRatingKey: nil,
+            grandparentRatingKey: nil,
+            genres: [],
+            year: nil,
+            duration: nil,
+            videoResolution: nil,
+            rating: nil,
+            contentRating: nil,
+            studio: nil,
+            tagline: nil,
+            thumbPath: "/library/metadata/\(id)/thumb",
+            artPath: "/library/metadata/\(id)/art",
+            ultraBlurColors: nil,
+            viewOffset: nil,
+            viewCount: nil,
+            childCount: nil,
+            leafCount: nil,
+            viewedLeafCount: nil,
+            grandparentTitle: nil,
+            parentTitle: nil,
+            parentIndex: nil,
+            index: nil,
+            grandparentThumbPath: nil,
+            grandparentArtPath: nil,
+            parentThumbPath: nil
+        )
+    )
 }

@@ -1,6 +1,6 @@
 # Testing Plinx
 
-Plinx uses three layers of testing to catch regressions at different levels:
+Plinx uses four layers of testing to catch regressions at different levels:
 
 1. **Logic tests** — Swift Testing for pure functions and business logic
 2. **Snapshot tests** — Compare UI component rendering across devices
@@ -16,10 +16,12 @@ cd PlinxApp
 xcodebuild test \
   -project Plinx.xcodeproj \
   -scheme Plinx-iOS \
-  -destination "platform=iOS Simulator,name=iPhone 17 Pro,OS=26.2" \
+  -destination "platform=iOS Simulator,name=iPhone 17 Pro" \
   -only-testing:Plinx-iOS-UnitTests \
   CODE_SIGNING_ALLOWED=NO
 ```
+
+Note: The destination will use the latest available iOS runtime. To see available simulators, run `xcrun simctl list`.
 
 ### All Swift Package Tests (PlinxCore, PlinxUI)
 
@@ -41,7 +43,7 @@ xcodebuild test \
   -project Plinx.xcodeproj \
   -scheme Plinx-iOS \
   -destination "platform=iOS Simulator,name=iPad (10th generation)" \
-  -only-testing:Plinx-iOS-UITests/NavigationUITests \
+  -only-testing:Plinx-iOS-UITests/LibraryTabUITests \
   CODE_SIGNING_ALLOWED=NO
 ```
 

@@ -1,4 +1,7 @@
-# Plinx
+<h1>
+  <img src="assets/branding/logo_color.png" alt="Plinx logo" height="1em" style="vertical-align:middle;"/>
+  Plinx
+</h1>
 
 A safe, playful Plex client designed specifically for kids. Browse, search, and watch your family's media library on your own, with built-in parental controls to keep age-appropriate content front and center.
 
@@ -70,7 +73,7 @@ Stream with support for 4K, HDR, Dolby Vision, and multiple audio tracks. Pick u
 <tr>
 <td align="center"><img src="screenshots/ipad_home.png" width="280" alt="Home screen with recently added rows"><br><sub>Home Screen</sub></td>
 <td align="center"><img src="screenshots/ipad_libraries.png" width="280" alt="Library picker"><br><sub>Library Selection</sub></td>
-<td align="center"><img src="screenshots/ipad_more_details.png" width="280" alt="More details page"><br><sub>Settings</sub></td>
+<td align="center"><img src="screenshots/ipad_more_details.png" width="280" alt="More details page"><br><sub>More Details</sub></td>
 </tr>
 </table>
 
@@ -79,7 +82,7 @@ Stream with support for 4K, HDR, Dolby Vision, and multiple audio tracks. Pick u
 <table>
 <tr>
 <td align="center"><img src="screenshots/iphone_home.png" width="200" alt="iPhone home screen"><br><sub>Home Screen</sub></td>
-<td align="center"><img src="screenshots/iphone_parental_gate.png" width="200" alt="Parental gate"><br><sub>Library</sub></td>
+<td align="center"><img src="screenshots/iphone_parental_gate.png" width="200" alt="Parental gate"><br><sub>Parental Gate</sub></td>
 <td align="center"><img src="screenshots/iphone_settings.png" width="200" alt="iPhone settings"><br><sub>Settings</sub></td>
 </tr>
 </table>

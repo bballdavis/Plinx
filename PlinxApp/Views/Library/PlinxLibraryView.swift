@@ -7,10 +7,12 @@ struct PlinxLibraryView: View {
     var topContent: AnyView? = nil
     var onSelectLibrary: (Library) -> Void
     @State private var artworkRefreshToken = UUID()
+    @AppStorage(LibraryCardLayoutPolicy.hotReloadLibraryArtworkStorageKey)
+    private var hotReloadLibraryArtwork = false
+    @AppStorage(LibraryCardLayoutPolicy.bannerArtworkCountStorageKey)
+    private var storedBannerArtworkCount = 0
 
     @Environment(\.safetyPolicy) private var safetyPolicy
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @Environment(\.verticalSizeClass) private var verticalSizeClass
 
     var body: some View {
         Group {
@@ -28,7 +30,9 @@ struct PlinxLibraryView: View {
         }
         .task { await viewModel.load() }
         .onAppear {
-            artworkRefreshToken = UUID()
+            if hotReloadLibraryArtwork {
+                artworkRefreshToken = UUID()
+            }
         }
         .onChange(of: safetyPolicy) { _, newPolicy in
             viewModel.updatePolicy(newPolicy)
@@ -104,7 +108,11 @@ struct PlinxLibraryView: View {
             )
             .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .task(id: artworkRefreshToken) {
-                await viewModel.refreshArtwork(for: library)
+                if hotReloadLibraryArtwork {
+                    await viewModel.refreshArtwork(for: library, bannerCount: bannerArtworkDisplayCount)
+                } else {
+                    await viewModel.ensureArtwork(for: library, bannerCount: bannerArtworkDisplayCount)
+                }
             }
         }
         .buttonStyle(SpringyButtonStyle())
@@ -120,10 +128,10 @@ struct PlinxLibraryView: View {
     }
 
     private var bannerArtworkDisplayCount: Int {
-        let isPhonePortrait = UIDevice.current.userInterfaceIdiom == .phone
-            && horizontalSizeClass == .compact
-            && verticalSizeClass == .regular
-        return LibraryCardLayoutPolicy.bannerArtworkDisplayCount(isPhonePortrait: isPhonePortrait)
+        LibraryCardLayoutPolicy.resolvedBannerArtworkDisplayCount(
+            storedCount: storedBannerArtworkCount,
+            userInterfaceIdiom: UIDevice.current.userInterfaceIdiom
+        )
     }
 
     private func adaptiveLibraryArtwork(

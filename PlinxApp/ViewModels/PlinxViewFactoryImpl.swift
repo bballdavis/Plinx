@@ -75,7 +75,11 @@ final class PlinxViewFactoryImpl: PlinxViewFactory {
     }
 
     func makeSearchView(onSelectMedia: @escaping (PlinxMediaAction) -> Void) -> AnyView {
-        let inner = SearchViewModel(context: plexApiContext)
+        let inner = SearchViewModel(
+            context: plexApiContext,
+            settingsManager: settingsManager,
+            libraryStore: libraryStore
+        )
         let safe = SafeSearchViewModel(inner: inner, policy: safetyPolicy)
         return AnyView(
             PlinxSearchView(viewModel: safe) { displayItem in

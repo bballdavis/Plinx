@@ -4,12 +4,25 @@ Convenient shell scripts for building and running the Plinx iOS app on the simul
 
 ## Strimr Source Of Truth
 
-Build and test scripts build from local files only. It's your responsibility to ensure `vendor/strimr` is on the `plinx-patches` branch and in a clean state before running any build command:
+Build and test scripts build from local files only. It's your responsibility to ensure `vendor/strimr` is on the correct branch and in a clean state before running any build command.
 
+**Branch selection:**
+- Working on **Plinx `main`** branch? Use **`plinx-patches`** branch in strimr:
+  ```bash
+  cd vendor/strimr
+  git checkout plinx-patches
+  git pull origin plinx-patches
+  ```
+
+- Working on **Plinx `dev`** branch? Use **`dev-plinx`** branch in strimr:
+  ```bash
+  cd vendor/strimr
+  git checkout dev-plinx
+  git pull origin dev-plinx
+  ```
+
+**Before building:**
 ```bash
-cd vendor/strimr
-git checkout plinx-patches
-git pull origin plinx-patches  # If you want the latest remote tip
 git status                     # Verify clean working tree
 ```
 

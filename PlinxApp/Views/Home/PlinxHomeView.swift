@@ -101,8 +101,12 @@ struct PlinxHomeView: View {
     private func homeSectionView(_ sectionId: String) -> some View {
         switch sectionId {
         case "continueWatching":
-            if let hub = viewModel.continueWatching, hub.hasItems {
-                hubRow(hub, layout: .landscape, sectionKey: "continueWatching")
+            ForEach(HomeLibraryGrouping.continueWatchingRows(from: viewModel.continueWatching)) { row in
+                hubRow(
+                    Hub(id: row.id, title: row.title, items: row.items),
+                    layout: .landscape,
+                    sectionKey: row.sectionKey
+                )
             }
         case "moviesAndTV":
             ForEach(moviesTVGroups) { group in
@@ -275,6 +279,8 @@ struct PlinxHomeView: View {
         }
     }
 
+    // MARK: - Recently added grouping
+
     /// Combined movie+TV recently-added groups (for "moviesAndTV" section).
     private var moviesTVGroups: [HubGroup] {
         displayedGroups.filter { $0.id == "combined.recentlyadded.movies+shows" }
@@ -361,7 +367,11 @@ struct PlinxHomeView: View {
         let ratio: CGFloat = isLandscape ? 16.0 / 9.0 : 2.0 / 3.0
         let isContinueWatching = sectionKey == "continueWatching"
         let watched = isItemWatched(item)
-        let artworkKind: MediaImageViewModel.ArtworkKind = isLandscape ? .art : .thumb
+        let artworkKind = ArtworkSelectionPolicy.artworkKind(
+            forHomeSection: sectionKey,
+            item: item,
+            isLandscape: isLandscape
+        )
 
         return VStack(alignment: .leading, spacing: 6) {
             ZStack(alignment: .bottom) {

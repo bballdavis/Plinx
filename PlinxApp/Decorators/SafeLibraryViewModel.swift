@@ -53,16 +53,16 @@ final class SafeLibraryViewModel {
         return []
     }
 
-    func ensureArtwork(for library: Library) async {
+    func ensureArtwork(for library: Library, bannerCount: Int) async {
         guard bannerArtworkURLs[library.id]?.isEmpty ?? true else { return }
-        await fetchBannerArtwork(for: library, forceRefresh: false)
+        await fetchBannerArtwork(for: library, forceRefresh: false, bannerCount: bannerCount)
     }
 
-    func refreshArtwork(for library: Library) async {
-        await fetchBannerArtwork(for: library, forceRefresh: true)
+    func refreshArtwork(for library: Library, bannerCount: Int) async {
+        await fetchBannerArtwork(for: library, forceRefresh: true, bannerCount: bannerCount)
     }
 
-    private func fetchBannerArtwork(for library: Library, forceRefresh: Bool) async {
+    private func fetchBannerArtwork(for library: Library, forceRefresh: Bool, bannerCount: Int) async {
         if !forceRefresh, let existing = bannerArtworkURLs[library.id], !existing.isEmpty {
             return
         }
@@ -102,7 +102,7 @@ final class SafeLibraryViewModel {
                 }
 
                 urls.append(url)
-                if urls.count == 5 { break }
+                if urls.count == max(1, bannerCount) { break }
             }
 
             if !urls.isEmpty {
