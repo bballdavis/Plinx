@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - main
+      - dev
     types:
       - opened
       - synchronize
@@ -22,6 +23,9 @@ jobs:
   swift-packages:
     name: Swift Package Tests
     runs-on: macos-latest
+    env:
+      # Determine which strimr branch to use based on plinx branch
+      STRIMR_REF: ${{ github.base_ref == 'dev' || github.ref_name == 'dev' ? 'dev-plinx' : 'plinx-patches' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,7 +33,6 @@ jobs:
       - name: Fetch sibling repos (strimr, MPVKit)
         env:
           STRIMR_REPO: "bballdavis/strimr"
-          STRIMR_REF: "plinx-patches"
           STRIMR_PAT: ${{ secrets.STRIMR_PAT }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -102,6 +105,9 @@ jobs:
   xcode-build-and-test:
     name: Xcode Build & Unit Tests
     runs-on: macos-latest
+    env:
+      # Determine which strimr branch to use based on plinx branch
+      STRIMR_REF: ${{ github.base_ref == 'dev' || github.ref_name == 'dev' ? 'dev-plinx' : 'plinx-patches' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -109,7 +115,6 @@ jobs:
       - name: Fetch sibling repos (strimr, MPVKit)
         env:
           STRIMR_REPO: "bballdavis/strimr"
-          STRIMR_REF: "plinx-patches"
           STRIMR_PAT: ${{ secrets.STRIMR_PAT }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
