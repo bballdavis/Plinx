@@ -199,18 +199,18 @@ enum OfflineContentBuilder {
     }
 
     private static func isAllowed(item: DownloadItem, in library: Library, policy: SafetyPolicy) -> Bool {
-        let effectivePolicy: SafetyPolicy
-        if HomeLibraryGrouping.isOtherVideo(library) {
-            effectivePolicy = SafetyPolicy(
-                labelMatchMode: policy.labelMatchMode,
-                maxMovieRating: policy.maxMovieRating,
-                maxTVRating: policy.maxTVRating,
-                allowUnrated: true
-            )
-        } else {
-            effectivePolicy = policy
-        }
-
+        // Items that were downloaded while online already passed the safety filter
+        // at that time.  Individual episodes and personal-media clips often have no
+        // stored contentRating (Plex only attaches ratings at the show / library
+        // level), so the "exclude unrated" gate would incorrectly hide them offline.
+        // We keep the rating ceiling check fully intact — only the allowUnrated flag
+        // is overridden so that missing-rating items are not silently dropped.
+        let effectivePolicy = SafetyPolicy(
+            labelMatchMode: policy.labelMatchMode,
+            maxMovieRating: policy.maxMovieRating,
+            maxTVRating: policy.maxTVRating,
+            allowUnrated: true
+        )
         return StrimrAdapter.isAllowed(.playable(item.metadata.localMediaItem), policy: effectivePolicy)
     }
 

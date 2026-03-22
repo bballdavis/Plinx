@@ -28,6 +28,14 @@ struct PlinxContentView: View {
 
             rootContent
         }
+        .onChange(of: downloadManager.isOffline) { _, isOffline in
+            // When connectivity is restored, re-hydrate the session so the app
+            // automatically returns to online mode rather than staying stuck on
+            // a sign-in or loading screen after the offline period.
+            guard !isOffline else { return }
+            guard sessionManager.status == .signedOut else { return }
+            Task { await sessionManager.hydrate() }
+        }
         .fullScreenCover(item: $mainCoordinator.selectedPlayQueue) { playQueue in
             PlayerWrapper(
                 viewModel: PlayerViewModel(
