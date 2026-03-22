@@ -101,13 +101,12 @@ struct PlinxHomeView: View {
     private func homeSectionView(_ sectionId: String) -> some View {
         switch sectionId {
         case "continueWatching":
-            // Render TV episodes (regular continue watching)
-            if let hub = continueWatchingEpisodesHub, hub.hasItems {
-                hubRow(hub, layout: .landscape, sectionKey: "continueWatching")
-            }
-            // Render clips/other videos (YouTube, home videos) separately
-            if let hub = continueWatchingClipsHub, hub.hasItems {
-                hubRow(hub, layout: .landscape, sectionKey: "continueWatching.otherVideos")
+            ForEach(HomeLibraryGrouping.continueWatchingRows(from: viewModel.continueWatching)) { row in
+                hubRow(
+                    Hub(id: row.id, title: row.title, items: row.items),
+                    layout: .landscape,
+                    sectionKey: row.sectionKey
+                )
             }
         case "moviesAndTV":
             ForEach(moviesTVGroups) { group in
@@ -278,24 +277,6 @@ struct PlinxHomeView: View {
             orderIndexForGroup(a, order: order, libraries: libraries)
             < orderIndexForGroup(b, order: order, libraries: libraries)
         }
-    }
-
-    // MARK: - Continue watching grouping
-
-    /// Episodes and shows in continue watching (typical TV progress items).
-    private var continueWatchingEpisodesHub: Hub? {
-        guard let baseHub = viewModel.continueWatching, baseHub.hasItems else { return nil }
-        let episodes = baseHub.items.filter { $0.type == .episode }
-        guard !episodes.isEmpty else { return nil }
-        return Hub(id: baseHub.id, title: baseHub.title, items: episodes)
-    }
-
-    /// Clips and other videos in continue watching (YouTube, home videos, etc.).
-    private var continueWatchingClipsHub: Hub? {
-        guard let baseHub = viewModel.continueWatching, baseHub.hasItems else { return nil }
-        let clips = baseHub.items.filter { $0.type == .clip }
-        guard !clips.isEmpty else { return nil }
-        return Hub(id: "\(baseHub.id).clips", title: baseHub.title, items: clips)
     }
 
     // MARK: - Recently added grouping

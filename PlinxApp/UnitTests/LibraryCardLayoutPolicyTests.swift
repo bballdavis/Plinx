@@ -24,16 +24,30 @@ final class LibraryCardLayoutPolicyTests: XCTestCase {
         XCTAssertTrue(LibraryCardLayoutPolicy.prefersLandscape(for: library))
     }
 
-    func test_bannerArtworkDisplayCount_usesThreeForPhonePortrait() {
+    func test_defaultBannerArtworkDisplayCount_usesThreeForPhone() {
         XCTAssertEqual(
-            LibraryCardLayoutPolicy.bannerArtworkDisplayCount(isPhonePortrait: true),
+            LibraryCardLayoutPolicy.defaultBannerArtworkDisplayCount(userInterfaceIdiom: .phone),
             3
         )
     }
 
-    func test_bannerArtworkDisplayCount_usesFiveOtherwise() {
+    func test_defaultBannerArtworkDisplayCount_usesFiveForPad() {
         XCTAssertEqual(
-            LibraryCardLayoutPolicy.bannerArtworkDisplayCount(isPhonePortrait: false),
+            LibraryCardLayoutPolicy.defaultBannerArtworkDisplayCount(userInterfaceIdiom: .pad),
+            5
+        )
+    }
+
+    func test_resolvedBannerArtworkDisplayCount_clampsToPhoneMaximum() {
+        XCTAssertEqual(
+            LibraryCardLayoutPolicy.resolvedBannerArtworkDisplayCount(storedCount: 5, userInterfaceIdiom: .phone),
+            3
+        )
+    }
+
+    func test_resolvedBannerArtworkDisplayCount_usesDeviceDefaultWhenUnset() {
+        XCTAssertEqual(
+            LibraryCardLayoutPolicy.resolvedBannerArtworkDisplayCount(storedCount: 0, userInterfaceIdiom: .pad),
             5
         )
     }
