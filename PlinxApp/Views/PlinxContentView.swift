@@ -8,6 +8,7 @@ struct PlinxContentView: View {
     @Environment(LibraryStore.self) private var libraryStore
     @Environment(DownloadManager.self) private var downloadManager
     @EnvironmentObject private var mainCoordinator: MainCoordinator
+    @Environment(\.scenePhase) private var scenePhase
 
     private var uiTestScreenOverride: String? {
         guard ProcessInfo.processInfo.arguments.contains("--ui-testing") else {
@@ -33,8 +34,16 @@ struct PlinxContentView: View {
             // automatically returns to online mode rather than staying stuck on
             // a sign-in or loading screen after the offline period.
             guard !isOffline else { return }
-            guard sessionManager.status == .signedOut else { return }
+            guard sessionManager.status != .ready else { return }
+            guard sessionManager.status != .hydrating else { return }
             Task { await sessionManager.hydrate() }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else { return }
+            Task { await downloadManager.recheckNetworkStatus() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .plexConnectionUnavailable)) { _ in
+            downloadManager.markOfflineDueToConnectionFailure()
         }
         .fullScreenCover(item: $mainCoordinator.selectedPlayQueue) { playQueue in
             PlayerWrapper(
