@@ -12,6 +12,7 @@ struct OfflineRootView: View {
 
     @State private var selectedTab: MainCoordinator.Tab = .home
     @State private var selectedDownload: DownloadItem?
+    @State private var libraryNavigationPath: [OfflineLibraryGroup] = []
 
     private var visibleTabs: [KidsMainTabPicker.TabItem] {
         KidsMainTabPicker.TabItem.mainTabs(includeDownloads: true, showSearchInMainNavigation: false)
@@ -39,10 +40,22 @@ struct OfflineRootView: View {
 
             switch selectedTab {
             case .library:
-                NavigationStack {
-                    OfflineLibraryView(snapshot: snapshot, onSelectDownload: { item in
-                        selectedDownload = item
-                    }, onRefresh: checkConnectivity)
+                NavigationStack(path: $libraryNavigationPath) {
+                    OfflineLibraryView(
+                        snapshot: snapshot,
+                        onOpenLibrary: { group in
+                            libraryNavigationPath.append(group)
+                        },
+                        onSelectDownload: { item in
+                            selectedDownload = item
+                        },
+                        onRefresh: checkConnectivity
+                    )
+                    .navigationDestination(for: OfflineLibraryGroup.self) { group in
+                        OfflineLibraryDetailView(group: group, onSelectDownload: { item in
+                            selectedDownload = item
+                        })
+                    }
                 }
             case .more:
                 NavigationStack {
@@ -169,6 +182,7 @@ private struct OfflineHomeView: View {
 
 private struct OfflineLibraryView: View {
     let snapshot: OfflineContentSnapshot
+    let onOpenLibrary: (OfflineLibraryGroup) -> Void
     let onSelectDownload: (DownloadItem) -> Void
     let onRefresh: () async -> Void
 
@@ -195,8 +209,8 @@ private struct OfflineLibraryView: View {
                     )
                 } else {
                     ForEach(snapshot.libraries) { group in
-                        NavigationLink {
-                            OfflineLibraryDetailView(group: group, onSelectDownload: onSelectDownload)
+                        Button {
+                            onOpenLibrary(group)
                         } label: {
                             OfflineLibraryTile(group: group)
                                 .padding(.horizontal, 20)
@@ -273,6 +287,7 @@ private struct OfflineLibraryTile: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(.white.opacity(0.15), lineWidth: 1)
         )
+        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
