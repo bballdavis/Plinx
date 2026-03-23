@@ -70,12 +70,13 @@ struct OfflineRootView: View {
         }
     }
 
-    /// Pull-to-refresh handler.  NWPathMonitor updates `isOffline` automatically,
-    /// so a brief yield is enough: if connectivity was restored, PlinxContentView
-    /// will have already switched away.  If still offline, the bounce-back
-    /// confirms "still offline" to the user without further action.
+    /// Pull-to-refresh handler.  Explicitly re-evaluates the network path on the
+    /// NWPathMonitor queue so the offline/online status is authoritative rather than
+    /// relying on a delayed background callback.  If the device is back online,
+    /// `downloadManager.isOffline` becomes `false` and `PlinxContentView` transitions
+    /// to `RootTabView` automatically; if still offline, the spinner bounces back.
     private func checkConnectivity() async {
-        try? await Task.sleep(for: .milliseconds(300))
+        await downloadManager.recheckNetworkStatus()
     }
 }
 

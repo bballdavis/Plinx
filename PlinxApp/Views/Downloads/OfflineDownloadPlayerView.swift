@@ -13,11 +13,11 @@ struct OfflineDownloadPlayerView: View {
             if let playerViewModel {
                 PlayerWrapper(viewModel: playerViewModel)
             } else {
-                PlinxBrandedLoadingView(
-                    preferredLogoAssetName: "LogoStackedFullWhite",
-                    showsProgressView: true,
-                    fillsBackground: true
-                )
+                ZStack {
+                    Color.black.ignoresSafeArea()
+                    ProgressView()
+                        .tint(.white)
+                }
                 .task(id: item.id) {
                     guard playerViewModel == nil else { return }
                     guard let localURL = downloadManager.localVideoURL(for: item) else { return }
