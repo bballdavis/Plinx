@@ -15,7 +15,7 @@ import PackageDescription
 //
 // Module Boundary:
 //   PlinxUI imports PlinxCore (for HapticManager, PlinkAudioManager, model types).
-//   PlinxUI does NOT import StrimrEngine or any Strimr types.
+//   PlinxUI does not import Strimr or any Strimr types.
 //   All data arriving at PlinxUI views is pre-adapted by PlinxApp decorators.
 //
 // ─────────────────────────────────────────────────────────────────────────────

@@ -63,13 +63,35 @@ enum OfflineContentBuilder {
         libraries: [Library]
     ) -> [OfflineLibraryGroup] {
         let orderByLibraryID = Dictionary(uniqueKeysWithValues: libraries.enumerated().map { ($0.element.id, $0.offset) })
-        let grouped = Dictionary(grouping: resolvedItems, by: { $0.library })
 
-        return grouped
-            .map { library, pairs in
+        // Group by library.id (not the full Library struct).  Two items from the
+        // same Plex section can produce Library structs that differ in title/type
+        // if some have artworkLayoutStyle=landscape and others don't (e.g. a mix of
+        // videos from a YouTube library where the agent wasn't stored at download
+        // time).  Grouping by id and picking the "best" representative library
+        // prevents duplicate ForEach keys that break NavigationLink taps.
+        var groupedByID: [String: (library: Library, items: [DownloadItem])] = [:]
+
+        for (item, library) in resolvedItems {
+            if var existing = groupedByID[library.id] {
+                existing.items.append(item)
+                // Prefer the "other video" (none-agent) classification when there
+                // is a conflict, so YouTube / Home Videos libraries aren't shown
+                // under the generic "Movies" label.
+                if library.isNoneAgentLibrary && !existing.library.isNoneAgentLibrary {
+                    existing.library = library
+                }
+                groupedByID[library.id] = existing
+            } else {
+                groupedByID[library.id] = (library: library, items: [item])
+            }
+        }
+
+        return groupedByID.values
+            .map { pair in
                 OfflineLibraryGroup(
-                    library: library,
-                    items: pairs.map(\.item).sorted(by: compareRecency)
+                    library: pair.library,
+                    items: pair.items.sorted(by: compareRecency)
                 )
             }
             .sorted { lhs, rhs in
@@ -168,7 +190,9 @@ enum OfflineContentBuilder {
         let agent: String
         let itemType = item.metadata.type
 
-        if itemType == .clip || item.metadata.resolvedArtworkLayoutStyle == .landscape {
+        if itemType == .clip
+            || item.metadata.resolvedArtworkLayoutStyle == .landscape
+            || item.metadata.sourceLibraryAgent?.lowercased().contains("none") == true {
             title = "Other Videos"
             type = .clip
             agent = "tv.plex.agents.none"

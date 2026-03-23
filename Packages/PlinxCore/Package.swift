@@ -14,10 +14,10 @@ import PackageDescription
 //   • PlexClient protocol — abstract Plex API surface
 //
 // Module Boundary:
-//   PlinxCore does NOT import StrimrEngine (Strimr types are `internal`).
+//   PlinxCore does not import Strimr directly.
 //   Instead, PlinxCore defines its own public model types. The PlinxApp target
-//   bridges between Strimr's internal types and PlinxCore's public types via
-//   the StrimrAdapter and Safe*ViewModel decorators.
+//   bridges between sibling Strimr source and PlinxCore's public types via
+//   adapters and decorators.
 //
 // ─────────────────────────────────────────────────────────────────────────────
 

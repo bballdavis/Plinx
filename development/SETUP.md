@@ -17,7 +17,7 @@ This guide covers building and running Plinx locally for development.
    ```
 
 2. **Clone sibling dependencies:**
-   Plinx depends on local-path dependencies (`Strimr` and `MPVKit`) checked out as sibling directories:
+  Plinx depends on local-path dependencies (`strimr` and `MPVKit`) checked out as sibling directories:
    ```bash
    cd ..
    git clone https://github.com/bballdavis/strimr.git
@@ -88,9 +88,7 @@ See [TESTING.md](TESTING.md) for comprehensive testing instructions, including u
   - `Sources/PlinxTheme.swift` — Theme system (colors, typography, springs)
   - `Sources/BabyLock.swift` — Touch lock overlay
   
-- **Packages/StrimrEngine/** — Vendored Strimr media engine
-  
-- **vendor/strimr/** — Strimr sibling checkout (branch depends on Plinx branch)
+- **../strimr/** — Sibling Strimr checkout used by the app target at build time
 
 ## Strimr Integration
 
@@ -116,13 +114,13 @@ To update Strimr to the latest upstream changes (depending on which branch you'r
 
 ```bash
 # If on locally on Plinx main, working with plinx-patches:
-cd vendor/strimr
+cd ../strimr
 git fetch origin
 git rebase origin/main plinx-patches
 cd ../..
 
 # If locally on Plinx dev, working with dev-plinx:
-cd vendor/strimr
+cd ../strimr
 git fetch origin
 git rebase origin/main dev-plinx
 cd ../..
@@ -139,13 +137,13 @@ cd PlinxApp
 xcodegen generate
 ```
 
-The generated `Plinx.xcodeproj` is gitignored and not committed. CI regenerates it on each build.
+The generated `Plinx.xcodeproj` is gitignored and may be regenerated locally as needed. Treat `project.yml` as the source of truth.
 
 ## Troubleshooting
 
 **Build fails with "Missing package" errors:**
-- Make sure you cloned with `--recursive` to fetch the Strimr submodule
-- Run `git submodule update --init --recursive` if the submodule is missing
+- Make sure the sibling `../strimr` and `../MPVKit` directories exist
+- Verify `../strimr` is on the expected paired branch for the Plinx branch you are using
 
 **XcodeGen not found:**
 - Install via Homebrew: `brew install xcodegen`
@@ -157,3 +155,4 @@ The generated `Plinx.xcodeproj` is gitignored and not committed. CI regenerates 
 **Code generation mismatch:**
 - Run `xcodegen generate` again to regenerate the project file
 - Ensure `project.yml` is up to date with your changes
+- If a behavior change lives in the Strimr engine, remember the app target builds against sibling `../strimr` sources directly

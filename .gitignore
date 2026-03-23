@@ -21,6 +21,7 @@ AGENTS.md
 .swiftpm/xcode/package.xcworkspace/
 .swiftpm/configuration/
 Packages/*/.swiftpm/
+Packages/StrimrEngine/
 
 # Carthage
 Carthage/Build/

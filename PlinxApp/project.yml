@@ -6,12 +6,8 @@
 #
 # Strimr sibling-repo sources compile INTO the Plinx-iOS app target (not as a
 # separate framework). This is required because Strimr uses `internal` access
-# on all types — compiling in the same module is the only way to access them
-# without modifying Strimr source.
-#
-# The StrimrEngine SPM package exists alongside for CI validation and future
-# migration (when Strimr adds `public` access). It is NOT listed as an app
-# dependency to avoid duplicate symbol errors.
+# on many types — compiling in the same module is the current way to access
+# them without broadening upstream access control.
 #
 # Dependency flow:
 #   PlinxApp (this target)
@@ -32,8 +28,8 @@ options:
   deploymentTarget:
     iOS: 17.0
   postGenCommand: >-
-    if [ -f ../.local_dev/patch_resources.py ]; then
-      python3 ../.local_dev/patch_resources.py;
+    if [ -f ../scripts/patch_resources.py ]; then
+      python3 ../scripts/patch_resources.py;
     else
       echo "Skipping local resource patch script in non-local environment.";
     fi
@@ -43,11 +39,6 @@ packages:
     path: ../Packages/PlinxCore
   PlinxUI:
     path: ../Packages/PlinxUI
-  # StrimrEngine is intentionally NOT listed here.
-  # Strimr sources compile directly into the app target for `internal` access.
-  # The StrimrEngine package at ../Packages/StrimrEngine/ exists for:
-  #   - Independent source compilation validation via app target build
-  #   - Future migration when Strimr types become `public`
   MPVKit:
     path: ../../MPVKit
 
@@ -78,8 +69,6 @@ targets:
       # ── Strimr sibling-repo sources (compiled into app module) ──────
       # These compile as part of the Plinx-iOS module, giving our
       # decorators and adapters access to Strimr's internal types.
-      # When StrimrEngine supports direct import, remove these paths
-      # and add `- package: StrimrEngine` to dependencies instead.
       - path: ../../strimr/Shared
         name: StrimrShared
         excludes:
