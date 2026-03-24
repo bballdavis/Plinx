@@ -129,6 +129,13 @@ struct PlinxDownloadsGridView: View {
         .fullScreenCover(item: $selectedDownload) { item in
             OfflineDownloadPlayerView(item: item)
         }
+        .refreshable {
+            guard downloadManager.isOffline else { return }
+            await downloadManager.recheckNetworkStatus()
+            // When isOffline flips to false, PlinxContentView.onChange handles
+            // session hydration on a persistent task that won't be cancelled by
+            // the offline → online view swap.
+        }
         .task(id: artworkReconciliationID) {
             await downloadManager.reconcileArtworkMetadataIfNeeded(context: context)
         }

@@ -33,16 +33,32 @@ struct PlinxContentView: View {
             // When connectivity is restored, re-hydrate the session so the app
             // automatically returns to online mode rather than staying stuck on
             // a sign-in or loading screen after the offline period.
+            // Always re-validate even if the previous status was .ready — a once-ready
+            // session can have stale tokens or a temporarily unreachable server.
             guard !isOffline else { return }
-            guard sessionManager.status != .ready else { return }
             guard sessionManager.status != .hydrating else { return }
-            Task { await sessionManager.hydrate() }
+            Task {
+                await sessionManager.hydrate()
+                // If hydration failed and left us signed-out (with isOffline still
+                // false, because the plexConnectionUnavailable notification was
+                // suppressed during hydration), re-mark offline so we stay on the
+                // offline screen instead of bouncing to the sign-in view.
+                if sessionManager.status == .signedOut {
+                    downloadManager.markOfflineDueToConnectionFailure()
+                }
+            }
         }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else { return }
             Task { await downloadManager.recheckNetworkStatus() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .plexConnectionUnavailable)) { _ in
+            // While the session is actively hydrating (a reconnect attempt is in
+            // progress), a network failure from one of the auth calls must NOT
+            // immediately cancel the reconnect by flipping isOffline back to true.
+            // The hydrate path already handles its own failure state; if it truly
+            // can't connect, subsequent non-hydration Plex calls will re-trigger this.
+            guard sessionManager.status != .hydrating else { return }
             downloadManager.markOfflineDueToConnectionFailure()
         }
         .fullScreenCover(item: $mainCoordinator.selectedPlayQueue) { playQueue in

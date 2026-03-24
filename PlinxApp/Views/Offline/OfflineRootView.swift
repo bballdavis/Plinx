@@ -13,6 +13,7 @@ struct OfflineRootView: View {
     @State private var selectedTab: MainCoordinator.Tab = .home
     @State private var selectedDownload: DownloadItem?
     @State private var libraryNavigationPath: [OfflineLibraryGroup] = []
+    @State private var showSettings = false
 
     private var visibleTabs: [KidsMainTabPicker.TabItem] {
         KidsMainTabPicker.TabItem.mainTabs(includeDownloads: true, showSearchInMainNavigation: false)
@@ -43,6 +44,7 @@ struct OfflineRootView: View {
                 NavigationStack(path: $libraryNavigationPath) {
                     OfflineLibraryView(
                         snapshot: snapshot,
+                        onOpenSettings: { showSettings = true },
                         onOpenLibrary: { group in
                             libraryNavigationPath.append(group)
                         },
@@ -52,9 +54,13 @@ struct OfflineRootView: View {
                         onRefresh: checkConnectivity
                     )
                     .navigationDestination(for: OfflineLibraryGroup.self) { group in
-                        OfflineLibraryDetailView(group: group, onSelectDownload: { item in
-                            selectedDownload = item
-                        })
+                        OfflineLibraryDetailView(
+                            group: group,
+                            onSelectDownload: { item in
+                                selectedDownload = item
+                            },
+                            onRefresh: checkConnectivity
+                        )
                     }
                 }
             case .more:
@@ -63,9 +69,14 @@ struct OfflineRootView: View {
                 }
             default:
                 NavigationStack {
-                    OfflineHomeView(snapshot: snapshot, onSelectDownload: { item in
-                        selectedDownload = item
-                    }, onRefresh: checkConnectivity)
+                    OfflineHomeView(
+                        snapshot: snapshot,
+                        onOpenSettings: { showSettings = true },
+                        onSelectDownload: { item in
+                            selectedDownload = item
+                        },
+                        onRefresh: checkConnectivity
+                    )
                 }
             }
         }
@@ -81,15 +92,40 @@ struct OfflineRootView: View {
         .fullScreenCover(item: $selectedDownload) { item in
             OfflineDownloadPlayerView(item: item)
         }
+        .sheet(isPresented: $showSettings) {
+            NavigationStack {
+                PlinxSettingsView()
+                    .toolbar(.hidden, for: .navigationBar)
+                    .safeAreaInset(edge: .top, spacing: 0) {
+                        settingsHeaderRow
+                    }
+            }
+            .presentationDetents([.large])
+        }
     }
 
-    /// Pull-to-refresh handler.  Explicitly re-evaluates the network path on the
-    /// NWPathMonitor queue so the offline/online status is authoritative rather than
-    /// relying on a delayed background callback.  If the device is back online,
-    /// `downloadManager.isOffline` becomes `false` and `PlinxContentView` transitions
-    /// to `RootTabView` automatically; if still offline, the spinner bounces back.
+    /// Pull-to-refresh handler.  Re-evaluates the network path on the
+    /// NWPathMonitor queue.  When `isOffline` flips to `false`,
+    /// `PlinxContentView.onChange(of: isOffline)` handles session
+    /// hydration — that task lives on a persistent view that outlives
+    /// the offline screen, so it won't be cancelled by the view swap.
     private func checkConnectivity() async {
         await downloadManager.recheckNetworkStatus()
+    }
+
+    private var settingsHeaderRow: some View {
+        HStack(spacing: 12) {
+            Text("tabs.settings".plinxLocalized)
+                .font(.title3.weight(.bold))
+                .foregroundStyle(.white.opacity(0.95))
+            Spacer()
+            PlinxChromeButton(systemImage: "xmark") {
+                showSettings = false
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 8)
+        .padding(.bottom, 10)
     }
 }
 
@@ -113,6 +149,7 @@ private struct OfflineBadge: View {
 
 private struct OfflineHomeView: View {
     let snapshot: OfflineContentSnapshot
+    let onOpenSettings: () -> Void
     let onSelectDownload: (DownloadItem) -> Void
     let onRefresh: () async -> Void
 
@@ -153,6 +190,11 @@ private struct OfflineHomeView: View {
             OfflineBadge()
 
             Spacer()
+
+            PlinxChromeButton(systemImage: "gearshape.fill") {
+                onOpenSettings()
+            }
+            .accessibilityIdentifier("offline.home.header.settings")
         }
         .padding(.horizontal, 20)
         .padding(.top, 8)
@@ -182,6 +224,7 @@ private struct OfflineHomeView: View {
 
 private struct OfflineLibraryView: View {
     let snapshot: OfflineContentSnapshot
+    let onOpenSettings: () -> Void
     let onOpenLibrary: (OfflineLibraryGroup) -> Void
     let onSelectDownload: (DownloadItem) -> Void
     let onRefresh: () async -> Void
@@ -197,6 +240,11 @@ private struct OfflineLibraryView: View {
                     OfflineBadge()
 
                     Spacer()
+
+                    PlinxChromeButton(systemImage: "gearshape.fill") {
+                        onOpenSettings()
+                    }
+                    .accessibilityIdentifier("offline.library.header.settings")
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
@@ -226,8 +274,11 @@ private struct OfflineLibraryView: View {
 }
 
 private struct OfflineLibraryDetailView: View {
+    @Environment(\.dismiss) private var dismiss
+
     let group: OfflineLibraryGroup
     let onSelectDownload: (DownloadItem) -> Void
+    let onRefresh: () async -> Void
 
     private var layout: OfflineHomeSection.Layout {
         LibraryCardLayoutPolicy.prefersLandscape(for: group.library) ? .landscape : .portrait
@@ -240,19 +291,42 @@ private struct OfflineLibraryDetailView: View {
 
     var body: some View {
         ScrollView {
-            LazyVGrid(columns: gridColumns, spacing: 16) {
-                ForEach(group.items) { item in
-                    OfflineMediaCard(item: item, layout: layout) {
-                        onSelectDownload(item)
+            LazyVStack(spacing: 0) {
+                detailHeader
+
+                LazyVGrid(columns: gridColumns, spacing: 16) {
+                    ForEach(group.items) { item in
+                        OfflineMediaCard(item: item, layout: layout) {
+                            onSelectDownload(item)
+                        }
                     }
                 }
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                .padding(.bottom, 120)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 16)
-            .padding(.bottom, 120)
         }
-        .navigationTitle(group.library.title)
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
+        .toolbarBackground(.hidden, for: .navigationBar)
+        .refreshable { await onRefresh() }
+    }
+
+    private var detailHeader: some View {
+        HStack(spacing: 10) {
+            PlinxChromeButton(systemImage: "chevron.left") {
+                dismiss()
+            }
+
+            Text(group.library.title)
+                .font(.title3.weight(.bold))
+                .foregroundStyle(.white.opacity(0.95))
+                .lineLimit(1)
+
+            Spacer()
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 8)
+        .padding(.bottom, 10)
     }
 }
 
