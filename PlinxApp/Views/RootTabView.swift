@@ -660,7 +660,7 @@ struct RootTabView: View {
 
 }
 
-private extension String {
+extension String {
     var plinxLocalized: String {
         NSLocalizedString(self, tableName: "Plinx", bundle: .main, comment: "")
     }
