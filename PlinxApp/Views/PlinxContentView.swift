@@ -38,12 +38,20 @@ struct PlinxContentView: View {
             guard !isOffline else { return }
             guard sessionManager.status != .hydrating else { return }
             Task {
+                // Re-check inside the Task body: a background Plex call (e.g.
+                // artwork reconciliation) can post plexConnectionUnavailable in
+                // the async gap between isOffline becoming false and this Task
+                // running, resetting isOffline to true before we even start.
+                // Aborting here prevents a hydration attempt against an
+                // already-offline state.
+                guard !downloadManager.isOffline else { return }
                 await sessionManager.hydrate()
-                // If hydration failed and left us signed-out (with isOffline still
-                // false, because the plexConnectionUnavailable notification was
-                // suppressed during hydration), re-mark offline so we stay on the
-                // offline screen instead of bouncing to the sign-in view.
-                if sessionManager.status == .signedOut {
+                // If hydration did not reach .ready, the server (or plex.tv) is
+                // still unreachable.  Re-mark offline so the user returns to the
+                // offline screen instead of landing on sign-in or server-selection.
+                // This covers .signedOut (plex.tv unreachable), .needsServerSelection
+                // (local server unreachable), and .needsProfileSelection (edge case).
+                if sessionManager.status != .ready {
                     downloadManager.markOfflineDueToConnectionFailure()
                 }
             }

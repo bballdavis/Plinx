@@ -3,6 +3,7 @@ import SwiftUI
 struct OfflineDownloadPlayerView: View {
     @Environment(DownloadManager.self) private var downloadManager
     @Environment(PlexAPIContext.self) private var context
+    @Environment(\.dismiss) private var dismiss
 
     let item: DownloadItem
 
@@ -41,6 +42,19 @@ struct OfflineDownloadPlayerView: View {
                         .foregroundStyle(.white.opacity(0.7))
                 }
                 .padding(24)
+            }
+            .overlay(alignment: .topTrailing) {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(12)
+                        .background(Circle().fill(.white.opacity(0.15)))
+                }
+                .padding(.top, 56)
+                .padding(.trailing, 20)
             }
         }
     }
