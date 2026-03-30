@@ -8,6 +8,7 @@ private typealias PlatformImage = UIImage
 struct OfflineRootView: View {
     @Environment(DownloadManager.self) private var downloadManager
     @Environment(LibraryStore.self) private var libraryStore
+    @Environment(PlexAPIContext.self) private var plexApiContext
     @Environment(\.safetyPolicy) private var safetyPolicy
 
     @State private var selectedTab: MainCoordinator.Tab = .home
@@ -105,12 +106,18 @@ struct OfflineRootView: View {
     }
 
     /// Pull-to-refresh handler.  Re-evaluates the network path on the
-    /// NWPathMonitor queue.  When `isOffline` flips to `false`,
-    /// `PlinxContentView.onChange(of: isOffline)` handles session
-    /// hydration — that task lives on a persistent view that outlives
-    /// the offline screen, so it won't be cancelled by the view swap.
+    /// NWPathMonitor queue AND performs a lightweight Plex server probe when
+    /// the OS path is satisfied.  This prevents a false-positive "back online"
+    /// flip when the device has WiFi but the Plex server is still unreachable
+    /// (which would cause a brief loading-screen flash before re-entering offline
+    /// mode).  When both checks pass and `isOffline` flips to `false`,
+    /// `PlinxContentView.onChange(of: isOffline)` handles session hydration on
+    /// a persistent task that outlives the offline screen.
     private func checkConnectivity() async {
-        await downloadManager.recheckNetworkStatus()
+        let context = plexApiContext
+        await downloadManager.recheckNetworkStatus {
+            await context.canReachServer()
+        }
     }
 
     private var settingsHeaderRow: some View {

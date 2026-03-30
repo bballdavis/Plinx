@@ -131,18 +131,26 @@ struct PlinxDownloadsGridView: View {
         }
         .refreshable {
             guard downloadManager.isOffline else { return }
-            await downloadManager.recheckNetworkStatus()
+            let plexContext = context
+            await downloadManager.recheckNetworkStatus {
+                await plexContext.canReachServer()
+            }
             // When isOffline flips to false, PlinxContentView.onChange handles
             // session hydration on a persistent task that won't be cancelled by
             // the offline → online view swap.
         }
         .task(id: artworkReconciliationID) {
+            guard !downloadManager.isOffline else { return }
             await downloadManager.reconcileArtworkMetadataIfNeeded(context: context)
         }
     }
 
     private var artworkReconciliationID: String {
-        downloadManager.sortedItems
+        // While offline, return a stable constant so the task never fires a
+        // live Plex API call.  When `isOffline` flips to false the ID changes
+        // to the real item-based string, restarting the task post-reconnect.
+        guard !downloadManager.isOffline else { return "offline" }
+        return downloadManager.sortedItems
             .map { item in
                 "\(item.id):\(item.metadata.artworkLayoutStyle?.rawValue ?? "unknown")"
             }
