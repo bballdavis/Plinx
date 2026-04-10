@@ -112,7 +112,12 @@ struct PlinxApp: App {
         // DownloadManager: inject so MediaDetailHeaderSection's @Environment(DownloadManager.self)
         // resolves. Plinx supports downloads as a passthrough from Strimr.
         DownloadUITestFixtures.seedIfNeeded(environment: processEnvironment)
-        _downloadManager = State(initialValue: DownloadManager(settingsManager: settings))
+        OfflineReconnectUITestFixtures.seedIfNeeded(environment: processEnvironment)
+        let downloads = DownloadManager(settingsManager: settings)
+        if OfflineReconnectUITestFixtures.isActive(environment: processEnvironment) {
+            downloads.markOfflineDueToConnectionFailure()
+        }
+        _downloadManager = State(initialValue: downloads)
 
         // Layer 2: Plinx safety + theming are initialized via property defaults.
         // The ViewFactory is created in `body` since it needs the live state refs.

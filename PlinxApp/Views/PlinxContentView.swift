@@ -9,12 +9,17 @@ struct PlinxContentView: View {
     @Environment(DownloadManager.self) private var downloadManager
     @EnvironmentObject private var mainCoordinator: MainCoordinator
     @Environment(\.scenePhase) private var scenePhase
+    @State private var offlineReconnectUITestState = "offline"
 
     private var uiTestScreenOverride: String? {
         guard ProcessInfo.processInfo.arguments.contains("--ui-testing") else {
             return nil
         }
         return ProcessInfo.processInfo.environment["PLINX_UI_TEST_SCREEN"]
+    }
+
+    private var isOfflineReconnectUITest: Bool {
+        uiTestScreenOverride == OfflineReconnectUITestFixtures.screenName
     }
 
     var body: some View {
@@ -29,28 +34,22 @@ struct PlinxContentView: View {
 
             rootContent
         }
+        .overlay(alignment: .topLeading) {
+            if isOfflineReconnectUITest {
+                Color.clear
+                    .frame(width: 1, height: 1)
+                    .accessibilityIdentifier("offlineReconnect.debug.\(offlineReconnectUITestState)")
+            }
+        }
         .onChange(of: downloadManager.isOffline) { _, isOffline in
-            // When connectivity is restored, re-hydrate the session so the app
-            // automatically returns to online mode rather than staying stuck on
-            // a sign-in or loading screen after the offline period.
-            // Always re-validate even if the previous status was .ready — a once-ready
-            // session can have stale tokens or a temporarily unreachable server.
+            if isOfflineReconnectUITest {
+                offlineReconnectUITestState = isOffline ? "offline" : "online"
+            }
             guard !isOffline else { return }
             guard sessionManager.status != .hydrating else { return }
             Task {
-                // Re-check inside the Task body: a background Plex call (e.g.
-                // artwork reconciliation) can post plexConnectionUnavailable in
-                // the async gap between isOffline becoming false and this Task
-                // running, resetting isOffline to true before we even start.
-                // Aborting here prevents a hydration attempt against an
-                // already-offline state.
                 guard !downloadManager.isOffline else { return }
                 await sessionManager.hydrate()
-                // If hydration did not reach .ready, the server (or plex.tv) is
-                // still unreachable.  Re-mark offline so the user returns to the
-                // offline screen instead of landing on sign-in or server-selection.
-                // This covers .signedOut (plex.tv unreachable), .needsServerSelection
-                // (local server unreachable), and .needsProfileSelection (edge case).
                 if sessionManager.status != .ready {
                     downloadManager.markOfflineDueToConnectionFailure()
                 }
@@ -58,6 +57,7 @@ struct PlinxContentView: View {
         }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else { return }
+            guard !isOfflineReconnectUITest else { return }
             Task { await downloadManager.recheckNetworkStatus() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .plexConnectionUnavailable)) { _ in
@@ -146,9 +146,31 @@ struct PlinxContentView: View {
                     )
                 }
             case .ready:
-                RootTabView()
-                    .id(sessionManager.plexServer?.clientIdentifier ?? "no-server")
+                if isOfflineReconnectUITest {
+                    OfflineReconnectUITestOnlineView()
+                } else {
+                    RootTabView()
+                        .id(sessionManager.plexServer?.clientIdentifier ?? "no-server")
+                }
             }
         }
+    }
+}
+
+private struct OfflineReconnectUITestOnlineView: View {
+    var body: some View {
+        ZStack {
+            Color.appBackground.ignoresSafeArea()
+
+            Text("Online")
+                .font(.title3.weight(.bold))
+                .foregroundStyle(.white)
+                .padding(20)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color.white.opacity(0.08))
+                )
+        }
+        .accessibilityIdentifier(OfflineReconnectUITestFixtures.onlineStateAccessibilityID)
     }
 }

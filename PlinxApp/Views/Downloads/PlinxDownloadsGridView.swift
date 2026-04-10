@@ -110,6 +110,7 @@ struct PlinxDownloadsGridView: View {
                 }
             }
         }
+        .accessibilityIdentifier("downloads.grid.scroll")
         .background {
             GeometryReader { proxy in
                 Color.clear
@@ -131,13 +132,7 @@ struct PlinxDownloadsGridView: View {
         }
         .refreshable {
             guard downloadManager.isOffline else { return }
-            let plexContext = context
-            await downloadManager.recheckNetworkStatus {
-                await plexContext.canReachServer()
-            }
-            // When isOffline flips to false, PlinxContentView.onChange handles
-            // session hydration on a persistent task that won't be cancelled by
-            // the offline → online view swap.
+            await downloadManager.recheckNetworkStatus()
         }
         .task(id: artworkReconciliationID) {
             guard !downloadManager.isOffline else { return }
