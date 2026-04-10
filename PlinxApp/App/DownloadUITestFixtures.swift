@@ -104,7 +104,7 @@ enum DownloadUITestFixtures {
         ((value % modulus) + modulus) % modulus
     }
 
-    private static func buildDownloadsDirectory() -> URL {
+    static func buildDownloadsDirectory() -> URL {
         let appSupport = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
@@ -113,7 +113,7 @@ enum DownloadUITestFixtures {
     }
 
     #if canImport(UIKit)
-    private static func writePosterImage(for item: DownloadItem, to folderURL: URL) throws {
+    static func writePosterImage(for item: DownloadItem, to folderURL: URL) throws {
         let size = posterSize(for: item)
         let renderer = UIGraphicsImageRenderer(size: size)
         let image = renderer.image { context in

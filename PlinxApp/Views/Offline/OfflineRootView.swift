@@ -8,7 +8,6 @@ private typealias PlatformImage = UIImage
 struct OfflineRootView: View {
     @Environment(DownloadManager.self) private var downloadManager
     @Environment(LibraryStore.self) private var libraryStore
-    @Environment(PlexAPIContext.self) private var plexApiContext
     @Environment(\.safetyPolicy) private var safetyPolicy
 
     @State private var selectedTab: MainCoordinator.Tab = .home
@@ -105,19 +104,12 @@ struct OfflineRootView: View {
         }
     }
 
-    /// Pull-to-refresh handler.  Re-evaluates the network path on the
-    /// NWPathMonitor queue AND performs a lightweight Plex server probe when
-    /// the OS path is satisfied.  This prevents a false-positive "back online"
-    /// flip when the device has WiFi but the Plex server is still unreachable
-    /// (which would cause a brief loading-screen flash before re-entering offline
-    /// mode).  When both checks pass and `isOffline` flips to `false`,
-    /// `PlinxContentView.onChange(of: isOffline)` handles session hydration on
-    /// a persistent task that outlives the offline screen.
+    /// Pull-to-refresh handler. Ask the network monitor whether we're back
+    /// online; if the path is satisfied `isOffline` flips to false and
+    /// `PlinxContentView`'s onChange drives session hydration automatically.
     private func checkConnectivity() async {
-        let context = plexApiContext
-        await downloadManager.recheckNetworkStatus {
-            await context.canReachServer()
-        }
+        guard downloadManager.isOffline else { return }
+        await downloadManager.recheckNetworkStatus()
     }
 
     private var settingsHeaderRow: some View {
@@ -179,6 +171,7 @@ private struct OfflineHomeView: View {
             .padding(.top, 8)
             .padding(.bottom, 120)
         }
+        .accessibilityIdentifier("offline.home.scroll")
         .refreshable { await onRefresh() }
     }
 
@@ -195,6 +188,14 @@ private struct OfflineHomeView: View {
                 .foregroundStyle(.white.opacity(0.95))
 
             OfflineBadge()
+
+            if OfflineReconnectUITestFixtures.isActive() {
+                Button("Reconnect") {
+                    Task { await onRefresh() }
+                }
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("offlineReconnect.trigger")
+            }
 
             Spacer()
 
