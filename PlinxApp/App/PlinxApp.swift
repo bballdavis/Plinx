@@ -153,7 +153,8 @@ struct PlinxApp: App {
                 // ── Lifecycle hardening ─────────────────────────────
                 .lifecycleHardening(
                     coordinator: playbackCoordinator,
-                    mainCoordinator: mainCoordinator
+                    mainCoordinator: mainCoordinator,
+                    downloadManager: downloadManager
                 )
                 // ── Baby lock overlay ───────────────────────────────
                 .babyLock(isEnabled: $babyLockEnabled)
