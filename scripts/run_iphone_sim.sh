@@ -20,6 +20,7 @@ set -e  # Exit on error
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 PLINX_APP_DIR="$PROJECT_ROOT/PlinxApp"
+source "$PROJECT_ROOT/scripts/sim_destination.sh"
 
 # Configuration
 DEVICE_NAME="${1:-iPhone 17 Pro Max}"
@@ -47,18 +48,21 @@ if [ "$DEVICE_NAME" = "generic" ]; then
     echo "→ using generic iOS Simulator destination"
     DEST="platform=iOS Simulator"
 else
-    UDID=$(xcrun simctl list devices available | grep "$DEVICE_NAME" | grep -oE '\(([A-F0-9-]+)\)' | head -1 | tr -d '()')
-
-    if [ -z "$UDID" ]; then
+    if select_simulator_destination "$DEVICE_NAME"; then
+        DEST="$SIM_DESTINATION"
+        UDID="$SIM_UDID"
+        if [ "$SIM_NAME" = "$DEVICE_NAME" ]; then
+            echo "✓ Found: $SIM_NAME ($UDID)"
+        else
+            echo "⚠️  Exact simulator '$DEVICE_NAME' not found. Using '$SIM_NAME' ($UDID) instead."
+        fi
+    else
         echo "❌ Simulator '$DEVICE_NAME' not found."
         echo ""
         echo "Available devices:"
         xcrun simctl list devices available | grep "iPhone\|iPad"
         exit 1
     fi
-
-    echo "✓ Found: $DEVICE_NAME ($UDID)"
-    DEST="platform=iOS Simulator,id=$UDID"
 fi
 
 echo ""

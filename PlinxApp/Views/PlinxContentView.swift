@@ -9,6 +9,7 @@ struct PlinxContentView: View {
     @Environment(DownloadManager.self) private var downloadManager
     @EnvironmentObject private var mainCoordinator: MainCoordinator
     @Environment(\.scenePhase) private var scenePhase
+    @State private var isConnectionValidationInFlight = false
     @State private var offlineReconnectUITestState = "offline"
 
     private var uiTestScreenOverride: String? {
@@ -20,6 +21,10 @@ struct PlinxContentView: View {
 
     private var isOfflineReconnectUITest: Bool {
         uiTestScreenOverride == OfflineReconnectUITestFixtures.screenName
+    }
+
+    private var isLiveOfflineReconnectUITest: Bool {
+        uiTestScreenOverride == LivePlexUITestBootstrap.offlineReconnectScreenName
     }
 
     var body: some View {
@@ -39,6 +44,21 @@ struct PlinxContentView: View {
                 Color.clear
                     .frame(width: 1, height: 1)
                     .accessibilityIdentifier("offlineReconnect.debug.\(offlineReconnectUITestState)")
+            } else if isLiveOfflineReconnectUITest {
+                Color.clear
+                    .frame(width: 1, height: 1)
+                    .accessibilityIdentifier(
+                        "liveOfflineReconnect.debug.\(downloadManager.isOffline ? "offline" : "online").\(sessionStatusLabel(sessionManager.status))"
+                    )
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            if isLiveOfflineReconnectUITest,
+               !downloadManager.isOffline,
+               sessionManager.status == .ready {
+                Color.clear
+                    .frame(width: 1, height: 1)
+                    .accessibilityIdentifier("liveOfflineReconnect.state.online")
             }
         }
         .onChange(of: downloadManager.isOffline) { _, isOffline in
@@ -47,8 +67,12 @@ struct PlinxContentView: View {
             }
             guard !isOffline else { return }
             guard sessionManager.status != .hydrating else { return }
+            // If the session is already ready (e.g. the serverProbe in
+            // checkConnectivity already hydrated, or tokens are still valid),
+            // the view will switch via SwiftUI's isOffline observation —
+            // no additional hydration needed.
+            guard sessionManager.status != .ready else { return }
             Task {
-                guard !downloadManager.isOffline else { return }
                 await sessionManager.hydrate()
                 if sessionManager.status != .ready {
                     downloadManager.markOfflineDueToConnectionFailure()
@@ -61,13 +85,10 @@ struct PlinxContentView: View {
             Task { await downloadManager.recheckNetworkStatus() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .plexConnectionUnavailable)) { _ in
-            // While the session is actively hydrating (a reconnect attempt is in
-            // progress), a network failure from one of the auth calls must NOT
-            // immediately cancel the reconnect by flipping isOffline back to true.
-            // The hydrate path already handles its own failure state; if it truly
-            // can't connect, subsequent non-hydration Plex calls will re-trigger this.
             guard sessionManager.status != .hydrating else { return }
-            downloadManager.markOfflineDueToConnectionFailure()
+            Task {
+                await validateConnectionAvailabilityError()
+            }
         }
         .fullScreenCover(item: $mainCoordinator.selectedPlayQueue) { playQueue in
             PlayerWrapper(
@@ -105,6 +126,31 @@ struct PlinxContentView: View {
             }
         } else {
             sessionContent
+        }
+    }
+
+    private func validateConnectionAvailabilityError() async {
+        guard !isConnectionValidationInFlight else { return }
+        isConnectionValidationInFlight = true
+        defer { isConnectionValidationInFlight = false }
+
+        await downloadManager.recheckNetworkStatus {
+            await plexApiContext.canReachServer()
+        }
+    }
+
+    private func sessionStatusLabel(_ status: SessionManager.Status) -> String {
+        switch status {
+        case .hydrating:
+            return "hydrating"
+        case .signedOut:
+            return "signedOut"
+        case .needsProfileSelection:
+            return "needsProfileSelection"
+        case .needsServerSelection:
+            return "needsServerSelection"
+        case .ready:
+            return "ready"
         }
     }
 

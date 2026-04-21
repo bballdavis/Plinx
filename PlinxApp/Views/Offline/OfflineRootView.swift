@@ -7,6 +7,8 @@ private typealias PlatformImage = UIImage
 
 struct OfflineRootView: View {
     @Environment(DownloadManager.self) private var downloadManager
+    @Environment(PlexAPIContext.self) private var plexApiContext
+    @Environment(SessionManager.self) private var sessionManager
     @Environment(LibraryStore.self) private var libraryStore
     @Environment(\.safetyPolicy) private var safetyPolicy
 
@@ -104,12 +106,17 @@ struct OfflineRootView: View {
         }
     }
 
-    /// Pull-to-refresh handler. Ask the network monitor whether we're back
-    /// online; if the path is satisfied `isOffline` flips to false and
-    /// `PlinxContentView`'s onChange drives session hydration automatically.
+    /// Pull-to-refresh handler. Network check and session hydration are
+    /// combined atomically via the serverProbe so that:
+    ///  - `isOffline` only flips to false when the server is actually reachable
+    ///  - `sessionManager.status == .hydrating` during the attempt, which
+    ///    blocks the `.plexConnectionUnavailable` handler from racing and
+    ///    immediately re-marking us offline before hydration completes.
     private func checkConnectivity() async {
         guard downloadManager.isOffline else { return }
-        await downloadManager.recheckNetworkStatus()
+        await downloadManager.recheckNetworkStatus {
+            await plexApiContext.canReachServer()
+        }
     }
 
     private var settingsHeaderRow: some View {
@@ -160,7 +167,11 @@ private struct OfflineHomeView: View {
                 if snapshot.homeSections.isEmpty {
                     offlineEmptyState(
                         title: "No downloaded videos available",
-                        message: "Connect to the internet to download videos, or open Downloads to manage existing items."
+                        message: "Connect to the internet to download videos, or open Downloads to manage existing items.",
+                        actionTitle: "Reconnect",
+                        action: {
+                            Task { await onRefresh() }
+                        }
                     )
                 } else {
                     ForEach(snapshot.homeSections) { section in
@@ -189,13 +200,11 @@ private struct OfflineHomeView: View {
 
             OfflineBadge()
 
-            if OfflineReconnectUITestFixtures.isActive() {
-                Button("Reconnect") {
-                    Task { await onRefresh() }
-                }
-                .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("offlineReconnect.trigger")
+            Button("Reconnect") {
+                Task { await onRefresh() }
             }
+            .buttonStyle(.borderedProminent)
+            .accessibilityIdentifier("offlineReconnect.trigger")
 
             Spacer()
 
@@ -261,7 +270,11 @@ private struct OfflineLibraryView: View {
                 if snapshot.libraries.isEmpty {
                     offlineEmptyState(
                         title: "No offline libraries",
-                        message: "Downloaded movies and episodes will appear here once they finish downloading."
+                        message: "Downloaded movies and episodes will appear here once they finish downloading.",
+                        actionTitle: "Reconnect",
+                        action: {
+                            Task { await onRefresh() }
+                        }
                     )
                 } else {
                     ForEach(snapshot.libraries) { group in
@@ -494,7 +507,12 @@ private struct OfflinePosterArtwork: View {
     }
 }
 
-private func offlineEmptyState(title: String, message: String) -> some View {
+private func offlineEmptyState(
+    title: String,
+    message: String,
+    actionTitle: String? = nil,
+    action: (() -> Void)? = nil
+) -> some View {
     VStack(spacing: 10) {
         Image(systemName: "arrow.down.circle")
             .font(.title)
@@ -506,6 +524,12 @@ private func offlineEmptyState(title: String, message: String) -> some View {
             .font(.subheadline)
             .foregroundStyle(.white.opacity(0.65))
             .multilineTextAlignment(.center)
+
+        if let actionTitle, let action {
+            Button(actionTitle, action: action)
+                .buttonStyle(.borderedProminent)
+                .padding(.top, 8)
+        }
     }
     .frame(maxWidth: .infinity)
     .padding(.horizontal, 24)

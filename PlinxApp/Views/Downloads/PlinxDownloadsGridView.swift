@@ -14,6 +14,7 @@ private typealias PlatformImage = NSImage
 @MainActor
 struct PlinxDownloadsGridView: View {
     @Environment(DownloadManager.self) private var downloadManager
+    @Environment(SessionManager.self) private var sessionManager
     @Environment(PlexAPIContext.self) private var context
     @EnvironmentObject private var mainCoordinator: MainCoordinator
     @State private var selectedDownload: DownloadItem?
@@ -131,8 +132,7 @@ struct PlinxDownloadsGridView: View {
             OfflineDownloadPlayerView(item: item)
         }
         .refreshable {
-            guard downloadManager.isOffline else { return }
-            await downloadManager.recheckNetworkStatus()
+            await attemptReconnect()
         }
         .task(id: artworkReconciliationID) {
             guard !downloadManager.isOffline else { return }
@@ -501,10 +501,25 @@ struct PlinxDownloadsGridView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+
+            if downloadManager.isOffline {
+                Button("Reconnect") {
+                    Task { await attemptReconnect() }
+                }
+                .buttonStyle(.borderedProminent)
+                .padding(.top, 8)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 60)
         .padding(.horizontal, 32)
+    }
+
+    private func attemptReconnect() async {
+        guard downloadManager.isOffline else { return }
+        await downloadManager.recheckNetworkStatus {
+            await context.canReachServer()
+        }
     }
 }
 

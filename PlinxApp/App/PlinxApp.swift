@@ -91,6 +91,7 @@ struct PlinxApp: App {
 
     init() {
         let processEnvironment = ProcessInfo.processInfo.environment
+        LivePlexUITestBootstrap.primeCredentialsIfNeeded(environment: processEnvironment)
 
         // Layer 1: Strimr infrastructure (no Plinx knowledge)
         let context = PlexAPIContext()
@@ -117,6 +118,12 @@ struct PlinxApp: App {
         if OfflineReconnectUITestFixtures.isActive(environment: processEnvironment) {
             downloads.markOfflineDueToConnectionFailure()
         }
+        LivePlexUITestBootstrap.bootstrapIfNeeded(
+            environment: processEnvironment,
+            sessionManager: session,
+            context: context,
+            downloadManager: downloads
+        )
         _downloadManager = State(initialValue: downloads)
 
         // Layer 2: Plinx safety + theming are initialized via property defaults.
