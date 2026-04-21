@@ -19,6 +19,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 PLINX_APP_DIR="$PROJECT_ROOT/PlinxApp"
+source "$PROJECT_ROOT/scripts/sim_destination.sh"
 
 DEVICE_NAME="${1:-iPhone 17 Pro Max}"
 SCHEME="Plinx-iOS"
@@ -33,14 +34,14 @@ echo ""
 # Find simulator when CoreSimulator is reachable; otherwise fall back to a
 # generic simulator destination so compile failures can still be surfaced.
 echo "📱 Finding simulator..."
-UDID=""
-if SIM_DEVICES=$(xcrun simctl list devices available 2>/dev/null); then
-    UDID=$(echo "$SIM_DEVICES" | grep "$DEVICE_NAME" | grep -oE '\(([A-F0-9-]+)\)' | head -1 | tr -d '()')
-fi
-
-if [ -n "$UDID" ]; then
-    DESTINATION="platform=iOS Simulator,id=$UDID"
-    echo "✓ Found: $DEVICE_NAME"
+if select_simulator_destination "$DEVICE_NAME"; then
+    DESTINATION="$SIM_DESTINATION"
+    UDID="$SIM_UDID"
+    if [ "$SIM_NAME" = "$DEVICE_NAME" ]; then
+        echo "✓ Found: $SIM_NAME"
+    else
+        echo "⚠️  Exact simulator '$DEVICE_NAME' not found. Using '$SIM_NAME' ($UDID) instead."
+    fi
 else
     DESTINATION="generic/platform=iOS Simulator"
     echo "⚠️  Simulator '$DEVICE_NAME' not found or CoreSimulator unavailable."
