@@ -3,7 +3,6 @@ import Foundation
 @MainActor
 enum LivePlexUITestBootstrap {
     static let mode = "live"
-    static let offlineReconnectScreenName = "liveOfflineReconnect"
     private static let tokenKey = "strimr.plex.authToken"
 
     static func isActive(
@@ -16,8 +15,7 @@ enum LivePlexUITestBootstrap {
     static func bootstrapIfNeeded(
         environment: [String: String],
         sessionManager: SessionManager,
-        context: PlexAPIContext,
-        downloadManager: DownloadManager
+        context: PlexAPIContext
     ) {
         guard isActive(environment: environment) else { return }
         guard let token = environment["PLINX_PLEX_TOKEN"], !token.isEmpty else { return }
@@ -30,11 +28,6 @@ enum LivePlexUITestBootstrap {
                     sessionManager: sessionManager,
                     context: context
                 )
-
-                if environment["PLINX_UI_TEST_SCREEN"] == offlineReconnectScreenName,
-                   sessionManager.status == .ready {
-                    downloadManager.markOfflineDueToConnectionFailure()
-                }
             } catch {
                 print("LivePlexUITestBootstrap failed: \(error)")
             }

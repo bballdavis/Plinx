@@ -171,16 +171,6 @@
         }
       }
     },
-    "downloads.offline.banner" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Offline - playing downloaded content"
-          }
-        }
-      }
-    },
     "downloads.status.queued" : {
       "localizations" : {
         "en" : {

@@ -34,7 +34,6 @@
 /* Downloads */
 "downloads.empty.title" = "No downloads";
 "downloads.empty.message" = "Downloaded content will appear here.";
-"downloads.offline.banner" = "Offline - playing downloaded content";
 "downloads.status.queued" = "Queued";
 "downloads.status.downloading %lld" = "Downloading %lld%%";
 "downloads.status.failed" = "Download failed";
