@@ -21,8 +21,6 @@ struct PlinxDownloadsGridView: View {
     @State private var layoutMode: LayoutMode = .grid
     @State private var viewportSize: CGSize = .zero
 
-    var onReconnectRequested: (() async -> Void)? = nil
-
     private enum LayoutMode {
         case grid
         case list
@@ -73,19 +71,6 @@ struct PlinxDownloadsGridView: View {
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
-                if downloadManager.isOffline {
-                    Label {
-                        Text("downloads.offline.banner", tableName: "Plinx")
-                    } icon: {
-                        Image(systemName: "wifi.slash")
-                    }
-                        .foregroundStyle(.orange)
-                        .font(.subheadline.weight(.semibold))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                }
-
                 if downloadManager.sortedItems.isEmpty {
                     emptyState
                 } else {
@@ -132,20 +117,12 @@ struct PlinxDownloadsGridView: View {
         .fullScreenCover(item: $selectedDownload) { item in
             OfflineDownloadPlayerView(item: item)
         }
-        .refreshable {
-            await attemptReconnect()
-        }
         .task(id: artworkReconciliationID) {
-            guard !downloadManager.isOffline else { return }
             await downloadManager.reconcileArtworkMetadataIfNeeded(context: context)
         }
     }
 
     private var artworkReconciliationID: String {
-        // While offline, return a stable constant so the task never fires a
-        // live Plex API call.  When `isOffline` flips to false the ID changes
-        // to the real item-based string, restarting the task post-reconnect.
-        guard !downloadManager.isOffline else { return "offline" }
         return downloadManager.sortedItems
             .map { item in
                 "\(item.id):\(item.metadata.artworkLayoutStyle?.rawValue ?? "unknown")"
@@ -502,25 +479,10 @@ struct PlinxDownloadsGridView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-
-            if downloadManager.isOffline, onReconnectRequested != nil {
-                PlinxReconnectButton("Reconnect") {
-                    Task { await attemptReconnect() }
-                }
-                .padding(.top, 8)
-                .accessibilityIdentifier("offlineReconnect.trigger")
-            }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 60)
         .padding(.horizontal, 32)
-    }
-
-    private func attemptReconnect() async {
-        guard downloadManager.isOffline else { return }
-        if let onReconnectRequested {
-            await onReconnectRequested()
-        }
     }
 }
 

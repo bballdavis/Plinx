@@ -153,8 +153,6 @@ Plinx is built on the open-source [Strimr](https://github.com/wunax/strimr) Plex
 
 Want to build, contribute, or run Plinx locally? See [development/SETUP.md](development/SETUP.md) for setup instructions.
 
-Offline mode and reconnect behavior are documented in [development/OFFLINE_MODE.md](development/OFFLINE_MODE.md).
-
 The app is open source under GPL-3.0. See [LICENSE](LICENSE) for details.
 
 ---
