@@ -7,8 +7,6 @@ private typealias PlatformImage = UIImage
 
 struct OfflineRootView: View {
     @Environment(DownloadManager.self) private var downloadManager
-    @Environment(PlexAPIContext.self) private var plexApiContext
-    @Environment(SessionManager.self) private var sessionManager
     @Environment(LibraryStore.self) private var libraryStore
     @Environment(\.safetyPolicy) private var safetyPolicy
 
@@ -16,6 +14,8 @@ struct OfflineRootView: View {
     @State private var selectedDownload: DownloadItem?
     @State private var libraryNavigationPath: [OfflineLibraryGroup] = []
     @State private var showSettings = false
+
+    let onReconnectRequested: () async -> Void
 
     private var visibleTabs: [KidsMainTabPicker.TabItem] {
         KidsMainTabPicker.TabItem.mainTabs(includeDownloads: true, showSearchInMainNavigation: false)
@@ -67,7 +67,7 @@ struct OfflineRootView: View {
                 }
             case .more:
                 NavigationStack {
-                    PlinxDownloadsGridView()
+                    PlinxDownloadsGridView(onReconnectRequested: onReconnectRequested)
                 }
             default:
                 NavigationStack {
@@ -106,17 +106,11 @@ struct OfflineRootView: View {
         }
     }
 
-    /// Pull-to-refresh handler. Network check and session hydration are
-    /// combined atomically via the serverProbe so that:
-    ///  - `isOffline` only flips to false when the server is actually reachable
-    ///  - `sessionManager.status == .hydrating` during the attempt, which
-    ///    blocks the `.plexConnectionUnavailable` handler from racing and
-    ///    immediately re-marking us offline before hydration completes.
+    /// Offline screens delegate reconnect work to the root owner so manual
+    /// pull-to-refresh cannot race the foreground and connection-error paths.
     private func checkConnectivity() async {
         guard downloadManager.isOffline else { return }
-        await downloadManager.recheckNetworkStatus {
-            await plexApiContext.canReachServer()
-        }
+        await onReconnectRequested()
     }
 
     private var settingsHeaderRow: some View {
@@ -169,6 +163,7 @@ private struct OfflineHomeView: View {
                         title: "No downloaded videos available",
                         message: "Connect to the internet to download videos, or open Downloads to manage existing items.",
                         actionTitle: "Reconnect",
+                        actionAccessibilityIdentifier: "offlineReconnect.trigger",
                         action: {
                             Task { await onRefresh() }
                         }
@@ -199,12 +194,6 @@ private struct OfflineHomeView: View {
                 .foregroundStyle(.white.opacity(0.95))
 
             OfflineBadge()
-
-            Button("Reconnect") {
-                Task { await onRefresh() }
-            }
-            .buttonStyle(.borderedProminent)
-            .accessibilityIdentifier("offlineReconnect.trigger")
 
             Spacer()
 
@@ -272,6 +261,7 @@ private struct OfflineLibraryView: View {
                         title: "No offline libraries",
                         message: "Downloaded movies and episodes will appear here once they finish downloading.",
                         actionTitle: "Reconnect",
+                        actionAccessibilityIdentifier: "offlineReconnect.trigger",
                         action: {
                             Task { await onRefresh() }
                         }
@@ -290,6 +280,7 @@ private struct OfflineLibraryView: View {
             }
             .padding(.bottom, 120)
         }
+        .accessibilityIdentifier("offline.library.scroll")
         .refreshable { await onRefresh() }
     }
 }
@@ -511,6 +502,7 @@ private func offlineEmptyState(
     title: String,
     message: String,
     actionTitle: String? = nil,
+    actionAccessibilityIdentifier: String? = nil,
     action: (() -> Void)? = nil
 ) -> some View {
     VStack(spacing: 10) {
@@ -526,9 +518,14 @@ private func offlineEmptyState(
             .multilineTextAlignment(.center)
 
         if let actionTitle, let action {
-            Button(actionTitle, action: action)
-                .buttonStyle(.borderedProminent)
-                .padding(.top, 8)
+            if let actionAccessibilityIdentifier {
+                PlinxReconnectButton(actionTitle, action: action)
+                    .padding(.top, 8)
+                    .accessibilityIdentifier(actionAccessibilityIdentifier)
+            } else {
+                PlinxReconnectButton(actionTitle, action: action)
+                    .padding(.top, 8)
+            }
         }
     }
     .frame(maxWidth: .infinity)

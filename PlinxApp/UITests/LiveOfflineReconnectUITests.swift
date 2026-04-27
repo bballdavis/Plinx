@@ -25,7 +25,7 @@ final class LiveOfflineReconnectUITests: XCTestCase {
         app.launch()
     }
 
-    func test_liveReconnectButtonReturnsToOnlineMode() throws {
+    func test_livePullToRefreshClearsForcedOfflineState() throws {
         guard isLiveEnvironmentConfigured else {
             throw XCTSkip("Live Plex credentials are not configured. Update test_creds.yaml with PLINX_PLEX_SERVER_URL and PLINX_PLEX_TOKEN.")
         }
@@ -33,12 +33,16 @@ final class LiveOfflineReconnectUITests: XCTestCase {
         let offlineScrollView = app.descendants(matching: .any)["offline.home.scroll"]
         assertElementAppears(offlineScrollView, timeout: 60, description: "offline home scroll view")
 
-        let reconnectTrigger = app.buttons["offlineReconnect.trigger"]
-        assertElementAppears(reconnectTrigger, timeout: 20, description: "reconnect button")
-        reconnectTrigger.tap()
+        performPullToRefresh(on: offlineScrollView)
 
         let onlineMarker = app.descendants(matching: .any)["liveOfflineReconnect.state.online"]
         assertOnlineMarkerAppears(onlineMarker, timeout: 45)
+    }
+
+    private func performPullToRefresh(on element: XCUIElement) {
+        let start = element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15))
+        let finish = element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.82))
+        start.press(forDuration: 0.12, thenDragTo: finish)
     }
 
     private var isLiveEnvironmentConfigured: Bool {

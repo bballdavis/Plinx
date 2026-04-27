@@ -30,6 +30,7 @@ DEVICE_NAME="${1:-iPhone 17 Pro Max}"
 # after the build completes.
 # BUNDLE_ID="com.example.plinx"
 SCHEME="Plinx-iOS"
+DERIVED_DATA_PATH="${PLINX_SIM_DERIVED_DATA_PATH:-/tmp/plinx-run-iphone-derived-data}"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🚀 Plinx iOS Simulator Build & Run"
@@ -74,8 +75,7 @@ STATUS=$(xcrun simctl list devices | grep "$UDID" | grep -oE "(Booted|Shutdown)"
 if [ "$STATUS" != "Booted" ]; then
     echo "⏳ Booting simulator..."
     xcrun simctl boot "$UDID"
-    # Wait for simulator to fully boot
-    sleep 5
+    xcrun simctl bootstatus "$UDID" -b
 fi
 
 echo "✓ Simulator is running"
@@ -103,12 +103,14 @@ echo ""
 # Step 4: Build the app
 echo "🔨 Building Plinx-iOS..."
 BUILD_LOG="/tmp/plinx_build_iphone.log"
+/bin/rm -rf "$DERIVED_DATA_PATH"
 # use the computed destination string (may be generic)
 xcodebuild build \
     -project Plinx.xcodeproj \
     -scheme "$SCHEME" \
     -destination "$DEST" \
     -configuration Debug \
+    -derivedDataPath "$DERIVED_DATA_PATH" \
     2>&1 | tee "$BUILD_LOG" | grep -E "error:|warning:|Build succeeded|BUILD FAILED" || true
 
 if [ "${PIPESTATUS[0]}" -ne 0 ]; then
@@ -121,13 +123,8 @@ fi
 echo "✓ Build succeeded"
 echo ""
 
-# Step 5: Find the built app.  Avoid returning the stub inside
-# Index.noindex which frequently lacks a valid Info.plist and causes
-# "Missing bundle ID" install errors.
-APP_PATH=$(find "$HOME/Library/Developer/Xcode/DerivedData" -name "Plinx.app" -type d 2>/dev/null \
-    | grep -E "Debug-iphonesimulator" \
-    | grep -v "Index\.noindex" \
-    | head -1)
+# Step 5: Find the built app inside the dedicated derived-data root.
+APP_PATH="$DERIVED_DATA_PATH/Build/Products/Debug-iphonesimulator/Plinx.app"
 
 if [ -z "$APP_PATH" ]; then
     echo "❌ Could not find built Plinx.app in DerivedData"

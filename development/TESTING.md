@@ -64,6 +64,46 @@ xcodebuild test \
 
 Live tests are designed to **skip** gracefully if credentials are unavailable, so they won't fail unrelated PRs.
 
+### Offline Reconnect UI Tests
+
+Fixture-backed reconnect tests validate the offline UI contract without requiring a real Plex server:
+
+```bash
+cd PlinxApp
+xcodebuild test \
+  -project Plinx.xcodeproj \
+  -scheme Plinx-iOS \
+  -destination "platform=iOS Simulator,name=iPad (10th generation)" \
+  -only-testing:Plinx-iOS-UITests/OfflineReconnectUITests \
+  CODE_SIGNING_ALLOWED=NO
+```
+
+These cover:
+
+- pull-to-refresh from offline home
+- the single reconnect button in an offline empty state
+- pull-to-refresh from offline downloads
+
+Live reconnect coverage uses a direct Plex server session and validates recovery from a forced offline app state:
+
+```bash
+cd PlinxApp
+xcodebuild test \
+  -project Plinx.xcodeproj \
+  -scheme Plinx-iOS \
+  -destination "platform=iOS Simulator,name=iPad (10th generation)" \
+  -only-testing:Plinx-iOS-UITests/LiveOfflineReconnectUITests \
+  CODE_SIGNING_ALLOWED=NO
+```
+
+Notes:
+
+- `OfflineReconnectUITests` are fixture-backed and do not exercise the real Plex network/session stack.
+- `LiveOfflineReconnectUITests` require `test_creds.yaml` or equivalent environment variables.
+- `LiveOfflineReconnectUITests` do not toggle host or simulator networking; they verify that a live Plex session can recover after the app is forced into offline mode.
+- The live reconnect path intentionally supports direct-server sessions, so reconnect success is not modeled as "hydrate must always return ready."
+- If you regenerate `Plinx.xcodeproj` and Xcode starts reporting stale missing-file inputs, rerun the test command with a fresh `-derivedDataPath /tmp/plinx-reconnect-dd`.
+
 ## Configuring Live Test Credentials
 
 1. Copy the template:
@@ -127,6 +167,7 @@ Critical user path verification:
 - **Library browsing** — Grid scrolling, sorting, filtering
 - **Search** — Query submission, result interaction
 - **Downloads** — Download grid, list toggle, playback
+- **Offline reconnect** — Pull-to-refresh recovery and empty-state reconnect affordances
 
 ## Test Matrix (Priority)
 

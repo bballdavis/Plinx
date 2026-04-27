@@ -21,11 +21,15 @@ final class OfflineReconnectUITests: XCTestCase {
         assertOnlineMarkerAppears(onlineMarker)
     }
 
-    func test_directReconnectTriggerReturnsToOnlineMode() throws {
-        let reconnectTrigger = app.buttons["offlineReconnect.trigger"]
+    func test_pullToRefreshOnOfflineLibraryReturnsToOnlineMode() throws {
+        let libraryTab = app.buttons["main.tab.library"]
+        assertElementAppears(libraryTab, timeout: 8, description: "library tab")
+        libraryTab.tap()
 
-        XCTAssertTrue(reconnectTrigger.waitForExistence(timeout: 8))
-        reconnectTrigger.tap()
+        let libraryScrollView = app.descendants(matching: .any)["offline.library.scroll"]
+        assertElementAppears(libraryScrollView, timeout: 8, description: "library scroll view")
+
+        performPullToRefresh(on: libraryScrollView)
 
         let onlineMarker = app.descendants(matching: .any)["offlineReconnect.state.online"]
         assertOnlineMarkerAppears(onlineMarker)
