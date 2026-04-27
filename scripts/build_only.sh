@@ -24,6 +24,7 @@ source "$PROJECT_ROOT/scripts/sim_destination.sh"
 DEVICE_NAME="${1:-iPhone 17 Pro Max}"
 SCHEME="Plinx-iOS"
 DESTINATION=""
+DERIVED_DATA_PATH="${PLINX_SIM_DERIVED_DATA_PATH:-/tmp/plinx-build-only-derived-data}"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🔨 Plinx iOS Simulator Build"
@@ -64,11 +65,13 @@ echo ""
 
 # Build
 echo "🔨 Building Plinx-iOS..."
+/bin/rm -rf "$DERIVED_DATA_PATH"
 xcodebuild build \
     -project Plinx.xcodeproj \
     -scheme "$SCHEME" \
     -destination "$DESTINATION" \
-    -configuration Debug
+    -configuration Debug \
+    -derivedDataPath "$DERIVED_DATA_PATH"
 
 BUILD_STATUS=$?
 
@@ -81,14 +84,11 @@ fi
 echo ""
 echo "✓ Build succeeded"
 echo ""
-BUILD_APP=$(find "$HOME/Library/Developer/Xcode/DerivedData" -name "Plinx.app" -type d 2>/dev/null \
-    | grep -E "Debug-iphonesimulator" \
-    | grep -v "Index\.noindex" \
-    | head -1)
+BUILD_APP="$DERIVED_DATA_PATH/Build/Products/Debug-iphonesimulator/Plinx.app"
 if [ -n "$BUILD_APP" ]; then
     echo "📦 App location: $BUILD_APP"
 else
-    echo "📦 App location: ~/Library/Developer/Xcode/DerivedData/<project>/Build/Products/Debug-iphonesimulator/Plinx.app"
+    echo "📦 App location: $DERIVED_DATA_PATH/Build/Products/Debug-iphonesimulator/Plinx.app"
 fi
 echo ""
 echo "To install and run: ./scripts/run_iphone_sim.sh \"$DEVICE_NAME\""

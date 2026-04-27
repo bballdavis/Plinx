@@ -14,13 +14,14 @@ private typealias PlatformImage = NSImage
 @MainActor
 struct PlinxDownloadsGridView: View {
     @Environment(DownloadManager.self) private var downloadManager
-    @Environment(SessionManager.self) private var sessionManager
     @Environment(PlexAPIContext.self) private var context
     @EnvironmentObject private var mainCoordinator: MainCoordinator
     @State private var selectedDownload: DownloadItem?
     @State private var showManage = false
     @State private var layoutMode: LayoutMode = .grid
     @State private var viewportSize: CGSize = .zero
+
+    var onReconnectRequested: (() async -> Void)? = nil
 
     private enum LayoutMode {
         case grid
@@ -502,12 +503,12 @@ struct PlinxDownloadsGridView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
-            if downloadManager.isOffline {
-                Button("Reconnect") {
+            if downloadManager.isOffline, onReconnectRequested != nil {
+                PlinxReconnectButton("Reconnect") {
                     Task { await attemptReconnect() }
                 }
-                .buttonStyle(.borderedProminent)
                 .padding(.top, 8)
+                .accessibilityIdentifier("offlineReconnect.trigger")
             }
         }
         .frame(maxWidth: .infinity)
@@ -517,8 +518,8 @@ struct PlinxDownloadsGridView: View {
 
     private func attemptReconnect() async {
         guard downloadManager.isOffline else { return }
-        await downloadManager.recheckNetworkStatus {
-            await context.canReachServer()
+        if let onReconnectRequested {
+            await onReconnectRequested()
         }
     }
 }

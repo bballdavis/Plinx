@@ -9,8 +9,14 @@ struct PlinxContentView: View {
     @Environment(DownloadManager.self) private var downloadManager
     @EnvironmentObject private var mainCoordinator: MainCoordinator
     @Environment(\.scenePhase) private var scenePhase
-    @State private var isConnectionValidationInFlight = false
+    @State private var reconnectTask: Task<Void, Never>?
     @State private var offlineReconnectUITestState = "offline"
+
+    private enum ReconnectTrigger {
+        case manual
+        case foreground
+        case connectionError
+    }
 
     private var uiTestScreenOverride: String? {
         guard ProcessInfo.processInfo.arguments.contains("--ui-testing") else {
@@ -65,29 +71,27 @@ struct PlinxContentView: View {
             if isOfflineReconnectUITest {
                 offlineReconnectUITestState = isOffline ? "offline" : "online"
             }
+            // Mirror Strimr's ContentView pattern: when the OS path clears
+            // isOffline automatically (via pathUpdateHandler), trigger session
+            // hydration so the app transitions to online content seamlessly.
             guard !isOffline else { return }
-            guard sessionManager.status != .hydrating else { return }
-            // If the session is already ready (e.g. the serverProbe in
-            // checkConnectivity already hydrated, or tokens are still valid),
-            // the view will switch via SwiftUI's isOffline observation —
-            // no additional hydration needed.
-            guard sessionManager.status != .ready else { return }
+            guard !isOfflineReconnectUITest, !isLiveOfflineReconnectUITest else { return }
             Task {
-                await sessionManager.hydrate()
-                if sessionManager.status != .ready {
-                    downloadManager.markOfflineDueToConnectionFailure()
-                }
+                await performReconnect(trigger: .foreground)
             }
         }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else { return }
             guard !isOfflineReconnectUITest else { return }
-            Task { await downloadManager.recheckNetworkStatus() }
+            guard !isLiveOfflineReconnectUITest else { return }
+            Task {
+                await performReconnect(trigger: .foreground)
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .plexConnectionUnavailable)) { _ in
             guard sessionManager.status != .hydrating else { return }
             Task {
-                await validateConnectionAvailabilityError()
+                await performReconnect(trigger: .connectionError)
             }
         }
         .fullScreenCover(item: $mainCoordinator.selectedPlayQueue) { playQueue in
@@ -129,14 +133,50 @@ struct PlinxContentView: View {
         }
     }
 
-    private func validateConnectionAvailabilityError() async {
-        guard !isConnectionValidationInFlight else { return }
-        isConnectionValidationInFlight = true
-        defer { isConnectionValidationInFlight = false }
-
-        await downloadManager.recheckNetworkStatus {
-            await plexApiContext.canReachServer()
+    /// Re-hydrates the Plex session when the app comes online or a connection
+    /// error fires. isOffline is now owned entirely by NWPathMonitor's
+    /// pathUpdateHandler — no retry loop or recheckNetworkStatus call needed.
+    @MainActor
+    private func performReconnect(trigger: ReconnectTrigger) async {
+        if let reconnectTask {
+            await reconnectTask.value
+            return
         }
+
+        let task = Task { @MainActor in
+            defer { reconnectTask = nil }
+            _ = await reconnectProbe(for: trigger)
+        }
+        reconnectTask = task
+        await task.value
+    }
+
+    @MainActor
+    private func reconnectProbe(for trigger: ReconnectTrigger) async -> Bool {
+        if isOfflineReconnectUITest {
+            // Clear isOffline in the fixture (path monitor is suppressed in
+            // tests so pathUpdateHandler never fires — recheckNetworkStatus
+            // is the only way to flip isOffline = false in this path).
+            await downloadManager.recheckNetworkStatus()
+            await sessionManager.hydrate()
+            return sessionManager.status != .hydrating
+        }
+
+        guard await plexApiContext.canReachServer() else {
+            return false
+        }
+
+        switch trigger {
+        case .manual, .foreground:
+            guard sessionManager.status != .ready else {
+                return true
+            }
+        case .connectionError:
+            break
+        }
+
+        await sessionManager.hydrate()
+        return sessionManager.status != .hydrating
     }
 
     private func sessionStatusLabel(_ status: SessionManager.Status) -> String {
@@ -157,7 +197,9 @@ struct PlinxContentView: View {
     @ViewBuilder
     private var sessionContent: some View {
         if downloadManager.isOffline {
-            OfflineRootView()
+            OfflineRootView(onReconnectRequested: {
+                await performReconnect(trigger: .manual)
+            })
         } else {
             switch sessionManager.status {
             case .hydrating:

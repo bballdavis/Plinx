@@ -27,6 +27,7 @@ DEVICE_NAME="${1:-iPad (10th generation)}"
 # bundle identifier will be read from the built product later
 # BUNDLE_ID="com.example.plinx"
 SCHEME="Plinx-iOS"
+DERIVED_DATA_PATH="${PLINX_SIM_DERIVED_DATA_PATH:-/tmp/plinx-run-ipad-derived-data}"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🚀 Plinx iPad Simulator Build & Run"
@@ -67,8 +68,7 @@ STATUS="$SIM_STATUS"
 if [ "$STATUS" != "Booted" ]; then
     echo "⏳ Booting simulator..."
     xcrun simctl boot "$UDID"
-    # Wait for simulator to fully boot
-    sleep 5
+    xcrun simctl bootstatus "$UDID" -b
 fi
 
 echo "✓ Simulator is running"
@@ -96,11 +96,13 @@ echo ""
 # Step 4: Build the app
 echo "🔨 Building Plinx-iOS..."
 BUILD_LOG="/tmp/plinx_build_ipad.log"
+/bin/rm -rf "$DERIVED_DATA_PATH"
 xcodebuild build \
     -project Plinx.xcodeproj \
     -scheme "$SCHEME" \
     -destination "$DEST" \
     -configuration Debug \
+    -derivedDataPath "$DERIVED_DATA_PATH" \
     2>&1 | tee "$BUILD_LOG" | grep -E "error:|warning:|Build succeeded|BUILD FAILED" || true
 
 if [ "${PIPESTATUS[0]}" -ne 0 ]; then
@@ -114,11 +116,7 @@ echo "✓ Build succeeded"
 echo ""
 
 # Step 5: Find the built app
-APP_path=$(find "$HOME/Library/Developer/Xcode/DerivedData" -name "Plinx.app" -type d 2>/dev/null \
-    | grep -E "Debug-iphonesimulator" \
-    | grep -v "Index\.noindex" \
-    | head -1)
-APP_PATH="$APP_path"
+APP_PATH="$DERIVED_DATA_PATH/Build/Products/Debug-iphonesimulator/Plinx.app"
 
 if [ -z "$APP_PATH" ]; then
     echo "❌ Could not find built Plinx.app in DerivedData"
