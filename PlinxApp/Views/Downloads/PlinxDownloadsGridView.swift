@@ -493,6 +493,7 @@ struct PlinxDownloadsGridView: View {
 @MainActor
 struct PlinxDownloadsManageView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(DownloadManager.self) private var downloadManager
 
     var body: some View {
         DownloadsView()
@@ -500,6 +501,9 @@ struct PlinxDownloadsManageView: View {
                 manageHeader
             }
             .toolbar(.hidden, for: .navigationBar)
+            .task {
+                await downloadManager.recheckNetworkStatus()
+            }
     }
 
     private var manageHeader: some View {
