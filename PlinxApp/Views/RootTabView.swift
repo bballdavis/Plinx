@@ -318,7 +318,7 @@ struct RootTabView: View {
                         policy: safetyPolicy,
                         context: plexApiContext
                     ),
-                    topContent: AnyView(topTitleRow(title: "tabs.libraries".plinxLocalized, showsSettingsButton: false)),
+                    topContent: AnyView(topTitleRow(title: "tabs.library".plinxLocalized, showsSettingsButton: false)),
                     onSelectLibrary: { library in
                         mainCoordinator.libraryPath.append(library)
                     }
