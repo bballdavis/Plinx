@@ -97,6 +97,7 @@ struct PlinxApp: App {
         let context = PlexAPIContext()
         let store = LibraryStore(context: context)
         let settings = SettingsManager()
+        PlinxSettingsSanitizer.enforceSupportedPlaybackPlayer(settings)
         let session = SessionManager(context: context, libraryStore: store)
         _plexApiContext = State(initialValue: context)
         _sessionManager = State(initialValue: session)
