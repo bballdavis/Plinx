@@ -141,6 +141,8 @@ All content is filtered before display using configurable content ratings. Setti
 
 **Zero data collection.** Plinx does not collect usage data, crash reports, or telemetry. All communication is directly between the app and your Plex Media Server. See [PRIVACY_POLICY.md](PRIVACY_POLICY.md) for the full privacy policy.
 
+**Development transparency.** AI tools and coding agents were used during development, but every change is validated with a robust test suite and routine security checks before release. In normal app use, the only network communication is with Plex and your Plex Media Server.
+
 ---
 
 ## Built on Strimr
