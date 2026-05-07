@@ -318,7 +318,7 @@ struct RootTabView: View {
                         policy: safetyPolicy,
                         context: plexApiContext
                     ),
-                    topContent: AnyView(topTitleRow(title: "tabs.libraries", showsSettingsButton: false)),
+                    topContent: AnyView(topTitleRow(title: "tabs.library".plinxLocalized, showsSettingsButton: false)),
                     onSelectLibrary: { library in
                         mainCoordinator.libraryPath.append(library)
                     }
@@ -367,7 +367,7 @@ struct RootTabView: View {
 
     private var settingsHeaderRow: some View {
         HStack(spacing: 12) {
-            Text("tabs.settings", tableName: "Plinx")
+            Text("tabs.settings".plinxLocalized)
                 .font(.title3.weight(.bold))
                 .foregroundStyle(.white.opacity(0.95))
             Spacer()
@@ -381,7 +381,7 @@ struct RootTabView: View {
     }
 
     private func topTitleRow(
-        title: LocalizedStringKey,
+        title: String,
         showsSettingsButton: Bool,
         showsSearchButton: Bool = false,
         showsLogo: Bool = false
@@ -394,11 +394,11 @@ struct RootTabView: View {
                     .frame(height: 35)
                     .accessibilityHidden(true)
 
-                Text(title)
+                Text(title.plinxLocalized)
                     .font(.title3.weight(.bold))
                     .foregroundStyle(.white.opacity(0.95))
             } else {
-                Text(title)
+                Text(title.plinxLocalized)
                     .font(.title3.weight(.bold))
                     .foregroundStyle(.white.opacity(0.95))
             }
@@ -658,4 +658,10 @@ struct RootTabView: View {
         return isWatched(media)
     }
 
+}
+
+extension String {
+    var plinxLocalized: String {
+        NSLocalizedString(self, tableName: "Plinx", bundle: .main, comment: "")
+    }
 }

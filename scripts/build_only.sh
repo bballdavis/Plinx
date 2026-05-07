@@ -19,10 +19,12 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 PLINX_APP_DIR="$PROJECT_ROOT/PlinxApp"
+source "$PROJECT_ROOT/scripts/sim_destination.sh"
 
 DEVICE_NAME="${1:-iPhone 17 Pro Max}"
 SCHEME="Plinx-iOS"
 DESTINATION=""
+DERIVED_DATA_PATH="${PLINX_SIM_DERIVED_DATA_PATH:-/tmp/plinx-build-only-derived-data}"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🔨 Plinx iOS Simulator Build"
@@ -33,14 +35,14 @@ echo ""
 # Find simulator when CoreSimulator is reachable; otherwise fall back to a
 # generic simulator destination so compile failures can still be surfaced.
 echo "📱 Finding simulator..."
-UDID=""
-if SIM_DEVICES=$(xcrun simctl list devices available 2>/dev/null); then
-    UDID=$(echo "$SIM_DEVICES" | grep "$DEVICE_NAME" | grep -oE '\(([A-F0-9-]+)\)' | head -1 | tr -d '()')
-fi
-
-if [ -n "$UDID" ]; then
-    DESTINATION="platform=iOS Simulator,id=$UDID"
-    echo "✓ Found: $DEVICE_NAME"
+if select_simulator_destination "$DEVICE_NAME"; then
+    DESTINATION="$SIM_DESTINATION"
+    UDID="$SIM_UDID"
+    if [ "$SIM_NAME" = "$DEVICE_NAME" ]; then
+        echo "✓ Found: $SIM_NAME"
+    else
+        echo "⚠️  Exact simulator '$DEVICE_NAME' not found. Using '$SIM_NAME' ($UDID) instead."
+    fi
 else
     DESTINATION="generic/platform=iOS Simulator"
     echo "⚠️  Simulator '$DEVICE_NAME' not found or CoreSimulator unavailable."
@@ -63,11 +65,13 @@ echo ""
 
 # Build
 echo "🔨 Building Plinx-iOS..."
+/bin/rm -rf "$DERIVED_DATA_PATH"
 xcodebuild build \
     -project Plinx.xcodeproj \
     -scheme "$SCHEME" \
     -destination "$DESTINATION" \
-    -configuration Debug
+    -configuration Debug \
+    -derivedDataPath "$DERIVED_DATA_PATH"
 
 BUILD_STATUS=$?
 
@@ -80,14 +84,11 @@ fi
 echo ""
 echo "✓ Build succeeded"
 echo ""
-BUILD_APP=$(find "$HOME/Library/Developer/Xcode/DerivedData" -name "Plinx.app" -type d 2>/dev/null \
-    | grep -E "Debug-iphonesimulator" \
-    | grep -v "Index\.noindex" \
-    | head -1)
+BUILD_APP="$DERIVED_DATA_PATH/Build/Products/Debug-iphonesimulator/Plinx.app"
 if [ -n "$BUILD_APP" ]; then
     echo "📦 App location: $BUILD_APP"
 else
-    echo "📦 App location: ~/Library/Developer/Xcode/DerivedData/<project>/Build/Products/Debug-iphonesimulator/Plinx.app"
+    echo "📦 App location: $DERIVED_DATA_PATH/Build/Products/Debug-iphonesimulator/Plinx.app"
 fi
 echo ""
 echo "To install and run: ./scripts/run_iphone_sim.sh \"$DEVICE_NAME\""

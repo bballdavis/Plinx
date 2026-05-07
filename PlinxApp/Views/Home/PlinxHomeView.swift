@@ -93,7 +93,6 @@ struct PlinxHomeView: View {
 
     private func refreshContent() async {
         await viewModel.reload()
-        URLCache.shared.removeAllCachedResponses()
         artworkRefreshToken = UUID()
     }
 

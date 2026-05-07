@@ -4,19 +4,19 @@ Convenient shell scripts for building and running the Plinx iOS app on the simul
 
 ## Strimr Source Of Truth
 
-Build and test scripts build from local files only. It's your responsibility to ensure `vendor/strimr` is on the correct branch and in a clean state before running any build command.
+Build and test scripts build from local files only. It's your responsibility to ensure the sibling `../strimr` checkout is on the correct branch and in a clean state before running any build command.
 
 **Branch selection:**
 - Working on **Plinx `main`** branch? Use **`plinx-patches`** branch in strimr:
   ```bash
-  cd vendor/strimr
+  cd ../strimr
   git checkout plinx-patches
   git pull origin plinx-patches
   ```
 
 - Working on **Plinx `dev`** branch? Use **`dev-plinx`** branch in strimr:
   ```bash
-  cd vendor/strimr
+  cd ../strimr
   git checkout dev-plinx
   git pull origin dev-plinx
   ```
@@ -26,9 +26,36 @@ Build and test scripts build from local files only. It's your responsibility to 
 git status                     # Verify clean working tree
 ```
 
-If `vendor/strimr` is on the wrong branch or has uncommitted changes, the build will fail. This is intentional — developers are responsible for managing their local git state.
+If `../strimr` is on the wrong branch or has uncommitted changes, the build can pick up the wrong engine code. Developers are responsible for managing both local git states intentionally.
 
 ## Scripts
+
+### `strimr/run_ipad_sim.sh` — Build & Run Strimr Branch on iPad Simulator
+
+Builds and runs the **active branch of the sibling `../strimr` checkout** on an iPad simulator. Use this to test feature branches you want to feed back upstream before they become part of Plinx.
+
+```bash
+# Default: iPad (10th generation)
+./scripts/strimr/run_ipad_sim.sh
+
+# Custom device
+./scripts/strimr/run_ipad_sim.sh "iPad Pro 13-inch"
+```
+
+**Workflow:**
+```bash
+# Switch Strimr to the branch you want to test
+cd ../strimr && git switch feat/centered-clear-logo
+
+# Build & run it directly from Plinx scripts
+cd ../Plinx && ./scripts/strimr/run_ipad_sim.sh
+```
+
+The script reports the active Strimr branch and commit hash at the start so you always know exactly what you're running. It warns if there are uncommitted changes in Strimr.
+
+No XcodeGen required — builds directly from `Strimr.xcodeproj`.
+
+---
 
 ### `ui_tests.sh` — Run UI & Logic Tests
 
@@ -236,8 +263,11 @@ For local stability, Plinx references sibling clones of forked package repositor
 ```bash
 <local path>/Repos/
   Plinx/
+  strimr/
   MPVKit/
   sentry-cocoa/
+
+The live app target currently compiles directly from sibling `strimr/Shared` and `strimr/Strimr-iOS/Features` paths.
 ```
 
 These are referenced via `../../MPVKit` and `../../sentry-cocoa` from the `PlinxApp` directory, which means GUI archive/distribute flows in Xcode use the same local package sources as the shell scripts once the project has been generated.

@@ -91,11 +91,13 @@ struct PlinxApp: App {
 
     init() {
         let processEnvironment = ProcessInfo.processInfo.environment
+        LivePlexUITestBootstrap.primeCredentialsIfNeeded(environment: processEnvironment)
 
         // Layer 1: Strimr infrastructure (no Plinx knowledge)
         let context = PlexAPIContext()
         let store = LibraryStore(context: context)
         let settings = SettingsManager()
+        PlinxSettingsSanitizer.enforceSupportedPlaybackPlayer(settings)
         let session = SessionManager(context: context, libraryStore: store)
         _plexApiContext = State(initialValue: context)
         _sessionManager = State(initialValue: session)
@@ -112,7 +114,13 @@ struct PlinxApp: App {
         // DownloadManager: inject so MediaDetailHeaderSection's @Environment(DownloadManager.self)
         // resolves. Plinx supports downloads as a passthrough from Strimr.
         DownloadUITestFixtures.seedIfNeeded(environment: processEnvironment)
-        _downloadManager = State(initialValue: DownloadManager(settingsManager: settings))
+        let downloads = DownloadManager(settingsManager: settings)
+        LivePlexUITestBootstrap.bootstrapIfNeeded(
+            environment: processEnvironment,
+            sessionManager: session,
+            context: context
+        )
+        _downloadManager = State(initialValue: downloads)
 
         // Layer 2: Plinx safety + theming are initialized via property defaults.
         // The ViewFactory is created in `body` since it needs the live state refs.
@@ -148,7 +156,8 @@ struct PlinxApp: App {
                 // ── Lifecycle hardening ─────────────────────────────
                 .lifecycleHardening(
                     coordinator: playbackCoordinator,
-                    mainCoordinator: mainCoordinator
+                    mainCoordinator: mainCoordinator,
+                    downloadManager: downloadManager
                 )
                 // ── Baby lock overlay ───────────────────────────────
                 .babyLock(isEnabled: $babyLockEnabled)

@@ -60,7 +60,6 @@ struct KidsMainTabPicker: View {
             playfulSelectionTrigger &+= 1
             playfulTiltDirection = Bool.random() ? 1 : -1
         }
-        .accessibilityIdentifier("main.tabPicker")
     }
 
     // MARK: - Tab Button

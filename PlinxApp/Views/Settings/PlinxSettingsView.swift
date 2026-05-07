@@ -35,7 +35,6 @@ private struct SettingsBody: View {
     @AppStorage("plinx.maxMovieRating") private var maxMovieRatingRaw = PlinxRating.pg.rawValue
     @AppStorage("plinx.maxTVRating")    private var maxTVRatingRaw    = PlinxRating.tvPg.rawValue
     @AppStorage("plinx.excludeUnrated") private var excludeUnrated    = true
-    @AppStorage("plinx.pauseWhenScreenTurnsOff") private var pauseWhenScreenTurnsOff = true
     @AppStorage(PlinxNavigationPreference.showSearchInMainNavigationStorageKey)
     private var showSearchInMainNavigation = PlinxNavigationPreference.defaultShowSearchInMainNavigation
 
@@ -127,7 +126,10 @@ private struct SettingsBody: View {
 
             // MARK: Playback
             Section {
-                Toggle(isOn: $pauseWhenScreenTurnsOff) {
+                Toggle(isOn: Binding(
+                    get: { settingsManager.playback.pauseWhenScreenTurnsOff },
+                    set: { settingsManager.setPauseWhenScreenTurnsOff($0) }
+                )) {
                     Label {
                         Text("settings.playback.pauseWhenScreenTurnsOff.title", tableName: "Plinx")
                     } icon: {

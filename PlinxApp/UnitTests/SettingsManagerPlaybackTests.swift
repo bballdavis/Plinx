@@ -58,6 +58,45 @@ final class SettingsManagerPlaybackTests: XCTestCase {
         XCTAssertEqual(reloaded.playback.maxVolumePercent, 100)
     }
 
+    func test_enforceSupportedPlaybackPlayer_convertsLegacyVLCToMPV() {
+        let stored = """
+        {
+          "playback": {
+            "autoPlayNextEpisode": true,
+            "seekBackwardSeconds": 10,
+            "seekForwardSeconds": 10,
+            "player": "vlc",
+            "subtitleScale": 100,
+            "maxVolumePercent": 65,
+            "pauseWhenScreenTurnsOff": true
+          },
+          "interface": {},
+          "downloads": {}
+        }
+        """
+        defaults.set(Data(stored.utf8), forKey: "strimr.settings")
+        let settings = SettingsManager(userDefaults: defaults)
+
+        XCTAssertEqual(settings.playback.player, .vlc)
+
+        PlinxSettingsSanitizer.enforceSupportedPlaybackPlayer(settings)
+
+        XCTAssertEqual(settings.playback.player, .mpv)
+
+        let reloaded = SettingsManager(userDefaults: defaults)
+        XCTAssertEqual(reloaded.playback.player, .mpv)
+    }
+
+    func test_enforceSupportedPlaybackPlayer_keepsMPVUnchanged() {
+        let settings = SettingsManager(userDefaults: defaults)
+
+        XCTAssertEqual(settings.playback.player, .mpv)
+
+        PlinxSettingsSanitizer.enforceSupportedPlaybackPlayer(settings)
+
+        XCTAssertEqual(settings.playback.player, .mpv)
+    }
+
     func test_searchVisibleSectionIDs_omitHiddenLibraries() {
         let libraries = [
             Library(id: "1", title: "Movies", type: .movie, sectionId: 1),

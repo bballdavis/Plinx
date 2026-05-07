@@ -71,19 +71,6 @@ struct PlinxDownloadsGridView: View {
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
-                if downloadManager.isOffline {
-                    Label {
-                        Text("downloads.offline.banner", tableName: "Plinx")
-                    } icon: {
-                        Image(systemName: "wifi.slash")
-                    }
-                        .foregroundStyle(.orange)
-                        .font(.subheadline.weight(.semibold))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                }
-
                 if downloadManager.sortedItems.isEmpty {
                     emptyState
                 } else {
@@ -110,6 +97,7 @@ struct PlinxDownloadsGridView: View {
                 }
             }
         }
+        .accessibilityIdentifier("downloads.grid.scroll")
         .background {
             GeometryReader { proxy in
                 Color.clear
@@ -127,15 +115,7 @@ struct PlinxDownloadsGridView: View {
             PlinxDownloadsManageView()
         }
         .fullScreenCover(item: $selectedDownload) { item in
-            if let localURL = downloadManager.localVideoURL(for: item) {
-                PlayerWrapper(
-                    viewModel: PlayerViewModel(
-                        localMedia: downloadManager.localMediaItem(for: item),
-                        localPlaybackURL: localURL,
-                        context: context,
-                    ),
-                )
-            }
+            OfflineDownloadPlayerView(item: item)
         }
         .task(id: artworkReconciliationID) {
             await downloadManager.reconcileArtworkMetadataIfNeeded(context: context)
@@ -143,7 +123,7 @@ struct PlinxDownloadsGridView: View {
     }
 
     private var artworkReconciliationID: String {
-        downloadManager.sortedItems
+        return downloadManager.sortedItems
             .map { item in
                 "\(item.id):\(item.metadata.artworkLayoutStyle?.rawValue ?? "unknown")"
             }
@@ -513,6 +493,7 @@ struct PlinxDownloadsGridView: View {
 @MainActor
 struct PlinxDownloadsManageView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(DownloadManager.self) private var downloadManager
 
     var body: some View {
         DownloadsView()
@@ -520,6 +501,9 @@ struct PlinxDownloadsManageView: View {
                 manageHeader
             }
             .toolbar(.hidden, for: .navigationBar)
+            .task {
+                await downloadManager.recheckNetworkStatus()
+            }
     }
 
     private var manageHeader: some View {

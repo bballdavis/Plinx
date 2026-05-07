@@ -4,8 +4,6 @@ import PlinxUI
 struct PlinxContentView: View {
     @Environment(SessionManager.self) private var sessionManager
     @Environment(PlexAPIContext.self) private var plexApiContext
-    @Environment(SettingsManager.self) private var settingsManager
-    @Environment(LibraryStore.self) private var libraryStore
     @EnvironmentObject private var mainCoordinator: MainCoordinator
 
     private var uiTestScreenOverride: String? {
@@ -68,41 +66,41 @@ struct PlinxContentView: View {
 
     @ViewBuilder
     private var sessionContent: some View {
-            switch sessionManager.status {
-            case .hydrating:
-                PlinxBrandedLoadingView(
-                    preferredLogoAssetName: "LogoStackedFullWhite",
-                    showsProgressView: false,
-                    fillsBackground: false
+        switch sessionManager.status {
+        case .hydrating:
+            PlinxBrandedLoadingView(
+                preferredLogoAssetName: "LogoStackedFullWhite",
+                showsProgressView: false,
+                fillsBackground: false
+            )
+        case .signedOut:
+            SignInView(
+                viewModel: SignInViewModel(
+                    sessionManager: sessionManager,
+                    context: plexApiContext,
+                ),
+            )
+        case .needsProfileSelection:
+            NavigationStack {
+                ProfileSwitcherView(
+                    viewModel: ProfileSwitcherViewModel(
+                        context: plexApiContext,
+                        sessionManager: sessionManager,
+                    ),
                 )
-            case .signedOut:
-                SignInView(
-                    viewModel: SignInViewModel(
+            }
+        case .needsServerSelection:
+            NavigationStack {
+                SelectServerView(
+                    viewModel: ServerSelectionViewModel(
                         sessionManager: sessionManager,
                         context: plexApiContext,
                     ),
                 )
-            case .needsProfileSelection:
-                NavigationStack {
-                    ProfileSwitcherView(
-                        viewModel: ProfileSwitcherViewModel(
-                            context: plexApiContext,
-                            sessionManager: sessionManager,
-                        ),
-                    )
-                }
-            case .needsServerSelection:
-                NavigationStack {
-                    SelectServerView(
-                        viewModel: ServerSelectionViewModel(
-                            sessionManager: sessionManager,
-                            context: plexApiContext,
-                        ),
-                    )
-                }
-            case .ready:
-                RootTabView()
-                    .id(sessionManager.plexServer?.clientIdentifier ?? "no-server")
             }
+        case .ready:
+            RootTabView()
+                .id(sessionManager.plexServer?.clientIdentifier ?? "no-server")
+        }
     }
 }
