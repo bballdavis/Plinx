@@ -30,6 +30,33 @@ If `../strimr` is on the wrong branch or has uncommitted changes, the build can 
 
 ## Scripts
 
+### `strimr/run_ipad_sim.sh` — Build & Run Strimr Branch on iPad Simulator
+
+Builds and runs the **active branch of the sibling `../strimr` checkout** on an iPad simulator. Use this to test feature branches you want to feed back upstream before they become part of Plinx.
+
+```bash
+# Default: iPad (10th generation)
+./scripts/strimr/run_ipad_sim.sh
+
+# Custom device
+./scripts/strimr/run_ipad_sim.sh "iPad Pro 13-inch"
+```
+
+**Workflow:**
+```bash
+# Switch Strimr to the branch you want to test
+cd ../strimr && git switch feat/centered-clear-logo
+
+# Build & run it directly from Plinx scripts
+cd ../Plinx && ./scripts/strimr/run_ipad_sim.sh
+```
+
+The script reports the active Strimr branch and commit hash at the start so you always know exactly what you're running. It warns if there are uncommitted changes in Strimr.
+
+No XcodeGen required — builds directly from `Strimr.xcodeproj`.
+
+---
+
 ### `ui_tests.sh` — Run UI & Logic Tests
 
 Runs Swift Testing tests for both PlinxCore and PlinxUI, with optional snapshot tests.
