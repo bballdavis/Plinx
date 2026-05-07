@@ -22,6 +22,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 set -e
+set -o pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLINX_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
@@ -95,15 +96,14 @@ echo ""
 # ── Step 4: Build ──────────────────────────────────────────────────────────
 echo "🔨 Building Strimr-iOS (branch: $STRIMR_BRANCH)..."
 /bin/rm -rf "$DERIVED_DATA_PATH"
-xcodebuild build \
+echo "   Writing full build log to $BUILD_LOG"
+if ! xcodebuild build \
     -project "$PROJECT" \
     -scheme "$SCHEME" \
     -destination "$DEST" \
     -configuration Debug \
     -derivedDataPath "$DERIVED_DATA_PATH" \
-    2>&1 | tee "$BUILD_LOG" | grep -E "error:|warning:|Build succeeded|BUILD FAILED" || true
-
-if grep -q "BUILD FAILED" "$BUILD_LOG"; then
+    2>&1 | tee "$BUILD_LOG"; then
     echo ""
     echo "❌ Build failed. Errors:"
     grep -A 5 "error:" "$BUILD_LOG" | head -40
