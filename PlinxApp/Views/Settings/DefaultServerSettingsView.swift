@@ -26,9 +26,13 @@ struct DefaultServerSettingsView: View {
             }
         }
         .navigationTitle("Default Server")
+        #if os(tvOS)
+        .listStyle(.plain)
+        #else
         .navigationBarTitleDisplayMode(.large)
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
+        #endif
         .background(Color.appBackground.ignoresSafeArea())
         .tint(.accentColor)
         .task {

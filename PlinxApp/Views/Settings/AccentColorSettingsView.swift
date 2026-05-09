@@ -77,8 +77,32 @@ struct AppearanceSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
 
+                    #if os(tvOS)
+                    HStack(spacing: 12) {
+                        Button {
+                            let next = max(chromeButtonSize.sliderIndex - 1, 0)
+                            chromeButtonSizeRaw = PlinxChromeButtonSizePreference.from(sliderIndex: next).rawValue
+                        } label: {
+                            Image(systemName: "minus.circle.fill")
+                        }
+                        .buttonStyle(.bordered)
+
+                        Text("Adjust button size")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        Button {
+                            let next = min(chromeButtonSize.sliderIndex + 1, 2)
+                            chromeButtonSizeRaw = PlinxChromeButtonSizePreference.from(sliderIndex: next).rawValue
+                        } label: {
+                            Image(systemName: "plus.circle.fill")
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    #else
                     Slider(value: sliderBinding, in: 0...2, step: 1)
                         .tint(.accentColor)
+                    #endif
 
                     HStack {
                         Text("settings.appearance.buttons.small", tableName: "Plinx")
@@ -111,8 +135,32 @@ struct AppearanceSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
 
+                    #if os(tvOS)
+                    HStack(spacing: 12) {
+                        Button {
+                            let next = max(bannerArtworkCount - 1, 1)
+                            storedBannerArtworkCount = Int(next)
+                        } label: {
+                            Image(systemName: "minus.circle.fill")
+                        }
+                        .buttonStyle(.bordered)
+
+                        Text("Adjust banner thumbnails")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        Button {
+                            let next = min(bannerArtworkCount + 1, bannerArtworkMaximum)
+                            storedBannerArtworkCount = Int(next)
+                        } label: {
+                            Image(systemName: "plus.circle.fill")
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    #else
                     Slider(value: bannerArtworkCountBinding, in: 1...Double(bannerArtworkMaximum), step: 1)
                         .tint(.accentColor)
+                    #endif
 
                     HStack {
                         Text("1")
@@ -145,9 +193,13 @@ struct AppearanceSettingsView: View {
             }
         }
         .navigationTitle(Text("settings.appearance.title", tableName: "Plinx"))
+        #if os(tvOS)
+        .listStyle(.plain)
+        #else
         .navigationBarTitleDisplayMode(.large)
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
+        #endif
         .background(Color.appBackground.ignoresSafeArea())
     }
 }
@@ -173,9 +225,13 @@ struct AccentColorSettingsView: View {
             }
         }
         .navigationTitle(Text("settings.accent.title", tableName: "Plinx"))
+        #if os(tvOS)
+        .listStyle(.plain)
+        #else
         .navigationBarTitleDisplayMode(.large)
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
+        #endif
         .background(Color.appBackground.ignoresSafeArea())
     }
 

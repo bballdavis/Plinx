@@ -44,7 +44,9 @@ struct ProfileSwitcherView: View {
             }
         }
         .navigationTitle("auth.profile.title")
+        #if !os(tvOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button(role: .destructive) {
@@ -241,7 +243,9 @@ struct ProfileSwitcherView: View {
         }
         .padding()
         .navigationTitle("auth.profile.pin.required")
+        #if !os(tvOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .onAppear { isPinFieldFocused = true }
     }
 

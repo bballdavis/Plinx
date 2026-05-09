@@ -191,7 +191,29 @@ private struct SettingsBody: View {
                             .foregroundStyle(.secondary)
                     }
 
+                    #if os(tvOS)
+                    HStack(spacing: 12) {
+                        Button {
+                            settingsManager.setMaxVolumePercent(max(settingsManager.playback.maxVolumePercent - 5, 0))
+                        } label: {
+                            Image(systemName: "minus.circle.fill")
+                        }
+                        .buttonStyle(.bordered)
+
+                        Text("Adjust volume cap")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        Button {
+                            settingsManager.setMaxVolumePercent(min(settingsManager.playback.maxVolumePercent + 5, 100))
+                        } label: {
+                            Image(systemName: "plus.circle.fill")
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    #else
                     Slider(value: maxVolumeBinding, in: 0...100, step: 5)
+                    #endif
                 }
                 .padding(.vertical, 4)
             } header: {
@@ -278,8 +300,12 @@ private struct SettingsBody: View {
             }
         }
         .navigationTitle(Text("tabs.settings", tableName: "Plinx"))
+        #if os(tvOS)
+        .listStyle(.plain)
+        #else
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
+        #endif
         .background(Color.appBackground.ignoresSafeArea())
         .task {
             if libraryStore.libraries.isEmpty {

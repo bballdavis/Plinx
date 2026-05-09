@@ -1,0 +1,49 @@
+import SwiftUI
+
+@MainActor
+struct SettingsDownloadsView: View {
+    @Environment(SettingsManager.self) private var settingsManager
+
+    var body: some View {
+        List {
+            Section {
+                Toggle(
+                    "settings.downloads.wifiOnly",
+                    isOn: Binding(
+                        get: { settingsManager.downloads.wifiOnly },
+                        set: { settingsManager.setDownloadWiFiOnly($0) }
+                    )
+                )
+            } footer: {
+                Text("settings.downloads.wifiOnly.footer")
+            }
+
+            Section {
+                Picker(
+                    "Download Quality",
+                    selection: Binding(
+                        get: { settingsManager.downloads.quality },
+                        set: { settingsManager.setDownloadQuality($0) }
+                    )
+                ) {
+                    ForEach(DownloadQuality.allCases) { quality in
+                        Text(quality.title).tag(quality)
+                    }
+                }
+                #if !os(tvOS)
+                .pickerStyle(.navigationLink)
+                #endif
+            } header: {
+                Text("Download Quality")
+            } footer: {
+                Text("Applies to future downloads. Original keeps the source file when possible; other options request a server-side transcode before saving offline.")
+            }
+        }
+        #if os(tvOS)
+        .listStyle(.plain)
+        #else
+        .listStyle(.insetGrouped)
+        #endif
+        .navigationTitle("settings.downloads.title")
+    }
+}

@@ -233,11 +233,8 @@ targets:
       - path: App
         excludes:
           - "AppDelegate.swift"
-          - "DownloadUITestFixtures.swift"
       - path: Views
         excludes:
-          - "Downloads/**"
-          - "Settings/**"
       - path: Decorators
       - path: Adapters
       - path: ViewModels
@@ -251,6 +248,12 @@ targets:
           - "Library/Player/PlayerFactory.swift"
           - "Views/Media/MediaBackdropGradient.swift"
           - "Monitoring/ErrorReporter.swift"
+
+      # ── Strimr iOS download stack core (model + manager only) ────────────
+      - path: ../../strimr/Strimr-iOS/Features/Downloads/DownloadManager.swift
+        name: StrimrIOSDownloadManager
+      - path: ../../strimr/Strimr-iOS/Features/Downloads/DownloadModels.swift
+        name: StrimrIOSDownloadModels
 
       # ── Strimr tvOS-specific UI features ────────────────────────────────
       - path: ../../strimr/Strimr-tvOS/Features

@@ -34,8 +34,10 @@ struct PlinxPlayerView: View {
 
             overlayControls
         }
+        #if !os(tvOS)
         .statusBarHidden(true)
         .persistentSystemOverlays(.hidden)
+        #endif
     }
 
     // MARK: - Overlay controls

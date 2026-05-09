@@ -15,9 +15,7 @@ struct RootTabView: View {
     @Environment(PlexAPIContext.self) private var plexApiContext
     @Environment(SettingsManager.self) private var settingsManager
     @Environment(LibraryStore.self) private var libraryStore
-    #if !os(tvOS)
     @Environment(DownloadManager.self) private var downloadManager
-    #endif
     @EnvironmentObject private var mainCoordinator: MainCoordinator
     @Environment(\.safetyPolicy) private var safetyPolicy
     @Environment(\.openURL) private var openURL
@@ -61,15 +59,11 @@ struct RootTabView: View {
     }
 
     private var hasDownloadActivity: Bool {
-        #if os(tvOS)
-        false
-        #else
         // CRITICAL: Check for ANY download items (queued, downloading, completed, failed)
         // NOT just completedItems. The downloads tab should show if there's any
         // download activity in progress, failed, or already completed.
         // See: Known regression where this checked only completedItems (commit 4357449)
         !downloadManager.items.isEmpty
-        #endif
     }
 
     /// Tabs shown in the picker.
@@ -225,20 +219,6 @@ struct RootTabView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .sheet(isPresented: $showSettings) {
-            #if os(tvOS)
-            NavigationStack {
-                VStack(spacing: 12) {
-                    Text("Settings are not available on Apple TV")
-                        .font(.headline)
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(.secondary)
-                }
-                .padding()
-                .safeAreaInset(edge: .top, spacing: 0) {
-                    settingsHeaderRow
-                }
-            }
-            #else
             NavigationStack {
                 PlinxSettingsView()
                     .toolbar(.hidden, for: .navigationBar)
@@ -246,6 +226,7 @@ struct RootTabView: View {
                         settingsHeaderRow
                     }
             }
+            #if !os(tvOS)
             .presentationDetents([.large])
             #endif
         }
@@ -271,13 +252,7 @@ struct RootTabView: View {
                     topContent: AnyView(
                         topTitleRow(
                             title: "tabs.home",
-                            showsSettingsButton: {
-                                #if os(tvOS)
-                                false
-                                #else
-                                true
-                                #endif
-                            }(),
+                            showsSettingsButton: true,
                             showsSearchButton: !showSearchInMainNavigation,
                             showsLogo: true
                         )
@@ -372,21 +347,11 @@ struct RootTabView: View {
 
         case .more:
             NavigationStack(path: mainCoordinator.pathBinding(for: .more)) {
-                #if os(tvOS)
-                VStack(spacing: 12) {
-                    Text("Downloads are not available on Apple TV")
-                        .font(.headline)
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(.secondary)
-                }
-                .padding()
-                #else
                 PlinxDownloadsGridView()
                     .toolbar(.hidden, for: .navigationBar)
                     .navigationDestination(for: MainCoordinator.Route.self) { route in
                         destination(for: route)
                     }
-                #endif
             }
             .opacity(activeRootTab == .more ? 1 : 0)
             .allowsHitTesting(activeRootTab == .more)
@@ -497,19 +462,39 @@ struct RootTabView: View {
                 }
             )
         case let .playlistDetail(playlist):
-            // Playlists are a new feature; show placeholder for now
-            AnyView(
-                VStack(spacing: 16) {
-                    Text(playlist.title)
-                        .font(.title2)
-                        .fontWeight(.bold)
-                    Text("Playlist")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
+            #if os(tvOS)
+            PlaylistDetailTVView(
+                viewModel: PlaylistDetailViewModel(
+                    playlist: playlist,
+                    context: plexApiContext
+                ),
+                onSelectMedia: { displayItem in
+                    mainCoordinator.showMediaDetail(displayItem)
+                },
+                onPlay: { ratingKey in
+                    Task { await launcher.play(ratingKey: ratingKey, type: playlist.type) }
+                },
+                onShuffle: { ratingKey in
+                    Task { await launcher.play(ratingKey: ratingKey, type: playlist.type) }
                 }
-                .padding()
             )
+            #else
+            PlaylistDetailView(
+                viewModel: PlaylistDetailViewModel(
+                    playlist: playlist,
+                    context: plexApiContext
+                ),
+                onSelectMedia: { displayItem in
+                    mainCoordinator.showMediaDetail(displayItem)
+                },
+                onPlay: { ratingKey in
+                    Task { await launcher.play(ratingKey: ratingKey, type: playlist.type) }
+                },
+                onShuffle: { ratingKey in
+                    Task { await launcher.play(ratingKey: ratingKey, type: playlist.type) }
+                }
+            )
+            #endif
         }
     }
 
@@ -548,7 +533,6 @@ struct RootTabView: View {
                 )
             ]
 
-            #if !os(tvOS)
             switch QuickActionDownloadActionPolicy.action(for: media, downloadItems: downloadManager.items) {
             case .download:
                 let downloadTitle: String
@@ -595,7 +579,6 @@ struct RootTabView: View {
                     )
                 )
             }
-            #endif
 
             actions.append(
                 QuickActionOption(

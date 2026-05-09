@@ -496,7 +496,44 @@ struct PlinxDownloadsManageView: View {
     @Environment(DownloadManager.self) private var downloadManager
 
     var body: some View {
-        DownloadsView()
+        List {
+            if downloadManager.sortedItems.isEmpty {
+                Text("downloads.empty.message", tableName: "Plinx")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(downloadManager.sortedItems) { item in
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(item.metadata.title)
+                                .font(.headline)
+                                .lineLimit(2)
+
+                            Text(item.status.rawValue.capitalized)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer()
+
+                        if item.status == .downloading || item.status == .queued {
+                            ProgressView(value: item.progress)
+                                .frame(width: 90)
+                        }
+
+                        Button(role: .destructive) {
+                            Task { await downloadManager.delete(item) }
+                        } label: {
+                            Image(systemName: "trash")
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+        }
+        #if os(tvOS)
+        .listStyle(.plain)
+        #endif
             .safeAreaInset(edge: .top, spacing: 0) {
                 manageHeader
             }

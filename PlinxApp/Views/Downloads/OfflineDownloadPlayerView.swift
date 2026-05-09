@@ -90,6 +90,16 @@ private struct OfflineActivePlayerView: View {
     }
 
     var body: some View {
+        #if os(tvOS)
+        PlayerTVWrapper(viewModel: playerViewModel) {}
+            .onDisappear {
+                onPlaybackEnded(
+                    playerViewModel.position,
+                    playerViewModel.duration ?? item.metadata.duration,
+                    didFinishPlayback(viewModel: playerViewModel)
+                )
+            }
+        #else
         PlayerWrapper(viewModel: playerViewModel)
             .onDisappear {
                 onPlaybackEnded(
@@ -98,6 +108,7 @@ private struct OfflineActivePlayerView: View {
                     didFinishPlayback(viewModel: playerViewModel)
                 )
             }
+        #endif
     }
 
     private func didFinishPlayback(viewModel: PlayerViewModel) -> Bool {

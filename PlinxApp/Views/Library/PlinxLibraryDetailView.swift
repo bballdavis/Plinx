@@ -76,6 +76,7 @@ struct PlinxLibraryDetailView: View {
                 viewModel: makeBrowseViewModel(),
                 onSelectMedia: onSelectMedia
             )
+            .id(browseRefreshIdentity)
             #else
             LibraryBrowseView(
                 viewModel: makeBrowseViewModel(),
@@ -85,8 +86,8 @@ struct PlinxLibraryDetailView: View {
                 overrideLayout: preferredCarouselLayout,
                 showsControls: false
             )
-            #endif
             .id(browseRefreshIdentity)
+            #endif
         case .collections:
             #if os(tvOS)
             LibraryCollectionsView(
