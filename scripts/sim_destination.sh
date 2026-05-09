@@ -5,6 +5,7 @@
 
 select_simulator_destination() {
     local requested_name="$1"
+    local sim_platform="${2:-iOS}"  # iOS or tvOS
     local available_devices
     local selected_line
     local family_pattern=""
@@ -19,7 +20,7 @@ select_simulator_destination() {
     SIM_DESTINATION=""
 
     if [ "$requested_name" = "generic" ]; then
-        SIM_DESTINATION="generic/platform=iOS Simulator"
+        SIM_DESTINATION="generic/platform=${sim_platform} Simulator"
         return 0
     fi
 
@@ -37,6 +38,7 @@ select_simulator_destination() {
         case "$requested_name" in
             *iPad*) family_pattern="iPad" ;;
             *iPhone*) family_pattern="iPhone" ;;
+            *"Apple TV"*|*AppleTV*) family_pattern="Apple TV" ;;
         esac
 
         if [ -n "$family_pattern" ]; then
@@ -60,8 +62,8 @@ select_simulator_destination() {
         trimmed_line=$(printf '%s' "$line" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')
 
         case "$trimmed_line" in
-            "-- iOS "*)
-                current_runtime=${trimmed_line#-- iOS }
+            "-- ${sim_platform} "*)
+                current_runtime=${trimmed_line#-- ${sim_platform} }
                 current_runtime=${current_runtime% --}
                 ;;
             *)
@@ -78,9 +80,9 @@ select_simulator_destination() {
     SIM_NAME=$(printf '%s' "$selected_trimmed" | sed -E 's/[[:space:]]+\([A-F0-9-]{36}\)[[:space:]]+\((Booted|Shutdown)\)$//')
     SIM_OS_VERSION="$runtime_version"
     if [ -n "$SIM_OS_VERSION" ]; then
-        SIM_BUILD_DESTINATION="platform=iOS Simulator,OS=$SIM_OS_VERSION,name=$SIM_NAME"
+        SIM_BUILD_DESTINATION="platform=${sim_platform} Simulator,OS=$SIM_OS_VERSION,name=$SIM_NAME"
     else
-        SIM_BUILD_DESTINATION="platform=iOS Simulator,name=$SIM_NAME"
+        SIM_BUILD_DESTINATION="platform=${sim_platform} Simulator,name=$SIM_NAME"
     fi
     SIM_DESTINATION="$SIM_BUILD_DESTINATION"
 }

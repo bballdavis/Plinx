@@ -14,6 +14,19 @@ struct PlinxMediaDetailView: View {
             if viewModel.isBlocked {
                 blockedView
             } else {
+                #if os(tvOS)
+                MediaDetailTVView(
+                    viewModel: viewModel.rawViewModel,
+                    onPlay: onPlay,
+                    onPlayFromStart: { ratingKey, type in
+                        onPlay(ratingKey, type)
+                    },
+                    onShuffle: { ratingKey, type in
+                        onPlay(ratingKey, type)
+                    },
+                    onSelectMedia: onSelectRelated
+                )
+                #else
                 MediaDetailView(
                     viewModel: viewModel.rawViewModel,
                     onPlay: onPlay,
@@ -25,6 +38,7 @@ struct PlinxMediaDetailView: View {
                     },
                     onSelectMedia: onSelectRelated
                 )
+                #endif
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) {

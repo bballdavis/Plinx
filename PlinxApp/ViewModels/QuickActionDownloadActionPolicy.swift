@@ -1,5 +1,21 @@
 import Foundation
 
+#if os(tvOS)
+enum QuickActionDownloadActionPolicy {
+    enum Action {
+        case download
+        case goToDownloads
+    }
+
+    static func action(for media: MediaItem, downloadItems: [Any] = []) -> Action {
+        .download
+    }
+
+    static func hasPersistedDownload(for media: MediaItem, downloadItems: [Any] = []) -> Bool {
+        false
+    }
+}
+#else
 enum QuickActionDownloadActionPolicy {
     enum Action {
         case download
@@ -27,3 +43,4 @@ enum QuickActionDownloadActionPolicy {
         }
     }
 }
+#endif

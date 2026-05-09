@@ -7,6 +7,7 @@ Re-run safe: all inserts are idempotent.
 """
 import re, os
 
+
 # Get path to pbxproj relative to the script's directory (script is in scripts/patch_resources.py)
 script_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(script_dir)
@@ -47,6 +48,15 @@ def ensure_in_resources_phase(text: str, build_uuid: str, label: str) -> str:
     return re.sub(
         rf'({UUID_RESOURCES_PHASE} /\* Resources \*/ = \{{[\s\S]*?files = \(\n)',
         rf'\1\t\t\t\t{build_uuid} /* {label} */,\n',
+        text,
+        count=1,
+    )
+
+
+def remove_from_resources_phase(text: str, build_uuid: str, label: str) -> str:
+    return re.sub(
+        rf'\n\t\t\t\t{build_uuid} /\* {re.escape(label)} \*/,',
+        '',
         text,
         count=1,
     )
@@ -159,7 +169,6 @@ if UUID_RESOURCES_PHASE not in content:
         '\t\t\tbuildActionMask = 2147483647;\n'
         '\t\t\tfiles = (\n'
         f'\t\t\t\t{UUID_ASSETS_BUILD} /* Assets.xcassets in Resources */,\n'
-        f'\t\t\t\t{UUID_LAUNCH_BUILD} /* LaunchScreen.storyboard in Resources */,\n'
         f'\t\t\t\t{UUID_PRIVACY_BUILD} /* PrivacyInfo.xcprivacy in Resources */,\n'
         f'\t\t\t\t{UUID_PLINX_STRINGS_BUILD} /* Plinx.strings in Resources */,\n'
         f'\t\t\t\t{UUID_LOCAL_STRINGS_BUILD} /* Localizable.xcstrings in Resources */,\n'
@@ -172,10 +181,10 @@ if UUID_RESOURCES_PHASE not in content:
                               resources_phase + '/* Begin PBXSourcesBuildPhase section */')
 else:
     content = ensure_in_resources_phase(content, UUID_ASSETS_BUILD, 'Assets.xcassets in Resources')
-    content = ensure_in_resources_phase(content, UUID_LAUNCH_BUILD, 'LaunchScreen.storyboard in Resources')
     content = ensure_in_resources_phase(content, UUID_PRIVACY_BUILD, 'PrivacyInfo.xcprivacy in Resources')
     content = ensure_in_resources_phase(content, UUID_PLINX_STRINGS_BUILD, 'Plinx.strings in Resources')
     content = ensure_in_resources_phase(content, UUID_LOCAL_STRINGS_BUILD, 'Localizable.xcstrings in Resources')
+    content = remove_from_resources_phase(content, UUID_LAUNCH_BUILD, 'LaunchScreen.storyboard in Resources')
 
 # 4. Add resource phase to target's buildPhases before Sources
 if UUID_RESOURCES_PHASE not in re.search(r'buildPhases = \([\s\S]*?\);', content).group(0):

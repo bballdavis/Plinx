@@ -16,7 +16,11 @@ struct MediaBackdropGradient: View {
     let colors: [Color]
 
     var body: some View {
+        #if os(tvOS)
+        let bg = Color.black
+        #else
         let bg = Color(uiColor: .systemBackground)
+        #endif
         let gradientColors = colors.count == 4 ? colors : [
             bg.opacity(0.85),
             bg.opacity(0.7),

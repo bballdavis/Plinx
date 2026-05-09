@@ -29,6 +29,9 @@ struct PlinxLibraryDetailView: View {
     @State private var selectedTab: LibraryDetailTab = .recommended
     @State private var browseQuickSort: LibraryBrowseControlsViewModel.QuickSort = .newest
     @State private var browseRefreshIdentity = UUID()
+    #if os(tvOS)
+    @State private var tvHeroMedia: MediaItem?
+    #endif
 
     // MARK: - Body
 
@@ -52,6 +55,13 @@ struct PlinxLibraryDetailView: View {
     private var selectedTabContent: some View {
         switch selectedTab {
         case .recommended:
+            #if os(tvOS)
+            LibraryTVRecommendedView(
+                viewModel: makeRecommendedViewModel(),
+                heroMedia: $tvHeroMedia,
+                onSelectMedia: onSelectMedia
+            )
+            #else
             LibraryRecommendedView(
                 viewModel: makeRecommendedViewModel(),
                 onSelectMedia: onSelectMedia,
@@ -59,7 +69,14 @@ struct PlinxLibraryDetailView: View {
                 topContent: scrollingTopContent,
                 overrideLayout: { _ in preferredCarouselLayout }
             )
+            #endif
         case .browse:
+            #if os(tvOS)
+            LibraryBrowseView(
+                viewModel: makeBrowseViewModel(),
+                onSelectMedia: onSelectMedia
+            )
+            #else
             LibraryBrowseView(
                 viewModel: makeBrowseViewModel(),
                 onSelectMedia: onSelectMedia,
@@ -68,14 +85,22 @@ struct PlinxLibraryDetailView: View {
                 overrideLayout: preferredCarouselLayout,
                 showsControls: false
             )
+            #endif
             .id(browseRefreshIdentity)
         case .collections:
+            #if os(tvOS)
+            LibraryCollectionsView(
+                viewModel: makeCollectionsViewModel(),
+                onSelectMedia: onSelectMedia
+            )
+            #else
             LibraryCollectionsView(
                 viewModel: makeCollectionsViewModel(),
                 onSelectMedia: onSelectMedia,
                 onLongPressMedia: onLongPressMedia,
                 topContent: scrollingTopContent
             )
+            #endif
         case .playlists:
             EmptyView()
         }
@@ -155,6 +180,7 @@ struct PlinxLibraryDetailView: View {
             settingsManager: settingsManager
         )
         vm.controls.preferredQuickSort = browseQuickSort
+        #if !os(tvOS)
         let policy = safetyPolicy
         let libType = library.type
         // None-agent libraries (YouTube Videos, Home Videos, etc.) are personally
@@ -170,6 +196,7 @@ struct PlinxLibraryDetailView: View {
             }
             return StrimrAdapter.isAllowed(item, policy: effectivePolicy)
         }
+        #endif
         return vm
     }
 
@@ -221,11 +248,19 @@ struct PlinxLibraryDetailView: View {
     }
 
     private func makeCollectionsViewModel() -> LibraryCollectionsViewModel {
+        #if os(tvOS)
+        let vm = LibraryCollectionsViewModel(
+            library: library,
+            context: plexApiContext,
+            settingsManager: settingsManager
+        )
+        #else
         let vm = LibraryCollectionsViewModel(library: library, context: plexApiContext)
         let policy = safetyPolicy
         vm.itemFilter = { item in
             StrimrAdapter.isAllowed(item, policy: policy)
         }
+        #endif
         return vm
     }
 

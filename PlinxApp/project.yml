@@ -27,6 +27,7 @@ options:
   minimumXcodeGenVersion: 2.37.0
   deploymentTarget:
     iOS: 17.5
+    tvOS: 17.0
   postGenCommand: >-
     if [ -f ../scripts/patch_resources.py ]; then
       python3 ../scripts/patch_resources.py;
@@ -217,3 +218,87 @@ targets:
         PRODUCT_NAME: PlinxUITests
         PRODUCT_BUNDLE_IDENTIFIER: com.bballdavis.plinx.uitests
         GENERATE_INFOPLIST_FILE: YES
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Apple TV target — diagnostic: surfaces what iOS-specific code needs tvOS
+# adaptation. First build may fail on Plinx-owned layers; errors are expected
+# and tracked as follow-up work.
+# ─────────────────────────────────────────────────────────────────────────────
+  Plinx-tvOS:
+    type: application
+    platform: tvOS
+
+    sources:
+      # ── Plinx application code (iOS-specific layers included for diagnostics)
+      - path: App
+        excludes:
+          - "AppDelegate.swift"
+          - "DownloadUITestFixtures.swift"
+      - path: Views
+        excludes:
+          - "Downloads/**"
+          - "Settings/**"
+      - path: Decorators
+      - path: Adapters
+      - path: ViewModels
+
+      # ── Strimr shared sources (same excludes as iOS target) ─────────────
+      - path: ../../strimr/Shared
+        name: StrimrShared
+        excludes:
+          - "Library/VLC/**"
+          - "Features/Player/PlaybackLauncher.swift"
+          - "Library/Player/PlayerFactory.swift"
+          - "Views/Media/MediaBackdropGradient.swift"
+          - "Monitoring/ErrorReporter.swift"
+
+      # ── Strimr tvOS-specific UI features ────────────────────────────────
+      - path: ../../strimr/Strimr-tvOS/Features
+        name: StrimrTVOSFeatures
+        excludes:
+          # Strimr's own entry points — Plinx provides its own
+          - "../StrimrApp.swift"
+          - "../ContentView.swift"
+          # Plinx uses its own tab root; Strimr's tvOS Tab uses tvOS 18-only APIs.
+          - "Tab/**"
+          # Plinx uses its own sign-in and does not need Strimr's tvOS sign-in view.
+          - "Auth/SignInTVView.swift"
+          # Watch Together is currently dormant in Plinx and can be omitted on tvOS.
+          - "WatchTogether/**"
+
+      # ── Strimr tvOS shared UI components ────────────────────────────────
+      - path: ../../strimr/Strimr-tvOS/Shared
+        name: StrimrTVOSShared
+
+    resources:
+      - path: Resources/PrivacyInfo.xcprivacy
+      - path: Resources/Assets.xcassets
+      - path: ../../strimr/Localizable.xcstrings
+
+    dependencies:
+      - package: PlinxCore
+      - package: PlinxUI
+      - package: MPVKit
+        product: MPVKit-GPL
+
+    info:
+      path: Resources/Info-tvOS.plist
+      properties:
+        CFBundleDisplayName: Plinx
+
+    settings:
+      base:
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_VERSION: 5.0
+        SWIFT_STRICT_CONCURRENCY: minimal
+        OTHER_SWIFT_FLAGS: "-Xfrontend -strict-concurrency=minimal -Xfrontend -disable-dynamic-actor-isolation"
+
+    scheme:
+      shared: true
+      build:
+        targets:
+          Plinx-tvOS: all
+      run:
+        config: Debug
+      test:
+        config: Debug

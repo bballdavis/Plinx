@@ -38,7 +38,9 @@ import UIKit
 
 @main
 struct PlinxApp: App {
+    #if !os(tvOS)
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate: AppDelegate
+    #endif
 
     // ── Strimr Services (upstream, unmodified) ──────────────────────────
     @State private var plexApiContext: PlexAPIContext
@@ -56,7 +58,9 @@ struct PlinxApp: App {
     //── Strimr DownloadManager (required by MediaDetailHeaderSection's @Environment) ──
     // MediaDetailHeaderSection reads @Environment(DownloadManager.self). Without this
     // injection the app crashes with an assertion failure when navigating to media detail.
+    #if !os(tvOS)
     @State private var downloadManager: DownloadManager
+    #endif
 
     // ── Plinx Safety Layer ──────────────────────────────────────────────
     @AppStorage("plinx.maxMovieRating") private var maxMovieRatingRaw = PlinxRating.pg.rawValue
@@ -113,6 +117,7 @@ struct PlinxApp: App {
 
         // DownloadManager: inject so MediaDetailHeaderSection's @Environment(DownloadManager.self)
         // resolves. Plinx supports downloads as a passthrough from Strimr.
+        #if !os(tvOS)
         DownloadUITestFixtures.seedIfNeeded(environment: processEnvironment)
         let downloads = DownloadManager(settingsManager: settings)
         LivePlexUITestBootstrap.bootstrapIfNeeded(
@@ -121,6 +126,7 @@ struct PlinxApp: App {
             context: context
         )
         _downloadManager = State(initialValue: downloads)
+        #endif
 
         // Layer 2: Plinx safety + theming are initialized via property defaults.
         // The ViewFactory is created in `body` since it needs the live state refs.
@@ -138,7 +144,9 @@ struct PlinxApp: App {
                 .environment(libraryStore)
                 .environmentObject(mainCoordinator)
                 .environment(watchTogetherViewModel)
+                #if !os(tvOS)
                 .environment(downloadManager)
+                #endif
                 // ── Plinx layer injection ───────────────────────────
                 .environment(\.plinxTheme, theme)
                 .environment(\.safetyPolicy, safetyPolicy)
@@ -154,11 +162,18 @@ struct PlinxApp: App {
                     AppearanceSetup.apply(theme, accentColor: UIColor(accentColor))
                 }
                 // ── Lifecycle hardening ─────────────────────────────
+                #if !os(tvOS)
                 .lifecycleHardening(
                     coordinator: playbackCoordinator,
                     mainCoordinator: mainCoordinator,
                     downloadManager: downloadManager
                 )
+                #else
+                .lifecycleHardening(
+                    coordinator: playbackCoordinator,
+                    mainCoordinator: mainCoordinator
+                )
+                #endif
                 // ── Baby lock overlay ───────────────────────────────
                 .babyLock(isEnabled: $babyLockEnabled)
         }

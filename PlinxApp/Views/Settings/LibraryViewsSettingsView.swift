@@ -31,9 +31,13 @@ struct LibraryViewsSettingsView: View {
             }
         }
         .navigationTitle("Library Views")
+        #if os(tvOS)
+        .listStyle(.plain)
+        #else
         .navigationBarTitleDisplayMode(.large)
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
+        #endif
         .background(Color.appBackground.ignoresSafeArea())
         .task {
             if libraryStore.libraries.isEmpty {
@@ -106,8 +110,12 @@ private struct LibraryViewSectionsConfigurationView: View {
             }
         }
         .navigationTitle(library.title)
+        #if os(tvOS)
+        .listStyle(.plain)
+        #else
         .navigationBarTitleDisplayMode(.inline)
         .listStyle(.insetGrouped)
+        #endif
         .environment(\.editMode, .constant(.active))
         .task {
             await loadSections()

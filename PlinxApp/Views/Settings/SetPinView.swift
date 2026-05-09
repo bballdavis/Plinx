@@ -82,11 +82,17 @@ struct SetPinView: View {
                     .font(.caption)
             }
         }
+        #if os(tvOS)
+        .listStyle(.plain)
+        #else
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
+        #endif
         .background(Color.appBackground.ignoresSafeArea())
         .navigationTitle("Set PIN")
+        #if !os(tvOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 
     private func handleNext() {

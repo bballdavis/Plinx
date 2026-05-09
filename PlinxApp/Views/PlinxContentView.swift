@@ -26,6 +26,18 @@ struct PlinxContentView: View {
             rootContent
         }
         .fullScreenCover(item: $mainCoordinator.selectedPlayQueue) { playQueue in
+            #if os(tvOS)
+            PlayerTVWrapper(
+                viewModel: PlayerViewModel(
+                    playQueue: playQueue,
+                    context: plexApiContext,
+                    shouldResumeFromOffset: mainCoordinator.shouldResumeFromOffset
+                ),
+                onExit: {
+                    mainCoordinator.resetPlayer()
+                }
+            )
+            #else
             PlayerWrapper(
                 viewModel: PlayerViewModel(
                     playQueue: playQueue,
@@ -36,6 +48,7 @@ struct PlinxContentView: View {
             .onDisappear {
                 mainCoordinator.resetPlayer()
             }
+            #endif
         }
     }
 
@@ -47,15 +60,17 @@ struct PlinxContentView: View {
                 ParentalGateView(onAllowed: {})
             case "signIn":
                 SignInView(
-                    viewModel: SignInViewModel(
+                    viewModel: PlinxSignInViewModel(
                         sessionManager: sessionManager,
                         context: plexApiContext,
                     ),
                 )
+            #if !os(tvOS)
             case DownloadUITestFixtures.screenName:
                 NavigationStack {
                     PlinxDownloadsGridView()
                 }
+            #endif
             default:
                 sessionContent
             }
@@ -75,7 +90,7 @@ struct PlinxContentView: View {
             )
         case .signedOut:
             SignInView(
-                viewModel: SignInViewModel(
+                viewModel: PlinxSignInViewModel(
                     sessionManager: sessionManager,
                     context: plexApiContext,
                 ),

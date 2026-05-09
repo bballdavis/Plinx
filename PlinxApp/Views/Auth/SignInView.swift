@@ -1,6 +1,12 @@
 import SwiftUI
 import PlinxUI
 
+#if os(tvOS)
+typealias PlinxSignInViewModel = SignInTVViewModel
+#else
+typealias PlinxSignInViewModel = SignInViewModel
+#endif
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Plinx-branded sign-in view (replaces Strimr's SignInView)
 //
@@ -9,10 +15,10 @@ import PlinxUI
 // ─────────────────────────────────────────────────────────────────────────────
 
 struct SignInView: View {
-    @State private var viewModel: SignInViewModel
+    @State private var viewModel: PlinxSignInViewModel
     @Environment(\.plinxTheme) private var theme
 
-    init(viewModel: SignInViewModel) {
+    init(viewModel: PlinxSignInViewModel) {
         _viewModel = State(initialValue: viewModel)
     }
 

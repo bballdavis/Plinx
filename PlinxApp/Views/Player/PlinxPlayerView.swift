@@ -22,8 +22,15 @@ struct PlinxPlayerView: View {
             Color.black.ignoresSafeArea()
 
             // Strimr's proven player engine (MPVKit-backed)
+            #if os(tvOS)
+            PlayerTVWrapper(viewModel: viewModel) {
+                isPresented = false
+            }
+            .ignoresSafeArea()
+            #else
             PlayerWrapper(viewModel: viewModel)
                 .ignoresSafeArea()
+            #endif
 
             overlayControls
         }
