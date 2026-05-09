@@ -30,11 +30,19 @@ struct PlinxSearchView: View {
                 resultsContent
                     .padding(.top, 12)
             }
-            .padding(.bottom, 120)
+            .padding(.bottom, bottomContentPadding)
         }
         .onChange(of: safetyPolicy) { _, newPolicy in
             viewModel.updatePolicy(newPolicy)
         }
+    }
+
+    private var bottomContentPadding: CGFloat {
+        #if os(tvOS)
+        36
+        #else
+        120
+        #endif
     }
 
     // MARK: - Search bar

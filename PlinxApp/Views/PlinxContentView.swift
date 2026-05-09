@@ -97,21 +97,39 @@ struct PlinxContentView: View {
             )
         case .needsProfileSelection:
             NavigationStack {
+                #if os(tvOS)
+                ProfileSwitcherTVView(
+                    viewModel: ProfileSwitcherViewModel(
+                        context: plexApiContext,
+                        sessionManager: sessionManager,
+                    )
+                )
+                #else
                 ProfileSwitcherView(
                     viewModel: ProfileSwitcherViewModel(
                         context: plexApiContext,
                         sessionManager: sessionManager,
                     ),
                 )
+                #endif
             }
         case .needsServerSelection:
             NavigationStack {
+                #if os(tvOS)
+                SelectServerTVView(
+                    viewModel: ServerSelectionViewModel(
+                        sessionManager: sessionManager,
+                        context: plexApiContext,
+                    )
+                )
+                #else
                 SelectServerView(
                     viewModel: ServerSelectionViewModel(
                         sessionManager: sessionManager,
                         context: plexApiContext,
                     ),
                 )
+                #endif
             }
         case .ready:
             RootTabView()

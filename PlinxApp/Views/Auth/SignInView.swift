@@ -105,80 +105,106 @@ struct SignInView: View {
 #if os(tvOS)
 extension SignInView {
     private var tvOSBody: some View {
-        VStack(spacing: 28) {
-            Spacer()
+        ZStack {
+            LinearGradient.plinxBrandGreen
+                .ignoresSafeArea()
 
-            VStack(spacing: 12) {
-                PlinxBrandLogoView(
-                    preferredAssetName: PlinxBrandingSemantics.fullColorLogoAssetName,
-                    accessibilityIdentifier: "signIn.logo.fullColor"
-                )
-                .frame(height: 132)
+            VStack(spacing: 30) {
+                Spacer(minLength: 24)
 
-                Text("signIn.title")
-                    .plinxStyle(theme.typography.title)
-                    .multilineTextAlignment(.center)
+                VStack(spacing: 14) {
+                    PlinxBrandLogoView(
+                        preferredAssetName: PlinxBrandingSemantics.fullColorLogoAssetName,
+                        accessibilityIdentifier: "signIn.logo.fullColor"
+                    )
+                    .frame(height: 132)
 
-                Text("signIn.tv.subtitle")
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: 760)
-            }
+                    Text("signIn.title")
+                        .plinxStyle(theme.typography.title)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(Color.white)
 
-            Group {
-                if let pin = viewModel.pin {
-                    VStack(spacing: 20) {
-                        if let authURL = plexAuthURL(pin: pin),
-                           let qrCode = qrImage(from: authURL.absoluteString) {
+                    Text("signIn.tv.subtitle")
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(Color.white.opacity(0.88))
+                        .frame(maxWidth: 860)
+                        .font(.title3)
+                }
+
+                if let pin = viewModel.pin,
+                   let authURL = plexAuthURL(pin: pin),
+                   let qrCode = qrImage(from: authURL.absoluteString) {
+                    VStack(spacing: 18) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 32, style: .continuous)
+                                .fill(Color.black.opacity(0.38))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 32, style: .continuous)
+                                        .stroke(Color.white.opacity(0.16), lineWidth: 1)
+                                )
+
                             Image(uiImage: qrCode)
                                 .resizable()
                                 .interpolation(.none)
-                                .frame(width: 260, height: 260)
-                                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                                .frame(width: 360, height: 360)
+                                .padding(26)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                        .fill(Color(white: 0.12))
+                                )
+                        }
+                        .frame(width: 440, height: 440)
+
+                        Text("Scan this code with the Plex app")
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(Color.white)
+
+                        VStack(spacing: 4) {
+                            Text("Or open this link in your browser")
+                                .font(.headline)
+                                .foregroundStyle(Color.white.opacity(0.82))
+
+                            Text("plex.tv/link")
+                                .font(.title2.weight(.bold))
+                                .foregroundStyle(Color.white)
+                                .underline()
                         }
 
-                        Text(pin.code)
-                            .font(.system(size: 44, weight: .bold, design: .rounded))
-                            .tracking(6)
-                            .padding(.horizontal, 28)
-                            .padding(.vertical, 14)
-                            .background(
-                                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                    .fill(Color.accentColor.opacity(0.12))
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                    .stroke(Color.accentColor.opacity(0.28), lineWidth: 1)
-                            )
-
-                        Text("Open the Plex app or visit plex.tv/link to enter this code.")
-                            .multilineTextAlignment(.center)
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: 760)
-
-                        Button("signIn.button.cancel") {
+                        Button("Refresh Code") {
                             viewModel.cancelSignIn()
                             Task { await viewModel.startSignIn() }
                         }
                         .buttonStyle(PlinkButtonStyle(springs: theme.springs))
                     }
-                } else if viewModel.isAuthenticating {
-                    ProgressView("signIn.button.waiting")
-                        .progressViewStyle(.circular)
+                } else {
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                            .tint(.white)
+
+                        Text("Waiting for Plex")
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(Color.white)
+                    }
+                    .frame(width: 440, height: 440)
+                    .background(
+                        RoundedRectangle(cornerRadius: 32, style: .continuous)
+                            .fill(Color.black.opacity(0.30))
+                    )
                 }
-            }
 
-            if let error = viewModel.errorMessage {
-                Text(error)
-                    .foregroundStyle(theme.palette.warning)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
-            }
+                if let error = viewModel.errorMessage {
+                    Text(error)
+                        .foregroundStyle(Color.white)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                }
 
-            Spacer()
+                Spacer(minLength: 24)
+            }
+            .padding(.horizontal, 48)
+            .padding(.vertical, 40)
         }
-        .padding(48)
-        .background(Color.white.ignoresSafeArea())
         .onAppear {
             guard !viewModel.isAuthenticating, viewModel.pin == nil else { return }
             Task { await viewModel.startSignIn() }

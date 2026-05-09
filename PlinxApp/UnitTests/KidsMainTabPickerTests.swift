@@ -26,4 +26,10 @@ final class KidsMainTabPickerTests: XCTestCase {
 
         XCTAssertTrue(tabs.contains(where: { $0.id == "downloads" }))
     }
+
+    func test_mainTabs_includesSettingsWhenRequested() {
+        let tabs = KidsMainTabPicker.TabItem.mainTabs(includeSettings: true)
+
+        XCTAssertTrue(tabs.contains(where: { $0.id == "settings" }))
+    }
 }

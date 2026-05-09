@@ -35,7 +35,13 @@ struct PlinxDownloadsGridView: View {
         }
     }
 
-    private let gridSpacing: CGFloat = 10
+    private var gridSpacing: CGFloat {
+        #if os(tvOS)
+        18
+        #else
+        10
+        #endif
+    }
 
     private struct GridPosterLayout {
         let posterSize: CGSize
@@ -45,18 +51,43 @@ struct PlinxDownloadsGridView: View {
     }
 
     private var gridPosterHeight: CGFloat {
+        #if os(tvOS)
+        isPortraitViewport ? 295 : 270
+        #else
         isPortraitViewport ? 235 : 220
+        #endif
     }
 
-    private let gridTextHeight: CGFloat = 74
-    private let gridRowSpacing: CGFloat = 18
+    private var gridTextHeight: CGFloat {
+        #if os(tvOS)
+        92
+        #else
+        74
+        #endif
+    }
+
+    private var gridRowSpacing: CGFloat {
+        #if os(tvOS)
+        26
+        #else
+        18
+        #endif
+    }
 
     private var gridMinCardWidth: CGFloat {
+        #if os(tvOS)
+        isPortraitViewport ? 180 : 210
+        #else
         isPortraitViewport ? 132 : 148
+        #endif
     }
 
     private var gridMaxCardWidth: CGFloat {
+        #if os(tvOS)
+        isPortraitViewport ? 280 : 360
+        #else
         isPortraitViewport ? 220 : 300
+        #endif
     }
 
     private var gridCardHeight: CGFloat {

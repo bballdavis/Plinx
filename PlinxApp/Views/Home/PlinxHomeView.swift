@@ -84,9 +84,7 @@ struct PlinxHomeView: View {
                 }
             }
             .padding(.top, 8)
-            // Extra bottom padding ensures content scrolls clear of the
-            // floating KidsMainTabPicker (≈ 88pt) + comfortable overshoot.
-            .padding(.bottom, 120)
+            .padding(.bottom, bottomContentPadding)
         }
         .id(artworkRefreshToken)
     }
@@ -341,28 +339,40 @@ struct PlinxHomeView: View {
     private func hubRow(_ hub: Hub, layout: CardLayout, sectionKey: String) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(hub.title)
-                .font(.title3.bold())
+                .font(sectionTitleFont)
                 .foregroundStyle(.white)
                 .padding(.horizontal, 20)
                 .accessibilityIdentifier("home.section.\(sectionKey)")
 
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 12) {
+                LazyHStack(spacing: cardSpacing) {
                     ForEach(Array(hub.items.enumerated()), id: \.element.id) { index, item in
-                        mediaCard(item, layout: layout, sectionKey: sectionKey, index: index)
-                            .onTapGesture { onSelectMedia(item) }
-                            .onLongPressGesture { onLongPressMedia(item) }
+                        mediaCardButton(item, layout: layout, sectionKey: sectionKey, index: index)
                     }
                 }
+                .padding(.vertical, cardFocusPadding)
                 .padding(.horizontal, 20)
             }
         }
         .accessibilityIdentifier("home.hub.\(sectionKey)")
     }
 
+    private func mediaCardButton(_ item: MediaDisplayItem, layout: CardLayout, sectionKey: String, index: Int) -> some View {
+        Button {
+            onSelectMedia(item)
+        } label: {
+            mediaCard(item, layout: layout, sectionKey: sectionKey, index: index)
+        }
+        .buttonStyle(.plain)
+        #if os(tvOS)
+        .focusEffectDisabled()
+        #endif
+        .onLongPressGesture { onLongPressMedia(item) }
+    }
+
     private func mediaCard(_ item: MediaDisplayItem, layout: CardLayout, sectionKey: String, index: Int) -> some View {
         let isLandscape = layout == .landscape
-        let cardWidth: CGFloat = isLandscape ? 200 : 110
+        let cardWidth: CGFloat = isLandscape ? landscapeCardWidth : portraitCardWidth
         let ratio: CGFloat = isLandscape ? 16.0 / 9.0 : 2.0 / 3.0
         let isContinueWatching = sectionKey == "continueWatching"
         let watched = isItemWatched(item)
@@ -371,69 +381,190 @@ struct PlinxHomeView: View {
             item: item,
             isLandscape: isLandscape
         )
+        let imageViewModel = MediaImageViewModel(
+            context: plexApiContext,
+            artworkKind: artworkKind,
+            media: item
+        )
 
-        return VStack(alignment: .leading, spacing: 6) {
-            ZStack(alignment: .bottom) {
-                MediaImageView(
-                    viewModel: MediaImageViewModel(
-                        context: plexApiContext,
-                        artworkKind: artworkKind,
-                        media: item
+        return HomeMediaCardBody(
+            item: item,
+            sectionKey: sectionKey,
+            index: index,
+            cardWidth: cardWidth,
+            ratio: ratio,
+            isContinueWatching: isContinueWatching,
+            watched: watched,
+            imageViewModel: imageViewModel
+        )
+    }
+
+    private var sectionTitleFont: Font {
+        #if os(tvOS)
+        .system(size: 22, weight: .bold, design: .default)
+        #else
+        .title3.bold()
+        #endif
+    }
+
+    private var cardSpacing: CGFloat {
+        #if os(tvOS)
+        24
+        #else
+        12
+        #endif
+    }
+
+    private var portraitCardWidth: CGFloat {
+        #if os(tvOS)
+        170
+        #else
+        110
+        #endif
+    }
+
+    private var landscapeCardWidth: CGFloat {
+        #if os(tvOS)
+        300
+        #else
+        200
+        #endif
+    }
+
+    private var cardFocusPadding: CGFloat {
+        #if os(tvOS)
+        10
+        #else
+        0
+        #endif
+    }
+
+    private var bottomContentPadding: CGFloat {
+        #if os(tvOS)
+        36
+        #else
+        120
+        #endif
+    }
+}
+
+private struct HomeMediaCardBody: View {
+    let item: MediaDisplayItem
+    let sectionKey: String
+    let index: Int
+    let cardWidth: CGFloat
+    let ratio: CGFloat
+    let isContinueWatching: Bool
+    let watched: Bool
+    let imageViewModel: MediaImageViewModel
+
+    @Environment(\.isFocused) private var isFocused
+
+    private var thumbHeight: CGFloat { cardWidth / ratio }
+
+    private var focusHaloInset: CGFloat {
+        #if os(tvOS)
+        12
+        #else
+        0
+        #endif
+    }
+
+    private var artworkCornerRadius: CGFloat {
+        #if os(tvOS)
+        18
+        #else
+        11
+        #endif
+    }
+
+    private var titleFont: Font {
+        #if os(tvOS)
+        .subheadline.bold()
+        #else
+        .caption.bold()
+        #endif
+    }
+
+    private var subtitleFont: Font {
+        #if os(tvOS)
+        .caption
+        #else
+        .caption2
+        #endif
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ZStack {
+                ZStack(alignment: .bottom) {
+                    MediaImageView(
+                        viewModel: imageViewModel
                     )
-                )
-                .frame(width: cardWidth, height: cardWidth / ratio)
-                .clipped()
-                .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-                .overlay(alignment: .topTrailing) {
-                    // Show watched badge except on continue watching cards
-                    if !isContinueWatching && watched {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(Color.accentColor)
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(.white)
+                    .frame(width: cardWidth, height: thumbHeight)
+                    .scaleEffect(isFocused ? 1.06 : 1.0)
+                    .clipped()
+                    .clipShape(RoundedRectangle(cornerRadius: artworkCornerRadius, style: .continuous))
+                    .overlay(alignment: .topTrailing) {
+                        if !isContinueWatching && watched {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(Color.accentColor)
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundStyle(.white)
+                            }
+                            .frame(width: 24, height: 24)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .stroke(Color.black.opacity(0.3), lineWidth: 1)
+                            )
+                            .padding(8)
                         }
-                        .frame(width: 24, height: 24)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .stroke(Color.black.opacity(0.3), lineWidth: 1)
-                        )
-                        .padding(8)
                     }
-                }
-                .accessibilityIdentifier("home.thumbnail.\(sectionKey).\(index)")
+                    .overlay {
+                        RoundedRectangle(cornerRadius: artworkCornerRadius, style: .continuous)
+                            .stroke(isFocused ? Color.accentColor.opacity(0.9) : .clear, lineWidth: isFocused ? 2.5 : 0)
+                    }
+                    .accessibilityIdentifier("home.thumbnail.\(sectionKey).\(index)")
 
-                if let pct = item.viewProgressPercentage, pct > 0 {
-                    ZStack(alignment: .leading) {
-                        Rectangle()
-                            .fill(Color.white.opacity(0.30))
-                        Rectangle()
-                            .fill(Color.accentColor)
-                            .frame(width: cardWidth * CGFloat(min(pct / 100.0, 1.0)))
+                    if let pct = item.viewProgressPercentage, pct > 0 {
+                        ZStack(alignment: .leading) {
+                            Rectangle()
+                                .fill(Color.white.opacity(0.30))
+                                .frame(width: cardWidth)
+                            Rectangle()
+                                .fill(Color.accentColor)
+                                .frame(width: cardWidth * CGFloat(min(pct / 100.0, 1.0)))
+                        }
+                        .frame(width: cardWidth, height: 8)
+                        .clipShape(RoundedRectangle(cornerRadius: artworkCornerRadius, style: .continuous))
                     }
-                    .frame(height: 5)
-                    .padding(.horizontal, 4)
-                    .padding(.bottom, 4)
-                    .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
                 }
+                .shadow(color: isFocused ? Color.accentColor.opacity(0.72) : .clear, radius: isFocused ? 22 : 0)
             }
+            .frame(width: cardWidth + (focusHaloInset * 2), height: thumbHeight + (focusHaloInset * 2))
 
             Text(item.primaryLabel)
-                .font(.caption.bold())
+                .font(titleFont)
                 .foregroundStyle(.white)
                 .lineLimit(1)
                 .frame(width: cardWidth, alignment: .leading)
+                .padding(.leading, focusHaloInset)
 
             if let sub = item.secondaryLabel {
                 Text(sub)
-                    .font(.caption2)
+                    .font(subtitleFont)
                     .foregroundStyle(.white.opacity(0.55))
                     .lineLimit(1)
                     .frame(width: cardWidth, alignment: .leading)
+                    .padding(.leading, focusHaloInset)
             }
         }
-        .frame(width: cardWidth)
+        .frame(width: cardWidth + (focusHaloInset * 2), alignment: .leading)
+        #if os(tvOS)
+        .focusEffectDisabled()
+        #endif
         .accessibilityIdentifier("home.card.\(sectionKey).\(index)")
     }
 }

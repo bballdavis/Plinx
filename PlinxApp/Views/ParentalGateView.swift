@@ -63,7 +63,8 @@ struct ParentalGateView: View {
                 text: $pinEntry,
                 placeholder: "",
                 isSecure: true,
-                maximumDigits: 6
+                maximumDigits: 6,
+                onSubmit: submitPin
             )
                 .frame(width: entryFieldSize.width, height: entryFieldSize.height)
                 .frame(maxWidth: .infinity, minHeight: entryFieldSlotHeight, maxHeight: entryFieldSlotHeight, alignment: .center)
@@ -103,7 +104,8 @@ struct ParentalGateView: View {
 
             NumberPadEntryField(
                 text: $answerText,
-                placeholder: NSLocalizedString("parental.gate.placeholder", tableName: "Plinx", comment: "")
+                placeholder: NSLocalizedString("parental.gate.placeholder", tableName: "Plinx", comment: ""),
+                onSubmit: submitMathAnswer
             )
                 .frame(width: entryFieldSize.width, height: entryFieldSize.height)
                 .frame(maxWidth: .infinity, minHeight: entryFieldSlotHeight, maxHeight: entryFieldSlotHeight, alignment: .center)
@@ -121,14 +123,36 @@ struct ParentalGateView: View {
     }
 }
 
+extension ParentalGateView {
+    private func submitPin() {
+        if pinEntry == storedPin {
+            onAllowed()
+        } else {
+            pinError = true
+            pinEntry = ""
+        }
+    }
+
+    private func submitMathAnswer() {
+        if let answer = Int(answerText), mathGate.validate(answer: answer, for: challenge) {
+            onAllowed()
+        } else {
+            var rng = SystemRandomNumberGenerator()
+            challenge = mathGate.makeChallenge(rng: &rng)
+            answerText = ""
+        }
+    }
+}
+
 private struct NumberPadEntryField: UIViewRepresentable {
     @Binding var text: String
     let placeholder: String
     var isSecure: Bool = false
     var maximumDigits: Int? = nil
+    var onSubmit: () -> Void = {}
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text, maximumDigits: maximumDigits)
+        Coordinator(text: $text, maximumDigits: maximumDigits, onSubmit: onSubmit)
     }
 
     func makeUIView(context: Context) -> UITextField {
@@ -137,12 +161,28 @@ private struct NumberPadEntryField: UIViewRepresentable {
         textField.borderStyle = .roundedRect
         textField.keyboardType = .numberPad
         textField.keyboardAppearance = .light
+        textField.returnKeyType = .done
+        textField.enablesReturnKeyAutomatically = false
         textField.font = .preferredFont(forTextStyle: .title2)
         textField.adjustsFontForContentSizeCategory = true
         textField.textAlignment = .center
         textField.placeholder = placeholder
         textField.isSecureTextEntry = isSecure
         textField.addTarget(context.coordinator, action: #selector(Coordinator.textDidChange(_:)), for: .editingChanged)
+        #if !os(tvOS)
+        let toolbar = UIToolbar()
+        toolbar.sizeToFit()
+        toolbar.items = [
+            UIBarButtonItem.flexibleSpace(),
+            UIBarButtonItem(
+                title: NSLocalizedString("common.actions.done", tableName: "Plinx", comment: ""),
+                style: .done,
+                target: context.coordinator,
+                action: #selector(Coordinator.submit)
+            )
+        ]
+        textField.inputAccessoryView = toolbar
+        #endif
         return textField
     }
 
@@ -157,10 +197,12 @@ private struct NumberPadEntryField: UIViewRepresentable {
     final class Coordinator: NSObject, UITextFieldDelegate {
         @Binding private var text: String
         private let maximumDigits: Int?
+        private let onSubmit: () -> Void
 
-        init(text: Binding<String>, maximumDigits: Int?) {
+        init(text: Binding<String>, maximumDigits: Int?, onSubmit: @escaping () -> Void) {
             _text = text
             self.maximumDigits = maximumDigits
+            self.onSubmit = onSubmit
         }
 
         @objc func textDidChange(_ sender: UITextField) {
@@ -188,6 +230,15 @@ private struct NumberPadEntryField: UIViewRepresentable {
             }
 
             return true
+        }
+
+        func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+            submit()
+            return false
+        }
+
+        @objc func submit() {
+            onSubmit()
         }
 
         private func filteredText(from source: String) -> String {

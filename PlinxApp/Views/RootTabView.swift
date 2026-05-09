@@ -24,6 +24,10 @@ struct RootTabView: View {
     @State private var selectedQuickActionMedia: MediaDisplayItem?
     @State private var quickActionErrorMessage: String?
     @State private var homeViewModel: SafeHomeViewModel?
+    #if os(tvOS)
+    @State private var mediaFocusModel = MediaFocusModel()
+    @FocusState private var focusedHeaderTab: MainCoordinator.Tab?
+    #endif
     /// Local overrides for watched status, keyed by media item id.
     /// Updated instantly on toggle; cleared when home data reloads.
     @State private var watchedOverrides: [String: Bool] = [:]
@@ -68,9 +72,18 @@ struct RootTabView: View {
 
     /// Tabs shown in the picker.
     private var visibleTabs: [KidsMainTabPicker.TabItem] {
-        KidsMainTabPicker.TabItem.mainTabs(
+        #if os(tvOS)
+        let showsSearch = true
+        let includesSettings = true
+        #else
+        let showsSearch = showSearchInMainNavigation
+        let includesSettings = false
+        #endif
+
+        return KidsMainTabPicker.TabItem.mainTabs(
             includeDownloads: hasDownloadActivity,
-            showSearchInMainNavigation: showSearchInMainNavigation
+            showSearchInMainNavigation: showsSearch,
+            includeSettings: includesSettings
         )
     }
 
@@ -192,22 +205,26 @@ struct RootTabView: View {
 
     @ViewBuilder
     private var mainTabView: some View {
-        // Expand to the full window before attaching the bottom inset.
-        // This avoids first-pass layout glitches where the custom tab bar can
-        // anchor to an intermediate-height container on iPhone launch.
         let base = tabContainer
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .toolbar(.hidden, for: .tabBar)
+            .environment(\.watchedOverrides, watchedOverrides)
+            #if os(tvOS)
+            .environment(mediaFocusModel)
+            #endif
+
+        #if os(tvOS)
+        base
+        #else
+        base
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 KidsMainTabPicker(
                     tabs: visibleTabs,
-                    selectedTab: tabBinding
+                    selectedTab: tabBinding,
+                    onAction: handleBottomAction
                 )
             }
-            .environment(\.watchedOverrides, watchedOverrides)
-
-        // Keep root tab chrome fully custom (KidsMainTabPicker only).
-        base
+        #endif
     }
 
     private var tabContainer: some View {
@@ -249,13 +266,11 @@ struct RootTabView: View {
             NavigationStack(path: mainCoordinator.pathBinding(for: .home)) {
                 PlinxHomeView(
                     viewModel: viewModel,
-                    topContent: AnyView(
-                        topTitleRow(
-                            title: "tabs.home",
-                            showsSettingsButton: true,
-                            showsSearchButton: !showSearchInMainNavigation,
-                            showsLogo: true
-                        )
+                    topContent: scrollingHeaderContent(
+                        title: "tabs.home",
+                        showsSettingsButton: false,
+                        showsSearchButton: false,
+                        showsLogo: true
                     ),
                     onSelectMedia: { displayItem in
                         handlePrimarySelection(displayItem)
@@ -268,6 +283,16 @@ struct RootTabView: View {
                     }
                 )
                 .toolbar(.hidden, for: .navigationBar)
+                #if os(tvOS)
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    topTitleRow(
+                        title: "tabs.home",
+                        showsSettingsButton: false,
+                        showsSearchButton: false,
+                        showsLogo: true
+                    )
+                }
+                #endif
                 .navigationDestination(for: MainCoordinator.Route.self) { route in
                     destination(for: route)
                 }
@@ -292,7 +317,7 @@ struct RootTabView: View {
                         ),
                         policy: safetyPolicy
                     ),
-                    topContent: AnyView(topTitleRow(title: "tabs.search", showsSettingsButton: false)),
+                    topContent: scrollingHeaderContent(title: "tabs.search", showsSettingsButton: false),
                     onSelectMedia: { displayItem in
                         handlePrimarySelection(displayItem)
                     },
@@ -301,6 +326,11 @@ struct RootTabView: View {
                     }
                 )
                 .toolbar(.hidden, for: .navigationBar)
+                #if os(tvOS)
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    topTitleRow(title: "tabs.search", showsSettingsButton: false)
+                }
+                #endif
                 .navigationDestination(for: MainCoordinator.Route.self) { route in
                     destination(for: route)
                 }
@@ -320,12 +350,17 @@ struct RootTabView: View {
                         policy: safetyPolicy,
                         context: plexApiContext
                     ),
-                    topContent: AnyView(topTitleRow(title: "tabs.library".plinxLocalized, showsSettingsButton: false)),
+                    topContent: scrollingHeaderContent(title: "tabs.library".plinxLocalized, showsSettingsButton: false),
                     onSelectLibrary: { library in
                         mainCoordinator.libraryPath.append(library)
                     }
                 )
                 .toolbar(.hidden, for: .navigationBar)
+                #if os(tvOS)
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    topTitleRow(title: "tabs.library".plinxLocalized, showsSettingsButton: false)
+                }
+                #endif
                 .navigationDestination(for: Library.self) { library in
                     PlinxLibraryDetailView(
                         library: library,
@@ -349,6 +384,11 @@ struct RootTabView: View {
             NavigationStack(path: mainCoordinator.pathBinding(for: .more)) {
                 PlinxDownloadsGridView()
                     .toolbar(.hidden, for: .navigationBar)
+                    #if os(tvOS)
+                    .safeAreaInset(edge: .top, spacing: 0) {
+                        topTitleRow(title: "tabs.downloads", showsSettingsButton: false)
+                    }
+                    #endif
                     .navigationDestination(for: MainCoordinator.Route.self) { route in
                         destination(for: route)
                     }
@@ -367,6 +407,13 @@ struct RootTabView: View {
         mainCoordinator.tab = newValue
     }
 
+    private func handleBottomAction(_ action: KidsMainTabPicker.TabItem.Action) {
+        switch action {
+        case .settings:
+            showSettings = true
+        }
+    }
+
     private var settingsHeaderRow: some View {
         HStack(spacing: 12) {
             Text("tabs.settings".plinxLocalized)
@@ -382,28 +429,58 @@ struct RootTabView: View {
         .padding(.bottom, 10)
     }
 
+    private func scrollingHeaderContent(
+        title: String,
+        showsSettingsButton: Bool,
+        showsSearchButton: Bool = false,
+        showsLogo: Bool = false
+    ) -> AnyView? {
+        #if os(tvOS)
+        nil
+        #else
+        AnyView(
+            topTitleRow(
+                title: title,
+                showsSettingsButton: showsSettingsButton,
+                showsSearchButton: showsSearchButton,
+                showsLogo: showsLogo
+            )
+        )
+        #endif
+    }
+
     private func topTitleRow(
         title: String,
         showsSettingsButton: Bool,
         showsSearchButton: Bool = false,
         showsLogo: Bool = false
     ) -> some View {
-        HStack(spacing: 12) {
-            if showsLogo {
-                Image("LogoColor")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(height: 35)
-                    .accessibilityHidden(true)
+        #if os(tvOS)
+        ZStack {
+            HStack(spacing: 12) {
+                headerLeadingContent(title: title, showsLogo: showsLogo)
+                    .frame(width: tvOSHeaderSideWidth, alignment: .leading)
 
-                Text(title.plinxLocalized)
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(.white.opacity(0.95))
-            } else {
-                Text(title.plinxLocalized)
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(.white.opacity(0.95))
+                Spacer(minLength: 0)
+
+                Color.clear
+                    .frame(width: tvOSHeaderSideWidth, height: 1)
             }
+
+            KidsMainTabPicker(
+                tabs: visibleTabs,
+                selectedTab: tabBinding,
+                focusedTab: $focusedHeaderTab,
+                onAction: handleBottomAction,
+                placement: .header
+            )
+        }
+        .padding(.horizontal, 28)
+        .padding(.top, 10)
+        .padding(.bottom, 14)
+        #else
+        HStack(spacing: 12) {
+            headerLeadingContent(title: title, showsLogo: showsLogo)
             Spacer()
             if showsSearchButton {
                 PlinxChromeButton(systemImage: "magnifyingglass") {
@@ -424,6 +501,34 @@ struct RootTabView: View {
         .padding(.horizontal, 20)
         .padding(.top, 8)
         .padding(.bottom, 10)
+        #endif
+    }
+
+    @ViewBuilder
+    private func headerLeadingContent(title: String, showsLogo: Bool) -> some View {
+        if showsLogo {
+            HStack(spacing: 10) {
+                Image("LogoColor")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: 35)
+                    .accessibilityHidden(true)
+
+                Text(title.plinxLocalized)
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.95))
+                    .lineLimit(1)
+            }
+        } else {
+            Text(title.plinxLocalized)
+                .font(.title3.weight(.bold))
+                .foregroundStyle(.white.opacity(0.95))
+                .lineLimit(1)
+        }
+    }
+
+    private var tvOSHeaderSideWidth: CGFloat {
+        320
     }
 
     @ViewBuilder

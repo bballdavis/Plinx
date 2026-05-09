@@ -11,6 +11,7 @@ enum AppearanceSetup {
     static func apply(_ theme: PlinxTheme, accentColor: UIColor? = nil) {
         let accent = accentColor ?? UIColor(theme.palette.accent)
 
+        #if !os(tvOS)
         // Navigation bar — transparent, white text
         let navAppearance = UINavigationBarAppearance()
         navAppearance.configureWithTransparentBackground()
@@ -30,6 +31,7 @@ enum AppearanceSetup {
         UITabBar.appearance().standardAppearance = tabAppearance
         UITabBar.appearance().tintColor = accent
         UITabBar.appearance().unselectedItemTintColor = UIColor.white.withAlphaComponent(0.55)
+        #endif
 
         // Global tint — only set at window level so SwiftUI .tint() can still override
         // child views. Setting this also forces UIKit-hosted views (tab bar) to update.

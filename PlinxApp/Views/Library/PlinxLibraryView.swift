@@ -41,7 +41,7 @@ struct PlinxLibraryView: View {
 
     private var libraryList: some View {
         ScrollView {
-            LazyVStack(spacing: 10) {
+            LazyVStack(spacing: libraryListSpacing) {
                 if let topContent {
                     topContent
                 }
@@ -52,70 +52,37 @@ struct PlinxLibraryView: View {
                 }
             }
             .padding(.top, 8)
-            // Extra padding to prevent content from disappearing behind the
-            // floating KidsMainTabPicker tab bar (~88pt).
-            .padding(.bottom, 120)
+            .padding(.bottom, bottomContentPadding)
         }
     }
 
     private func libraryTile(_ library: Library) -> some View {
         Button { onSelectLibrary(library) } label: {
-            ZStack(alignment: .bottom) {
-                GeometryReader { proxy in
-                    Group {
-                        let bannerURLs = viewModel.bannerArtworkURLs(for: library)
-                        if !bannerURLs.isEmpty {
-                            adaptiveLibraryArtwork(
-                                artworkURLs: bannerURLs,
-                                size: proxy.size,
-                                placeholder: libraryPlaceholder(for: library)
-                            )
-                        } else {
-                            libraryPlaceholder(for: library)
-                        }
+            LibraryTileBody(
+                library: library,
+                bannerURLs: viewModel.bannerArtworkURLs(for: library),
+                tileHeight: libraryTileHeight,
+                artworkRefreshToken: artworkRefreshToken,
+                hotReloadLibraryArtwork: hotReloadLibraryArtwork,
+                bannerArtworkDisplayCount: bannerArtworkDisplayCount,
+                ensureArtwork: { library, bannerCount in
+                    if hotReloadLibraryArtwork {
+                        await viewModel.refreshArtwork(for: library, bannerCount: bannerCount)
+                    } else {
+                        await viewModel.ensureArtwork(for: library, bannerCount: bannerCount)
                     }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 160)
-                    .clipped()
+                },
+                placeholder: { libraryPlaceholder(for: $0) },
+                adaptiveArtwork: { artworkURLs, size in
+                    adaptiveLibraryArtwork(
+                        artworkURLs: artworkURLs,
+                        size: size,
+                        placeholder: libraryPlaceholder(for: library)
+                    )
                 }
-
-                LinearGradient(
-                    colors: [.clear, .black.opacity(0.85)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Image(systemName: library.iconName)
-                            .font(.system(size: 27, weight: .bold))
-                            .foregroundStyle(.white.opacity(0.8))
-                        Text(library.title)
-                            .font(.title3.bold())
-                            .foregroundStyle(.white)
-                            .lineLimit(2)
-                    }
-                    .padding(14)
-                    Spacer()
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 160)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(.white.opacity(0.15), lineWidth: 1)
             )
-            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .task(id: artworkRefreshToken) {
-                if hotReloadLibraryArtwork {
-                    await viewModel.refreshArtwork(for: library, bannerCount: bannerArtworkDisplayCount)
-                } else {
-                    await viewModel.ensureArtwork(for: library, bannerCount: bannerArtworkDisplayCount)
-                }
-            }
         }
-        .buttonStyle(SpringyButtonStyle())
+        .buttonStyle(.plain)
     }
 
     private func libraryPlaceholder(for library: Library) -> some View {
@@ -132,6 +99,30 @@ struct PlinxLibraryView: View {
             storedCount: storedBannerArtworkCount,
             userInterfaceIdiom: UIDevice.current.userInterfaceIdiom
         )
+    }
+
+    private var libraryTileHeight: CGFloat {
+        #if os(tvOS)
+        220
+        #else
+        160
+        #endif
+    }
+
+    private var libraryListSpacing: CGFloat {
+        #if os(tvOS)
+        18
+        #else
+        10
+        #endif
+    }
+
+    private var bottomContentPadding: CGFloat {
+        #if os(tvOS)
+        36
+        #else
+        120
+        #endif
     }
 
     private func adaptiveLibraryArtwork(
@@ -278,6 +269,102 @@ struct PlinxLibraryView: View {
             startPoint: .leading,
             endPoint: .trailing
         )
+    }
+}
+
+private struct LibraryTileBody<Placeholder: View, Artwork: View>: View {
+    let library: Library
+    let bannerURLs: [URL]
+    let tileHeight: CGFloat
+    let artworkRefreshToken: UUID
+    let hotReloadLibraryArtwork: Bool
+    let bannerArtworkDisplayCount: Int
+    let ensureArtwork: (Library, Int) async -> Void
+    let placeholder: (Library) -> Placeholder
+    let adaptiveArtwork: ([URL], CGSize) -> Artwork
+
+    @Environment(\.isFocused) private var isFocused
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            GeometryReader { proxy in
+                Group {
+                    if !bannerURLs.isEmpty {
+                        adaptiveArtwork(bannerURLs, proxy.size)
+                    } else {
+                        placeholder(library)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: tileHeight)
+                .clipped()
+            }
+
+            LinearGradient(
+                colors: [.clear, .black.opacity(0.85)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+
+            HStack {
+                VStack(alignment: .leading, spacing: 6) {
+                    Image(systemName: library.iconName)
+                        .font(.system(size: iconSize, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.8))
+                    Text(library.title)
+                        .font(titleFont)
+                        .foregroundStyle(.white)
+                        .lineLimit(2)
+                }
+                .padding(labelPadding)
+                Spacer()
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: tileHeight)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .stroke(isFocused ? Color.accentColor : .clear, lineWidth: isFocused ? 3 : 0)
+        )
+        .shadow(color: isFocused ? Color.accentColor.opacity(0.65) : .clear, radius: isFocused ? 30 : 0)
+        .scaleEffect(isFocused ? 1.05 : 1.0)
+        .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .task(id: artworkRefreshToken) {
+            await ensureArtwork(library, bannerArtworkDisplayCount)
+        }
+    }
+
+    private var iconSize: CGFloat {
+        #if os(tvOS)
+        36
+        #else
+        27
+        #endif
+    }
+
+    private var titleFont: Font {
+        #if os(tvOS)
+        .title2.bold()
+        #else
+        .title3.bold()
+        #endif
+    }
+
+    private var labelPadding: CGFloat {
+        #if os(tvOS)
+        20
+        #else
+        14
+        #endif
+    }
+
+    private var cornerRadius: CGFloat {
+        #if os(tvOS)
+        22
+        #else
+        16
+        #endif
     }
 }
 
