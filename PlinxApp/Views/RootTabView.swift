@@ -278,6 +278,9 @@ struct RootTabView: View {
                     onLongPressMedia: { displayItem in
                         selectedQuickActionMedia = displayItem
                     },
+                    onRequestHomeNavigationFocus: {
+                        focusedHeaderTab = .home
+                    },
                     isItemWatched: { displayItem in
                         isWatchedDisplay(displayItem)
                     }
@@ -353,6 +356,9 @@ struct RootTabView: View {
                     topContent: scrollingHeaderContent(title: "tabs.library".plinxLocalized, showsSettingsButton: false),
                     onSelectLibrary: { library in
                         mainCoordinator.libraryPath.append(library)
+                    },
+                    onRequestHomeNavigationFocus: {
+                        focusedHeaderTab = .home
                     }
                 )
                 .toolbar(.hidden, for: .navigationBar)

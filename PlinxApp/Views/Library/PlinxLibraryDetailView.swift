@@ -19,8 +19,10 @@ struct PlinxLibraryDetailView: View {
 
     @Environment(PlexAPIContext.self) private var plexApiContext
     @Environment(SettingsManager.self) private var settingsManager
+    @Environment(DownloadManager.self) private var downloadManager
     @Environment(\.safetyPolicy) private var safetyPolicy
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var mainCoordinator: MainCoordinator
 
     let library: Library
     let onSelectMedia: (MediaDisplayItem) -> Void
@@ -44,6 +46,11 @@ struct PlinxLibraryDetailView: View {
             )
             .navigationBarBackButtonHidden(true)
             .toolbarBackground(.hidden, for: .navigationBar)
+            #if os(tvOS)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                tvHeaderContent
+            }
+            #endif
             .onChange(of: settingsManager.interface.displayCollections) { _, displayCollections in
                 if !displayCollections, selectedTab == .collections {
                     selectedTab = .recommended
@@ -142,6 +149,40 @@ struct PlinxLibraryDetailView: View {
 
     // MARK: - Tab helpers
 
+    private var hasDownloadActivity: Bool {
+        !downloadManager.items.isEmpty
+    }
+
+    private var activeRootTab: MainCoordinator.Tab {
+        switch mainCoordinator.tab {
+        case .search:
+            return .search
+        case .library, .libraryDetail(_):
+            return .library
+        case .more:
+            return .more
+        case .home, .seerrDiscover:
+            return .home
+        }
+    }
+
+    private var rootTabBinding: Binding<MainCoordinator.Tab> {
+        Binding(
+            get: { activeRootTab },
+            set: { newValue in
+                handleRootTabSelection(newValue)
+            }
+        )
+    }
+
+    private var visibleRootTabs: [KidsMainTabPicker.TabItem] {
+        KidsMainTabPicker.TabItem.mainTabs(
+            includeDownloads: hasDownloadActivity,
+            showSearchInMainNavigation: true,
+            includeSettings: false
+        )
+    }
+
     private var availableTabs: [LibraryDetailTab] {
         LibraryDetailTab.allCases.filter { tab in
             switch tab {
@@ -157,12 +198,66 @@ struct PlinxLibraryDetailView: View {
         }
     }
 
+    #if os(tvOS)
+    private var tvHeaderContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Single row: [back + library name] overlaid with centered nav picker
+            ZStack {
+                HStack(spacing: 0) {
+                    HStack(spacing: 12) {
+                        PlinxChromeButton(systemImage: "chevron.left") {
+                            dismiss()
+                        }
+                        Text(library.title)
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.95))
+                            .lineLimit(1)
+                        if selectedTab == .browse {
+                            browseQuickSortButtons
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Spacer(minLength: 0)
+                        .frame(maxWidth: .infinity)
+                }
+
+                KidsMainTabPicker(
+                    tabs: visibleRootTabs,
+                    selectedTab: rootTabBinding,
+                    placement: .header
+                )
+                .frame(maxWidth: .infinity, alignment: .center)
+            }
+
+            // Library sub-tabs (Recommended / Browse / Collections)
+            PlinxLibraryTabPicker(tabs: availableTabs, selectedTab: $selectedTab)
+                .frame(height: 72)
+        }
+        .padding(.horizontal, 28)
+        .padding(.top, 8)
+        .padding(.bottom, 12)
+        .background(
+            LinearGradient(
+                colors: [Color.black.opacity(0.72), Color.black.opacity(0.46), Color.black.opacity(0.10)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
+    }
+    #endif
+
     // MARK: - Layout heuristic
 
     /// Portrait (poster) for standard movie/TV libraries; landscape (letterbox)
     /// for "none"-agent libraries (YouTube, Home Videos) and clip libraries.
     private var preferredCarouselLayout: MediaCarousel.Layout? {
         LibraryCardLayoutPolicy.prefersLandscape(for: library) ? .landscape : nil
+    }
+
+    private func handleRootTabSelection(_ newValue: MainCoordinator.Tab) {
+        mainCoordinator.resetToRoot(for: newValue)
+        mainCoordinator.tab = newValue
     }
 
     // MARK: - ViewModel factories (Plinx-side safety injection)
@@ -309,13 +404,55 @@ private struct PlinxLibraryTabPicker: View {
 
     private var isRegular: Bool { sizeClass == .regular }
 
-    private var buttonMinWidth: CGFloat   { isRegular ? 108 : 82 }
-    private var buttonHeight: CGFloat     { isRegular ? 66  : 52 }
-    private var iconPointSize: CGFloat    { isRegular ? 26  : 19 }
-    private var labelFont: Font           { isRegular ? .subheadline : .caption }
-    private var cornerRadius: CGFloat     { isRegular ? 16  : 12 }
-    private var hSpacing: CGFloat         { isRegular ? 12  : 8  }
-    private var iconLabelSpacing: CGFloat { isRegular ? 8   : 5  }
+    private var buttonMinWidth: CGFloat   {
+        #if os(tvOS)
+        88
+        #else
+        isRegular ? 108 : 82
+        #endif
+    }
+    private var buttonHeight: CGFloat     {
+        #if os(tvOS)
+        50
+        #else
+        isRegular ? 66 : 52
+        #endif
+    }
+    private var iconPointSize: CGFloat    {
+        #if os(tvOS)
+        18
+        #else
+        isRegular ? 26 : 19
+        #endif
+    }
+    private var labelFont: Font           {
+        #if os(tvOS)
+        .caption2
+        #else
+        isRegular ? .subheadline : .caption
+        #endif
+    }
+    private var cornerRadius: CGFloat     {
+        #if os(tvOS)
+        14
+        #else
+        isRegular ? 16 : 12
+        #endif
+    }
+    private var hSpacing: CGFloat         {
+        #if os(tvOS)
+        8
+        #else
+        isRegular ? 12 : 8
+        #endif
+    }
+    private var iconLabelSpacing: CGFloat {
+        #if os(tvOS)
+        4
+        #else
+        isRegular ? 8 : 5
+        #endif
+    }
 
     var body: some View {
         GeometryReader { proxy in

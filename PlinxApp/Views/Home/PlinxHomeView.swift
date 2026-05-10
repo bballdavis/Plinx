@@ -10,6 +10,7 @@ struct PlinxHomeView: View {
     var topContent: AnyView? = nil
     var onSelectMedia: (MediaDisplayItem) -> Void
     var onLongPressMedia: (MediaDisplayItem) -> Void = { _ in }
+    var onRequestHomeNavigationFocus: () -> Void = {}
     /// Returns whether a given display item should show as watched.
     /// Injected by parent to reflect optimistic local overrides.
     var isItemWatched: (MediaDisplayItem) -> Bool = { $0.isFullyWatched }
@@ -18,6 +19,9 @@ struct PlinxHomeView: View {
     @Environment(LibraryStore.self) private var libraryStore
     @Environment(\.safetyPolicy) private var safetyPolicy
     @State private var artworkRefreshToken = UUID()
+    #if os(tvOS)
+    @FocusState private var focusedCard: HomeFocusTarget?
+    #endif
 
     // Plinx-specific home screen settings (separate from Library-tab visibility)
     @AppStorage("plinx.homeHiddenLibraryIds") private var homeHiddenIdsJson = "[]"
@@ -79,8 +83,14 @@ struct PlinxHomeView: View {
                     topContent
                 }
 
-                ForEach(orderedHomeSections, id: \.self) { sectionId in
-                    homeSectionView(sectionId)
+                ForEach(Array(homeRows.enumerated()), id: \.element.id) { rowIndex, row in
+                    hubRow(
+                        row.hub,
+                        layout: row.layout,
+                        sectionKey: row.sectionKey,
+                        rowIndex: rowIndex,
+                        rowCount: homeRows.count
+                    )
                 }
             }
             .padding(.top, 8)
@@ -94,44 +104,42 @@ struct PlinxHomeView: View {
         artworkRefreshToken = UUID()
     }
 
-    @ViewBuilder
-    private func homeSectionView(_ sectionId: String) -> some View {
-        switch sectionId {
-        case "continueWatching":
-            ForEach(HomeLibraryGrouping.continueWatchingRows(from: viewModel.continueWatching)) { row in
-                hubRow(
-                    Hub(id: row.id, title: row.title, items: row.items),
-                    layout: .landscape,
-                    sectionKey: row.sectionKey
-                )
+    private var homeRows: [HomeRow] {
+        var rows: [HomeRow] = []
+
+        for sectionId in orderedHomeSections {
+            switch sectionId {
+            case "continueWatching":
+                rows.append(contentsOf: HomeLibraryGrouping.continueWatchingRows(from: viewModel.continueWatching).map {
+                    HomeRow(
+                        id: $0.id,
+                        hub: Hub(id: $0.id, title: $0.title, items: $0.items),
+                        layout: .landscape,
+                        sectionKey: $0.sectionKey
+                    )
+                })
+            case "moviesAndTV":
+                rows.append(contentsOf: moviesTVGroups.filter { $0.hub.hasItems }.map {
+                    HomeRow(id: $0.id, hub: $0.hub, layout: $0.layout, sectionKey: "moviesAndTV")
+                })
+            case "recentMovies":
+                rows.append(contentsOf: recentMoviesGroups.filter { $0.hub.hasItems }.map {
+                    HomeRow(id: $0.id, hub: $0.hub, layout: $0.layout, sectionKey: "recentMovies")
+                })
+            case "recentTV":
+                rows.append(contentsOf: recentTVGroups.filter { $0.hub.hasItems }.map {
+                    HomeRow(id: $0.id, hub: $0.hub, layout: $0.layout, sectionKey: "recentTV")
+                })
+            case "otherVideos":
+                rows.append(contentsOf: otherVideoGroups.filter { $0.hub.hasItems }.map {
+                    HomeRow(id: $0.id, hub: $0.hub, layout: $0.layout, sectionKey: "otherVideos")
+                })
+            default:
+                break
             }
-        case "moviesAndTV":
-            ForEach(moviesTVGroups) { group in
-                if group.hub.hasItems {
-                    hubRow(group.hub, layout: group.layout, sectionKey: "moviesAndTV")
-                }
-            }
-        case "recentMovies":
-            ForEach(recentMoviesGroups) { group in
-                if group.hub.hasItems {
-                    hubRow(group.hub, layout: group.layout, sectionKey: "recentMovies")
-                }
-            }
-        case "recentTV":
-            ForEach(recentTVGroups) { group in
-                if group.hub.hasItems {
-                    hubRow(group.hub, layout: group.layout, sectionKey: "recentTV")
-                }
-            }
-        case "otherVideos":
-            ForEach(otherVideoGroups) { group in
-                if group.hub.hasItems {
-                    hubRow(group.hub, layout: group.layout, sectionKey: "otherVideos")
-                }
-            }
-        default:
-            EmptyView()
         }
+
+        return rows
     }
 
     // MARK: - Hub layout groups
@@ -143,6 +151,19 @@ struct PlinxHomeView: View {
         let hub: Hub
         let layout: CardLayout
     }
+
+    private struct HomeRow: Identifiable {
+        let id: String
+        let hub: Hub
+        let layout: CardLayout
+        let sectionKey: String
+    }
+
+    #if os(tvOS)
+    private enum HomeFocusTarget: Hashable {
+        case card(row: Int, item: Int)
+    }
+    #endif
 
     // MARK: - Home library filtering & ordering
 
@@ -336,7 +357,7 @@ struct PlinxHomeView: View {
 
     // MARK: - Hub row
 
-    private func hubRow(_ hub: Hub, layout: CardLayout, sectionKey: String) -> some View {
+    private func hubRow(_ hub: Hub, layout: CardLayout, sectionKey: String, rowIndex: Int, rowCount: Int) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(hub.title)
                 .font(sectionTitleFont)
@@ -347,7 +368,14 @@ struct PlinxHomeView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: cardSpacing) {
                     ForEach(Array(hub.items.enumerated()), id: \.element.id) { index, item in
-                        mediaCardButton(item, layout: layout, sectionKey: sectionKey, index: index)
+                        mediaCardButton(
+                            item,
+                            layout: layout,
+                            sectionKey: sectionKey,
+                            rowIndex: rowIndex,
+                            rowCount: rowCount,
+                            index: index
+                        )
                     }
                 }
                 .padding(.vertical, cardFocusPadding)
@@ -357,18 +385,55 @@ struct PlinxHomeView: View {
         .accessibilityIdentifier("home.hub.\(sectionKey)")
     }
 
-    private func mediaCardButton(_ item: MediaDisplayItem, layout: CardLayout, sectionKey: String, index: Int) -> some View {
+    @ViewBuilder
+    private func mediaCardButton(
+        _ item: MediaDisplayItem,
+        layout: CardLayout,
+        sectionKey: String,
+        rowIndex: Int,
+        rowCount: Int,
+        index: Int
+    ) -> some View {
+        let card = mediaCard(item, layout: layout, sectionKey: sectionKey, index: index)
+
+        #if os(tvOS)
+        card
+            .focused($focusedCard, equals: .card(row: rowIndex, item: index))
+            .focusable()
+            .focusEffectDisabled()
+            .onTapGesture { onSelectMedia(item) }
+            .onLongPressGesture { onLongPressMedia(item) }
+            .onMoveCommand { direction in
+                handleMoveCommand(direction, fromRow: rowIndex, rowCount: rowCount)
+            }
+        #else
         Button {
             onSelectMedia(item)
         } label: {
-            mediaCard(item, layout: layout, sectionKey: sectionKey, index: index)
+            card
         }
         .buttonStyle(.plain)
-        #if os(tvOS)
-        .focusEffectDisabled()
-        #endif
         .onLongPressGesture { onLongPressMedia(item) }
+        #endif
     }
+
+    #if os(tvOS)
+    private func handleMoveCommand(_ direction: MoveCommandDirection, fromRow rowIndex: Int, rowCount: Int) {
+        switch direction {
+        case .up:
+            if rowIndex == 0 {
+                onRequestHomeNavigationFocus()
+            } else {
+                focusedCard = .card(row: rowIndex - 1, item: 0)
+            }
+        case .down:
+            guard rowIndex + 1 < rowCount else { return }
+            focusedCard = .card(row: rowIndex + 1, item: 0)
+        default:
+            break
+        }
+    }
+    #endif
 
     private func mediaCard(_ item: MediaDisplayItem, layout: CardLayout, sectionKey: String, index: Int) -> some View {
         let isLandscape = layout == .landscape
@@ -539,6 +604,10 @@ private struct HomeMediaCardBody: View {
                         }
                         .frame(width: cardWidth, height: 8)
                         .clipShape(RoundedRectangle(cornerRadius: artworkCornerRadius, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: artworkCornerRadius, style: .continuous)
+                                .stroke(Color.black.opacity(0.7), lineWidth: 1)
+                        }
                     }
                 }
                 .shadow(color: isFocused ? Color.accentColor.opacity(0.72) : .clear, radius: isFocused ? 22 : 0)

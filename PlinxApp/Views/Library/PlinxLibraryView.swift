@@ -6,6 +6,7 @@ struct PlinxLibraryView: View {
     @State var viewModel: SafeLibraryViewModel
     var topContent: AnyView? = nil
     var onSelectLibrary: (Library) -> Void
+    var onRequestHomeNavigationFocus: () -> Void = {}
     @State private var artworkRefreshToken = UUID()
     @AppStorage(LibraryCardLayoutPolicy.hotReloadLibraryArtworkStorageKey)
     private var hotReloadLibraryArtwork = false
@@ -13,6 +14,9 @@ struct PlinxLibraryView: View {
     private var storedBannerArtworkCount = 0
 
     @Environment(\.safetyPolicy) private var safetyPolicy
+    #if os(tvOS)
+    @FocusState private var focusedLibraryID: String?
+    #endif
 
     var body: some View {
         Group {
@@ -47,7 +51,7 @@ struct PlinxLibraryView: View {
                 }
 
                 ForEach(viewModel.libraries) { library in
-                    libraryTile(library)
+                    libraryTile(library, rowIndex: viewModel.libraries.firstIndex(where: { $0.id == library.id }) ?? 0)
                         .padding(.horizontal, 20)
                 }
             }
@@ -56,34 +60,66 @@ struct PlinxLibraryView: View {
         }
     }
 
-    private func libraryTile(_ library: Library) -> some View {
-        Button { onSelectLibrary(library) } label: {
-            LibraryTileBody(
-                library: library,
-                bannerURLs: viewModel.bannerArtworkURLs(for: library),
-                tileHeight: libraryTileHeight,
-                artworkRefreshToken: artworkRefreshToken,
-                hotReloadLibraryArtwork: hotReloadLibraryArtwork,
-                bannerArtworkDisplayCount: bannerArtworkDisplayCount,
-                ensureArtwork: { library, bannerCount in
-                    if hotReloadLibraryArtwork {
-                        await viewModel.refreshArtwork(for: library, bannerCount: bannerCount)
-                    } else {
-                        await viewModel.ensureArtwork(for: library, bannerCount: bannerCount)
-                    }
-                },
-                placeholder: { libraryPlaceholder(for: $0) },
-                adaptiveArtwork: { artworkURLs, size in
-                    adaptiveLibraryArtwork(
-                        artworkURLs: artworkURLs,
-                        size: size,
-                        placeholder: libraryPlaceholder(for: library)
-                    )
+    @ViewBuilder
+    private func libraryTile(_ library: Library, rowIndex: Int) -> some View {
+        let tileBody = LibraryTileBody(
+            library: library,
+            bannerURLs: viewModel.bannerArtworkURLs(for: library),
+            tileHeight: libraryTileHeight,
+            artworkRefreshToken: artworkRefreshToken,
+            hotReloadLibraryArtwork: hotReloadLibraryArtwork,
+            bannerArtworkDisplayCount: bannerArtworkDisplayCount,
+            ensureArtwork: { library, bannerCount in
+                if hotReloadLibraryArtwork {
+                    await viewModel.refreshArtwork(for: library, bannerCount: bannerCount)
+                } else {
+                    await viewModel.ensureArtwork(for: library, bannerCount: bannerCount)
                 }
-            )
+            },
+            placeholder: { libraryPlaceholder(for: $0) },
+            adaptiveArtwork: { artworkURLs, size in
+                adaptiveLibraryArtwork(
+                    artworkURLs: artworkURLs,
+                    size: size,
+                    placeholder: libraryPlaceholder(for: library)
+                )
+            }
+        )
+
+        #if os(tvOS)
+        tileBody
+            .focused($focusedLibraryID, equals: library.id)
+            .focusable(interactions: .activate)
+            .focusEffectDisabled()
+            .onTapGesture { onSelectLibrary(library) }
+            .onMoveCommand { direction in
+                handleMoveCommand(direction, fromRow: rowIndex)
+            }
+        #else
+        Button { onSelectLibrary(library) } label: {
+            tileBody
         }
         .buttonStyle(.plain)
+        #endif
     }
+
+    #if os(tvOS)
+    private func handleMoveCommand(_ direction: MoveCommandDirection, fromRow rowIndex: Int) {
+        switch direction {
+        case .up:
+            if rowIndex == 0 {
+                onRequestHomeNavigationFocus()
+            } else {
+                focusedLibraryID = viewModel.libraries[rowIndex - 1].id
+            }
+        case .down:
+            guard rowIndex + 1 < viewModel.libraries.count else { return }
+            focusedLibraryID = viewModel.libraries[rowIndex + 1].id
+        default:
+            break
+        }
+    }
+    #endif
 
     private func libraryPlaceholder(for library: Library) -> some View {
         ZStack {
