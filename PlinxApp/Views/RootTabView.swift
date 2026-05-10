@@ -99,6 +99,14 @@ struct RootTabView: View {
 
     var body: some View {
         mainTabView
+            #if os(tvOS)
+            .onAppear {
+                focusedHeaderTab = activeRootTab
+            }
+            .onChange(of: activeRootTab) { _, newTab in
+                focusedHeaderTab = newTab
+            }
+            #endif
             .onChange(of: hasDownloadActivity) { _, hasDownloads in
                 guard !hasDownloads, activeRootTab == .more else { return }
                 mainCoordinator.resetToRoot(for: .more)
@@ -286,16 +294,6 @@ struct RootTabView: View {
                     }
                 )
                 .toolbar(.hidden, for: .navigationBar)
-                #if os(tvOS)
-                .safeAreaInset(edge: .top, spacing: 0) {
-                    topTitleRow(
-                        title: "tabs.home",
-                        showsSettingsButton: false,
-                        showsSearchButton: false,
-                        showsLogo: true
-                    )
-                }
-                #endif
                 .navigationDestination(for: MainCoordinator.Route.self) { route in
                     destination(for: route)
                 }
@@ -329,11 +327,6 @@ struct RootTabView: View {
                     }
                 )
                 .toolbar(.hidden, for: .navigationBar)
-                #if os(tvOS)
-                .safeAreaInset(edge: .top, spacing: 0) {
-                    topTitleRow(title: "tabs.search", showsSettingsButton: false)
-                }
-                #endif
                 .navigationDestination(for: MainCoordinator.Route.self) { route in
                     destination(for: route)
                 }
@@ -362,11 +355,6 @@ struct RootTabView: View {
                     }
                 )
                 .toolbar(.hidden, for: .navigationBar)
-                #if os(tvOS)
-                .safeAreaInset(edge: .top, spacing: 0) {
-                    topTitleRow(title: "tabs.library".plinxLocalized, showsSettingsButton: false)
-                }
-                #endif
                 .navigationDestination(for: Library.self) { library in
                     PlinxLibraryDetailView(
                         library: library,
@@ -441,9 +429,6 @@ struct RootTabView: View {
         showsSearchButton: Bool = false,
         showsLogo: Bool = false
     ) -> AnyView? {
-        #if os(tvOS)
-        nil
-        #else
         AnyView(
             topTitleRow(
                 title: title,
@@ -452,7 +437,6 @@ struct RootTabView: View {
                 showsLogo: showsLogo
             )
         )
-        #endif
     }
 
     private func topTitleRow(

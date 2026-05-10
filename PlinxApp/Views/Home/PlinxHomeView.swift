@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import PlinxUI
 import PlinxCore
 import OSLog
@@ -20,6 +21,7 @@ struct PlinxHomeView: View {
     @Environment(\.safetyPolicy) private var safetyPolicy
     @State private var artworkRefreshToken = UUID()
     #if os(tvOS)
+    @Environment(MediaFocusModel.self) private var mediaFocusModel
     @FocusState private var focusedCard: HomeFocusTarget?
     #endif
 
@@ -62,6 +64,14 @@ struct PlinxHomeView: View {
             // without a full network reload.
             viewModel.updatePolicy(newPolicy)
         }
+        #if os(tvOS)
+        .onAppear {
+            updateInitialHeroFocus()
+        }
+        .onChange(of: defaultHeroMedia?.id) { _, _ in
+            updateInitialHeroFocus()
+        }
+        #endif
     }
 
     // MARK: - Subviews
@@ -77,6 +87,38 @@ struct PlinxHomeView: View {
     }
 
     private var scrollContent: some View {
+        #if os(tvOS)
+        SharedTvBrowsePageLayout(
+            heroMedia: mediaFocusModel.focusedMedia ?? defaultHeroMedia,
+            showsFilters: false,
+            navigationContent: {
+                if let topContent {
+                    topContent
+                }
+            },
+            filterContent: {
+                EmptyView()
+            },
+            rowsContent: { _ in
+                LazyVStack(alignment: .leading, spacing: 24) {
+                    ForEach(homeRows) { row in
+                        MediaHubSection(title: row.hub.title) {
+                            MediaCarousel(
+                                layout: row.layout == .landscape ? .landscape : .portrait,
+                                items: row.hub.items,
+                                showsLabels: true,
+                                onSelectMedia: onSelectMedia,
+                                onLongPressMedia: onLongPressMedia
+                            )
+                        }
+                    }
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, bottomContentPadding)
+            }
+        )
+        .id(artworkRefreshToken)
+        #else
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 14) {
                 if let topContent {
@@ -97,6 +139,7 @@ struct PlinxHomeView: View {
             .padding(.bottom, bottomContentPadding)
         }
         .id(artworkRefreshToken)
+        #endif
     }
 
     private func refreshContent() async {
@@ -141,6 +184,22 @@ struct PlinxHomeView: View {
 
         return rows
     }
+
+    private var defaultHeroMedia: MediaItem? {
+        for row in homeRows where row.hub.hasItems {
+            if let item = row.hub.items.compactMap(\.playableItem).first {
+                return item
+            }
+        }
+        return nil
+    }
+
+    #if os(tvOS)
+    private func updateInitialHeroFocus() {
+        guard mediaFocusModel.focusedMedia == nil, let defaultHeroMedia else { return }
+        mediaFocusModel.focusedMedia = defaultHeroMedia
+    }
+    #endif
 
     // MARK: - Hub layout groups
 
@@ -646,3 +705,429 @@ private func decodeStringArray(_ json: String) -> [String] {
     else { return [] }
     return arr
 }
+
+#if os(tvOS)
+
+struct SharedTvBrowsePageLayout<NavigationContent: View, FilterContent: View, RowsContent: View>: View {
+    let heroMedia: MediaItem?
+    let showsFilters: Bool
+    @ViewBuilder let navigationContent: () -> NavigationContent
+    @ViewBuilder let filterContent: () -> FilterContent
+    @ViewBuilder let rowsContent: (ScrollViewProxy) -> RowsContent
+
+    var body: some View {
+        ScrollViewReader { scrollProxy in
+            GeometryReader { proxy in
+                let heroHeight = proxy.size.height * 0.34
+                let rowsMinHeight = proxy.size.height * 0.66
+
+                ScrollView {
+                    VStack(spacing: 0) {
+                        heroSection
+                            .frame(height: heroHeight)
+
+                        rowsContent(scrollProxy)
+                            .frame(minHeight: rowsMinHeight, alignment: .top)
+                            .padding(.top, 10)
+                    }
+                }
+                .background(Color("Background").ignoresSafeArea())
+            }
+        }
+    }
+
+    private var heroSection: some View {
+        ZStack(alignment: .topLeading) {
+            if let heroMedia {
+                MediaHeroBackgroundView(media: heroMedia)
+            } else {
+                Color("Background")
+            }
+
+            VStack(alignment: .leading, spacing: 14) {
+                navigationContent()
+
+                if showsFilters {
+                    filterContent()
+                }
+
+                Spacer(minLength: 0)
+
+                if let heroMedia {
+                    TvHeroMetadataPanel(media: heroMedia)
+                        .padding(.bottom, 16)
+                }
+            }
+            .padding(.horizontal, 28)
+            .padding(.top, 12)
+        }
+    }
+}
+
+struct TvPillButtonStyle: ButtonStyle {
+    let isSelected: Bool
+    let cornerRadius: CGFloat
+
+    init(isSelected: Bool = false, cornerRadius: CGFloat = 16) {
+        self.isSelected = isSelected
+        self.cornerRadius = cornerRadius
+    }
+
+    func makeBody(configuration: Configuration) -> some View {
+        TvPillButtonBody(configuration: configuration, isSelected: isSelected, cornerRadius: cornerRadius)
+    }
+}
+
+private struct TvPillButtonBody: View {
+    let configuration: TvPillButtonStyle.Configuration
+    let isSelected: Bool
+    let cornerRadius: CGFloat
+
+    @Environment(\.isFocused) private var isFocused
+
+    var body: some View {
+        configuration.label
+            .foregroundStyle(foregroundColor)
+            .padding(.horizontal, 16)
+            .frame(minHeight: 58)
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(backgroundColor)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(borderColor, lineWidth: isFocused ? 2.5 : 1.2)
+            )
+            .shadow(color: shadowColor, radius: isFocused ? 18 : 6)
+            .scaleEffect(isFocused ? 1.08 : (isSelected ? 1.03 : 1.0))
+            .animation(.easeOut(duration: 0.14), value: isFocused)
+            .animation(.easeOut(duration: 0.14), value: isSelected)
+    }
+
+    private var foregroundColor: Color {
+        if isSelected {
+            return .white
+        }
+        return isFocused ? .white : .white.opacity(0.86)
+    }
+
+    private var backgroundColor: Color {
+        if isSelected {
+            return Color.accentColor.opacity(isFocused ? 0.82 : 0.68)
+        }
+        return Color.white.opacity(isFocused ? 0.12 : 0.08)
+    }
+
+    private var borderColor: Color {
+        if isSelected {
+            return Color.accentColor.opacity(isFocused ? 1.0 : 0.78)
+        }
+        return isFocused ? Color.accentColor.opacity(0.94) : Color.white.opacity(0.22)
+    }
+
+    private var shadowColor: Color {
+        (isFocused || isSelected) ? Color.accentColor.opacity(isFocused ? 0.68 : 0.32) : .clear
+    }
+}
+
+private struct TvHeroExternalRating: Identifiable, Hashable {
+    let id: String
+    let provider: String
+    let value: String
+    let isAudience: Bool
+}
+
+private struct TvHeroMetadataPanel: View {
+    @Environment(PlexAPIContext.self) private var plexApiContext
+
+    let media: MediaItem
+
+    @State private var logoURL: URL?
+    @State private var externalRatings: [TvHeroExternalRating] = []
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            titleOrLogo
+            metadataLine
+            ratingLine
+
+            if let summary = media.summary, !summary.isEmpty {
+                Text(summary)
+                    .font(.callout)
+                    .foregroundStyle(.brandSecondary)
+                    .lineLimit(3)
+                    .frame(maxWidth: 660, alignment: .leading)
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: 700, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.black.opacity(0.50))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
+        .task(id: media.id) {
+            await loadHeroMetadata()
+        }
+    }
+
+    @ViewBuilder
+    private var titleOrLogo: some View {
+        if let logoURL {
+            AsyncImage(url: logoURL) { phase in
+                if let image = phase.image {
+                    image
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxHeight: 72)
+                } else {
+                    Text(media.primaryLabel)
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(.white)
+                        .lineLimit(2)
+                }
+            }
+        } else {
+            Text(media.primaryLabel)
+                .font(.title2.weight(.bold))
+                .foregroundStyle(.white)
+                .lineLimit(2)
+        }
+    }
+
+    @ViewBuilder
+    private var metadataLine: some View {
+        let items = metadataItems
+        if !items.isEmpty {
+            HStack(spacing: 12) {
+                ForEach(items, id: \.self) { item in
+                    Text(item)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.brandSecondary)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var ratingLine: some View {
+        if !externalRatings.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(externalRatings) { rating in
+                        HStack(spacing: 6) {
+                            ratingProviderIconView(rating)
+                            Text(rating.value)
+                                .font(.subheadline.weight(.semibold))
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(.ultraThinMaterial, in: Capsule())
+                    }
+                }
+            }
+        } else if let score = media.rating {
+            HStack(spacing: 6) {
+                Image(systemName: "star.fill")
+                Text(String(format: "%.1f", score))
+                    .font(.subheadline.weight(.semibold))
+            }
+            .foregroundStyle(.brandSecondary)
+        }
+    }
+
+    private var metadataItems: [String] {
+        var items: [String] = []
+        if let tertiary = media.tertiaryLabel {
+            items.append(tertiary)
+        }
+        if let year = media.year {
+            items.append(String(year))
+        }
+        if let duration = media.duration {
+            items.append(duration.mediaDurationText())
+        }
+        if let contentRating = media.contentRating {
+            items.append(contentRating)
+        }
+        return items
+    }
+
+    private func loadHeroMetadata() async {
+        logoURL = nil
+        externalRatings = []
+
+        do {
+            let metadataRepository = try MetadataRepository(context: plexApiContext)
+            let response = try await metadataRepository.getMetadata(ratingKey: media.metadataRatingKey)
+            guard let item = response.mediaContainer.metadata?.first else { return }
+
+            if let imageRepository = try? ImageRepository(context: plexApiContext),
+               let logoPath = item.images?.first(where: { image in
+                   image.type.localizedCaseInsensitiveContains("logo")
+               })?.url.path
+            {
+                logoURL = imageRepository.transcodeImageURL(path: logoPath, width: 480, height: 220)
+            }
+
+            externalRatings = resolveExternalRatings(from: item)
+        } catch {
+            logoURL = nil
+            externalRatings = []
+        }
+    }
+
+    private func resolveExternalRatings(from item: PlexItem) -> [TvHeroExternalRating] {
+        var ratingsByID: [String: TvHeroExternalRating] = [:]
+
+        func addRating(provider: String, value: Double, isAudience: Bool) {
+            guard isSupportedProvider(provider) else { return }
+            let providerID = normalizedProvider(provider)
+            let id = "\(providerID)-\(isAudience ? "audience" : "critic")"
+            guard ratingsByID[id] == nil else { return }
+            ratingsByID[id] = TvHeroExternalRating(
+                id: id,
+                provider: provider,
+                value: formattedRatingValue(value, provider: provider),
+                isAudience: isAudience
+            )
+        }
+
+        for rating in item.ratings ?? [] {
+            guard let value = rating.value else { continue }
+            guard let provider = providerName(from: rating.image) ?? providerName(from: rating.type) else { continue }
+            let isAudience = isAudienceRatingSource(rating.image) || isAudienceRatingSource(rating.type)
+            addRating(provider: provider, value: value, isAudience: isAudience)
+        }
+
+        if let value = item.rating,
+           let provider = providerName(from: item.ratingImage)
+        {
+            addRating(provider: provider, value: value, isAudience: false)
+        }
+
+        if let value = item.audienceRating,
+           let provider = providerName(from: item.audienceRatingImage)
+        {
+            addRating(provider: provider, value: value, isAudience: true)
+        }
+
+        return ratingsByID.values.sorted { lhs, rhs in
+            let lhsPriority = ratingSortPriority(lhs)
+            let rhsPriority = ratingSortPriority(rhs)
+            if lhsPriority != rhsPriority { return lhsPriority < rhsPriority }
+            if lhs.isAudience != rhs.isAudience { return lhs.isAudience == false }
+            return lhs.provider < rhs.provider
+        }
+    }
+
+    @ViewBuilder
+    private func ratingProviderIconView(_ rating: TvHeroExternalRating) -> some View {
+        let assetName = ratingIconAssetName(rating)
+        if UIImage(named: assetName) != nil {
+            Image(assetName)
+                .renderingMode(.original)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 16, height: 16)
+        } else {
+            Image(systemName: ratingProviderSFSymbol(rating))
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+        }
+    }
+
+    private func ratingIconAssetName(_ rating: TvHeroExternalRating) -> String {
+        let norm = normalizedRatingProvider(rating.provider)
+        if (norm == "rottentomatoes" || norm == "rt") && rating.isAudience {
+            return "rating.rt.audience"
+        }
+        switch norm {
+        case "imdb": return "rating.imdb"
+        case "rottentomatoes", "rt": return "rating.rt"
+        case "tmdb", "themoviedatabase", "themoviedb": return "rating.tmdb"
+        default: return "rating.\(norm)"
+        }
+    }
+
+    private func ratingProviderSFSymbol(_ rating: TvHeroExternalRating) -> String {
+        let norm = normalizedRatingProvider(rating.provider)
+        if (norm == "rottentomatoes" || norm == "rt") && rating.isAudience {
+            return "popcorn.fill"
+        }
+        switch norm {
+        case "imdb": return "star.fill"
+        case "rottentomatoes", "rt": return "circle.dotted.circle"
+        case "tmdb", "themoviedatabase", "themoviedb": return "movieclapper.fill"
+        case "tvdb": return "tv.fill"
+        default: return "chart.bar.fill"
+        }
+    }
+
+    private func normalizedRatingProvider(_ provider: String) -> String {
+        provider
+            .lowercased()
+            .replacingOccurrences(of: "[^a-z0-9]", with: "", options: .regularExpression)
+    }
+
+    private func providerName(from imageIdentifier: String?) -> String? {
+        guard let imageIdentifier else { return nil }
+        let value = imageIdentifier.lowercased()
+        if value.contains("imdb") { return "IMDb" }
+        if value.contains("rotten") || value.contains("tomato") || value == "rt" { return "Rotten Tomatoes" }
+        if value.contains("tvdb") || value.contains("thetvdb") { return "TVDB" }
+        if value.contains("tmdb") || value.contains("themoviedb") { return "TMDB" }
+        return nil
+    }
+
+    private func isAudienceRatingSource(_ source: String?) -> Bool {
+        guard let source else { return false }
+        let value = source.lowercased()
+        return value.contains("audience") || value.contains("user") || value.contains("popcorn")
+    }
+
+    private func normalizedProvider(_ provider: String) -> String {
+        provider
+            .lowercased()
+            .replacingOccurrences(of: "[^a-z0-9]", with: "", options: .regularExpression)
+    }
+
+    private func isSupportedProvider(_ provider: String) -> Bool {
+        switch normalizedProvider(provider) {
+        case "imdb", "rottentomatoes", "rt", "tmdb", "themoviedatabase", "themoviedb", "tvdb":
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func ratingSortPriority(_ rating: TvHeroExternalRating) -> Int {
+        let provider = normalizedProvider(rating.provider)
+        switch provider {
+        case "rottentomatoes", "rt": return rating.isAudience ? 1 : 0
+        case "imdb": return 2
+        case "tmdb", "themoviedatabase", "themoviedb": return 3
+        case "tvdb": return 4
+        default: return 9
+        }
+    }
+
+    private func formattedRatingValue(_ rawValue: Double, provider: String) -> String {
+        let providerID = normalizedProvider(provider)
+        if providerID == "rottentomatoes" || providerID == "rt" {
+            let percentage = rawValue <= 10 ? rawValue * 10 : rawValue
+            return "\(Int(percentage.rounded()))%"
+        }
+
+        if providerID == "imdb" {
+            return String(format: "%.1f", rawValue)
+        }
+
+        return String(format: "%.1f", rawValue)
+    }
+}
+
+#endif

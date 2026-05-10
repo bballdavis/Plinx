@@ -23,6 +23,9 @@ struct PlinxLibraryDetailView: View {
     @Environment(\.safetyPolicy) private var safetyPolicy
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var mainCoordinator: MainCoordinator
+    #if os(tvOS)
+    @Environment(MediaFocusModel.self) private var mediaFocusModel
+    #endif
 
     let library: Library
     let onSelectMedia: (MediaDisplayItem) -> Void
@@ -33,29 +36,50 @@ struct PlinxLibraryDetailView: View {
     @State private var browseRefreshIdentity = UUID()
     #if os(tvOS)
     @State private var tvHeroMedia: MediaItem?
+    @FocusState private var focusedRootNavTab: MainCoordinator.Tab?
+    @FocusState private var focusedLibraryFilterTab: LibraryDetailTab?
     #endif
 
     // MARK: - Body
 
     var body: some View {
-        selectedTabContent
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .environment(
-                \.preferredLandscapeArtworkKind,
-                ArtworkSelectionPolicy.preferredLandscapeArtworkKind(for: library)
-            )
-            .navigationBarBackButtonHidden(true)
-            .toolbarBackground(.hidden, for: .navigationBar)
+        Group {
             #if os(tvOS)
-            .safeAreaInset(edge: .top, spacing: 0) {
-                tvHeaderContent
+            if selectedTab == .playlists {
+                selectedTabContent
+                    .safeAreaInset(edge: .top, spacing: 0) {
+                        tvHeaderContent
+                    }
+            } else {
+                tvSharedLayout
             }
+            #else
+            selectedTabContent
             #endif
-            .onChange(of: settingsManager.interface.displayCollections) { _, displayCollections in
-                if !displayCollections, selectedTab == .collections {
-                    selectedTab = .recommended
-                }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .environment(
+            \.preferredLandscapeArtworkKind,
+            ArtworkSelectionPolicy.preferredLandscapeArtworkKind(for: library)
+        )
+        .navigationBarBackButtonHidden(true)
+        .toolbarBackground(.hidden, for: .navigationBar)
+        .onChange(of: settingsManager.interface.displayCollections) { _, displayCollections in
+            if !displayCollections, selectedTab == .collections {
+                selectedTab = .recommended
             }
+        }
+        #if os(tvOS)
+        .onChange(of: selectedTab) { _, newTab in
+            focusedLibraryFilterTab = newTab
+            mediaFocusModel.focusedMedia = nil
+            tvHeroMedia = nil
+        }
+        .onAppear {
+            focusedRootNavTab = .library
+            focusedLibraryFilterTab = selectedTab
+        }
+        #endif
     }
 
     @ViewBuilder
@@ -199,40 +223,123 @@ struct PlinxLibraryDetailView: View {
     }
 
     #if os(tvOS)
+    private var tvSharedLayout: some View {
+        SharedTvBrowsePageLayout(
+            heroMedia: mediaFocusModel.focusedMedia ?? tvHeroMedia,
+            showsFilters: true,
+            navigationContent: {
+                tvNavigationRow
+            },
+            filterContent: {
+                tvFilterRow
+            },
+            rowsContent: { scrollProxy in
+                tvRowsContent(scrollProxy: scrollProxy)
+            }
+        )
+    }
+
+    @ViewBuilder
+    private func tvRowsContent(scrollProxy: ScrollViewProxy) -> some View {
+        switch selectedTab {
+        case .recommended:
+            PlinxLibraryRecommendedRowsView(
+                viewModel: makeRecommendedViewModel(),
+                heroMedia: $tvHeroMedia,
+                onSelectMedia: onSelectMedia
+            )
+            .padding(.horizontal, 24)
+            .padding(.bottom, 28)
+        case .browse:
+            PlinxLibraryBrowseRowsView(
+                viewModel: makeBrowseViewModel(),
+                heroMedia: $tvHeroMedia,
+                onSelectMedia: onSelectMedia,
+                onJumpToIndex: { index in
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        scrollProxy.scrollTo(index, anchor: .top)
+                    }
+                }
+            )
+            .id(browseRefreshIdentity)
+            .padding(.horizontal, 24)
+            .padding(.bottom, 28)
+        case .collections:
+            PlinxLibraryCollectionsRowsView(
+                viewModel: makeCollectionsViewModel(),
+                heroMedia: $tvHeroMedia,
+                onSelectMedia: onSelectMedia,
+                onJumpToIndex: { index in
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        scrollProxy.scrollTo(index, anchor: .top)
+                    }
+                }
+            )
+            .padding(.horizontal, 24)
+            .padding(.bottom, 28)
+        case .playlists:
+            EmptyView()
+        }
+    }
+
+    private var tvNavigationRow: some View {
+        HStack(spacing: 12) {
+            Button {
+                dismiss()
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "chevron.left")
+                        .font(.headline.weight(.semibold))
+                    Text(library.title)
+                        .font(.headline.weight(.semibold))
+                        .lineLimit(1)
+                }
+            }
+            .buttonStyle(TvPillButtonStyle(isSelected: false))
+
+            KidsMainTabPicker(
+                tabs: visibleRootTabs,
+                selectedTab: rootTabBinding,
+                focusedTab: $focusedRootNavTab,
+                placement: .header
+            )
+            .frame(maxWidth: .infinity, alignment: .center)
+        }
+    }
+
+    private var tvFilterRow: some View {
+        HStack(spacing: 10) {
+            ForEach(availableTabs) { tab in
+                tvFilterButton(tab: tab)
+            }
+
+            if selectedTab == .browse {
+                browseQuickSortButtons
+            }
+        }
+    }
+
+    private func tvFilterButton(tab: LibraryDetailTab) -> some View {
+        Button {
+            selectedTab = tab
+            focusedLibraryFilterTab = tab
+        } label: {
+            Text(tab.title)
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(1)
+        }
+        .focused($focusedLibraryFilterTab, equals: tab)
+        .buttonStyle(TvPillButtonStyle(isSelected: selectedTab == tab))
+        .accessibilityIdentifier("library.detail.filter.\(tab.rawValue)")
+    }
+
     private var tvHeaderContent: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Single row: [back + library name] overlaid with centered nav picker
-            ZStack {
-                HStack(spacing: 0) {
-                    HStack(spacing: 12) {
-                        PlinxChromeButton(systemImage: "chevron.left") {
-                            dismiss()
-                        }
-                        Text(library.title)
-                            .font(.headline.weight(.semibold))
-                            .foregroundStyle(.white.opacity(0.95))
-                            .lineLimit(1)
-                        if selectedTab == .browse {
-                            browseQuickSortButtons
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                    Spacer(minLength: 0)
-                        .frame(maxWidth: .infinity)
-                }
-
-                KidsMainTabPicker(
-                    tabs: visibleRootTabs,
-                    selectedTab: rootTabBinding,
-                    placement: .header
-                )
-                .frame(maxWidth: .infinity, alignment: .center)
-            }
+            tvNavigationRow
 
             // Library sub-tabs (Recommended / Browse / Collections)
-            PlinxLibraryTabPicker(tabs: availableTabs, selectedTab: $selectedTab)
-                .frame(height: 72)
+            tvFilterRow
         }
         .padding(.horizontal, 28)
         .padding(.top, 8)
@@ -328,18 +435,9 @@ struct PlinxLibraryDetailView: View {
         } label: {
             Image(systemName: iconName)
                 .font(.system(size: 18, weight: .semibold))
-                .frame(width: 40, height: 40)
-                .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(isSelected ? Color.accentColor : Color.white.opacity(0.10))
-                )
-                .foregroundStyle(isSelected ? Color.white : Color.white.opacity(0.72))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(isSelected ? Color.clear : Color.white.opacity(0.15), lineWidth: 1)
-                )
+                .frame(minWidth: 58, minHeight: 58)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TvPillButtonStyle(isSelected: isSelected))
         .accessibilityIdentifier(accessibilityID)
     }
 
@@ -375,6 +473,437 @@ struct PlinxLibraryDetailView: View {
         return safetyFiltered
     }
 }
+
+#if os(tvOS)
+private struct PlinxLibraryRecommendedRowsView: View {
+    @Environment(MediaFocusModel.self) private var focusModel
+    @Environment(\.preferredLandscapeArtworkKind) private var preferredLandscapeArtworkKind
+
+    @State var viewModel: LibraryRecommendedViewModel
+    @Binding var heroMedia: MediaItem?
+    let onSelectMedia: (MediaDisplayItem) -> Void
+
+    private let landscapeHubIdentifiers: [String] = ["inprogress"]
+
+    var body: some View {
+        LazyVStack(alignment: .leading, spacing: 24) {
+            ForEach(viewModel.hubs) { hub in
+                if hub.hasItems {
+                    MediaHubSection(title: hub.title) {
+                        carousel(for: hub)
+                    }
+                }
+            }
+
+            if viewModel.isLoading, !viewModel.hasContent {
+                ProgressView("library.recommended.loading")
+                    .frame(maxWidth: .infinity)
+            }
+
+            if let errorMessage = viewModel.errorMessage {
+                Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.red)
+            } else if !viewModel.hasContent, !viewModel.isLoading {
+                Text("common.empty.nothingToShow")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .task {
+            await viewModel.load()
+        }
+        .onChange(of: focusModel.focusedMedia?.id) { _, _ in
+            updateHeroMedia()
+        }
+        .onChange(of: viewModel.hubs.count) { _, _ in
+            updateHeroMedia()
+        }
+        .onAppear {
+            updateHeroMedia()
+            updateInitialFocus()
+        }
+    }
+
+    @ViewBuilder
+    private func carousel(for hub: Hub) -> some View {
+        if shouldUseLandscape(for: hub) {
+            MediaCarousel(
+                layout: .landscape,
+                items: hub.items,
+                showsLabels: true,
+                onSelectMedia: onSelectMedia
+            )
+        } else {
+            MediaCarousel(
+                layout: .portrait,
+                items: hub.items,
+                showsLabels: true,
+                onSelectMedia: onSelectMedia
+            )
+        }
+    }
+
+    private func shouldUseLandscape(for hub: Hub) -> Bool {
+        if preferredLandscapeArtworkKind != nil {
+            return true
+        }
+        let identifier = hub.id.lowercased()
+        return landscapeHubIdentifiers.contains { identifier.contains($0) }
+    }
+
+    private var defaultHeroMedia: MediaItem? {
+        for hub in viewModel.hubs where hub.hasItems {
+            if let item = hub.items.compactMap(\.playableItem).first {
+                return item
+            }
+        }
+        return nil
+    }
+
+    private func updateHeroMedia() {
+        if let focused = focusModel.focusedMedia {
+            if heroMedia?.id != focused.id {
+                heroMedia = focused
+            }
+            return
+        }
+
+        if heroMedia == nil {
+            heroMedia = defaultHeroMedia
+        }
+    }
+
+    private func updateInitialFocus() {
+        guard focusModel.focusedMedia == nil else { return }
+        if let initial = heroMedia ?? defaultHeroMedia {
+            focusModel.focusedMedia = initial
+        }
+    }
+}
+
+private struct PlinxLibraryBrowseRowsView: View {
+    @Environment(MediaFocusModel.self) private var focusModel
+    @Environment(\.preferredLandscapeArtworkKind) private var preferredLandscapeArtworkKind
+    @FocusState private var focusedCharacterId: String?
+
+    @State var viewModel: LibraryBrowseViewModel
+    @Binding var heroMedia: MediaItem?
+    let onSelectMedia: (MediaDisplayItem) -> Void
+    let onJumpToIndex: (Int) -> Void
+
+    private var usesLandscapeCards: Bool {
+        preferredLandscapeArtworkKind != nil
+    }
+
+    private var cardWidth: CGFloat {
+        usesLandscapeCards ? 320 : 200
+    }
+
+    private var cardHeight: CGFloat? {
+        usesLandscapeCards ? (cardWidth / (16.0 / 9.0)) : nil
+    }
+
+    private var gridColumns: [GridItem] {
+        [GridItem(.adaptive(minimum: cardWidth, maximum: cardWidth), spacing: 32)]
+    }
+
+    var body: some View {
+        @Bindable var controls = viewModel.controls
+
+        HStack(alignment: .top, spacing: 24) {
+            VStack(alignment: .leading, spacing: 24) {
+                if controls.hasDisplayTypes {
+                    LibraryBrowseControlsView(
+                        viewModel: controls,
+                        showsBackButton: viewModel.canNavigateBack,
+                        onNavigateBack: viewModel.navigateBack
+                    )
+                }
+
+                LazyVGrid(columns: gridColumns, spacing: 32) {
+                    ForEach(0 ..< viewModel.totalItemCount, id: \.self) { index in
+                        Group {
+                            if let item = viewModel.itemsByIndex[index] {
+                                switch item {
+                                case let .media(media):
+                                    if usesLandscapeCards {
+                                        LandscapeMediaCard(media: media, width: cardWidth, showsLabels: true) {
+                                            onSelectMedia(media)
+                                        }
+                                    } else {
+                                        PortraitMediaCard(media: media, width: cardWidth, showsLabels: true) {
+                                            onSelectMedia(media)
+                                        }
+                                    }
+                                case let .folder(folder):
+                                    FolderCard(title: folder.title, height: cardHeight, width: cardWidth, showsLabels: true) {
+                                        viewModel.enterFolder(folder)
+                                    }
+                                }
+                            } else {
+                                ProgressView()
+                                    .frame(maxWidth: .infinity)
+                            }
+                        }
+                        .id(index)
+                        .onAppear {
+                            Task {
+                                await viewModel.loadPagesAround(index: index)
+                            }
+                        }
+                    }
+                }
+
+                if viewModel.isLoading, viewModel.itemsByIndex.isEmpty {
+                    ProgressView("library.browse.loading")
+                        .frame(maxWidth: .infinity)
+                } else if let errorMessage = viewModel.errorMessage, viewModel.itemsByIndex.isEmpty {
+                    ContentUnavailableView(
+                        errorMessage,
+                        systemImage: "exclamationmark.triangle.fill",
+                        description: Text("common.errors.tryAgainLater")
+                    )
+                    .symbolRenderingMode(.multicolor)
+                } else if viewModel.totalItemCount == 0, !viewModel.isLoading {
+                    ContentUnavailableView(
+                        "library.browse.empty.title",
+                        systemImage: "square.grid.2x2.fill",
+                        description: Text("library.browse.empty.description")
+                    )
+                }
+            }
+
+            if viewModel.showsCharacterColumn {
+                characterColumn(
+                    characters: viewModel.sectionCharacters,
+                    onSelect: { startIndex in
+                        Task {
+                            await viewModel.loadPagesAround(index: startIndex)
+                            onJumpToIndex(startIndex)
+                        }
+                    }
+                )
+            }
+        }
+        .task {
+            await viewModel.load()
+        }
+        .onChange(of: focusModel.focusedMedia?.id) { _, _ in
+            updateHeroMedia()
+        }
+        .onAppear {
+            updateHeroMedia()
+            updateInitialFocus()
+        }
+    }
+
+    private var defaultHeroMedia: MediaItem? {
+        for index in 0 ..< viewModel.totalItemCount {
+            if case let .media(media)? = viewModel.itemsByIndex[index],
+               let playable = media.playableItem
+            {
+                return playable
+            }
+        }
+        return nil
+    }
+
+    private func updateHeroMedia() {
+        if let focused = focusModel.focusedMedia {
+            if heroMedia?.id != focused.id {
+                heroMedia = focused
+            }
+            return
+        }
+
+        if heroMedia == nil {
+            heroMedia = defaultHeroMedia
+        }
+    }
+
+    private func updateInitialFocus() {
+        guard focusModel.focusedMedia == nil else { return }
+        if let initial = heroMedia ?? defaultHeroMedia {
+            focusModel.focusedMedia = initial
+        }
+    }
+
+    private func characterColumn(
+        characters: [LibraryBrowseViewModel.SectionCharacter],
+        onSelect: @escaping (Int) -> Void
+    ) -> some View {
+        VStack(spacing: 4) {
+            ForEach(characters) { character in
+                characterButton(
+                    id: character.id,
+                    title: character.title,
+                    onTap: { onSelect(character.startIndex) }
+                )
+            }
+        }
+        .padding(.trailing, 12)
+        .padding(.top, 8)
+        .frame(width: 44, alignment: .top)
+    }
+
+    private func characterButton(id: String, title: String, onTap: @escaping () -> Void) -> some View {
+        let isFocused = focusedCharacterId == id
+        return Button {
+            onTap()
+        } label: {
+            Text(title)
+                .font(.caption2)
+                .frame(width: 32, height: 32)
+                .background(isFocused ? Color.white.opacity(0.2) : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .focused($focusedCharacterId, equals: id)
+        .animation(.easeInOut(duration: 0.2), value: isFocused)
+    }
+}
+
+private struct PlinxLibraryCollectionsRowsView: View {
+    @Environment(MediaFocusModel.self) private var focusModel
+    @FocusState private var focusedCharacterId: String?
+
+    @State var viewModel: LibraryCollectionsViewModel
+    @Binding var heroMedia: MediaItem?
+    let onSelectMedia: (MediaDisplayItem) -> Void
+    let onJumpToIndex: (Int) -> Void
+
+    private let gridColumns = [
+        GridItem(.adaptive(minimum: 200, maximum: 200), spacing: 32),
+    ]
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 24) {
+            VStack(alignment: .leading, spacing: 24) {
+                LazyVGrid(columns: gridColumns, spacing: 32) {
+                    ForEach(0 ..< viewModel.totalItemCount, id: \.self) { index in
+                        Group {
+                            if let media = viewModel.itemsByIndex[index] {
+                                PortraitMediaCard(media: media, width: 200, showsLabels: true) {
+                                    onSelectMedia(media)
+                                }
+                            } else {
+                                ProgressView()
+                                    .frame(maxWidth: .infinity)
+                            }
+                        }
+                        .id(index)
+                        .onAppear {
+                            Task {
+                                await viewModel.loadPagesAround(index: index)
+                            }
+                        }
+                    }
+                }
+
+                if viewModel.isLoading, viewModel.itemsByIndex.isEmpty {
+                    ProgressView("library.browse.loading")
+                        .frame(maxWidth: .infinity)
+                } else if let errorMessage = viewModel.errorMessage, viewModel.itemsByIndex.isEmpty {
+                    ContentUnavailableView(
+                        errorMessage,
+                        systemImage: "exclamationmark.triangle.fill",
+                        description: Text("common.errors.tryAgainLater")
+                    )
+                    .symbolRenderingMode(.multicolor)
+                } else if viewModel.totalItemCount == 0, !viewModel.isLoading {
+                    ContentUnavailableView(
+                        "library.browse.empty.title",
+                        systemImage: "square.grid.2x2.fill",
+                        description: Text("library.browse.empty.description")
+                    )
+                }
+            }
+
+            characterColumn(
+                characters: viewModel.sectionCharacters,
+                onSelect: { startIndex in
+                    Task {
+                        await viewModel.loadPagesAround(index: startIndex)
+                        onJumpToIndex(startIndex)
+                    }
+                }
+            )
+        }
+        .task {
+            await viewModel.load()
+        }
+        .onChange(of: focusModel.focusedMedia?.id) { _, _ in
+            updateHeroMedia()
+        }
+        .onAppear {
+            updateHeroMedia()
+            updateInitialFocus()
+        }
+    }
+
+    private func characterColumn(
+        characters: [LibraryCollectionsViewModel.SectionCharacter],
+        onSelect: @escaping (Int) -> Void
+    ) -> some View {
+        VStack(spacing: 4) {
+            ForEach(characters) { character in
+                characterButton(
+                    id: character.id,
+                    title: character.title,
+                    onTap: { onSelect(character.startIndex) }
+                )
+            }
+        }
+        .padding(.trailing, 12)
+        .padding(.top, 8)
+        .frame(width: 44, alignment: .top)
+    }
+
+    private func characterButton(id: String, title: String, onTap: @escaping () -> Void) -> some View {
+        let isFocused = focusedCharacterId == id
+        return Button {
+            onTap()
+        } label: {
+            Text(title)
+                .font(.caption2)
+                .frame(width: 32, height: 32)
+                .background(isFocused ? Color.white.opacity(0.2) : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .focused($focusedCharacterId, equals: id)
+        .animation(.easeInOut(duration: 0.2), value: isFocused)
+    }
+
+    private var defaultHeroMedia: MediaItem? {
+        for index in 0 ..< viewModel.totalItemCount {
+            if let media = viewModel.itemsByIndex[index], let playable = media.playableItem {
+                return playable
+            }
+        }
+        return nil
+    }
+
+    private func updateHeroMedia() {
+        if let focused = focusModel.focusedMedia {
+            if heroMedia?.id != focused.id {
+                heroMedia = focused
+            }
+            return
+        }
+
+        if heroMedia == nil {
+            heroMedia = defaultHeroMedia
+        }
+    }
+
+    private func updateInitialFocus() {
+        guard focusModel.focusedMedia == nil else { return }
+        if let initial = heroMedia ?? defaultHeroMedia {
+            focusModel.focusedMedia = initial
+        }
+    }
+}
+#endif
 
 // MARK: - LibraryDetailTab icon extension (Plinx augmentation)
 
