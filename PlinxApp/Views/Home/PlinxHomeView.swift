@@ -113,7 +113,7 @@ struct PlinxHomeView: View {
                         }
                     }
                 }
-                .padding(.horizontal, 24)
+                .padding(.horizontal, 12)
                 .padding(.bottom, bottomContentPadding)
             }
         )
@@ -719,32 +719,34 @@ struct SharedTvBrowsePageLayout<NavigationContent: View, FilterContent: View, Ro
         ScrollViewReader { scrollProxy in
             GeometryReader { proxy in
                 let heroHeight = proxy.size.height * 0.34
-                let rowsMinHeight = proxy.size.height * 0.66
+                let rowsHeight = max(proxy.size.height - heroHeight, 0)
 
-                ScrollView {
-                    VStack(spacing: 0) {
-                        heroSection
-                            .frame(height: heroHeight)
+                VStack(spacing: 0) {
+                    heroSection(availableWidth: proxy.size.width)
+                        .frame(height: heroHeight)
 
+                    ScrollView {
                         rowsContent(scrollProxy)
-                            .frame(minHeight: rowsMinHeight, alignment: .top)
                             .padding(.top, 10)
+                            .padding(.bottom, 22)
+                            .frame(minHeight: rowsHeight, alignment: .top)
                     }
+                    .frame(height: rowsHeight)
                 }
                 .background(Color("Background").ignoresSafeArea())
             }
         }
     }
 
-    private var heroSection: some View {
+    private func heroSection(availableWidth: CGFloat) -> some View {
         ZStack(alignment: .topLeading) {
             if let heroMedia {
-                MediaHeroBackgroundView(media: heroMedia)
+                TvPinnedHeroBackdrop(media: heroMedia)
             } else {
-                Color("Background")
+                Color.black
             }
 
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 8) {
                 navigationContent()
 
                 if showsFilters {
@@ -754,12 +756,18 @@ struct SharedTvBrowsePageLayout<NavigationContent: View, FilterContent: View, Ro
                 Spacer(minLength: 0)
 
                 if let heroMedia {
-                    TvHeroMetadataPanel(media: heroMedia)
-                        .padding(.bottom, 16)
+                    VStack(alignment: .leading, spacing: 10) {
+                        TvHeroIdentityView(media: heroMedia)
+                            .frame(maxWidth: availableWidth * 0.60, alignment: .leading)
+
+                        TvHeroMetadataPanel(media: heroMedia)
+                            .frame(maxWidth: availableWidth * 0.68, alignment: .leading)
+                    }
+                    .padding(.bottom, 8)
                 }
             }
-            .padding(.horizontal, 28)
-            .padding(.top, 12)
+            .padding(.horizontal, 10)
+            .padding(.top, 3)
         }
     }
 }
@@ -842,32 +850,31 @@ private struct TvHeroMetadataPanel: View {
 
     let media: MediaItem
 
-    @State private var logoURL: URL?
     @State private var externalRatings: [TvHeroExternalRating] = []
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            titleOrLogo
-            metadataLine
-            ratingLine
+        VStack(alignment: .leading, spacing: 8) {
+            metadataAndRatingsRow
 
             if let summary = media.summary, !summary.isEmpty {
                 Text(summary)
-                    .font(.callout)
+                    .font(.caption)
+                    .lineSpacing(1.2)
                     .foregroundStyle(.brandSecondary)
-                    .lineLimit(3)
-                    .frame(maxWidth: 660, alignment: .leading)
+                    .lineLimit(5)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .padding(18)
-        .frame(maxWidth: 700, alignment: .leading)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.black.opacity(0.50))
+                .fill(Color.black.opacity(0.46))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                .stroke(Color.white.opacity(0.10), lineWidth: 1)
         )
         .task(id: media.id) {
             await loadHeroMetadata()
@@ -875,68 +882,42 @@ private struct TvHeroMetadataPanel: View {
     }
 
     @ViewBuilder
-    private var titleOrLogo: some View {
-        if let logoURL {
-            AsyncImage(url: logoURL) { phase in
-                if let image = phase.image {
-                    image
-                        .resizable()
-                        .scaledToFit()
-                        .frame(maxHeight: 72)
-                } else {
-                    Text(media.primaryLabel)
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(.white)
-                        .lineLimit(2)
-                }
-            }
-        } else {
-            Text(media.primaryLabel)
-                .font(.title2.weight(.bold))
-                .foregroundStyle(.white)
-                .lineLimit(2)
-        }
-    }
-
-    @ViewBuilder
-    private var metadataLine: some View {
-        let items = metadataItems
-        if !items.isEmpty {
-            HStack(spacing: 12) {
-                ForEach(items, id: \.self) { item in
-                    Text(item)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.brandSecondary)
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var ratingLine: some View {
-        if !externalRatings.isEmpty {
+    private var metadataAndRatingsRow: some View {
+        if !metadataItems.isEmpty || !externalRatings.isEmpty || media.rating != nil {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
+                    ForEach(metadataItems, id: \.self) { item in
+                        Text(item)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.brandSecondary)
+                    }
+
                     ForEach(externalRatings) { rating in
-                        HStack(spacing: 6) {
-                            ratingProviderIconView(rating)
-                            Text(rating.value)
-                                .font(.subheadline.weight(.semibold))
+                        ratingBadge(rating)
+                    }
+
+                    if externalRatings.isEmpty, let score = media.rating {
+                        HStack(spacing: 5) {
+                            Image(systemName: "star.fill")
+                            Text(String(format: "%.1f", score))
+                                .font(.caption2.weight(.semibold))
                         }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(.ultraThinMaterial, in: Capsule())
+                        .foregroundStyle(.brandSecondary)
                     }
                 }
             }
-        } else if let score = media.rating {
-            HStack(spacing: 6) {
-                Image(systemName: "star.fill")
-                Text(String(format: "%.1f", score))
-                    .font(.subheadline.weight(.semibold))
-            }
-            .foregroundStyle(.brandSecondary)
         }
+    }
+
+    private func ratingBadge(_ rating: TvHeroExternalRating) -> some View {
+        HStack(spacing: 5) {
+            ratingProviderIconView(rating)
+            Text(rating.value)
+                .font(.caption2.weight(.semibold))
+        }
+        .padding(.horizontal, 7)
+        .padding(.vertical, 3)
+        .background(.ultraThinMaterial, in: Capsule())
     }
 
     private var metadataItems: [String] {
@@ -957,7 +938,6 @@ private struct TvHeroMetadataPanel: View {
     }
 
     private func loadHeroMetadata() async {
-        logoURL = nil
         externalRatings = []
 
         do {
@@ -965,17 +945,8 @@ private struct TvHeroMetadataPanel: View {
             let response = try await metadataRepository.getMetadata(ratingKey: media.metadataRatingKey)
             guard let item = response.mediaContainer.metadata?.first else { return }
 
-            if let imageRepository = try? ImageRepository(context: plexApiContext),
-               let logoPath = item.images?.first(where: { image in
-                   image.type.localizedCaseInsensitiveContains("logo")
-               })?.url.path
-            {
-                logoURL = imageRepository.transcodeImageURL(path: logoPath, width: 480, height: 220)
-            }
-
             externalRatings = resolveExternalRatings(from: item)
         } catch {
-            logoURL = nil
             externalRatings = []
         }
     }
@@ -1127,6 +1098,174 @@ private struct TvHeroMetadataPanel: View {
         }
 
         return String(format: "%.1f", rawValue)
+    }
+}
+
+private struct TvHeroIdentityView: View {
+    @Environment(PlexAPIContext.self) private var plexApiContext
+
+    let media: MediaItem
+
+    @State private var logoURL: URL?
+
+    var body: some View {
+        Group {
+            if let logoURL {
+                AsyncImage(url: logoURL) { phase in
+                    if let image = phase.image {
+                        image
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxHeight: 220)
+                    } else {
+                        fallbackTitle
+                    }
+                }
+            } else {
+                fallbackTitle
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .task(id: media.id) {
+            await loadLogo()
+        }
+    }
+
+    private var fallbackTitle: some View {
+        Text(media.primaryLabel)
+            .font(.system(size: 72, weight: .black, design: .rounded))
+            .foregroundStyle(.white)
+            .lineLimit(2)
+            .minimumScaleFactor(0.55)
+    }
+
+    private func loadLogo() async {
+        logoURL = nil
+        do {
+            let metadataRepository = try MetadataRepository(context: plexApiContext)
+            let response = try await metadataRepository.getMetadata(ratingKey: media.metadataRatingKey)
+            guard let item = response.mediaContainer.metadata?.first else { return }
+            guard let imageRepository = try? ImageRepository(context: plexApiContext) else { return }
+            guard let logoPath = item.images?.first(where: { image in
+                image.type.localizedCaseInsensitiveContains("logo")
+            })?.url.path else { return }
+
+            logoURL = imageRepository.transcodeImageURL(path: logoPath, width: 1800, height: 700)
+        } catch {
+            logoURL = nil
+        }
+    }
+}
+
+private struct TvPinnedHeroBackdrop: View {
+    @Environment(PlexAPIContext.self) private var plexApiContext
+
+    let media: MediaItem
+
+    @State private var imageURL: URL?
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack {
+                Color.black
+
+                if let imageURL {
+                    AsyncImage(url: imageURL) { phase in
+                        switch phase {
+                        case let .success(image):
+                            image
+                                .resizable()
+                                .scaledToFill()
+                        case .empty:
+                            Color.black
+                        case .failure:
+                            Color.black
+                        @unknown default:
+                            Color.black
+                        }
+                    }
+                    .frame(width: proxy.size.width * 0.54, height: proxy.size.height * 0.96)
+                    .clipped()
+                    .mask(TvPinnedHeroImageMask())
+                    .position(x: proxy.size.width * 0.76, y: proxy.size.height * 0.50)
+                }
+
+                LinearGradient(
+                    stops: [
+                        .init(color: .black, location: 0.0),
+                        .init(color: .black.opacity(0.96), location: 0.34),
+                        .init(color: .clear, location: 0.66),
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0.0),
+                        .init(color: .clear, location: 0.62),
+                        .init(color: .black.opacity(0.92), location: 1.0),
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            }
+            .task(id: media.id) {
+                await loadImage()
+            }
+        }
+    }
+
+    private func loadImage() async {
+        let path = media.grandparentArtPath
+            ?? media.artPath
+            ?? media.grandparentThumbPath
+            ?? media.parentThumbPath
+            ?? media.thumbPath
+
+        guard let path else {
+            imageURL = nil
+            return
+        }
+
+        do {
+            let imageRepository = try ImageRepository(context: plexApiContext)
+            imageURL = imageRepository.transcodeImageURL(
+                path: path,
+                width: 3840,
+                height: 2160,
+                minSize: 1,
+                upscale: 1
+            )
+        } catch {
+            imageURL = nil
+        }
+    }
+}
+
+private struct TvPinnedHeroImageMask: View {
+    var body: some View {
+        LinearGradient(
+            stops: [
+                .init(color: .clear, location: 0.0),
+                .init(color: .black, location: 0.24),
+                .init(color: .black, location: 0.94),
+                .init(color: .clear, location: 1.0),
+            ],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+        .mask(
+            LinearGradient(
+                stops: [
+                    .init(color: .black, location: 0.0),
+                    .init(color: .black, location: 0.76),
+                    .init(color: .clear, location: 1.0),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
     }
 }
 

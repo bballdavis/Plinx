@@ -465,9 +465,9 @@ struct RootTabView: View {
                 placement: .header
             )
         }
-        .padding(.horizontal, 28)
-        .padding(.top, 10)
-        .padding(.bottom, 14)
+        .padding(.horizontal, 10)
+        .padding(.top, 2)
+        .padding(.bottom, 8)
         #else
         HStack(spacing: 12) {
             headerLeadingContent(title: title, showsLogo: showsLogo)
@@ -518,7 +518,7 @@ struct RootTabView: View {
     }
 
     private var tvOSHeaderSideWidth: CGFloat {
-        320
+        180
     }
 
     @ViewBuilder

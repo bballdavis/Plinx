@@ -248,7 +248,7 @@ struct PlinxLibraryDetailView: View {
                 heroMedia: $tvHeroMedia,
                 onSelectMedia: onSelectMedia
             )
-            .padding(.horizontal, 24)
+            .padding(.horizontal, 12)
             .padding(.bottom, 28)
         case .browse:
             PlinxLibraryBrowseRowsView(
@@ -262,7 +262,7 @@ struct PlinxLibraryDetailView: View {
                 }
             )
             .id(browseRefreshIdentity)
-            .padding(.horizontal, 24)
+            .padding(.horizontal, 12)
             .padding(.bottom, 28)
         case .collections:
             PlinxLibraryCollectionsRowsView(
@@ -275,7 +275,7 @@ struct PlinxLibraryDetailView: View {
                     }
                 }
             )
-            .padding(.horizontal, 24)
+            .padding(.horizontal, 12)
             .padding(.bottom, 28)
         case .playlists:
             EmptyView()
@@ -287,15 +287,17 @@ struct PlinxLibraryDetailView: View {
             Button {
                 dismiss()
             } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "chevron.left")
-                        .font(.headline.weight(.semibold))
-                    Text(library.title)
-                        .font(.headline.weight(.semibold))
-                        .lineLimit(1)
-                }
+                Image(systemName: "chevron.left")
+                    .font(.headline.weight(.semibold))
+                    .frame(minWidth: 58, minHeight: 58)
             }
             .buttonStyle(TvPillButtonStyle(isSelected: false))
+
+            Text(library.title)
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.95))
+                .lineLimit(1)
+                .padding(.trailing, 6)
 
             KidsMainTabPicker(
                 tabs: visibleRootTabs,
@@ -341,8 +343,8 @@ struct PlinxLibraryDetailView: View {
             // Library sub-tabs (Recommended / Browse / Collections)
             tvFilterRow
         }
-        .padding(.horizontal, 28)
-        .padding(.top, 8)
+        .padding(.horizontal, 10)
+        .padding(.top, 2)
         .padding(.bottom, 12)
         .background(
             LinearGradient(
