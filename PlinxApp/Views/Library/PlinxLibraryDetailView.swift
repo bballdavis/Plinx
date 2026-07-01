@@ -32,8 +32,6 @@ struct PlinxLibraryDetailView: View {
     var onLongPressMedia: (MediaDisplayItem) -> Void = { _ in }
 
     @State private var selectedTab: LibraryDetailTab = .recommended
-    @State private var browseQuickSort: LibraryBrowseControlsViewModel.QuickSort = .newest
-    @State private var browseRefreshIdentity = UUID()
     #if os(tvOS)
     @State private var tvHeroMedia: MediaItem?
     @FocusState private var focusedRootNavTab: MainCoordinator.Tab?
@@ -107,7 +105,6 @@ struct PlinxLibraryDetailView: View {
                 viewModel: makeBrowseViewModel(),
                 onSelectMedia: onSelectMedia
             )
-            .id(browseRefreshIdentity)
             #else
             LibraryBrowseView(
                 viewModel: makeBrowseViewModel(),
@@ -117,7 +114,6 @@ struct PlinxLibraryDetailView: View {
                 overrideLayout: preferredCarouselLayout,
                 showsControls: false
             )
-            .id(browseRefreshIdentity)
             #endif
         case .collections:
             #if os(tvOS)
@@ -160,11 +156,6 @@ struct PlinxLibraryDetailView: View {
                     PlinxLibraryTabPicker(tabs: availableTabs, selectedTab: $selectedTab)
                         .frame(height: 76)
                         .frame(maxWidth: .infinity, alignment: .center)
-
-                    if selectedTab == .browse {
-                        browseQuickSortButtons
-                            .padding(.trailing, 2)
-                    }
                 }
             }
             .padding(.top, 4)
@@ -261,7 +252,6 @@ struct PlinxLibraryDetailView: View {
                     }
                 }
             )
-            .id(browseRefreshIdentity)
             .padding(.horizontal, 12)
             .padding(.bottom, 28)
         case .collections:
@@ -283,21 +273,27 @@ struct PlinxLibraryDetailView: View {
     }
 
     private var tvNavigationRow: some View {
-        HStack(spacing: 12) {
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.headline.weight(.semibold))
-                    .frame(minWidth: 58, minHeight: 58)
-            }
-            .buttonStyle(TvPillButtonStyle(isSelected: false))
+        ZStack {
+            HStack(spacing: 10) {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.headline.weight(.semibold))
+                        .frame(minWidth: 58, minHeight: 58)
+                }
+                .buttonStyle(TvPillButtonStyle(isSelected: false))
 
-            Text(library.title)
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.95))
-                .lineLimit(1)
-                .padding(.trailing, 6)
+                Text(library.title)
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.95))
+                    .lineLimit(1)
+
+                Spacer(minLength: 0)
+
+                Color.clear
+                    .frame(width: 220, height: 1)
+            }
 
             KidsMainTabPicker(
                 tabs: visibleRootTabs,
@@ -310,15 +306,12 @@ struct PlinxLibraryDetailView: View {
     }
 
     private var tvFilterRow: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             ForEach(availableTabs) { tab in
                 tvFilterButton(tab: tab)
             }
-
-            if selectedTab == .browse {
-                browseQuickSortButtons
-            }
         }
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 
     private func tvFilterButton(tab: LibraryDetailTab) -> some View {
@@ -326,9 +319,13 @@ struct PlinxLibraryDetailView: View {
             selectedTab = tab
             focusedLibraryFilterTab = tab
         } label: {
-            Text(tab.title)
-                .font(.subheadline.weight(.semibold))
-                .lineLimit(1)
+            HStack(spacing: 6) {
+                Image(systemName: tab.plinxIconName)
+                    .font(.subheadline.weight(.semibold))
+                Text(tab.title)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+            }
         }
         .focused($focusedLibraryFilterTab, equals: tab)
         .buttonStyle(TvPillButtonStyle(isSelected: selectedTab == tab))
@@ -384,7 +381,6 @@ struct PlinxLibraryDetailView: View {
             context: plexApiContext,
             settingsManager: settingsManager
         )
-        vm.controls.preferredQuickSort = browseQuickSort
         #if !os(tvOS)
         let policy = safetyPolicy
         let libType = library.type
@@ -403,44 +399,6 @@ struct PlinxLibraryDetailView: View {
         }
         #endif
         return vm
-    }
-
-    private var browseQuickSortButtons: some View {
-        HStack(spacing: 8) {
-            if selectedTab == .browse {
-                quickSortButton(
-                    iconName: "textformat.abc",
-                    accessibilityID: "library.browse.sort.alphabetical",
-                    quickSort: .alphabetical
-                )
-
-                quickSortButton(
-                    iconName: "clock.arrow.circlepath",
-                    accessibilityID: "library.browse.sort.new",
-                    quickSort: .newest
-                )
-            }
-        }
-    }
-
-    private func quickSortButton(
-        iconName: String,
-        accessibilityID: String,
-        quickSort: LibraryBrowseControlsViewModel.QuickSort
-    ) -> some View {
-        let isSelected = browseQuickSort == quickSort
-
-        return Button {
-            guard browseQuickSort != quickSort else { return }
-            browseQuickSort = quickSort
-            browseRefreshIdentity = UUID()
-        } label: {
-            Image(systemName: iconName)
-                .font(.system(size: 18, weight: .semibold))
-                .frame(minWidth: 58, minHeight: 58)
-        }
-        .buttonStyle(TvPillButtonStyle(isSelected: isSelected))
-        .accessibilityIdentifier(accessibilityID)
     }
 
     private func makeCollectionsViewModel() -> LibraryCollectionsViewModel {

@@ -465,7 +465,7 @@ struct RootTabView: View {
                 placement: .header
             )
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 4)
         .padding(.top, 2)
         .padding(.bottom, 8)
         #else
@@ -518,7 +518,7 @@ struct RootTabView: View {
     }
 
     private var tvOSHeaderSideWidth: CGFloat {
-        180
+        220
     }
 
     @ViewBuilder

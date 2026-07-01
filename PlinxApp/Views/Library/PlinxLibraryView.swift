@@ -91,6 +91,19 @@ struct PlinxLibraryView: View {
             .focused($focusedLibraryID, equals: library.id)
             .focusable(interactions: .activate)
             .focusEffectDisabled()
+            .scaleEffect(focusedLibraryID == library.id ? 1.04 : 1.0)
+            .shadow(
+                color: focusedLibraryID == library.id ? Color.accentColor.opacity(0.66) : .clear,
+                radius: focusedLibraryID == library.id ? 20 : 0
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(
+                        focusedLibraryID == library.id ? Color.accentColor.opacity(0.85) : .clear,
+                        lineWidth: focusedLibraryID == library.id ? 2.2 : 0
+                    )
+            }
+            .animation(.easeOut(duration: 0.14), value: focusedLibraryID == library.id)
             .onTapGesture { onSelectLibrary(library) }
             .onMoveCommand { direction in
                 handleMoveCommand(direction, fromRow: rowIndex)

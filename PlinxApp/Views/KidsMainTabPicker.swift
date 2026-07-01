@@ -214,6 +214,13 @@ extension KidsMainTabPicker {
                     iconName: "house.fill",
                     title: LocalizedStringResource("tabs.home", table: "Plinx")
                 ),
+                TabItem(
+                    id: "library",
+                    tab: .library,
+                    action: nil,
+                    iconName: "books.vertical.fill",
+                    title: LocalizedStringResource("tabs.library", table: "Plinx")
+                ),
             ]
 
             if showSearchInMainNavigation {
@@ -239,16 +246,6 @@ extension KidsMainTabPicker {
                     )
                 )
             }
-
-            tabs.append(contentsOf: [
-                TabItem(
-                    id: "library",
-                    tab: .library,
-                    action: nil,
-                    iconName: "books.vertical.fill",
-                    title: LocalizedStringResource("tabs.library", table: "Plinx")
-                ),
-            ])
 
             if includeSettings {
                 tabs.append(

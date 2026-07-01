@@ -113,7 +113,7 @@ struct PlinxHomeView: View {
                         }
                     }
                 }
-                .padding(.horizontal, 12)
+                .padding(.horizontal, 8)
                 .padding(.bottom, bottomContentPadding)
             }
         )
@@ -724,6 +724,14 @@ struct SharedTvBrowsePageLayout<NavigationContent: View, FilterContent: View, Ro
                 VStack(spacing: 0) {
                     heroSection(availableWidth: proxy.size.width)
                         .frame(height: heroHeight)
+                        .overlay(alignment: .bottom) {
+                            LinearGradient(
+                                colors: [Color.clear, Color.black.opacity(0.70)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                            .frame(height: 34)
+                        }
 
                     ScrollView {
                         rowsContent(scrollProxy)
@@ -757,17 +765,14 @@ struct SharedTvBrowsePageLayout<NavigationContent: View, FilterContent: View, Ro
 
                 if let heroMedia {
                     VStack(alignment: .leading, spacing: 10) {
-                        TvHeroIdentityView(media: heroMedia)
-                            .frame(maxWidth: availableWidth * 0.60, alignment: .leading)
-
                         TvHeroMetadataPanel(media: heroMedia)
-                            .frame(maxWidth: availableWidth * 0.68, alignment: .leading)
+                            .frame(maxWidth: availableWidth * 0.72, alignment: .leading)
                     }
                     .padding(.bottom, 8)
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.top, 3)
+            .padding(.horizontal, 4)
+            .padding(.top, 1)
         }
     }
 }
@@ -865,16 +870,12 @@ private struct TvHeroMetadataPanel: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.black.opacity(0.46))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                .fill(Color.black.opacity(0.36))
         )
         .task(id: media.id) {
             await loadHeroMetadata()
@@ -1163,6 +1164,9 @@ private struct TvPinnedHeroBackdrop: View {
     let media: MediaItem
 
     @State private var imageURL: URL?
+    @State private var displayedLogoURL: URL?
+    @State private var displayedTitle: String = ""
+    @State private var loadedIdentityForMediaID: String?
 
     var body: some View {
         GeometryReader { proxy in
@@ -1190,6 +1194,17 @@ private struct TvPinnedHeroBackdrop: View {
                     .position(x: proxy.size.width * 0.76, y: proxy.size.height * 0.50)
                 }
 
+                VStack {
+                    Spacer(minLength: 0)
+                    HStack {
+                        Spacer(minLength: 0)
+                        heroIdentityOverlay
+                            .frame(width: proxy.size.width * 0.34, alignment: .trailing)
+                            .padding(.trailing, 18)
+                            .padding(.bottom, 10)
+                    }
+                }
+
                 LinearGradient(
                     stops: [
                         .init(color: .black, location: 0.0),
@@ -1212,6 +1227,81 @@ private struct TvPinnedHeroBackdrop: View {
             }
             .task(id: media.id) {
                 await loadImage()
+                await loadIdentityIfNeeded()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var heroIdentityOverlay: some View {
+        Group {
+            if let displayedLogoURL {
+                AsyncImage(url: displayedLogoURL) { phase in
+                    if let image = phase.image {
+                        image
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxHeight: 185)
+                    } else {
+                        fallbackIdentityText
+                    }
+                }
+            } else {
+                fallbackIdentityText
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            LinearGradient(
+                colors: [Color.black.opacity(0.62), Color.black.opacity(0.18), .clear],
+                startPoint: .bottom,
+                endPoint: .top
+            )
+        )
+    }
+
+    private var fallbackIdentityText: some View {
+        Text(displayedTitle.isEmpty ? media.primaryLabel : displayedTitle)
+            .font(.system(size: 54, weight: .heavy, design: .rounded))
+            .foregroundStyle(.white)
+            .lineLimit(2)
+            .minimumScaleFactor(0.55)
+            .multilineTextAlignment(.trailing)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+    }
+
+    private func loadIdentityIfNeeded() async {
+        guard loadedIdentityForMediaID != media.id else { return }
+
+        do {
+            let metadataRepository = try MetadataRepository(context: plexApiContext)
+            let response = try await metadataRepository.getMetadata(ratingKey: media.metadataRatingKey)
+            guard let item = response.mediaContainer.metadata?.first else { return }
+
+            let imageRepository = try? ImageRepository(context: plexApiContext)
+            let resolvedLogoURL: URL? = item.images?.first(where: { image in
+                image.type.localizedCaseInsensitiveContains("logo")
+            }).flatMap { image in
+                imageRepository?.transcodeImageURL(path: image.url.path, width: 1800, height: 700)
+            }
+
+            await MainActor.run {
+                // Keep the previous identity visible until the next one is fully resolved.
+                if let resolvedLogoURL {
+                    displayedLogoURL = resolvedLogoURL
+                    displayedTitle = media.primaryLabel
+                } else {
+                    displayedLogoURL = nil
+                    displayedTitle = media.primaryLabel
+                }
+                loadedIdentityForMediaID = media.id
+            }
+        } catch {
+            await MainActor.run {
+                displayedLogoURL = nil
+                displayedTitle = media.primaryLabel
+                loadedIdentityForMediaID = media.id
             }
         }
     }
@@ -1248,7 +1338,7 @@ private struct TvPinnedHeroImageMask: View {
         LinearGradient(
             stops: [
                 .init(color: .clear, location: 0.0),
-                .init(color: .black, location: 0.24),
+                .init(color: .black, location: 0.12),
                 .init(color: .black, location: 0.94),
                 .init(color: .clear, location: 1.0),
             ],
