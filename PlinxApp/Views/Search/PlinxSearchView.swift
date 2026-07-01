@@ -9,6 +9,9 @@ struct PlinxSearchView: View {
 
     @Environment(PlexAPIContext.self) private var plexApiContext
     @FocusState private var searchFocused: Bool
+    #if os(tvOS)
+    @FocusState private var focusedResultID: String?
+    #endif
     @Environment(\.safetyPolicy) private var safetyPolicy
 
     private var searchAccentColor: Color { PlinxAccentColor.green.color }
@@ -138,9 +141,20 @@ struct PlinxSearchView: View {
     private var resultsList: some View {
         LazyVStack(spacing: 0) {
             ForEach(viewModel.items) { item in
+                #if os(tvOS)
+                SearchResultButton(
+                    item: item,
+                    plexApiContext: plexApiContext,
+                    isFocused: focusedResultID == item.id,
+                    onSelect: { onSelectMedia(item) },
+                    onLongPress: { onLongPressMedia(item) }
+                )
+                .focused($focusedResultID, equals: item.id)
+                #else
                 resultRow(item)
                     .onTapGesture { onSelectMedia(item) }
                     .onLongPressGesture { onLongPressMedia(item) }
+                #endif
 
                 Divider()
                     .padding(.leading, 76)
@@ -193,3 +207,70 @@ struct PlinxSearchView: View {
         .contentShape(Rectangle())
     }
 }
+
+#if os(tvOS)
+private struct SearchResultButton: View {
+    let item: MediaDisplayItem
+    let plexApiContext: PlexAPIContext
+    let isFocused: Bool
+    let onSelect: () -> Void
+    let onLongPress: () -> Void
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(spacing: 18) {
+                MediaImageView(
+                    viewModel: MediaImageViewModel(
+                        context: plexApiContext,
+                        artworkKind: .thumb,
+                        media: item
+                    )
+                )
+                .frame(width: 82, height: 82)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(item.primaryLabel)
+                        .font(.headline.bold())
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+
+                    if let sub = item.secondaryLabel {
+                        Text(sub)
+                            .font(.subheadline)
+                            .foregroundStyle(.white.opacity(0.68))
+                            .lineLimit(1)
+                    }
+
+                    if let rating = item.playableItem?.contentRating {
+                        Text(rating)
+                            .font(.caption2.bold())
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(Capsule().fill(Color.orange.opacity(0.8)))
+                    }
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption.bold())
+                    .foregroundStyle(.white.opacity(isFocused ? 0.8 : 0.32))
+            }
+            .padding(.horizontal, 28)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(isFocused ? Color.white.opacity(0.12) : Color.clear)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(isFocused ? Color.accentColor.opacity(0.9) : Color.clear, lineWidth: 2)
+            )
+            .scaleEffect(isFocused ? 1.025 : 1)
+            .animation(.easeOut(duration: 0.14), value: isFocused)
+        }
+        .buttonStyle(.plain)
+        .onLongPressGesture(perform: onLongPress)
+    }
+}
+#endif

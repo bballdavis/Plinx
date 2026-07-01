@@ -37,7 +37,16 @@ struct PlinxLibraryView: View {
             if hotReloadLibraryArtwork {
                 artworkRefreshToken = UUID()
             }
+            #if os(tvOS)
+            focusedLibraryID = focusedLibraryID ?? viewModel.libraries.first?.id
+            #endif
         }
+        #if os(tvOS)
+        .onChange(of: viewModel.libraries.map(\.id)) { _, ids in
+            guard focusedLibraryID == nil else { return }
+            focusedLibraryID = ids.first
+        }
+        #endif
         .onChange(of: safetyPolicy) { _, newPolicy in
             viewModel.updatePolicy(newPolicy)
         }

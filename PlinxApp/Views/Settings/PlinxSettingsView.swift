@@ -111,6 +111,7 @@ private struct SettingsBody: View {
                 Text("settings.appearance.section", tableName: "Plinx")
             }
 
+            #if !os(tvOS)
             // MARK: Downloads
             Section {
                 NavigationLink(destination: SettingsDownloadsView()) {
@@ -123,6 +124,7 @@ private struct SettingsBody: View {
             } header: {
                 Text("settings.downloads.title", tableName: "Plinx")
             }
+            #endif
 
             // MARK: Playback
             Section {

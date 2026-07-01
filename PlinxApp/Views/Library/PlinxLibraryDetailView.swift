@@ -237,7 +237,8 @@ struct PlinxLibraryDetailView: View {
             PlinxLibraryRecommendedRowsView(
                 viewModel: makeRecommendedViewModel(),
                 heroMedia: $tvHeroMedia,
-                onSelectMedia: onSelectMedia
+                onSelectMedia: onSelectMedia,
+                onLongPressMedia: onLongPressMedia
             )
             .padding(.horizontal, 12)
             .padding(.bottom, 28)
@@ -246,6 +247,7 @@ struct PlinxLibraryDetailView: View {
                 viewModel: makeBrowseViewModel(),
                 heroMedia: $tvHeroMedia,
                 onSelectMedia: onSelectMedia,
+                onLongPressMedia: onLongPressMedia,
                 onJumpToIndex: { index in
                     withAnimation(.easeInOut(duration: 0.2)) {
                         scrollProxy.scrollTo(index, anchor: .top)
@@ -259,6 +261,7 @@ struct PlinxLibraryDetailView: View {
                 viewModel: makeCollectionsViewModel(),
                 heroMedia: $tvHeroMedia,
                 onSelectMedia: onSelectMedia,
+                onLongPressMedia: onLongPressMedia,
                 onJumpToIndex: { index in
                     withAnimation(.easeInOut(duration: 0.2)) {
                         scrollProxy.scrollTo(index, anchor: .top)
@@ -370,7 +373,7 @@ struct PlinxLibraryDetailView: View {
 
     private func makeRecommendedViewModel() -> LibraryRecommendedViewModel {
         let vm = LibraryRecommendedViewModel(library: library, context: plexApiContext)
-        let policy = safetyPolicy
+        let policy = effectivePolicyForLibrary
         vm.hubFilter = { hub in filterRecommendedHub(hub, policy: policy) }
         return vm
     }
@@ -381,23 +384,14 @@ struct PlinxLibraryDetailView: View {
             context: plexApiContext,
             settingsManager: settingsManager
         )
-        #if !os(tvOS)
-        let policy = safetyPolicy
+        let policy = effectivePolicyForLibrary
         let libType = library.type
-        // None-agent libraries (YouTube Videos, Home Videos, etc.) are personally
-        // curated and typically lack MPAA/TV content ratings. Allow unrated items
-        // through while still respecting the rating ceiling for any item that does
-        // carry an explicit rating (e.g., a TV-MA clip still gets blocked).
-        let effectivePolicy = library.isNoneAgentLibrary
-            ? SafetyPolicy.ratingOnly(maxMovie: policy.maxMovieRating, maxTV: policy.maxTVRating, allowUnrated: true)
-            : policy
         vm.itemFilter = { item in
             if (libType == .movie || libType == .show), case .collection = item {
                 return false
             }
-            return StrimrAdapter.isAllowed(item, policy: effectivePolicy)
+            return StrimrAdapter.isAllowed(item, policy: policy)
         }
-        #endif
         return vm
     }
 
@@ -408,14 +402,31 @@ struct PlinxLibraryDetailView: View {
             context: plexApiContext,
             settingsManager: settingsManager
         )
+        let policy = effectivePolicyForLibrary
+        vm.itemFilter = { item in
+            StrimrAdapter.isAllowed(item, policy: policy)
+        }
         #else
         let vm = LibraryCollectionsViewModel(library: library, context: plexApiContext)
-        let policy = safetyPolicy
+        let policy = effectivePolicyForLibrary
         vm.itemFilter = { item in
             StrimrAdapter.isAllowed(item, policy: policy)
         }
         #endif
         return vm
+    }
+
+    /// None-agent libraries (YouTube Videos, Home Videos, etc.) are personally
+    /// curated and typically lack MPAA/TV ratings. Allow unrated items through
+    /// while still blocking any explicit over-limit rating.
+    private var effectivePolicyForLibrary: SafetyPolicy {
+        library.isNoneAgentLibrary
+            ? SafetyPolicy.ratingOnly(
+                maxMovie: safetyPolicy.maxMovieRating,
+                maxTV: safetyPolicy.maxTVRating,
+                allowUnrated: true
+            )
+            : safetyPolicy
     }
 
     private func filterRecommendedHub(_ hub: Hub, policy: SafetyPolicy) -> Hub? {
@@ -442,6 +453,7 @@ private struct PlinxLibraryRecommendedRowsView: View {
     @State var viewModel: LibraryRecommendedViewModel
     @Binding var heroMedia: MediaItem?
     let onSelectMedia: (MediaDisplayItem) -> Void
+    let onLongPressMedia: (MediaDisplayItem) -> Void
 
     private let landscapeHubIdentifiers: [String] = ["inprogress"]
 
@@ -490,14 +502,16 @@ private struct PlinxLibraryRecommendedRowsView: View {
                 layout: .landscape,
                 items: hub.items,
                 showsLabels: true,
-                onSelectMedia: onSelectMedia
+                onSelectMedia: onSelectMedia,
+                onLongPressMedia: onLongPressMedia
             )
         } else {
             MediaCarousel(
                 layout: .portrait,
                 items: hub.items,
                 showsLabels: true,
-                onSelectMedia: onSelectMedia
+                onSelectMedia: onSelectMedia,
+                onLongPressMedia: onLongPressMedia
             )
         }
     }
@@ -548,6 +562,7 @@ private struct PlinxLibraryBrowseRowsView: View {
     @State var viewModel: LibraryBrowseViewModel
     @Binding var heroMedia: MediaItem?
     let onSelectMedia: (MediaDisplayItem) -> Void
+    let onLongPressMedia: (MediaDisplayItem) -> Void
     let onJumpToIndex: (Int) -> Void
 
     private var usesLandscapeCards: Bool {
@@ -588,10 +603,14 @@ private struct PlinxLibraryBrowseRowsView: View {
                                     if usesLandscapeCards {
                                         LandscapeMediaCard(media: media, width: cardWidth, showsLabels: true) {
                                             onSelectMedia(media)
+                                        } onLongPress: {
+                                            onLongPressMedia(media)
                                         }
                                     } else {
                                         PortraitMediaCard(media: media, width: cardWidth, showsLabels: true) {
                                             onSelectMedia(media)
+                                        } onLongPress: {
+                                            onLongPressMedia(media)
                                         }
                                     }
                                 case let .folder(folder):
@@ -729,6 +748,7 @@ private struct PlinxLibraryCollectionsRowsView: View {
     @State var viewModel: LibraryCollectionsViewModel
     @Binding var heroMedia: MediaItem?
     let onSelectMedia: (MediaDisplayItem) -> Void
+    let onLongPressMedia: (MediaDisplayItem) -> Void
     let onJumpToIndex: (Int) -> Void
 
     private let gridColumns = [
@@ -744,6 +764,8 @@ private struct PlinxLibraryCollectionsRowsView: View {
                             if let media = viewModel.itemsByIndex[index] {
                                 PortraitMediaCard(media: media, width: 200, showsLabels: true) {
                                     onSelectMedia(media)
+                                } onLongPress: {
+                                    onLongPressMedia(media)
                                 }
                             } else {
                                 ProgressView()

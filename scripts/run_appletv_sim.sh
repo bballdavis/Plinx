@@ -4,8 +4,9 @@
 # ─────────────────────────────────────────────────────────────────────────────
 #
 # Usage:
-#   ./scripts/run_appletv_sim.sh                          # Apple TV 4K (default)
-#   ./scripts/run_appletv_sim.sh "Apple TV 4K (3rd gen)"  # Custom device name
+#   ./scripts/run_appletv_sim.sh                          # Apple TV (default)
+#   ./scripts/run_appletv_sim.sh "Apple TV 4K (3rd generation)"
+#   ./scripts/run_appletv_sim.sh --compile-only           # Build only, no signing/install
 #
 # The script:
 #   1. Generates Plinx.xcodeproj from project.yml via XcodeGen
@@ -28,7 +29,13 @@ PLINX_APP_DIR="$PROJECT_ROOT/PlinxApp"
 source "$PROJECT_ROOT/scripts/sim_destination.sh"
 
 # Configuration
-DEVICE_NAME="${1:-Apple TV 4K}"
+COMPILE_ONLY=false
+if [ "${1:-}" = "--compile-only" ] || [ "${1:-}" = "--build-only" ]; then
+    COMPILE_ONLY=true
+    DEVICE_NAME="${2:-generic}"
+else
+    DEVICE_NAME="${1:-Apple TV}"
+fi
 SCHEME="Plinx-tvOS"
 DERIVED_DATA_PATH="${PLINX_SIM_ATV_DERIVED_DATA_PATH:-/tmp/plinx-run-atv-derived-data}"
 
@@ -37,13 +44,21 @@ echo "📺 Plinx Apple TV Simulator Build & Run"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "Device : $DEVICE_NAME"
 echo "Scheme : $SCHEME"
+if [ "$COMPILE_ONLY" = true ]; then
+    echo "Mode   : compile only"
+fi
 echo ""
 
 # Step 1: Determine destination
 echo "📡 Determining destination..."
 if [ "$DEVICE_NAME" = "generic" ]; then
-    echo "→ using generic tvOS Simulator destination"
-    DEST="generic/platform=tvOS Simulator"
+    if [ "$COMPILE_ONLY" = true ]; then
+        echo "→ using generic tvOS destination"
+        DEST="generic/platform=tvOS"
+    else
+        echo "→ using generic tvOS Simulator destination"
+        DEST="generic/platform=tvOS Simulator"
+    fi
     UDID=""
 else
     if select_simulator_destination "$DEVICE_NAME" "tvOS"; then
@@ -54,6 +69,10 @@ else
         else
             echo "⚠️  Exact simulator '$DEVICE_NAME' not found. Using '$SIM_NAME' ($UDID) instead."
         fi
+    elif [ "$COMPILE_ONLY" = true ]; then
+        echo "⚠️  Simulator '$DEVICE_NAME' not found. Falling back to generic tvOS compile destination."
+        DEST="generic/platform=tvOS"
+        UDID=""
     else
         echo "❌ Simulator '$DEVICE_NAME' not found."
         echo ""
@@ -103,6 +122,10 @@ echo "🔨 Building $SCHEME..."
 BUILD_LOG="/tmp/plinx_build_atv.log"
 /bin/rm -rf "$DERIVED_DATA_PATH"
 echo "→ Streaming full xcodebuild output (log: $BUILD_LOG)"
+BUILD_SETTINGS=()
+if [ "$COMPILE_ONLY" = true ]; then
+    BUILD_SETTINGS+=(CODE_SIGNING_ALLOWED=NO)
+fi
 set +e
 xcodebuild build \
     -project Plinx.xcodeproj \
@@ -110,6 +133,7 @@ xcodebuild build \
     -destination "$DEST" \
     -configuration Debug \
     -derivedDataPath "$DERIVED_DATA_PATH" \
+    "${BUILD_SETTINGS[@]}" \
     2>&1 | tee "$BUILD_LOG"
 
 BUILD_STATUS=${PIPESTATUS[0]}
@@ -131,6 +155,14 @@ fi
 
 echo "✓ Build succeeded"
 echo ""
+
+if [ "$COMPILE_ONLY" = true ]; then
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "✓ Plinx-tvOS compile-only build succeeded"
+    echo "   Build log : $BUILD_LOG"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    exit 0
+fi
 
 # Step 5: Locate built .app
 APP_PATH="$DERIVED_DATA_PATH/Build/Products/Debug-appletvsimulator/Plinx.app"

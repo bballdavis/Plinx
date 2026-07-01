@@ -27,6 +27,7 @@ struct RootTabView: View {
     #if os(tvOS)
     @State private var mediaFocusModel = MediaFocusModel()
     @FocusState private var focusedHeaderTab: MainCoordinator.Tab?
+    @FocusState private var focusedQuickActionID: String?
     #endif
     /// Local overrides for watched status, keyed by media item id.
     /// Updated instantly on toggle; cleared when home data reloads.
@@ -63,11 +64,15 @@ struct RootTabView: View {
     }
 
     private var hasDownloadActivity: Bool {
+        #if os(tvOS)
+        false
+        #else
         // CRITICAL: Check for ANY download items (queued, downloading, completed, failed)
         // NOT just completedItems. The downloads tab should show if there's any
         // download activity in progress, failed, or already completed.
         // See: Known regression where this checked only completedItems (commit 4357449)
         !downloadManager.items.isEmpty
+        #endif
     }
 
     /// Tabs shown in the picker.
@@ -75,13 +80,15 @@ struct RootTabView: View {
         #if os(tvOS)
         let showsSearch = true
         let includesSettings = true
+        let includeDownloads = false
         #else
         let showsSearch = showSearchInMainNavigation
         let includesSettings = false
+        let includeDownloads = hasDownloadActivity
         #endif
 
         return KidsMainTabPicker.TabItem.mainTabs(
-            includeDownloads: hasDownloadActivity,
+            includeDownloads: includeDownloads,
             showSearchInMainNavigation: showsSearch,
             includeSettings: includesSettings
         )
@@ -135,7 +142,8 @@ struct RootTabView: View {
     }
 
     private func quickActionSheet(for item: MediaDisplayItem) -> some View {
-        ZStack(alignment: .bottom) {
+        let options = quickActionOptions(for: item)
+        return ZStack(alignment: .bottom) {
             Color.black.opacity(0.45)
                 .ignoresSafeArea()
                 .accessibilityIdentifier("quickAction.backdrop")
@@ -149,7 +157,7 @@ struct RootTabView: View {
                     .foregroundStyle(.white)
                     .lineLimit(2)
 
-                ForEach(quickActionOptions(for: item)) { option in
+                ForEach(options) { option in
                     quickActionButton(option)
                 }
 
@@ -166,6 +174,9 @@ struct RootTabView: View {
                         )
                 }
                 .buttonStyle(.plain)
+                #if os(tvOS)
+                .focused($focusedQuickActionID, equals: "cancel")
+                #endif
                 .accessibilityIdentifier("quickAction.cancel")
             }
             .padding(14)
@@ -174,6 +185,14 @@ struct RootTabView: View {
             .padding(.bottom, 16)
             .accessibilityIdentifier("quickAction.sheet")
         }
+        #if os(tvOS)
+        .onAppear {
+            focusedQuickActionID = options.first?.id ?? "cancel"
+        }
+        .onExitCommand {
+            selectedQuickActionMedia = nil
+        }
+        #endif
     }
 
     private func quickActionButton(_ option: QuickActionOption) -> some View {
@@ -200,6 +219,9 @@ struct RootTabView: View {
             )
         }
         .buttonStyle(PlinkButtonStyle())
+        #if os(tvOS)
+        .focused($focusedQuickActionID, equals: option.id)
+        #endif
         .accessibilityIdentifier("quickAction.option.\(option.id)")
     }
 
@@ -351,7 +373,7 @@ struct RootTabView: View {
                         mainCoordinator.libraryPath.append(library)
                     },
                     onRequestHomeNavigationFocus: {
-                        focusedHeaderTab = .home
+                        focusedHeaderTab = .library
                     }
                 )
                 .toolbar(.hidden, for: .navigationBar)
@@ -376,16 +398,19 @@ struct RootTabView: View {
 
         case .more:
             NavigationStack(path: mainCoordinator.pathBinding(for: .more)) {
+                #if os(tvOS)
+                EmptyView()
+                    .onAppear {
+                        mainCoordinator.resetToRoot(for: .home)
+                        mainCoordinator.tab = .home
+                    }
+                #else
                 PlinxDownloadsGridView()
                     .toolbar(.hidden, for: .navigationBar)
-                    #if os(tvOS)
-                    .safeAreaInset(edge: .top, spacing: 0) {
-                        topTitleRow(title: "tabs.downloads", showsSettingsButton: false)
-                    }
-                    #endif
                     .navigationDestination(for: MainCoordinator.Route.self) { route in
                         destination(for: route)
                     }
+                #endif
             }
             .opacity(activeRootTab == .more ? 1 : 0)
             .allowsHitTesting(activeRootTab == .more)
@@ -628,6 +653,7 @@ struct RootTabView: View {
                 )
             ]
 
+            #if !os(tvOS)
             switch QuickActionDownloadActionPolicy.action(for: media, downloadItems: downloadManager.items) {
             case .download:
                 let downloadTitle: String
@@ -674,6 +700,7 @@ struct RootTabView: View {
                     )
                 )
             }
+            #endif
 
             actions.append(
                 QuickActionOption(

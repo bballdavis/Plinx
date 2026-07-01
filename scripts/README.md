@@ -96,21 +96,28 @@ See [development/UI_TESTING_STRATEGY.md](../development/UI_TESTING_STRATEGY.md) 
 ### `live_library_parity_tests.sh` — Run Live Browse/Recommend Parity Tests
 
 Loads `test_creds.yaml`, injects Plex credentials into the test process, and runs:
-`Plinx-iOS-UnitTests/LibraryFilteringParityLiveTests`
+`Plinx-iOS-UnitTests/LibraryFilteringParityLiveTests` by default.
 
 ```bash
-# Run against default simulator destination
+# Run iOS parity against the default simulator destination
 ./scripts/live_library_parity_tests.sh
 
-# Run against a custom destination string
+# Run iOS parity against a custom destination string
 ./scripts/live_library_parity_tests.sh 'platform=iOS Simulator,name=iPhone 17'
+
+# Run Apple TV parity against a discovered Apple TV simulator
+./scripts/live_library_parity_tests.sh --appletv
+
+# Run Apple TV parity against a custom destination string
+./scripts/live_library_parity_tests.sh --appletv 'platform=tvOS Simulator,name=Apple TV'
 ```
 
 **What it does:**
 - Reads `PLINX_PLEX_SERVER_URL` and `PLINX_PLEX_TOKEN` from repository-root `test_creds.yaml`
 - Exports both direct and `SIMCTL_CHILD_*` env vars for simulator test propagation
-- Runs targeted live parity tests and writes full logs to `/tmp/plinx_live_library_parity.log`
-- Writes result bundle to `/tmp/Plinx_live_library_parity.xcresult`
+- Runs targeted live parity tests and writes full logs to `/tmp/plinx_live_library_parity_ios.log` or `/tmp/plinx_live_library_parity_tvos.log`
+- Writes result bundles to `/tmp/Plinx_live_library_parity_ios.xcresult` or `/tmp/Plinx_live_library_parity_tvos.xcresult`
+- In Apple TV mode, exercises the tvOS paged `itemsByIndex` browse/collections models and verifies compact indexing, collection exclusion for movie/show browse, and Other Videos unrated handling
 
 **Output:** Clear pass/fail status plus extracted error lines on failure.
 

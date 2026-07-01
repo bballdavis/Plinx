@@ -233,8 +233,10 @@ targets:
       - path: App
         excludes:
           - "AppDelegate.swift"
+          - "DownloadUITestFixtures.swift"
       - path: Views
         excludes:
+          - "Downloads/**"
       - path: Decorators
       - path: Adapters
       - path: ViewModels
@@ -302,7 +304,33 @@ targets:
       build:
         targets:
           Plinx-tvOS: all
+      testTargets:
+        - Plinx-tvOS-UnitTests
       run:
         config: Debug
       test:
         config: Debug
+
+  Plinx-tvOS-UnitTests:
+    type: bundle.unit-test
+    platform: tvOS
+
+    sources:
+      - path: UnitTestsTV
+
+    resources:
+      - path: UnitTestsTV/test_creds.yaml
+        optional: true
+
+    dependencies:
+      - target: Plinx-tvOS
+
+    settings:
+      base:
+        PRODUCT_NAME: PlinxTVUnitTests
+        PRODUCT_BUNDLE_IDENTIFIER: com.bballdavis.plinx.tvos.unittests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_STRICT_CONCURRENCY: minimal
+        OTHER_SWIFT_FLAGS: "-Xfrontend -strict-concurrency=minimal"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Plinx.app/Plinx"
+        BUNDLE_LOADER: "$(TEST_HOST)"

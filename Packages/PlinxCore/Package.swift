@@ -25,6 +25,7 @@ let package = Package(
     name: "PlinxCore",
     platforms: [
         .iOS(.v17),
+        .tvOS(.v17),
         .macOS(.v14)
     ],
     products: [
@@ -33,15 +34,12 @@ let package = Package(
     dependencies: [
         // MPVKit — linked transitively for PlaybackEngine protocol implementations.
         .package(url: "https://github.com/wunax/MPVKit", exact: "0.41.2"),
-        // Sentry — crash reporting (evaluate PII before enabling in prod).
-        .package(url: "https://github.com/getsentry/sentry-cocoa.git", exact: "9.1.0")
     ],
     targets: [
         .target(
             name: "PlinxCore",
             dependencies: [
                 .product(name: "MPVKit-GPL", package: "MPVKit"),
-                .product(name: "Sentry", package: "sentry-cocoa")
             ]
         ),
         .testTarget(
