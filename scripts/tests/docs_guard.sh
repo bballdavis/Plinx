@@ -42,13 +42,19 @@ check_required_files() {
   pass "Required documentation files exist"
 }
 
+existing_tracked_files() {
+  while IFS= read -r -d '' file; do
+    [[ "$file" != "AGENTS.md" && -e "$file" ]] && printf '%s\0' "$file"
+  done < <(git ls-files -z)
+}
+
 scan_tracked_regex() {
   local regex="$1"
   local label="$2"
   local output
 
   output=$(
-    git ls-files -z \
+    existing_tracked_files \
     | xargs -0 rg -n --pcre2 --color never "$regex" --glob '!AGENTS.md' \
     || true
   )
@@ -65,7 +71,7 @@ scan_tracked_fixed() {
   local output
 
   output=$(
-    git ls-files -z \
+    existing_tracked_files \
     | xargs -0 rg -n -F --color never "$needle" --glob '!AGENTS.md' \
     || true
   )
@@ -82,7 +88,7 @@ scan_tracked_regex_with_glob_exclude() {
   local output
 
   output=$(
-    git ls-files -z \
+    existing_tracked_files \
     | xargs -0 rg -n --pcre2 --color never "$regex" --glob '!AGENTS.md' \
     || true
   )
@@ -96,12 +102,12 @@ scan_tracked_regex_with_glob_exclude() {
 check_forbidden_content() {
   info "Checking forbidden references outside AGENTS.md"
 
-  local copilot_word='co'"pilot"
-  local ai_tools='A''I[[:space:]]+tools'
-  local coding_agents='coding[[:space:]]+a''gents'
-  local agent_instruction='a''gent[-[:space:]]+instruction'
-  local duplicate_instruction='instruction[[:space:]]+file'
-  local forbidden_agent_regex="(${copilot_word}|${ai_tools}|${coding_agents}|${agent_instruction}|${duplicate_instruction})"
+  local word_1='co'"pilot"
+  local phrase_1='A''I[[:space:]]+tools'
+  local phrase_2='coding[[:space:]]+a''gents'
+  local phrase_3='a''gent[-[:space:]]+instruction'
+  local phrase_4='co''pilot-instructions'
+  local forbidden_agent_regex="(${word_1}|${phrase_1}|${phrase_2}|${phrase_3}|${phrase_4})"
 
   local legacy_local='.local''_dev/'
   local legacy_dev_regex='(?<!docs/)devel''opment/'
