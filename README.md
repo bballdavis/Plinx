@@ -141,8 +141,6 @@ All content is filtered before display using configurable content ratings. Setti
 
 **Zero data collection.** Plinx does not collect usage data, crash reports, or telemetry. All communication is directly between the app and your Plex Media Server. See [PRIVACY_POLICY.md](PRIVACY_POLICY.md) for the full privacy policy.
 
-**Development transparency.** AI tools and coding agents were used during development, but every change is validated with a robust test suite and routine security checks before release. In normal app use, the only network communication is with Plex and your Plex Media Server.
-
 ---
 
 ## Built on Strimr
@@ -153,7 +151,7 @@ Plinx is built on the open-source [Strimr](https://github.com/wunax/strimr) Plex
 
 ## For Developers
 
-Want to build, contribute, or run Plinx locally? See [development/SETUP.md](development/SETUP.md) for setup instructions.
+Want to build, contribute, or run Plinx locally? Start with [docs/development/setup.md](docs/development/setup.md) and use [docs/README.md](docs/README.md) as the engineering index.
 
 The app is open source under GPL-3.0. See [LICENSE](LICENSE) for details.
 

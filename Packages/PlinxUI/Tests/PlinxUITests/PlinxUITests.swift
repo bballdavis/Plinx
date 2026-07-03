@@ -6,7 +6,7 @@
 // requiring a simulator or UIKit. They run as part of `swift test` on any
 // macOS machine.
 //
-// References: development/UI_TESTING_STRATEGY.md — "Logic" layer
+// References: docs/development/ui-testing.md — "Logic" layer
 // ─────────────────────────────────────────────────────────────────────────────
 
 #if canImport(Testing)

@@ -89,7 +89,7 @@ targets:
           - "Views/Media/MediaBackdropGradient.swift"
           # ErrorReporter would initialize Sentry. Plinx has zero data collection,
           # so we provide our own no-op ErrorReporter instead (App/ErrorReporter.swift).
-          # See DATA_COLLECTION_AUDIT.md for privacy rationale.
+          # See docs/security/privacy-and-safety.md for the privacy rationale.
           - "Monitoring/ErrorReporter.swift"
       - path: ../../strimr/Strimr-iOS/Features
         name: StrimrIOSFeatures

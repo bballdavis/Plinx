@@ -1,8 +1,6 @@
-# Local-only (never commit)
-.local_dev/
+# Local-only
 .vscode/
 .venv/
-AGENTS.md
 
 # Xcode / Swift
 .DS_Store

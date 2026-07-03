@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Patches the Xcode pbxproj to add a PBXResourcesBuildPhase containing
-required app resources that can be dropped by generation.
+Ensure the generated pbxproj keeps the required resource references used by the
+current Plinx runtime layout.
 
-Re-run safe: all inserts are idempotent.
+Safe to re-run: inserts are idempotent.
 """
 import re, os
 
@@ -28,11 +28,6 @@ UUID_PRIVACY_BUILD       = 'AA10000000000011PRIVBLD'
 
 with open(pbxproj) as f:
     content = f.read()
-
-content = content.replace(
-    '../vendor/strimr/Localizable.xcstrings',
-    '../../strimr/Localizable.xcstrings',
-)
 
 def ensure_before_marker(text: str, marker: str, snippet: str, unique_token: str) -> str:
     if unique_token in text:

@@ -10,7 +10,7 @@
 // FIRST RUN: set `isRecording = true` in setUp(), run once on iPhone 15
 // simulator, commit __Snapshots__/, then set back to false.
 //
-// References: development/UI_TESTING_STRATEGY.md — "Component rendering" layer
+// References: docs/development/ui-testing.md — "Component rendering" layer
 // ─────────────────────────────────────────────────────────────────────────────
 
 #if canImport(XCTest) && canImport(UIKit)

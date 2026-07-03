@@ -5,7 +5,7 @@
 // Tests for PlinxRating: parsing, ordering, isTVRating, isMovieRating.
 // All cases run without a simulator.
 //
-// References: development/UI_TESTING_STRATEGY.md — "Logic" layer
+// References: docs/development/ui-testing.md — "Logic" layer
 // ─────────────────────────────────────────────────────────────────────────────
 
 #if canImport(Testing)

@@ -12,7 +12,7 @@ import Foundation
 // as part of its error handling. By providing this local implementation, we ensure
 // that no telemetry or analytics code runs, without needing to modify vendor code.
 //
-// See DATA_COLLECTION_AUDIT.md for rationale and privacy compliance details.
+// See docs/security/privacy-and-safety.md for rationale and privacy details.
 //
 // ─────────────────────────────────────────────────────────────────────────────
 

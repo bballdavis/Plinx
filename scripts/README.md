@@ -89,7 +89,7 @@ Runs Swift Testing tests for both PlinxCore and PlinxUI, with optional snapshot 
 
 **Output:** Colored summary of pass/fail for each test layer.
 
-See [development/UI_TESTING_STRATEGY.md](../development/UI_TESTING_STRATEGY.md) for full documentation.
+See [docs/development/ui-testing.md](../docs/development/ui-testing.md) for full documentation.
 
 ---
 
@@ -245,6 +245,22 @@ Validates the app bundle inside an `.xcarchive` before you upload it.
 
 ---
 
+### `docs_guard.sh` — Validate Repo Documentation Contracts
+
+Runs the repository documentation guard locally.
+
+```bash
+./scripts/docs_guard.sh
+```
+
+**What it checks:**
+- required `docs/` files exist
+- legacy path references are not reintroduced
+- duplicate instruction-style references are not reintroduced outside `AGENTS.md`
+- structural/code changes in PRs are paired with `AGENTS.md` or `docs/` updates
+
+---
+
 ## Available Simulators
 
 To see available iOS simulators:
@@ -330,7 +346,7 @@ git commit -m "test: record PlinxUI snapshot baselines"
 ./scripts/ui_tests.sh --snapshots
 ```
 
-See [development/UI_TESTING_STRATEGY.md](../development/UI_TESTING_STRATEGY.md) for test layer documentation.
+See [docs/development/ui-testing.md](../docs/development/ui-testing.md) for test layer documentation.
 
 ---
 

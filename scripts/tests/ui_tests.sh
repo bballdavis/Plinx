@@ -14,7 +14,7 @@
 #   ./scripts/ui_tests.sh --record     # Recording mode for snapshot baselines
 #   ./scripts/ui_tests.sh --live       # Live Plex UI smoke tests (Playwright-style)
 #
-# References: development/UI_TESTING_STRATEGY.md
+# References: docs/development/ui-testing.md
 #
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -272,7 +272,7 @@ main() {
             echo "  ./scripts/ui_tests.sh --record     # Record snapshot baselines"
             echo "  ./scripts/ui_tests.sh --live       # Live Plex UI smoke tests"
             echo ""
-            echo "See development/UI_TESTING_STRATEGY.md for details."
+            echo "See docs/development/ui-testing.md for details."
             exit 0
             ;;
         *)
