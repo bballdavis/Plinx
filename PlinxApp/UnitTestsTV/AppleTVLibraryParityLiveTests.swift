@@ -34,6 +34,7 @@ final class AppleTVLibraryParityLiveTests: XCTestCase {
         var sawUnratedPlayable = false
 
         for library in libraries {
+            assertOtherVideoArtworkPolicy(library)
             let containsUnratedPlayable = try await assertTVBrowseParity(library: library, context: context)
             sawUnratedPlayable = sawUnratedPlayable || containsUnratedPlayable
         }
@@ -119,6 +120,29 @@ final class AppleTVLibraryParityLiveTests: XCTestCase {
             return media.contentRating?.isEmpty ?? true
         }
         return containsUnratedPlayable
+    }
+
+    private func assertOtherVideoArtworkPolicy(
+        _ library: Library,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        for surface in LibraryCardLayoutPolicy.DetailSurface.allCases {
+            XCTAssertTrue(
+                LibraryCardLayoutPolicy.usesLandscapeDetailCards(for: library, surface: surface),
+                "Other Videos library detail surfaces must all use landscape cards. Library: \(library.title), surface: \(surface)",
+                file: file,
+                line: line
+            )
+        }
+
+        XCTAssertEqual(
+            ArtworkSelectionPolicy.preferredLandscapeArtworkKind(for: library),
+            .thumb,
+            "Other Videos landscape cards must use thumbnails, not poster/backdrop art. Library: \(library.title)",
+            file: file,
+            line: line
+        )
     }
 
     private func assertTVCollectionsParity(library: Library, context: PlexAPIContext) async throws {

@@ -237,6 +237,7 @@ struct PlinxLibraryDetailView: View {
             PlinxLibraryRecommendedRowsView(
                 viewModel: makeRecommendedViewModel(),
                 heroMedia: $tvHeroMedia,
+                usesLandscapeCards: LibraryCardLayoutPolicy.usesLandscapeDetailCards(for: library, surface: .recommended),
                 onSelectMedia: onSelectMedia,
                 onLongPressMedia: onLongPressMedia
             )
@@ -246,6 +247,7 @@ struct PlinxLibraryDetailView: View {
             PlinxLibraryBrowseRowsView(
                 viewModel: makeBrowseViewModel(),
                 heroMedia: $tvHeroMedia,
+                usesLandscapeCards: LibraryCardLayoutPolicy.usesLandscapeDetailCards(for: library, surface: .browse),
                 onSelectMedia: onSelectMedia,
                 onLongPressMedia: onLongPressMedia,
                 onJumpToIndex: { index in
@@ -260,6 +262,7 @@ struct PlinxLibraryDetailView: View {
             PlinxLibraryCollectionsRowsView(
                 viewModel: makeCollectionsViewModel(),
                 heroMedia: $tvHeroMedia,
+                usesLandscapeCards: LibraryCardLayoutPolicy.usesLandscapeDetailCards(for: library, surface: .collections),
                 onSelectMedia: onSelectMedia,
                 onLongPressMedia: onLongPressMedia,
                 onJumpToIndex: { index in
@@ -448,10 +451,10 @@ struct PlinxLibraryDetailView: View {
 #if os(tvOS)
 private struct PlinxLibraryRecommendedRowsView: View {
     @Environment(MediaFocusModel.self) private var focusModel
-    @Environment(\.preferredLandscapeArtworkKind) private var preferredLandscapeArtworkKind
 
     @State var viewModel: LibraryRecommendedViewModel
     @Binding var heroMedia: MediaItem?
+    let usesLandscapeCards: Bool
     let onSelectMedia: (MediaDisplayItem) -> Void
     let onLongPressMedia: (MediaDisplayItem) -> Void
 
@@ -517,7 +520,7 @@ private struct PlinxLibraryRecommendedRowsView: View {
     }
 
     private func shouldUseLandscape(for hub: Hub) -> Bool {
-        if preferredLandscapeArtworkKind != nil {
+        if usesLandscapeCards {
             return true
         }
         let identifier = hub.id.lowercased()
@@ -556,18 +559,14 @@ private struct PlinxLibraryRecommendedRowsView: View {
 
 private struct PlinxLibraryBrowseRowsView: View {
     @Environment(MediaFocusModel.self) private var focusModel
-    @Environment(\.preferredLandscapeArtworkKind) private var preferredLandscapeArtworkKind
     @FocusState private var focusedCharacterId: String?
 
     @State var viewModel: LibraryBrowseViewModel
     @Binding var heroMedia: MediaItem?
+    let usesLandscapeCards: Bool
     let onSelectMedia: (MediaDisplayItem) -> Void
     let onLongPressMedia: (MediaDisplayItem) -> Void
     let onJumpToIndex: (Int) -> Void
-
-    private var usesLandscapeCards: Bool {
-        preferredLandscapeArtworkKind != nil
-    }
 
     private var cardWidth: CGFloat {
         usesLandscapeCards ? 320 : 200
@@ -747,13 +746,18 @@ private struct PlinxLibraryCollectionsRowsView: View {
 
     @State var viewModel: LibraryCollectionsViewModel
     @Binding var heroMedia: MediaItem?
+    let usesLandscapeCards: Bool
     let onSelectMedia: (MediaDisplayItem) -> Void
     let onLongPressMedia: (MediaDisplayItem) -> Void
     let onJumpToIndex: (Int) -> Void
 
-    private let gridColumns = [
-        GridItem(.adaptive(minimum: 200, maximum: 200), spacing: 32),
-    ]
+    private var cardWidth: CGFloat {
+        usesLandscapeCards ? 320 : 200
+    }
+
+    private var gridColumns: [GridItem] {
+        [GridItem(.adaptive(minimum: cardWidth, maximum: cardWidth), spacing: 32)]
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 24) {
@@ -762,10 +766,18 @@ private struct PlinxLibraryCollectionsRowsView: View {
                     ForEach(0 ..< viewModel.totalItemCount, id: \.self) { index in
                         Group {
                             if let media = viewModel.itemsByIndex[index] {
-                                PortraitMediaCard(media: media, width: 200, showsLabels: true) {
-                                    onSelectMedia(media)
-                                } onLongPress: {
-                                    onLongPressMedia(media)
+                                if usesLandscapeCards {
+                                    LandscapeMediaCard(media: media, width: cardWidth, showsLabels: true) {
+                                        onSelectMedia(media)
+                                    } onLongPress: {
+                                        onLongPressMedia(media)
+                                    }
+                                } else {
+                                    PortraitMediaCard(media: media, width: cardWidth, showsLabels: true) {
+                                        onSelectMedia(media)
+                                    } onLongPress: {
+                                        onLongPressMedia(media)
+                                    }
                                 }
                             } else {
                                 ProgressView()

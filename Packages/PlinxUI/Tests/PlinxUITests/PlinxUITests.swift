@@ -44,7 +44,7 @@ struct PlinxThemeTests {
 struct PlinxMediaCardTests {
 
     @Test func defaultAspectRatioIsPortrait() {
-        #expect(PlinxMediaCard(title: "Test").aspectRatio == 2.0 / 3.0)
+        #expect(abs(PlinxMediaCard(title: "Test").aspectRatio - (2.0 / 3.0)) < 0.0001)
     }
 
     @Test func optionalPropertiesDefaultToNil() {
@@ -68,7 +68,7 @@ struct PlinxMediaCardTests {
 
     @Test func landscapeAspectRatioIsAccepted() {
         let card = PlinxMediaCard(title: "T", aspectRatio: 16.0 / 9.0)
-        #expect(card.aspectRatio == 16.0 / 9.0)
+        #expect(abs(card.aspectRatio - (16.0 / 9.0)) < 0.0001)
     }
 }
 

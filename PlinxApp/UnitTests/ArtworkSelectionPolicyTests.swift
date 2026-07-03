@@ -52,6 +52,19 @@ final class ArtworkSelectionPolicyTests: XCTestCase {
         XCTAssertEqual(kind, .thumb)
     }
 
+    func test_clipLibrariesPreferThumbArtworkForLandscapeCards() {
+        let library = Library(
+            id: "3",
+            title: "Other Videos",
+            type: .clip,
+            sectionId: 3
+        )
+
+        let kind = ArtworkSelectionPolicy.preferredLandscapeArtworkKind(for: library)
+
+        XCTAssertEqual(kind, .thumb)
+    }
+
     func test_regularMovieLibrariesKeepArtArtworkForLandscapeCards() {
         let library = Library(
             id: "1",

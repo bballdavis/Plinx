@@ -35,7 +35,8 @@ struct AspectRatioConstantTests {
     }
 
     @Test func portraitRatioIsTwoThirds() {
-        #expect(CGFloat.portraitCard == 2.0 / 3.0)
+        let expected = 2.0 / 3.0
+        #expect(abs(CGFloat.portraitCard - expected) < 0.0001)
     }
 
     @Test func landscapeRatioIsSixteenNinths() {

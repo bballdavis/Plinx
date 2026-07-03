@@ -7,13 +7,18 @@ struct PlinxCollectionDetailView: View {
     var onLongPressMedia: (MediaDisplayItem) -> Void = { _ in }
 
     @Environment(PlexAPIContext.self) private var plexApiContext
+    @Environment(\.preferredLandscapeArtworkKind) private var preferredLandscapeArtworkKind
     #if os(tvOS)
     @FocusState private var focusedItemID: String?
     #endif
 
     private var columns: [GridItem] {
         #if os(tvOS)
-        [GridItem(.adaptive(minimum: 200, maximum: 220), spacing: 28)]
+        if usesLandscapeCollectionGrid {
+            [GridItem(.adaptive(minimum: 320, maximum: 340), spacing: 28)]
+        } else {
+            [GridItem(.adaptive(minimum: 200, maximum: 220), spacing: 28)]
+        }
         #else
         [GridItem(.adaptive(minimum: 140, maximum: 180), spacing: 12)]
         #endif
@@ -72,10 +77,21 @@ struct PlinxCollectionDetailView: View {
         #endif
     }
 
+    #if os(tvOS)
+    private var usesLandscapeCollectionGrid: Bool {
+        preferredLandscapeArtworkKind != nil || viewModel.items.contains { $0.type == .clip }
+    }
+
+    private func usesLandscapeCard(for item: MediaDisplayItem) -> Bool {
+        preferredLandscapeArtworkKind != nil || item.type == .clip
+    }
+    #endif
+
     @ViewBuilder
     private func collectionItem(_ item: MediaDisplayItem) -> some View {
         #if os(tvOS)
         let isFocused = focusedItemID == item.id
+        let aspectRatio = usesLandscapeCard(for: item) ? (16.0 / 9.0) : (2.0 / 3.0)
         Button {
             onSelectMedia(item)
         } label: {
@@ -86,7 +102,7 @@ struct PlinxCollectionDetailView: View {
                     media: item
                 )
             )
-            .aspectRatio(2 / 3, contentMode: .fit)
+            .aspectRatio(aspectRatio, contentMode: .fit)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
