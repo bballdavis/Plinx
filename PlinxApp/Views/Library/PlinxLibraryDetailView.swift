@@ -279,7 +279,13 @@ struct PlinxLibraryDetailView: View {
     }
 
     private var tvNavigationRow: some View {
-        ZStack {
+        KidsMainTabPicker(
+            tabs: visibleRootTabs,
+            selectedTab: rootTabBinding,
+            focusedTab: $focusedRootNavTab,
+            placement: .header
+        )
+        .overlay(alignment: .leading) {
             HStack(spacing: 10) {
                 Button {
                     dismiss()
@@ -298,16 +304,10 @@ struct PlinxLibraryDetailView: View {
                 Spacer(minLength: 0)
 
                 Color.clear
-                    .frame(width: 220, height: 1)
+                    .frame(width: 1, height: 1)
             }
-
-            KidsMainTabPicker(
-                tabs: visibleRootTabs,
-                selectedTab: rootTabBinding,
-                focusedTab: $focusedRootNavTab,
-                placement: .header
-            )
-            .frame(maxWidth: .infinity, alignment: .center)
+            .frame(maxWidth: 420, alignment: .leading)
+            .padding(.leading, 14)
         }
     }
 

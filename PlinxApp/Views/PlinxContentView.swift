@@ -65,6 +65,10 @@ struct PlinxContentView: View {
                         context: plexApiContext,
                     ),
                 )
+            case "playerSettings":
+                NavigationStack {
+                    playerSettingsPreview
+                }
             #if !os(tvOS)
             case DownloadUITestFixtures.screenName:
                 NavigationStack {
@@ -77,6 +81,81 @@ struct PlinxContentView: View {
         } else {
             sessionContent
         }
+    }
+
+    private var playerSettingsPreview: some View {
+        #if os(tvOS)
+        return AnyView(
+            VStack(spacing: 12) {
+                Image(systemName: "captions.bubble.fill")
+                    .font(.system(size: 44, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
+
+                Text("Player settings preview unavailable on tvOS")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding()
+            .background(Color.appBackground.ignoresSafeArea())
+        )
+        #else
+        let audioTracks = [
+            PlaybackSettingsTrack(
+                track: PlayerTrack(
+                    id: 1,
+                    ffIndex: 1,
+                    type: .audio,
+                    title: "English",
+                    language: "en",
+                    codec: "AAC",
+                    isDefault: true,
+                    isSelected: true
+                ),
+                plexStream: nil
+            ),
+            PlaybackSettingsTrack(
+                track: PlayerTrack(
+                    id: 2,
+                    ffIndex: 2,
+                    type: .audio,
+                    title: "Spanish",
+                    language: "es",
+                    codec: "AAC",
+                    isDefault: false,
+                    isSelected: false
+                ),
+                plexStream: nil
+            ),
+        ]
+
+        let subtitleTracks = [
+            PlaybackSettingsTrack(
+                track: PlayerTrack(
+                    id: 11,
+                    ffIndex: 11,
+                    type: .subtitle,
+                    title: "English CC",
+                    language: "en",
+                    codec: "SRT",
+                    isDefault: true,
+                    isSelected: false
+                ),
+                plexStream: nil
+            )
+        ]
+
+        return PlaybackSettingsView(
+            audioTracks: audioTracks,
+            subtitleTracks: subtitleTracks,
+            selectedAudioTrackID: 1,
+            selectedSubtitleTrackID: 11,
+            onSelectAudio: { _ in },
+            onSelectSubtitle: { _ in },
+            onClose: {}
+        )
+        #endif
     }
 
     @ViewBuilder

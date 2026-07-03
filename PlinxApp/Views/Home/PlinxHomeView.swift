@@ -4,6 +4,38 @@ import PlinxUI
 import PlinxCore
 import OSLog
 
+#if os(tvOS)
+enum HomeVerticalFocusDirection {
+    case up
+    case down
+}
+
+enum HomeVerticalFocusRoute: Equatable {
+    case navigation
+    case card(row: Int, item: Int)
+    case unchanged
+}
+
+enum HomeVerticalFocusRouting {
+    static func nextRoute(
+        direction: HomeVerticalFocusDirection,
+        fromRow rowIndex: Int,
+        rowCount: Int
+    ) -> HomeVerticalFocusRoute {
+        switch direction {
+        case .up:
+            if rowIndex == 0 {
+                return .navigation
+            }
+            return .card(row: rowIndex - 1, item: 0)
+        case .down:
+            guard rowIndex + 1 < rowCount else { return .unchanged }
+            return .card(row: rowIndex + 1, item: 0)
+        }
+    }
+}
+#endif
+
 struct PlinxHomeView: View {
     private static let logger = Logger(subsystem: "com.plinx.app", category: "home")
 
@@ -102,16 +134,14 @@ struct PlinxHomeView: View {
             },
             rowsContent: { _ in
                 LazyVStack(alignment: .leading, spacing: 24) {
-                    ForEach(homeRows) { row in
-                        MediaHubSection(title: row.hub.title) {
-                            MediaCarousel(
-                                layout: row.layout == .landscape ? .landscape : .portrait,
-                                items: row.hub.items,
-                                showsLabels: true,
-                                onSelectMedia: onSelectMedia,
-                                onLongPressMedia: onLongPressMedia
-                            )
-                        }
+                    ForEach(Array(homeRows.enumerated()), id: \.element.id) { rowIndex, row in
+                        hubRow(
+                            row.hub,
+                            layout: row.layout,
+                            sectionKey: row.sectionKey,
+                            rowIndex: rowIndex,
+                            rowCount: homeRows.count
+                        )
                     }
                 }
                 .padding(.horizontal, 8)
@@ -461,6 +491,12 @@ struct PlinxHomeView: View {
             .focused($focusedCard, equals: .card(row: rowIndex, item: index))
             .focusable()
             .focusEffectDisabled()
+            .onChange(of: focusedCard) { _, newTarget in
+                guard newTarget == .card(row: rowIndex, item: index),
+                      let playableItem = item.playableItem
+                else { return }
+                mediaFocusModel.focusedMedia = playableItem
+            }
             .onTapGesture { onSelectMedia(item) }
             .onLongPressGesture { onLongPressMedia(item) }
             .onMoveCommand { direction in
@@ -479,17 +515,22 @@ struct PlinxHomeView: View {
 
     #if os(tvOS)
     private func handleMoveCommand(_ direction: MoveCommandDirection, fromRow rowIndex: Int, rowCount: Int) {
+        let route: HomeVerticalFocusRoute
         switch direction {
         case .up:
-            if rowIndex == 0 {
-                onRequestHomeNavigationFocus()
-            } else {
-                focusedCard = .card(row: rowIndex - 1, item: 0)
-            }
+            route = HomeVerticalFocusRouting.nextRoute(direction: .up, fromRow: rowIndex, rowCount: rowCount)
         case .down:
-            guard rowIndex + 1 < rowCount else { return }
-            focusedCard = .card(row: rowIndex + 1, item: 0)
+            route = HomeVerticalFocusRouting.nextRoute(direction: .down, fromRow: rowIndex, rowCount: rowCount)
         default:
+            return
+        }
+
+        switch route {
+        case .navigation:
+            onRequestHomeNavigationFocus()
+        case let .card(row, item):
+            focusedCard = .card(row: row, item: item)
+        case .unchanged:
             break
         }
     }
@@ -589,7 +630,7 @@ private struct HomeMediaCardBody: View {
 
     private var focusHaloInset: CGFloat {
         #if os(tvOS)
-        22
+        20
         #else
         0
         #endif
@@ -622,6 +663,14 @@ private struct HomeMediaCardBody: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             ZStack {
+                if isFocused {
+                    RoundedRectangle(cornerRadius: artworkCornerRadius + 4, style: .continuous)
+                        .stroke(Color.accentColor.opacity(0.78), lineWidth: 8)
+                        .blur(radius: 10)
+                        .padding(6)
+                        .transition(.opacity)
+                }
+
                 ZStack(alignment: .bottom) {
                     MediaImageView(
                         viewModel: imageViewModel
@@ -649,7 +698,7 @@ private struct HomeMediaCardBody: View {
                     }
                     .overlay {
                         RoundedRectangle(cornerRadius: artworkCornerRadius, style: .continuous)
-                            .stroke(isFocused ? Color.accentColor : .clear, lineWidth: isFocused ? 4 : 0)
+                            .stroke(isFocused ? Color.accentColor : .clear, lineWidth: isFocused ? 3.5 : 0)
                     }
                     .accessibilityIdentifier("home.thumbnail.\(sectionKey).\(index)")
 
@@ -670,8 +719,8 @@ private struct HomeMediaCardBody: View {
                         }
                     }
                 }
-                .shadow(color: isFocused ? Color.accentColor.opacity(0.82) : .clear, radius: isFocused ? 8 : 0)
-                .shadow(color: isFocused ? Color.accentColor.opacity(0.44) : .clear, radius: isFocused ? 16 : 0)
+                .shadow(color: isFocused ? Color.accentColor.opacity(0.62) : .clear, radius: isFocused ? 10 : 0)
+                .shadow(color: isFocused ? Color.accentColor.opacity(0.24) : .clear, radius: isFocused ? 16 : 0)
             }
             .frame(width: cardWidth + (focusHaloInset * 2), height: thumbHeight + (focusHaloInset * 2))
 
@@ -731,7 +780,7 @@ struct TvBrowseHeroMetrics {
         heightRatio: 0.408,
         leadingSafeAreaReduction: 0.5,
         contentHorizontalPadding: 4,
-        contentTopPadding: 1,
+        contentTopPadding: 0,
         metadataBottomPadding: 8,
         bottomBlendHeight: 46
     )
@@ -1222,9 +1271,13 @@ private struct TvPinnedHeroBackdrop: View {
                             Color.appBackground
                         }
                     }
-                    .frame(width: proxy.size.width * 0.58, height: proxy.size.height)
+                    .frame(
+                        width: (proxy.size.width * 0.58) + 72,
+                        height: proxy.size.height + 48
+                    )
                     .clipped()
                     .mask(TvPinnedHeroImageMask())
+                    .offset(x: 36, y: -24)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                 }
 

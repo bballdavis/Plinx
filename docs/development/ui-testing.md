@@ -62,6 +62,8 @@ Tests/PlinxUITests/
 - do not rely on touch, pointer, or click-only interactions on Apple TV
 - keep retry and refresh affordances focusable when they are part of the recovery path
 - verify the default focus path for any screen that has a single primary action
+- on Home, pressing up from the first content row must return focus to the header navigation instead of trapping focus in content
+- on Home, that header return target should land on the first visible real tab that is not the active tab, which is normally `Library` when Home is selected
 
 ### Live smoke checks
 

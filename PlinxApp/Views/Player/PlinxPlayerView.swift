@@ -63,14 +63,18 @@ struct PlinxPlayerView: View {
             }
         } label: {
             ZStack {
-                Circle()
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .fill(.ultraThinMaterial)
-                    .overlay(Circle().stroke(.white.opacity(0.2), lineWidth: 1))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(Color.brandPrimary.opacity(0.42), lineWidth: 1)
+                    )
                     .frame(width: 66, height: 66)
                 Image(systemName: "xmark")
                     .font(.system(size: 20, weight: .bold))
                     .foregroundStyle(.white)
             }
+            .shadow(color: Color.brandPrimary.opacity(0.14), radius: 12, x: 0, y: 6)
         }
         .buttonStyle(.plain)
     }

@@ -46,7 +46,7 @@ struct KidsMainTabPicker: View {
     private var buttonMinWidth: CGFloat  {
         #if os(tvOS)
         if isInline { return 82 }
-        if isHeader { return 102 }
+        if isHeader { return 108 }
         return 154
         #else
         isRegular ? 96 : 110
@@ -55,7 +55,7 @@ struct KidsMainTabPicker: View {
     private var buttonHeight: CGFloat    {
         #if os(tvOS)
         if isInline { return 46 }
-        if isHeader { return 58 }
+        if isHeader { return 52 }
         return 94
         #else
         isRegular ? 64 : 72
@@ -100,7 +100,7 @@ struct KidsMainTabPicker: View {
     private var contentHorizontalPadding: CGFloat {
         #if os(tvOS)
         if isInline { return 0 }
-        if isHeader { return 18 }
+        if isHeader { return 24 }
         return 28
         #else
         isRegular ? 20 : (usesCompactDistribution ? 10 : 16)
@@ -108,7 +108,8 @@ struct KidsMainTabPicker: View {
     }
     private var containerHorizontalPadding: CGFloat {
         #if os(tvOS)
-        if isInline || isHeader { return 0 }
+        if isInline { return 0 }
+        if isHeader { return 18 }
         return 56
         #else
         isRegular ? 40 : (usesCompactDistribution ? 12 : 20)
@@ -125,7 +126,8 @@ struct KidsMainTabPicker: View {
             }
         }
         .padding(.horizontal, contentHorizontalPadding)
-        .padding(.vertical, isInline ? 0 : (isHeader ? 10 : (playfulAnimationsEnabled ? (isRegular ? 12 : 10) : 10)))
+        .padding(.vertical, isInline ? 0 : (isHeader ? 5 : (playfulAnimationsEnabled ? (isRegular ? 12 : 10) : 10)))
+        .frame(maxWidth: isHeader ? .infinity : nil, alignment: .center)
         .onChange(of: selectedTab) { _, _ in
             guard playfulAnimationsEnabled else { return }
             playfulSelectionTrigger &+= 1

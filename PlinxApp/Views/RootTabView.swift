@@ -34,6 +34,17 @@ enum QuickActionFocusOrder {
     }
 }
 
+enum HeaderFocusOrder {
+    static func nextPreferredTab(
+        current: MainCoordinator.Tab,
+        visibleTabs: [KidsMainTabPicker.TabItem]
+    ) -> MainCoordinator.Tab? {
+        visibleTabs
+            .compactMap(\.tab)
+            .first(where: { $0 != current })
+    }
+}
+
 struct RootTabView: View {
     private struct QuickActionOption: Identifiable {
         let id: String
@@ -451,7 +462,7 @@ struct RootTabView: View {
                         selectedQuickActionMedia = displayItem
                     },
                     onRequestHomeNavigationFocus: {
-                        focusedHeaderTab = .home
+                        requestHeaderFocus(from: .home)
                     },
                     isItemWatched: { displayItem in
                         isWatchedDisplay(displayItem)
@@ -515,7 +526,7 @@ struct RootTabView: View {
                         mainCoordinator.libraryPath.append(library)
                     },
                     onRequestHomeNavigationFocus: {
-                        focusedHeaderTab = .library
+                        requestHeaderFocus(from: .library)
                     }
                 )
                 .toolbar(.hidden, for: .navigationBar)
@@ -575,6 +586,15 @@ struct RootTabView: View {
         }
     }
 
+    private func requestHeaderFocus(from currentTab: MainCoordinator.Tab) {
+        #if os(tvOS)
+        focusedHeaderTab = HeaderFocusOrder.nextPreferredTab(
+            current: currentTab,
+            visibleTabs: visibleTabs
+        ) ?? currentTab
+        #endif
+    }
+
     private var settingsHeaderRow: some View {
         HStack(spacing: 12) {
             Text("tabs.settings".plinxLocalized)
@@ -613,28 +633,22 @@ struct RootTabView: View {
         showsLogo: Bool = false
     ) -> some View {
         #if os(tvOS)
-        ZStack {
-            HStack(spacing: 12) {
-                headerLeadingContent(title: title, showsLogo: showsLogo)
-                    .frame(width: tvOSHeaderSideWidth, alignment: .leading)
-
-                Spacer(minLength: 0)
-
-                Color.clear
-                    .frame(width: tvOSHeaderSideWidth, height: 1)
-            }
-
-            KidsMainTabPicker(
-                tabs: visibleTabs,
-                selectedTab: tabBinding,
-                focusedTab: $focusedHeaderTab,
-                onAction: handleBottomAction,
-                placement: .header
-            )
+        KidsMainTabPicker(
+            tabs: visibleTabs,
+            selectedTab: tabBinding,
+            focusedTab: $focusedHeaderTab,
+            onAction: handleBottomAction,
+            placement: .header
+        )
+        .overlay(alignment: .leading) {
+            headerLeadingContent(title: title, showsLogo: showsLogo)
+                .frame(maxWidth: tvOSHeaderOverlayWidth, alignment: .leading)
+                .padding(.leading, tvOSHeaderOverlayLeadingPadding)
+                .allowsHitTesting(false)
         }
         .padding(.horizontal, 4)
-        .padding(.top, 2)
-        .padding(.bottom, 8)
+        .padding(.top, 1)
+        .padding(.bottom, 4)
         #else
         HStack(spacing: 12) {
             headerLeadingContent(title: title, showsLogo: showsLogo)
@@ -684,8 +698,12 @@ struct RootTabView: View {
         }
     }
 
-    private var tvOSHeaderSideWidth: CGFloat {
-        220
+    private var tvOSHeaderOverlayWidth: CGFloat {
+        280
+    }
+
+    private var tvOSHeaderOverlayLeadingPadding: CGFloat {
+        14
     }
 
     @ViewBuilder

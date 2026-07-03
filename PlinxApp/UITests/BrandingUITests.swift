@@ -29,6 +29,21 @@ final class BrandingUITests: XCTestCase {
         XCTAssertEqual(primaryButton.value as? String, "liquidGlassPrimary", "Primary button should expose liquid-glass semantic hook")
     }
 
+    func test_playerSettings_usesBrandedSelectionRows_withoutPlaybackSpeed() {
+        let app = launch(screen: "playerSettings")
+
+        let englishRow = app.buttons["English"]
+        XCTAssertTrue(englishRow.waitForExistence(timeout: 8), "Expected branded audio row to render")
+        XCTAssertEqual(englishRow.value as? String, "selected", "Selected track row should expose selected state")
+
+        let spanishRow = app.buttons["Spanish"]
+        XCTAssertTrue(spanishRow.waitForExistence(timeout: 8), "Expected secondary audio row to render")
+        XCTAssertEqual(spanishRow.value as? String, "not selected", "Unselected track row should expose not selected state")
+
+        XCTAssertFalse(app.buttons["Speed"].exists, "Playback speed should not appear in the player settings UI")
+        XCTAssertFalse(app.staticTexts["Speed"].exists, "Playback speed label should not appear in the player settings UI")
+    }
+
     private func launch(screen: String) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments += ["--ui-testing", "--disable-animations"]

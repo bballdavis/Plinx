@@ -587,7 +587,9 @@ Rules:
 - Let media art carry the color richness.
 - Brand should frame the experience, not compete with cover art.
 - Section titles should remain large and readable, with enough spacing to breathe.
+- On tvOS, the main header navigation should read as a full-width centered glass bar with tighter top insets than before; do not float a small pill in the middle with excess dead space above it.
 - On tvOS, hero artwork should pin to the top-right edge and blend only on the left and bottom into the dark shell; text metadata can use a dark translucent hero panel with branded continuous corners.
+- On tvOS, hero artwork should overscan slightly past the top and right edges so the shell background never peeks through there.
 - tvOS selected media tiles should use a solid accent border plus a short, fully fading accent glow rather than a clipped hard-edged shadow.
 
 ## Settings
@@ -666,6 +668,13 @@ Characteristics:
 - haptic/audio plink
 - spring press feedback
 - rounded continuous corners
+
+Player-mode selection surfaces should follow the same rules:
+
+- use accent-aware glass rows and modal controls
+- avoid default system blue checkmarks, tints, and selection glyphs
+- keep audio, subtitle, and track choices visually aligned with the rest of the Plinx shell
+- prefer branded accent strokes and soft fills over bright flat selection states
 
 ## Secondary button pattern
 
