@@ -2,6 +2,38 @@ import SwiftUI
 import PlinxCore
 import PlinxUI
 
+enum QuickActionFocusDirection {
+    case up
+    case down
+}
+
+enum QuickActionFocusOrder {
+    static let cancelID = "cancel"
+
+    static func focusIDs(optionIDs: [String]) -> [String] {
+        optionIDs + [cancelID]
+    }
+
+    static func nextFocusedID(
+        current: String?,
+        optionIDs: [String],
+        direction: QuickActionFocusDirection
+    ) -> String? {
+        let ids = focusIDs(optionIDs: optionIDs)
+        guard !ids.isEmpty else { return nil }
+        guard let current, let currentIndex = ids.firstIndex(of: current) else {
+            return ids.first
+        }
+
+        switch direction {
+        case .up:
+            return ids[(currentIndex - 1 + ids.count) % ids.count]
+        case .down:
+            return ids[(currentIndex + 1) % ids.count]
+        }
+    }
+}
+
 struct RootTabView: View {
     private struct QuickActionOption: Identifiable {
         let id: String
@@ -39,6 +71,46 @@ struct RootTabView: View {
 
     private var chromeButtonSize: PlinxChromeButtonSizePreference {
         PlinxChromeButtonSizePreference(rawValue: chromeButtonSizeRaw) ?? .medium
+    }
+
+    private var quickActionCornerRadius: CGFloat {
+        #if os(tvOS)
+        22
+        #else
+        14
+        #endif
+    }
+
+    private var quickActionOptionMinHeight: CGFloat {
+        #if os(tvOS)
+        78
+        #else
+        52
+        #endif
+    }
+
+    private var quickActionCancelMinHeight: CGFloat {
+        #if os(tvOS)
+        75
+        #else
+        50
+        #endif
+    }
+
+    private var quickActionIconSize: CGFloat {
+        #if os(tvOS)
+        24
+        #else
+        16
+        #endif
+    }
+
+    private var quickActionHorizontalPadding: CGFloat {
+        #if os(tvOS)
+        21
+        #else
+        14
+        #endif
     }
 
     private var launcher: PlaybackLauncher {
@@ -107,6 +179,9 @@ struct RootTabView: View {
     var body: some View {
         mainTabView
             #if os(tvOS)
+            .allowsHitTesting(selectedQuickActionMedia == nil)
+            #endif
+            #if os(tvOS)
             .onAppear {
                 focusedHeaderTab = activeRootTab
             }
@@ -143,6 +218,7 @@ struct RootTabView: View {
 
     private func quickActionSheet(for item: MediaDisplayItem) -> some View {
         let options = quickActionOptions(for: item)
+        let optionIDs = options.map(\.id)
         return ZStack(alignment: .bottom) {
             Color.black.opacity(0.45)
                 .ignoresSafeArea()
@@ -161,33 +237,32 @@ struct RootTabView: View {
                     quickActionButton(option)
                 }
 
-                Button {
-                    selectedQuickActionMedia = nil
-                } label: {
-                    Text(String(localized: "common.actions.cancel"))
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.95))
-                        .frame(maxWidth: .infinity, minHeight: 50)
-                        .background(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(Color.white.opacity(0.08))
-                        )
-                }
-                .buttonStyle(.plain)
-                #if os(tvOS)
-                .focused($focusedQuickActionID, equals: "cancel")
-                #endif
-                .accessibilityIdentifier("quickAction.cancel")
+                quickActionCancelButton
             }
             .padding(14)
-            .liquidGlassBackground()
+            .liquidGlassBackground(style: PlinxTheme.Glass(cornerRadius: quickActionCornerRadius))
             .padding(.horizontal, 16)
             .padding(.bottom, 16)
             .accessibilityIdentifier("quickAction.sheet")
+            #if os(tvOS)
+            .focusSection()
+            #endif
         }
         #if os(tvOS)
         .onAppear {
-            focusedQuickActionID = options.first?.id ?? "cancel"
+            Task { @MainActor in
+                await Task.yield()
+                focusedQuickActionID = optionIDs.first ?? QuickActionFocusOrder.cancelID
+            }
+        }
+        .onDisappear {
+            focusedQuickActionID = nil
+        }
+        .onMoveCommand { direction in
+            handleQuickActionMove(direction, optionIDs: optionIDs)
+        }
+        .onPlayPauseCommand {
+            performFocusedQuickAction(options)
         }
         .onExitCommand {
             selectedQuickActionMedia = nil
@@ -195,27 +270,63 @@ struct RootTabView: View {
         #endif
     }
 
+    private var quickActionCancelButton: some View {
+        #if os(tvOS)
+        let isFocused = focusedQuickActionID == QuickActionFocusOrder.cancelID
+        #else
+        let isFocused = false
+        #endif
+
+        return Button {
+            selectedQuickActionMedia = nil
+        } label: {
+            Text(String(localized: "common.actions.cancel"))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.95))
+                .frame(maxWidth: .infinity, minHeight: quickActionCancelMinHeight)
+                .background(
+                    RoundedRectangle(cornerRadius: quickActionCornerRadius, style: .continuous)
+                        .fill(Color.white.opacity(isFocused ? 0.15 : 0.08))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: quickActionCornerRadius, style: .continuous)
+                        .stroke(isFocused ? Color.accentColor.opacity(0.92) : .clear, lineWidth: isFocused ? 3 : 0)
+                )
+        }
+        .buttonStyle(.plain)
+        #if os(tvOS)
+        .focused($focusedQuickActionID, equals: QuickActionFocusOrder.cancelID)
+        #endif
+        .accessibilityIdentifier("quickAction.cancel")
+    }
+
     private func quickActionButton(_ option: QuickActionOption) -> some View {
-        Button(role: option.role) {
+        #if os(tvOS)
+        let isFocused = focusedQuickActionID == option.id
+        #else
+        let isFocused = false
+        #endif
+
+        return Button(role: option.role) {
             performQuickAction(option.action)
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: option.systemImage)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: quickActionIconSize, weight: .semibold))
                 Text(option.title)
                     .font(.subheadline.weight(.semibold))
                 Spacer()
             }
             .foregroundStyle(.white.opacity(0.95))
-            .padding(.horizontal, 14)
-            .frame(maxWidth: .infinity, minHeight: 52)
+            .padding(.horizontal, quickActionHorizontalPadding)
+            .frame(maxWidth: .infinity, minHeight: quickActionOptionMinHeight)
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.accentColor.opacity(0.18))
+                RoundedRectangle(cornerRadius: quickActionCornerRadius, style: .continuous)
+                    .fill(Color.accentColor.opacity(isFocused ? 0.26 : 0.18))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color.accentColor.opacity(0.32), lineWidth: 1)
+                RoundedRectangle(cornerRadius: quickActionCornerRadius, style: .continuous)
+                    .stroke(Color.accentColor.opacity(isFocused ? 0.96 : 0.32), lineWidth: isFocused ? 3 : 1)
             )
         }
         .buttonStyle(PlinkButtonStyle())
@@ -224,6 +335,37 @@ struct RootTabView: View {
         #endif
         .accessibilityIdentifier("quickAction.option.\(option.id)")
     }
+
+    #if os(tvOS)
+    private func handleQuickActionMove(_ direction: MoveCommandDirection, optionIDs: [String]) {
+        let focusDirection: QuickActionFocusDirection
+        switch direction {
+        case .up:
+            focusDirection = .up
+        case .down:
+            focusDirection = .down
+        default:
+            return
+        }
+
+        focusedQuickActionID = QuickActionFocusOrder.nextFocusedID(
+            current: focusedQuickActionID,
+            optionIDs: optionIDs,
+            direction: focusDirection
+        )
+    }
+
+    private func performFocusedQuickAction(_ options: [QuickActionOption]) {
+        guard let focusedQuickActionID else { return }
+        if focusedQuickActionID == QuickActionFocusOrder.cancelID {
+            selectedQuickActionMedia = nil
+            return
+        }
+
+        guard let option = options.first(where: { $0.id == focusedQuickActionID }) else { return }
+        performQuickAction(option.action)
+    }
+    #endif
 
     private func performQuickAction(_ action: @escaping () -> Void) {
         selectedQuickActionMedia = nil

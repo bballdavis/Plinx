@@ -91,6 +91,7 @@ struct PlinxHomeView: View {
         SharedTvBrowsePageLayout(
             heroMedia: mediaFocusModel.focusedMedia ?? defaultHeroMedia,
             showsFilters: false,
+            heroMetrics: .home,
             navigationContent: {
                 if let topContent {
                     topContent
@@ -588,7 +589,7 @@ private struct HomeMediaCardBody: View {
 
     private var focusHaloInset: CGFloat {
         #if os(tvOS)
-        12
+        22
         #else
         0
         #endif
@@ -626,7 +627,7 @@ private struct HomeMediaCardBody: View {
                         viewModel: imageViewModel
                     )
                     .frame(width: cardWidth, height: thumbHeight)
-                    .scaleEffect(isFocused ? 1.06 : 1.0)
+                    .scaleEffect(isFocused ? 1.05 : 1.0)
                     .clipped()
                     .clipShape(RoundedRectangle(cornerRadius: artworkCornerRadius, style: .continuous))
                     .overlay(alignment: .topTrailing) {
@@ -648,7 +649,7 @@ private struct HomeMediaCardBody: View {
                     }
                     .overlay {
                         RoundedRectangle(cornerRadius: artworkCornerRadius, style: .continuous)
-                            .stroke(isFocused ? Color.accentColor.opacity(0.9) : .clear, lineWidth: isFocused ? 2.5 : 0)
+                            .stroke(isFocused ? Color.accentColor : .clear, lineWidth: isFocused ? 4 : 0)
                     }
                     .accessibilityIdentifier("home.thumbnail.\(sectionKey).\(index)")
 
@@ -669,7 +670,8 @@ private struct HomeMediaCardBody: View {
                         }
                     }
                 }
-                .shadow(color: isFocused ? Color.accentColor.opacity(0.72) : .clear, radius: isFocused ? 22 : 0)
+                .shadow(color: isFocused ? Color.accentColor.opacity(0.82) : .clear, radius: isFocused ? 8 : 0)
+                .shadow(color: isFocused ? Color.accentColor.opacity(0.44) : .clear, radius: isFocused ? 16 : 0)
             }
             .frame(width: cardWidth + (focusHaloInset * 2), height: thumbHeight + (focusHaloInset * 2))
 
@@ -708,9 +710,37 @@ private func decodeStringArray(_ json: String) -> [String] {
 
 #if os(tvOS)
 
+struct TvBrowseHeroMetrics {
+    let heightRatio: CGFloat
+    let leadingSafeAreaReduction: CGFloat
+    let contentHorizontalPadding: CGFloat
+    let contentTopPadding: CGFloat
+    let metadataBottomPadding: CGFloat
+    let bottomBlendHeight: CGFloat
+
+    static let `default` = TvBrowseHeroMetrics(
+        heightRatio: 0.408,
+        leadingSafeAreaReduction: 0,
+        contentHorizontalPadding: 4,
+        contentTopPadding: 1,
+        metadataBottomPadding: 8,
+        bottomBlendHeight: 46
+    )
+
+    static let home = TvBrowseHeroMetrics(
+        heightRatio: 0.408,
+        leadingSafeAreaReduction: 0.5,
+        contentHorizontalPadding: 4,
+        contentTopPadding: 1,
+        metadataBottomPadding: 8,
+        bottomBlendHeight: 46
+    )
+}
+
 struct SharedTvBrowsePageLayout<NavigationContent: View, FilterContent: View, RowsContent: View>: View {
     let heroMedia: MediaItem?
     let showsFilters: Bool
+    var heroMetrics: TvBrowseHeroMetrics = .default
     @ViewBuilder let navigationContent: () -> NavigationContent
     @ViewBuilder let filterContent: () -> FilterContent
     @ViewBuilder let rowsContent: (ScrollViewProxy) -> RowsContent
@@ -718,19 +748,21 @@ struct SharedTvBrowsePageLayout<NavigationContent: View, FilterContent: View, Ro
     var body: some View {
         ScrollViewReader { scrollProxy in
             GeometryReader { proxy in
-                let heroHeight = proxy.size.height * 0.34
+                let heroHeight = proxy.size.height * heroMetrics.heightRatio
                 let rowsHeight = max(proxy.size.height - heroHeight, 0)
+                let leadingShift = -(proxy.safeAreaInsets.leading * heroMetrics.leadingSafeAreaReduction)
 
                 VStack(spacing: 0) {
                     heroSection(availableWidth: proxy.size.width)
                         .frame(height: heroHeight)
+                        .background(Color.appBackground.ignoresSafeArea(edges: [.top, .horizontal]))
                         .overlay(alignment: .bottom) {
                             LinearGradient(
-                                colors: [Color.clear, Color.black.opacity(0.70)],
+                                colors: [Color.clear, Color.appBackground],
                                 startPoint: .top,
                                 endPoint: .bottom
                             )
-                            .frame(height: 34)
+                            .frame(height: heroMetrics.bottomBlendHeight)
                         }
 
                     ScrollView {
@@ -741,7 +773,9 @@ struct SharedTvBrowsePageLayout<NavigationContent: View, FilterContent: View, Ro
                     }
                     .frame(height: rowsHeight)
                 }
-                .background(Color("Background").ignoresSafeArea())
+                .padding(.leading, leadingShift)
+                .frame(width: proxy.size.width - leadingShift, alignment: .leading)
+                .background(Color.appBackground.ignoresSafeArea())
             }
         }
     }
@@ -751,7 +785,7 @@ struct SharedTvBrowsePageLayout<NavigationContent: View, FilterContent: View, Ro
             if let heroMedia {
                 TvPinnedHeroBackdrop(media: heroMedia)
             } else {
-                Color.black
+                Color.appBackground
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -768,11 +802,11 @@ struct SharedTvBrowsePageLayout<NavigationContent: View, FilterContent: View, Ro
                         TvHeroMetadataPanel(media: heroMedia)
                             .frame(maxWidth: availableWidth * 0.72, alignment: .leading)
                     }
-                    .padding(.bottom, 8)
+                    .padding(.bottom, heroMetrics.metadataBottomPadding)
                 }
             }
-            .padding(.horizontal, 4)
-            .padding(.top, 1)
+            .padding(.horizontal, heroMetrics.contentHorizontalPadding)
+            .padding(.top, heroMetrics.contentTopPadding)
         }
     }
 }
@@ -874,7 +908,7 @@ private struct TvHeroMetadataPanel: View {
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .fill(Color.black.opacity(0.36))
         )
         .task(id: media.id) {
@@ -918,7 +952,7 @@ private struct TvHeroMetadataPanel: View {
         }
         .padding(.horizontal, 7)
         .padding(.vertical, 3)
-        .background(.ultraThinMaterial, in: Capsule())
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private var metadataItems: [String] {
@@ -1171,7 +1205,7 @@ private struct TvPinnedHeroBackdrop: View {
     var body: some View {
         GeometryReader { proxy in
             ZStack {
-                Color.black
+                Color.appBackground
 
                 if let imageURL {
                     AsyncImage(url: imageURL) { phase in
@@ -1181,35 +1215,24 @@ private struct TvPinnedHeroBackdrop: View {
                                 .resizable()
                                 .scaledToFill()
                         case .empty:
-                            Color.black
+                            Color.appBackground
                         case .failure:
-                            Color.black
+                            Color.appBackground
                         @unknown default:
-                            Color.black
+                            Color.appBackground
                         }
                     }
-                    .frame(width: proxy.size.width * 0.54, height: proxy.size.height * 0.96)
+                    .frame(width: proxy.size.width * 0.58, height: proxy.size.height)
                     .clipped()
                     .mask(TvPinnedHeroImageMask())
-                    .position(x: proxy.size.width * 0.76, y: proxy.size.height * 0.50)
-                }
-
-                VStack {
-                    Spacer(minLength: 0)
-                    HStack {
-                        Spacer(minLength: 0)
-                        heroIdentityOverlay
-                            .frame(width: proxy.size.width * 0.34, alignment: .trailing)
-                            .padding(.trailing, 18)
-                            .padding(.bottom, 10)
-                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                 }
 
                 LinearGradient(
                     stops: [
-                        .init(color: .black, location: 0.0),
-                        .init(color: .black.opacity(0.96), location: 0.34),
-                        .init(color: .clear, location: 0.66),
+                        .init(color: Color.appBackground, location: 0.0),
+                        .init(color: Color.appBackground.opacity(0.96), location: 0.28),
+                        .init(color: .clear, location: 0.64),
                     ],
                     startPoint: .leading,
                     endPoint: .trailing
@@ -1218,12 +1241,18 @@ private struct TvPinnedHeroBackdrop: View {
                 LinearGradient(
                     stops: [
                         .init(color: .clear, location: 0.0),
-                        .init(color: .clear, location: 0.62),
-                        .init(color: .black.opacity(0.92), location: 1.0),
+                        .init(color: .clear, location: 0.58),
+                        .init(color: Color.appBackground.opacity(0.98), location: 1.0),
                     ],
                     startPoint: .top,
                     endPoint: .bottom
                 )
+
+                heroIdentityOverlay
+                    .frame(width: proxy.size.width * 0.34, alignment: .trailing)
+                    .padding(.trailing, 26)
+                    .padding(.bottom, 16)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
             }
             .task(id: media.id) {
                 await loadImage()
@@ -1252,13 +1281,7 @@ private struct TvPinnedHeroBackdrop: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
-        .background(
-            LinearGradient(
-                colors: [Color.black.opacity(0.62), Color.black.opacity(0.18), .clear],
-                startPoint: .bottom,
-                endPoint: .top
-            )
-        )
+        .shadow(color: .black.opacity(0.58), radius: 16, y: 6)
     }
 
     private var fallbackIdentityText: some View {
@@ -1338,9 +1361,8 @@ private struct TvPinnedHeroImageMask: View {
         LinearGradient(
             stops: [
                 .init(color: .clear, location: 0.0),
-                .init(color: .black, location: 0.12),
-                .init(color: .black, location: 0.94),
-                .init(color: .clear, location: 1.0),
+                .init(color: .black, location: 0.18),
+                .init(color: .black, location: 1.0),
             ],
             startPoint: .leading,
             endPoint: .trailing
@@ -1349,7 +1371,7 @@ private struct TvPinnedHeroImageMask: View {
             LinearGradient(
                 stops: [
                     .init(color: .black, location: 0.0),
-                    .init(color: .black, location: 0.76),
+                    .init(color: .black, location: 0.72),
                     .init(color: .clear, location: 1.0),
                 ],
                 startPoint: .top,

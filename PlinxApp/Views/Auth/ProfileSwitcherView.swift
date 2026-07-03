@@ -126,7 +126,7 @@ struct ProfileSwitcherView: View {
         let isProtected = user.protected ?? false
         let subtitle = profileSubtitle(for: user)
 
-        Button {
+        return Button {
             if isProtected {
                 pinPromptUser = user
                 pinInput = ""

@@ -587,6 +587,8 @@ Rules:
 - Let media art carry the color richness.
 - Brand should frame the experience, not compete with cover art.
 - Section titles should remain large and readable, with enough spacing to breathe.
+- On tvOS, hero artwork should pin to the top-right edge and blend only on the left and bottom into the dark shell; text metadata can use a dark translucent hero panel with branded continuous corners.
+- tvOS selected media tiles should use a solid accent border plus a short, fully fading accent glow rather than a clipped hard-edged shadow.
 
 ## Settings
 
