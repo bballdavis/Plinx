@@ -25,6 +25,7 @@ struct SignInView: View {
 
     #if os(tvOS)
     private let ciContext = CIContext()
+    @FocusState private var focusedRefreshAction: Bool
     #endif
 
     init(viewModel: PlinxSignInViewModel) {
@@ -209,8 +210,10 @@ extension SignInView {
             .padding(.vertical, 40)
         }
         .onAppear {
-            guard !viewModel.isAuthenticating, viewModel.pin == nil else { return }
-            Task { await viewModel.startSignIn() }
+            if !viewModel.isAuthenticating, viewModel.pin == nil {
+                Task { await viewModel.startSignIn() }
+            }
+            focusedRefreshAction = true
         }
         .onDisappear {
             viewModel.cancelSignIn()
@@ -225,10 +228,7 @@ extension SignInView {
 
         HStack(alignment: .center, spacing: 30) {
             qrCodePlate(qrCode)
-            instructionPanel(
-                pin: pin,
-                isAuthenticating: viewModel.isAuthenticating
-            )
+            instructionPanel(isAuthenticating: viewModel.isAuthenticating)
         }
         .padding(28)
         .frame(maxWidth: 1240)
@@ -267,33 +267,23 @@ extension SignInView {
         .frame(width: tvOSPanelWidth, height: tvOSPanelHeight)
     }
 
-    private func instructionPanel(
-        pin: PlexCloudPin?,
-        isAuthenticating: Bool
-    ) -> some View {
+    private func instructionPanel(isAuthenticating: Bool) -> some View {
         VStack(alignment: .center, spacing: 18) {
-            VStack(spacing: 10) {
-                Text("signIn.title")
-                    .font(.system(size: 50, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Color.white)
-                    .multilineTextAlignment(.center)
-
-                Text("signIn.tv.subtitle")
-                    .font(.system(size: 24, weight: .medium, design: .rounded))
-                    .foregroundStyle(Color.white.opacity(0.86))
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 520)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            if let pin {
-                codePill(pin.code)
-            } else {
-                codePill("----")
-                    .opacity(0.6)
-            }
+            Text("signIn.title")
+                .font(.system(size: 50, weight: .semibold, design: .rounded))
+                .foregroundStyle(Color.white)
+                .multilineTextAlignment(.center)
 
             Spacer(minLength: 8)
+
+            Text("Scan this QR code with your phone to sign in to Plex.")
+                .font(.system(size: 28, weight: .semibold, design: .rounded))
+                .foregroundStyle(Color.white.opacity(0.90))
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 500)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 18)
 
             VStack(spacing: 14) {
                 HStack(spacing: 10) {
@@ -313,13 +303,13 @@ extension SignInView {
                 } label: {
                     HStack(spacing: 10) {
                         Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.system(size: 20, weight: .semibold))
                         Text("Refresh Code")
-                            .plinxStyle(theme.typography.button)
+                            .font(.system(size: 22, weight: .semibold, design: .rounded))
                     }
                     .foregroundStyle(Color.white)
-                    .frame(maxWidth: 320, minHeight: 58)
-                    .padding(.horizontal, 18)
+                    .frame(maxWidth: 360, minHeight: 66)
+                    .padding(.horizontal, 20)
                     .background(
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
                             .fill(Color.accentColor.opacity(0.18))
@@ -330,32 +320,14 @@ extension SignInView {
                     )
                 }
                 .buttonStyle(PlinkButtonStyle(springs: theme.springs))
+                .focused($focusedRefreshAction)
                 .accessibilityIdentifier("signIn.refreshButton")
-                .disabled(isAuthenticating)
-                .opacity(isAuthenticating ? 0.78 : 1)
             }
             .frame(maxWidth: .infinity, alignment: .center)
         }
         .frame(width: 540, height: tvOSPanelHeight)
         .padding(.horizontal, 14)
         .padding(.vertical, 16)
-    }
-
-    private func codePill(_ code: String) -> some View {
-        Text(code)
-            .font(.system(size: 32, weight: .bold, design: .monospaced))
-            .tracking(4)
-            .foregroundStyle(Color.white)
-            .padding(.horizontal, 22)
-            .padding(.vertical, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color.black.opacity(0.22))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                    )
-            )
     }
 
     private func qrImage(from string: String) -> UIImage? {

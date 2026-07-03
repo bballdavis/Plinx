@@ -56,6 +56,13 @@ Tests/PlinxUITests/
 - quick actions
 - targeted smoke behavior
 
+### tvOS focus rules
+
+- every primary tvOS action must be reachable with remote UDLR navigation
+- do not rely on touch, pointer, or click-only interactions on Apple TV
+- keep retry and refresh affordances focusable when they are part of the recovery path
+- verify the default focus path for any screen that has a single primary action
+
 ### Live smoke checks
 
 - live home content renders expected sections

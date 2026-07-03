@@ -22,6 +22,10 @@ struct ProfileSwitcherView: View {
     @FocusState private var isPinFieldFocused: Bool
     @State private var isShowingLogoutConfirmation = false
 
+    private let profileCardCornerRadius: CGFloat = 26
+    private let profileCardAvatarSize: CGFloat = 120
+    private let profileCardMinHeight: CGFloat = 228
+
     init(viewModel: ProfileSwitcherViewModel) {
         _viewModel = State(initialValue: viewModel)
     }
@@ -49,10 +53,8 @@ struct ProfileSwitcherView: View {
         #endif
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button(role: .destructive) {
+                PlinxChromeButton(systemImage: "rectangle.portrait.and.arrow.right") {
                     isShowingLogoutConfirmation = true
-                } label: {
-                    Image(systemName: "rectangle.portrait.and.arrow.right")
                 }
                 .accessibilityLabel("common.actions.logOut")
             }
@@ -91,7 +93,7 @@ struct ProfileSwitcherView: View {
     }
 
     private var profilesGrid: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 16)], spacing: 18) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 18)], spacing: 18) {
             if viewModel.users.isEmpty {
                 loadingState
             }
@@ -120,8 +122,12 @@ struct ProfileSwitcherView: View {
     }
 
     private func profileCard(for user: PlexHomeUser) -> some View {
+        let isSelected = viewModel.activeUserUUID == user.uuid
+        let isProtected = user.protected ?? false
+        let subtitle = profileSubtitle(for: user)
+
         Button {
-            if user.protected ?? false {
+            if isProtected {
                 pinPromptUser = user
                 pinInput = ""
                 isPinFieldFocused = true
@@ -129,41 +135,37 @@ struct ProfileSwitcherView: View {
                 Task { await viewModel.switchToUser(user, pin: nil) }
             }
         } label: {
-            VStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 14) {
                 avatarView(for: user)
-                    .frame(width: 120, height: 120)
+                    .frame(width: profileCardAvatarSize, height: profileCardAvatarSize)
                     .overlay(alignment: .topTrailing) {
-                        if user.protected ?? false {
-                            Image(systemName: "lock.fill")
-                                .foregroundStyle(.white.opacity(0.9))
-                                .padding(8)
-                        } else if viewModel.activeUserUUID == user.uuid {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(theme.palette.primary)
-                                .padding(8)
-                        }
+                        profileStatusBadge(isSelected: isSelected, isProtected: isProtected)
                     }
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(
-                                Color.white.opacity(viewModel.activeUserUUID == user.uuid ? 0.8 : 0.25),
-                                lineWidth: viewModel.activeUserUUID == user.uuid ? 2 : 1
-                            )
-                    )
-                    .scaleEffect(viewModel.activeUserUUID == user.uuid ? 1.03 : 1)
 
-                VStack(spacing: 4) {
-                    Text(user.friendlyName ?? user.title ?? "?")
-                        .font(.headline)
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                    Text(user.username ?? user.email ?? "")
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.6))
-                        .lineLimit(1)
-                }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(user.friendlyName ?? user.title ?? "?")
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.62))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                            .opacity(subtitle.isEmpty ? 0 : 1)
+                            .accessibilityHidden(subtitle.isEmpty)
+                    }
+                    .frame(height: 36, alignment: .top)
             }
             .frame(maxWidth: .infinity)
+            .frame(minHeight: profileCardMinHeight, alignment: .top)
+            .padding(16)
+            .background(profileCardBackground(isSelected: isSelected))
+            .overlay(profileCardBorder(isSelected: isSelected))
+            .contentShape(RoundedRectangle(cornerRadius: profileCardCornerRadius, style: .continuous))
+            .animation(theme.springs.interactive, value: isSelected)
         }
         .buttonStyle(.plain)
     }
@@ -188,6 +190,69 @@ struct ProfileSwitcherView: View {
                 ProgressView().tint(theme.palette.primary)
             }
         }
+    }
+
+    private func profileCardBackground(isSelected: Bool) -> some View {
+        RoundedRectangle(cornerRadius: profileCardCornerRadius, style: .continuous)
+            .fill(
+                Color.white.opacity(isSelected ? 0.06 : 0.03)
+            )
+            .shadow(
+                color: isSelected
+                    ? theme.palette.success.opacity(0.28)
+                    : Color.black.opacity(0.28),
+                radius: isSelected ? 18 : 12,
+                x: 0,
+                y: isSelected ? 8 : 6
+            )
+            .shadow(
+                color: isSelected ? theme.palette.success.opacity(0.18) : .clear,
+                radius: 26,
+                x: 0,
+                y: 0
+            )
+    }
+
+    private func profileCardBorder(isSelected: Bool) -> some View {
+        RoundedRectangle(cornerRadius: profileCardCornerRadius, style: .continuous)
+            .stroke(
+                isSelected ? theme.palette.success.opacity(0.95) : Color.white.opacity(0.14),
+                lineWidth: isSelected ? 2.5 : 1
+            )
+    }
+
+    @ViewBuilder
+    private func profileStatusBadge(isSelected: Bool, isProtected: Bool) -> some View {
+        if isProtected {
+            Image(systemName: "lock.fill")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(.white.opacity(0.9))
+                .frame(width: 26, height: 26)
+                .background(
+                    Circle()
+                        .fill(Color.black.opacity(0.45))
+                )
+                .overlay(
+                    Circle()
+                        .stroke(theme.palette.success.opacity(0.55), lineWidth: 1)
+                )
+                .padding(8)
+        } else if isSelected {
+            Image(systemName: "checkmark")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 26, height: 26)
+                .background(
+                    Circle()
+                        .fill(theme.palette.success)
+                )
+                .shadow(color: theme.palette.success.opacity(0.35), radius: 8, x: 0, y: 4)
+                .padding(8)
+        }
+    }
+
+    private func profileSubtitle(for user: PlexHomeUser) -> String {
+        user.username ?? user.email ?? ""
     }
 
     private var placeholderAvatar: some View {

@@ -21,10 +21,8 @@ struct SelectServerView: View {
         .tint(.accentColor)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button(role: .destructive) {
+                PlinxChromeButton(systemImage: "rectangle.portrait.and.arrow.right") {
                     isShowingLogoutConfirmation = true
-                } label: {
-                    Image(systemName: "rectangle.portrait.and.arrow.right")
                 }
                 .accessibilityLabel("common.actions.logOut")
             }
