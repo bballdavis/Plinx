@@ -152,6 +152,9 @@ struct SignInView: View {
 
 #if os(tvOS)
 extension SignInView {
+    private var tvOSPanelHeight: CGFloat { 410 }
+    private var tvOSPanelWidth: CGFloat { 410 }
+
     private var tvOSBody: some View {
         ZStack {
             LinearGradient(
@@ -184,28 +187,12 @@ extension SignInView {
             VStack(spacing: 34) {
                 Spacer(minLength: 18)
 
-                VStack(spacing: 14) {
-                    PlinxBrandLogoView(
-                        preferredAssetName: PlinxBrandingSemantics.fullColorLogoAssetName,
-                        accessibilityIdentifier: "signIn.logo.fullColor"
-                    )
-                    .frame(height: 140)
-                    .frame(maxWidth: 360)
-
-                    VStack(spacing: 8) {
-                        Text("signIn.title")
-                            .plinxStyle(theme.typography.heading)
-                            .multilineTextAlignment(.center)
-                            .foregroundStyle(Color.white.opacity(0.92))
-
-                        Text("signIn.tv.subtitle")
-                            .plinxStyle(theme.typography.display)
-                            .multilineTextAlignment(.center)
-                            .foregroundStyle(Color.white)
-                            .frame(maxWidth: 1040)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
+                PlinxBrandLogoView(
+                    preferredAssetName: PlinxBrandingSemantics.fullColorLogoAssetName,
+                    accessibilityIdentifier: "signIn.logo.fullColor",
+                    maxWidth: 480
+                )
+                .frame(height: 210)
 
                 tvOSSignInSurface
 
@@ -232,181 +219,143 @@ extension SignInView {
 
     @ViewBuilder
     private var tvOSSignInSurface: some View {
-        if let pin = viewModel.pin,
-           let authURL = plexAuthURL(pin: pin),
-           let qrCode = qrImage(from: authURL.absoluteString) {
-            HStack(alignment: .center, spacing: 36) {
-                qrCodePanel(qrCode)
-                instructionPanel(isAuthenticating: viewModel.isAuthenticating)
-            }
-            .padding(28)
-            .frame(maxWidth: 1240)
-            .background(
-                RoundedRectangle(cornerRadius: 40, style: .continuous)
-                    .fill(Color.black.opacity(0.20))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 40, style: .continuous)
-                            .stroke(Color.white.opacity(0.14), lineWidth: 1)
-                    )
-                    .shadow(color: .black.opacity(0.20), radius: 24, x: 0, y: 16)
-            )
-        } else {
-            HStack(alignment: .center, spacing: 36) {
-                waitingPanel
-                instructionPanel(isAuthenticating: true)
-            }
-            .padding(28)
-            .frame(maxWidth: 1240)
-            .background(
-                RoundedRectangle(cornerRadius: 40, style: .continuous)
-                    .fill(Color.black.opacity(0.20))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 40, style: .continuous)
-                            .stroke(Color.white.opacity(0.14), lineWidth: 1)
-                    )
-                    .shadow(color: .black.opacity(0.20), radius: 24, x: 0, y: 16)
+        let pin = viewModel.pin
+        let qrCode = pin.flatMap { plexAuthURL(pin: $0) }
+            .flatMap { qrImage(from: $0.absoluteString) }
+
+        HStack(alignment: .center, spacing: 30) {
+            qrCodePlate(qrCode)
+            instructionPanel(
+                pin: pin,
+                isAuthenticating: viewModel.isAuthenticating
             )
         }
+        .padding(28)
+        .frame(maxWidth: 1240)
+        .background(
+            RoundedRectangle(cornerRadius: 40, style: .continuous)
+                .fill(Color.black.opacity(0.18))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 40, style: .continuous)
+                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                )
+                .shadow(color: .black.opacity(0.18), radius: 24, x: 0, y: 16)
+        )
     }
 
-    private func qrCodePanel(_ qrCode: UIImage) -> some View {
-        VStack(spacing: 14) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 34, style: .continuous)
-                    .fill(Color.black.opacity(0.46))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 34, style: .continuous)
-                            .stroke(Color.white.opacity(0.18), lineWidth: 1)
-                    )
+    private func qrCodePlate(_ qrCode: UIImage?) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(Color.white)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                        .stroke(Color.black.opacity(0.10), lineWidth: 1)
+                )
 
+            if let qrCode {
                 Image(uiImage: qrCode)
                     .resizable()
                     .interpolation(.none)
-                    .frame(width: 330, height: 330)
-                    .padding(22)
-                    .background(
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .fill(Color(white: 0.10))
-                    )
+                    .scaledToFit()
+                    .padding(18)
+            } else {
+                ProgressView()
+                    .progressViewStyle(.circular)
+                    .tint(.black.opacity(0.65))
             }
-            .frame(width: 410, height: 410)
-
-            Text("Scan with the Plex app")
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(Color.white.opacity(0.88))
         }
-        .frame(width: 410)
+        .frame(width: tvOSPanelWidth, height: tvOSPanelHeight)
     }
 
-    private var waitingPanel: some View {
-        VStack(spacing: 18) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 34, style: .continuous)
-                    .fill(Color.black.opacity(0.38))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 34, style: .continuous)
-                            .stroke(Color.white.opacity(0.16), lineWidth: 1)
-                    )
+    private func instructionPanel(
+        pin: PlexCloudPin?,
+        isAuthenticating: Bool
+    ) -> some View {
+        VStack(alignment: .center, spacing: 18) {
+            VStack(spacing: 10) {
+                Text("signIn.title")
+                    .font(.system(size: 50, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Color.white)
+                    .multilineTextAlignment(.center)
 
-                VStack(spacing: 14) {
-                    ProgressView()
-                        .progressViewStyle(.circular)
-                        .tint(.white)
+                Text("signIn.tv.subtitle")
+                    .font(.system(size: 24, weight: .medium, design: .rounded))
+                    .foregroundStyle(Color.white.opacity(0.86))
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 520)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
+            if let pin {
+                codePill(pin.code)
+            } else {
+                codePill("----")
+                    .opacity(0.6)
+            }
+
+            Spacer(minLength: 8)
+
+            VStack(spacing: 14) {
+                HStack(spacing: 10) {
+                    if isAuthenticating {
+                        ProgressView()
+                            .tint(.white.opacity(0.9))
+                    }
                     Text("Waiting for Plex")
-                        .font(.title3.weight(.semibold))
+                        .font(.headline.weight(.semibold))
                         .foregroundStyle(Color.white)
                 }
-            }
-            .frame(width: 410, height: 410)
+                .frame(maxWidth: .infinity, alignment: .center)
 
-            Text("Getting your sign-in code ready")
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(Color.white.opacity(0.82))
+                Button {
+                    viewModel.cancelSignIn()
+                    Task { await viewModel.startSignIn() }
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 16, weight: .semibold))
+                        Text("Refresh Code")
+                            .plinxStyle(theme.typography.button)
+                    }
+                    .foregroundStyle(Color.white)
+                    .frame(maxWidth: 320, minHeight: 58)
+                    .padding(.horizontal, 18)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color.accentColor.opacity(0.18))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(Color.accentColor.opacity(0.32), lineWidth: 1)
+                    )
+                }
+                .buttonStyle(PlinkButtonStyle(springs: theme.springs))
+                .accessibilityIdentifier("signIn.refreshButton")
+                .disabled(isAuthenticating)
+                .opacity(isAuthenticating ? 0.78 : 1)
+            }
+            .frame(maxWidth: .infinity, alignment: .center)
         }
-        .frame(width: 410)
+        .frame(width: 540, height: tvOSPanelHeight)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 16)
     }
 
-    private func instructionPanel(isAuthenticating: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 20) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Sign in with Plex")
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(Color.white.opacity(0.8))
-
-                Text("Scan this QR code with your phone to sign in")
-                    .font(.system(size: 42, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Color.white)
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Text("If the app does not open automatically, use plex.tv/link in your browser.")
-                    .plinxStyle(theme.typography.body)
-                    .foregroundStyle(Color.white.opacity(0.80))
-                    .lineSpacing(4)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Open in browser")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.white.opacity(0.62))
-
-                Text("plex.tv/link")
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
-                    .foregroundStyle(Color.white)
-                    .underline()
-            }
-
-            Button {
-                viewModel.cancelSignIn()
-                Task { await viewModel.startSignIn() }
-            } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 16, weight: .semibold))
-                    Text("Refresh Code")
-                        .plinxStyle(theme.typography.button)
-                }
-                .foregroundStyle(Color.white)
-                .frame(maxWidth: .infinity, minHeight: 58)
-                .padding(.horizontal, 18)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color.accentColor.opacity(0.18))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(Color.accentColor.opacity(0.32), lineWidth: 1)
-                )
-            }
-            .buttonStyle(PlinkButtonStyle(springs: theme.springs))
-            .frame(maxWidth: 300, alignment: .leading)
-            .accessibilityIdentifier("signIn.refreshButton")
-            .disabled(isAuthenticating)
-            .opacity(isAuthenticating ? 0.78 : 1)
-
-            if isAuthenticating {
-                HStack(spacing: 10) {
-                    ProgressView()
-                        .tint(.white.opacity(0.8))
-                    Text("Waiting for Plex")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(Color.white.opacity(0.82))
-                }
-                .padding(.top, 2)
-            }
-        }
-        .frame(maxWidth: 560, alignment: .leading)
-        .padding(32)
-        .background(
-            RoundedRectangle(cornerRadius: 34, style: .continuous)
-                .fill(Color.black.opacity(0.18))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 34, style: .continuous)
-                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                )
-        )
+    private func codePill(_ code: String) -> some View {
+        Text(code)
+            .font(.system(size: 32, weight: .bold, design: .monospaced))
+            .tracking(4)
+            .foregroundStyle(Color.white)
+            .padding(.horizontal, 22)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color.black.opacity(0.22))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                    )
+            )
     }
 
     private func qrImage(from string: String) -> UIImage? {
