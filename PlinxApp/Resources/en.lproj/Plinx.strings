@@ -65,6 +65,48 @@
 "settings.libraries.noneFound" = "No libraries found.";
 "settings.navigation.showSearchInMainNavigation" = "Show \"Search\" in main navigation";
 
+/* Settings — Youtarr (parent-only) */
+"youtarr.settings.title" = "Youtarr";
+"youtarr.settings.connection" = "Connection";
+"youtarr.settings.baseURL" = "Server Address";
+"youtarr.settings.apiKey" = "API Key";
+"youtarr.settings.apiKey.help" = "Leave this blank to keep the saved key. Plinx never shows a saved key.";
+"youtarr.settings.address.help" = "HTTPS is accepted anywhere. HTTP is only accepted for a local network server.";
+"youtarr.settings.save" = "Save Connection";
+"youtarr.settings.test" = "Test Connection";
+"youtarr.settings.testing" = "Testing connection…";
+"youtarr.settings.summary" = "Connection Summary";
+"youtarr.settings.serverVersion" = "Server Version";
+"youtarr.settings.apiVersion" = "API Version";
+"youtarr.settings.role" = "Role";
+"youtarr.settings.scopes" = "Permissions";
+"youtarr.settings.catalog" = "Catalog";
+"youtarr.settings.remove" = "Remove Configuration";
+"youtarr.settings.remove.help" = "This removes the server address and securely stored API key from this device.";
+"youtarr.status.saved" = "Youtarr connection saved.";
+"youtarr.status.verified" = "Youtarr connection verified.";
+"youtarr.status.removed" = "Youtarr configuration removed.";
+"youtarr.error.invalidURL" = "Enter a valid HTTPS address or local-network HTTP address.";
+"youtarr.error.missingAPIKey" = "Enter an API key before saving this connection.";
+"youtarr.error.credentialStore" = "Plinx could not securely save this connection.";
+"youtarr.error.unauthorized" = "Youtarr did not accept this API key.";
+"youtarr.error.notFound" = "Youtarr's external API was not found at this address.";
+"youtarr.error.rateLimited" = "Youtarr is busy. Try again in a moment.";
+"youtarr.error.serverUnavailable" = "Youtarr is temporarily unavailable.";
+"youtarr.error.networkUnavailable" = "Plinx could not reach Youtarr. Check the address and network.";
+"youtarr.error.invalidResponse" = "Youtarr sent an unexpected response.";
+"youtarr.error.unsupportedVersion" = "This Youtarr external API version is not supported by Plinx.";
+"youtarr.error.save" = "Plinx could not save this connection.";
+"youtarr.error.test" = "Plinx could not test this connection.";
+"youtarr.error.remove" = "Plinx could not remove this connection.";
+"youtarr.role.view" = "View";
+"youtarr.role.request" = "Request";
+"youtarr.role.delete" = "Delete";
+"youtarr.role.admin" = "Admin";
+"youtarr.role.unknown" = "Custom";
+"youtarr.availability.available" = "Available";
+"youtarr.availability.unavailable" = "Unavailable";
+
 /* Settings — Home Screen */
 "settings.homescreen.title" = "Home Screen";
 "settings.homescreen.combine.label" = "Combine Movie & TV Library Recently Watched";

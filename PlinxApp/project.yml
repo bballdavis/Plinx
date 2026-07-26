@@ -127,6 +127,9 @@ targets:
       path: Resources/Info.plist
       properties:
         CFBundleDisplayName: Plinx
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        NSLocalNetworkUsageDescription: Plinx connects to the Youtarr server configured by a parent on your local network.
         UILaunchStoryboardName: LaunchScreen
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
