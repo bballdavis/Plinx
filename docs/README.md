@@ -27,6 +27,7 @@ Recommended reading order for most work:
 | Brand assets, theme rules, and UI branding expectations | `docs/product/branding.md` |
 | Privacy, safety, secrets, and release validation rules | `docs/security/privacy-and-safety.md` |
 | App Store submission copy | `docs/release/app-store.md` |
+| Strimr upgrade decision and upstream contribution queue | `docs/maintenance/strimr-upstream-audit-2026-07-25.md` |
 | Future cleanup candidates outside this pass | `docs/maintenance/cleanup-roadmap.md` |
 
 ## Repo Map
