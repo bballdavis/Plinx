@@ -16,7 +16,7 @@ final class SafeCollectionDetailViewModel {
 
     // MARK: - Private
     private let inner: CollectionDetailViewModel
-    private let policy: SafetyPolicy
+    private(set) var policy: SafetyPolicy
 
     init(inner: CollectionDetailViewModel, policy: SafetyPolicy = .ratingOnly()) {
         self.inner = inner
@@ -27,6 +27,12 @@ final class SafeCollectionDetailViewModel {
 
     func load() async {
         await inner.load()
+        applyFilters()
+    }
+
+    func updatePolicy(_ newPolicy: SafetyPolicy) {
+        guard newPolicy != policy else { return }
+        policy = newPolicy
         applyFilters()
     }
 

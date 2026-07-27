@@ -14,6 +14,7 @@ struct PlinxLibraryView: View {
     private var storedBannerArtworkCount = 0
 
     @Environment(\.safetyPolicy) private var safetyPolicy
+    @Environment(SettingsManager.self) private var settingsManager
     #if os(tvOS)
     @FocusState private var focusedLibraryID: String?
     #endif
@@ -49,6 +50,9 @@ struct PlinxLibraryView: View {
         #endif
         .onChange(of: safetyPolicy) { _, newPolicy in
             viewModel.updatePolicy(newPolicy)
+        }
+        .onChange(of: settingsManager.interface.hiddenLibraryIds) { _, hiddenIDs in
+            viewModel.updateHiddenLibraryIDs(Set(hiddenIDs))
         }
     }
 

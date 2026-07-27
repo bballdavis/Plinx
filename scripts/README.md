@@ -30,6 +30,14 @@ If `../strimr` is on the wrong branch or has uncommitted changes, the build can 
 
 ## Scripts
 
+### `generate_xcodeproj.sh` — Generate the App Project
+
+Applies the pinned Strimr release patch, runs XcodeGen, and adds separate iOS
+and tvOS resource phases so each product contains its asset catalog,
+localizations, and privacy manifest. The iOS phase also compiles the launch
+storyboard. Do not replace the target-owned phases with a shared build phase;
+Xcode may then omit resources from one platform bundle.
+
 ### `strimr/run_ipad_sim.sh` — Build & Run Strimr Branch on iPad Simulator
 
 Builds and runs the **active branch of the sibling `../strimr` checkout** on an iPad simulator. Use this to test feature branches you want to feed back upstream before they become part of Plinx.
@@ -222,7 +230,8 @@ Builds a signed archive for App Store Connect and validates the packaged app bun
 - Generates the Xcode project from `project.yml`
 - Archives the Release build for `generic/platform=iOS`
 - Overrides `CURRENT_PROJECT_VERSION` with a unique build number by default
-- Runs `validate_testflight_archive.sh` to catch missing launch screen and privacy manifest issues locally
+- Applies the pinned Strimr patch, generates the project, and runs `scripts/tests/validate_testflight_archive.sh`
+- Validates version/build overrides, signing, architecture, launch assets, privacy manifest, and forbidden telemetry artifacts
 
 ### `validate_testflight_archive.sh` — Validate Archive Contents
 
@@ -230,18 +239,40 @@ Validates the app bundle inside an `.xcarchive` before you upload it.
 
 ```bash
 # Validate the default archive path
-./scripts/validate_testflight_archive.sh
+./scripts/tests/validate_testflight_archive.sh
 
 # Validate a specific archive
-./scripts/validate_testflight_archive.sh ./build/Plinx.xcarchive
+./scripts/tests/validate_testflight_archive.sh ./build/Plinx.xcarchive
 ```
 
 **What it checks:**
-- `CFBundleShortVersionString` and `CFBundleVersion` are present
+- expected bundle identifier, `CFBundleShortVersionString`, and `CFBundleVersion`
+- iOS platform, deployment target, arm64 executable, and valid signature
 - `UILaunchStoryboardName` is present
 - The compiled launch storyboard exists in the app bundle
 - `PrivacyInfo.xcprivacy` exists in the app bundle
 - `Assets.car` exists in the app bundle
+- no Sentry bundle or obvious telemetry/secret marker is embedded
+
+### App Store Screenshot Validation
+
+`scripts/tests/validate_app_store_screenshots.sh` accepts only the release inventory:
+
+- iPhone 6.9-inch: `1320x2868` portrait or landscape inverse;
+- iPad 13-inch: `2064x2752` portrait or landscape inverse;
+- PNG files with no alpha channel.
+
+Use `scripts/flatten_screenshot_alpha.sh INPUT.png OUTPUT.png` only after capturing fictional review content. Do not promote the legacy `screenshots/` files; they fail the current iPad-size and alpha checks.
+
+### `build_compliance_bundle.sh` — Package Corresponding Source
+
+Creates the release's Plinx, pinned Strimr, and pinned MPVKit source bundle plus the applied vendor patch. Run only from a clean committed release checkout:
+
+```bash
+./scripts/build_compliance_bundle.sh
+```
+
+Both release scripts call `scripts/verify_release_dependency_state.sh`. It compares the live sibling trees against the pinned Strimr commit plus the documented patch and the exact MPVKit commit, preventing unrelated local dependency changes from entering a release archive.
 
 ---
 
@@ -275,7 +306,7 @@ Or just run a script with an invalid name—it will show the available options.
 
 ## Requirements
 
-- Xcode 26+ with iOS 26.2 SDK
+- Xcode 26.5 with the iOS 26.5 SDK and simulator runtime
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen) installed (used by build scripts)
 - iOS Simulator runtime
 
@@ -288,12 +319,11 @@ For local stability, Plinx references sibling clones of forked package repositor
   Plinx/
   strimr/
   MPVKit/
-  sentry-cocoa/
 
 The live app target currently compiles directly from sibling `strimr/Shared` and `strimr/Strimr-iOS/Features` paths.
 ```
 
-These are referenced via `../../MPVKit` and `../../sentry-cocoa` from the `PlinxApp` directory, which means GUI archive/distribute flows in Xcode use the same local package sources as the shell scripts once the project has been generated.
+MPVKit is referenced via `../../MPVKit` from the `PlinxApp` directory. Sentry is intentionally not a Plinx dependency; the vendored reporter source is excluded and replaced by the app's no-op privacy adapter.
 
 This removes dependency on cloning the package source from upstream during project generation and package resolution. It does not, by itself, eliminate all remote binary artifact downloads if the package manifests still point to release ZIPs.
 

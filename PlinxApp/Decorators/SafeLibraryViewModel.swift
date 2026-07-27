@@ -11,18 +11,27 @@ import PlinxCore
 @MainActor
 @Observable
 final class SafeLibraryViewModel {
-    var libraries: [Library] { inner.libraries }
+    var libraries: [Library] {
+        inner.libraries.filter { !hiddenLibraryIDs.contains($0.id) }
+    }
     var isLoading: Bool { inner.isLoading }
     private(set) var errorMessage: String?
     private(set) var bannerArtworkURLs: [String: [URL]] = [:]
 
     private let inner: LibraryViewModel
     private var policy: SafetyPolicy
+    private var hiddenLibraryIDs: Set<String>
     private let context: PlexAPIContext
 
-    init(inner: LibraryViewModel, policy: SafetyPolicy = .ratingOnly(), context: PlexAPIContext) {
+    init(
+        inner: LibraryViewModel,
+        policy: SafetyPolicy = .ratingOnly(),
+        hiddenLibraryIDs: Set<String> = [],
+        context: PlexAPIContext
+    ) {
         self.inner = inner
         self.policy = policy
+        self.hiddenLibraryIDs = hiddenLibraryIDs
         self.context = context
     }
 
@@ -37,6 +46,10 @@ final class SafeLibraryViewModel {
     /// on every render. This keeps the two in sync.
     func updatePolicy(_ newPolicy: SafetyPolicy) {
         policy = newPolicy
+    }
+
+    func updateHiddenLibraryIDs(_ newHiddenLibraryIDs: Set<String>) {
+        hiddenLibraryIDs = newHiddenLibraryIDs
     }
 
     func artworkURL(for library: Library) -> URL? {

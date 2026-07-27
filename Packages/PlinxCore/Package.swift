@@ -9,7 +9,7 @@ import PackageDescription
 //   • SafetyInterceptor + SafetyPolicy — content filtering (fail-closed)
 //   • MathGate — parental gate challenge generator
 //   • PlinxRating / PlinxMediaItem — public model types (bridge types)
-//   • HapticManager + PlinkAudioManager — tactile feedback
+//   • HapticManager — tactile feedback
 //   • PlaybackCoordinator + PlaybackPolicy — lifecycle management
 //   • PlexClient protocol — abstract Plex API surface
 //

@@ -16,6 +16,7 @@ import SwiftUI
 
 // MARK: - PlinxTheme
 
+@MainActor
 struct PlinxThemeTests {
 
     @Test func defaultGlassCornerRadiusIsPositive() {
@@ -41,6 +42,7 @@ struct PlinxThemeTests {
 
 // MARK: - PlinxMediaCard
 
+@MainActor
 struct PlinxMediaCardTests {
 
     @Test func defaultAspectRatioIsPortrait() {
@@ -74,6 +76,7 @@ struct PlinxMediaCardTests {
 
 // MARK: - PlinxErrorView
 
+@MainActor
 struct PlinxErrorViewTests {
 
     @Test func messageIsPropagated() {

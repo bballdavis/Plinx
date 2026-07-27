@@ -12,7 +12,7 @@ Plinx is built around three non-negotiable rules:
 
 Current implementation anchors:
 
-- `PlinxApp/Resources/PrivacyInfo.xcprivacy` declares no tracking, no collected data types, and no accessed API types
+- `PlinxApp/Resources/PrivacyInfo.xcprivacy` declares no tracking or collected data types and declares approved reasons for app-local `UserDefaults` and user-visible disk-space checks
 - `PlinxApp/App/ErrorReporter.swift` is a no-op reporter so no crash or analytics SDK is active
 - `PlinxApp/project.yml` excludes Strimr's reporting implementation and wires in the no-op replacement
 
@@ -23,15 +23,24 @@ Do not add analytics, crash reporting, telemetry, or usage tracking without expl
 Safety-critical behavior lives primarily in:
 
 - `Packages/PlinxCore/Sources/PlinxCore/Safety/`
-- parental gate flows in `PlinxApp/Views/ParentalGateView.swift` and related settings flows
+- `ParentalAccessCoordinator`, which stores the parent PIN in Keychain,
+  rate-limits PIN attempts, relocks when protected UI closes or the app
+  backgrounds, and fails closed when Keychain is unavailable
 - Plinx adapters/decorators that filter or reshape upstream content before display
+- the final playback authorizer, which fetches current metadata and rechecks every play queue before handing it to a player
+- `DownloadOwnershipStore`, which keeps offline media scoped to the Plex server/profile that created it
 
 Safety behavior should fail closed whenever possible. If filtering metadata is missing or uncertain, the default should not broaden kid-facing visibility by accident.
+
+All libraries are visible by default, but visibility is independent from content authorization. Default ceilings are PG and TV-PG, and unrated/unknown media—including clips and home videos—is excluded unless a parent opts in.
 
 ## External Link Policy
 
 - No external links in kid-facing UI.
 - Any legal, attribution, or source links belong behind parental gate or settings surfaces.
+- Legacy VLC and Infuse selections are migrated to Plinx's MPV player. The
+  first release does not hand playback to an external app because doing so
+  would bypass Plinx's content checks and playback-level cap.
 - Repository docs and release material may link externally; the restriction applies to the app experience.
 
 ## Secrets Handling
@@ -56,6 +65,7 @@ Rules:
 Before release or archive-oriented changes are considered safe, verify:
 
 - `PrivacyInfo.xcprivacy` is included in the app bundle
+- Xcode's privacy report covers the app and every embedded executable/framework
 - launch resources and asset catalogs are present
 - zero-collection behavior is still intact
 - relevant safety and branding tests still pass
@@ -63,7 +73,7 @@ Before release or archive-oriented changes are considered safe, verify:
 Use:
 
 ```bash
-./scripts/tests/validate_testflight_archive.sh
+./scripts/tests/validate_testflight_archive.sh ./build/Plinx.xcarchive
 ```
 
 ## Minimum Tests For Sensitive Changes

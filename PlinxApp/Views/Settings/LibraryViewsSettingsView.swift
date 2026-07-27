@@ -14,10 +14,14 @@ struct LibraryViewsSettingsView: View {
                         set: { settingsManager.setDisplayCollections($0) }
                     )
                 ) {
-                    Label("Collection Button", systemImage: "rectangle.stack.fill")
+                    Label {
+                        Text("settings.libraryViews.collectionButton", tableName: "Plinx")
+                    } icon: {
+                        Image(systemName: "rectangle.stack.fill")
+                    }
                 }
             } header: {
-                Text("Library Views")
+                Text("settings.libraryViews.title", tableName: "Plinx")
             }
 
             Section("Libraries") {
@@ -30,7 +34,7 @@ struct LibraryViewsSettingsView: View {
                 }
             }
         }
-        .navigationTitle("Library Views")
+        .navigationTitle(Text("settings.libraryViews.title", tableName: "Plinx"))
         #if os(tvOS)
         .listStyle(.plain)
         #else
@@ -84,7 +88,7 @@ private struct LibraryViewSectionsConfigurationView: View {
                 }
             } else if sections.isEmpty {
                 Section {
-                    Text("No recommend sections available.")
+                    Text("settings.libraryViews.empty", tableName: "Plinx")
                         .foregroundStyle(.secondary)
                 }
             } else {
@@ -103,7 +107,7 @@ private struct LibraryViewSectionsConfigurationView: View {
                     }
                     .onMove(perform: moveSections)
                 } footer: {
-                    Text("Toggle sections on/off and drag to reorder.")
+                    Text("settings.libraryViews.description", tableName: "Plinx")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

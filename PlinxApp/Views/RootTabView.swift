@@ -59,9 +59,10 @@ struct RootTabView: View {
     @Environment(SettingsManager.self) private var settingsManager
     @Environment(LibraryStore.self) private var libraryStore
     @Environment(DownloadManager.self) private var downloadManager
+    @Environment(ParentalAccessCoordinator.self) private var parentalAccessCoordinator
+    @Environment(DownloadOwnershipStore.self) private var downloadOwnershipStore
     @EnvironmentObject private var mainCoordinator: MainCoordinator
     @Environment(\.safetyPolicy) private var safetyPolicy
-    @Environment(\.openURL) private var openURL
 
     @State private var showSettings = false
     @State private var selectedQuickActionMedia: MediaDisplayItem?
@@ -128,8 +129,7 @@ struct RootTabView: View {
         PlaybackLauncher(
             context: plexApiContext,
             coordinator: mainCoordinator,
-            settingsManager: settingsManager,
-            openURL: { url in openURL(url) }
+            safetyPolicy: safetyPolicy
         )
     }
 
@@ -210,6 +210,12 @@ struct RootTabView: View {
                 mainCoordinator.resetToRoot(for: .home)
                 mainCoordinator.tab = .home
             }
+            .onChange(of: settingsManager.interface.hiddenLibraryIds) { _, _ in
+                mainCoordinator.resetToRoot(for: .library)
+                Task {
+                    await homeViewModel?.reload()
+                }
+            }
             .overlay(alignment: .bottom) {
                 if let item = selectedQuickActionMedia {
                     quickActionSheet(for: item)
@@ -217,11 +223,16 @@ struct RootTabView: View {
                 }
             }
             .animation(.spring(response: 0.25, dampingFraction: 0.86), value: selectedQuickActionMedia != nil)
-            .alert("Action Failed", isPresented: Binding(
+            .alert(
+                Text("common.error.actionFailed", tableName: "Plinx"),
+                isPresented: Binding(
                 get: { quickActionErrorMessage != nil },
                 set: { if !$0 { quickActionErrorMessage = nil } }
             )) {
-                Button("OK", role: .cancel) {}
+                Button(
+                    String(localized: "common.actions.ok", table: "Plinx"),
+                    role: .cancel
+                ) {}
             } message: {
                 Text(quickActionErrorMessage ?? "")
             }
@@ -419,16 +430,31 @@ struct RootTabView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .sheet(isPresented: $showSettings) {
-            NavigationStack {
-                PlinxSettingsView()
-                    .toolbar(.hidden, for: .navigationBar)
-                    .safeAreaInset(edge: .top, spacing: 0) {
-                        settingsHeaderRow
+            Group {
+                if parentalAccessCoordinator.isUnlocked {
+                    NavigationStack {
+                        PlinxSettingsView()
+                            .toolbar(.hidden, for: .navigationBar)
+                            .safeAreaInset(edge: .top, spacing: 0) {
+                                settingsHeaderRow
+                            }
                     }
+                } else {
+                    ParentalGateView {
+                        // The coordinator owns the authorization state. This
+                        // closure exists so UI-test and future presentation
+                        // layers can react without bypassing that state.
+                    }
+                }
             }
             #if !os(tvOS)
             .presentationDetents([.large])
             #endif
+        }
+        .onChange(of: showSettings) { _, isPresented in
+            if !isPresented {
+                parentalAccessCoordinator.lock()
+            }
         }
     }
 
@@ -519,6 +545,7 @@ struct RootTabView: View {
                             libraryStore: libraryStore
                         ),
                         policy: safetyPolicy,
+                        hiddenLibraryIDs: Set(settingsManager.interface.hiddenLibraryIds),
                         context: plexApiContext
                     ),
                     topContent: scrollingHeaderContent(title: "tabs.library".plinxLocalized, showsSettingsButton: false),
@@ -582,6 +609,7 @@ struct RootTabView: View {
     private func handleBottomAction(_ action: KidsMainTabPicker.TabItem.Action) {
         switch action {
         case .settings:
+            parentalAccessCoordinator.lock()
             showSettings = true
         }
     }
@@ -661,6 +689,7 @@ struct RootTabView: View {
             }
             if showsSettingsButton {
                 PlinxChromeButton(systemImage: "gearshape.fill") {
+                    parentalAccessCoordinator.lock()
                     showSettings = true
                 }
                 .accessibilityIdentifier("home.header.settings")
@@ -719,7 +748,7 @@ struct RootTabView: View {
                     policy: safetyPolicy
                 ),
                 onPlay: { ratingKey, type in
-                    Task { await launcher.play(ratingKey: ratingKey, type: type) }
+                    startPlayback(ratingKey: ratingKey, type: type)
                 },
                 onSelectRelated: { displayItem in
                     mainCoordinator.showMediaDetail(displayItem)
@@ -742,50 +771,62 @@ struct RootTabView: View {
                 }
             )
         case let .playlistDetail(playlist):
-            #if os(tvOS)
-            PlaylistDetailTVView(
-                viewModel: PlaylistDetailViewModel(
-                    playlist: playlist,
-                    context: plexApiContext
+            PlinxPlaylistDetailView(
+                viewModel: SafePlaylistDetailViewModel(
+                    inner: PlaylistDetailViewModel(
+                        playlist: playlist,
+                        context: plexApiContext
+                    ),
+                    policy: safetyPolicy
                 ),
                 onSelectMedia: { displayItem in
                     mainCoordinator.showMediaDetail(displayItem)
                 },
-                onPlay: { ratingKey in
-                    Task { await launcher.play(ratingKey: ratingKey, type: playlist.type) }
-                },
-                onShuffle: { ratingKey in
-                    Task { await launcher.play(ratingKey: ratingKey, type: playlist.type) }
+                onPlay: { media in
+                    startPlayback(ratingKey: media.id, type: media.type)
                 }
             )
-            #else
-            PlaylistDetailView(
-                viewModel: PlaylistDetailViewModel(
-                    playlist: playlist,
-                    context: plexApiContext
-                ),
-                onSelectMedia: { displayItem in
-                    mainCoordinator.showMediaDetail(displayItem)
-                },
-                onPlay: { ratingKey in
-                    Task { await launcher.play(ratingKey: ratingKey, type: playlist.type) }
-                },
-                onShuffle: { ratingKey in
-                    Task { await launcher.play(ratingKey: ratingKey, type: playlist.type) }
-                }
-            )
-            #endif
         }
     }
 
     private func handlePrimarySelection(_ displayItem: MediaDisplayItem) {
         switch displayItem {
         case let .playable(media):
-            Task { await launcher.play(ratingKey: media.id, type: media.type) }
+            startPlayback(ratingKey: media.id, type: media.type)
         case let .collection(collection):
             mainCoordinator.showCollectionDetail(collection)
         case let .playlist(playlist):
-            Task { await launcher.play(ratingKey: playlist.id, type: playlist.type) }
+            mainCoordinator.showPlaylistDetail(playlist)
+        }
+    }
+
+    private func startPlayback(
+        ratingKey: String,
+        type: PlexItemType,
+        shouldResumeFromOffset: Bool = true
+    ) {
+        Task { @MainActor in
+            let result = await launcher.play(
+                ratingKey: ratingKey,
+                type: type,
+                shouldResumeFromOffset: shouldResumeFromOffset
+            )
+            switch result {
+            case .started:
+                break
+            case .blocked:
+                quickActionErrorMessage = NSLocalizedString(
+                    "playback.blockedByContentControls",
+                    tableName: "Plinx",
+                    comment: ""
+                )
+            case .failed:
+                quickActionErrorMessage = NSLocalizedString(
+                    "playback.unavailable",
+                    tableName: "Plinx",
+                    comment: ""
+                )
+            }
         }
     }
 
@@ -833,15 +874,48 @@ struct RootTabView: View {
                         systemImage: "arrow.down.circle",
                         role: nil,
                         action: {
+                            guard StrimrAdapter.isAllowed(media, policy: safetyPolicy) else {
+                                quickActionErrorMessage = NSLocalizedString(
+                                    "downloads.blockedByContentControls",
+                                    tableName: "Plinx",
+                                    comment: ""
+                                )
+                                return
+                            }
                             Task {
+                                guard let ownerIdentity = sessionManager.plinxDownloadOwnerIdentity else {
+                                    quickActionErrorMessage = NSLocalizedString(
+                                        "downloads.ownerUnavailable",
+                                        tableName: "Plinx",
+                                        comment: ""
+                                    )
+                                    return
+                                }
+                                let existingDownloadIDs = Set(downloadManager.items.map(\.id))
                                 switch media.type {
                                 case .show:
-                                    await downloadManager.enqueueShow(ratingKey: media.id, context: plexApiContext)
+                                    await downloadManager.enqueueShow(
+                                        ratingKey: media.id,
+                                        context: plexApiContext
+                                    )
                                 case .season:
-                                    await downloadManager.enqueueSeason(ratingKey: media.id, context: plexApiContext)
+                                    await downloadManager.enqueueSeason(
+                                        ratingKey: media.id,
+                                        context: plexApiContext
+                                    )
                                 default:
-                                    await downloadManager.enqueueItem(ratingKey: media.id, context: plexApiContext)
+                                    await downloadManager.enqueueItem(
+                                        ratingKey: media.id,
+                                        context: plexApiContext
+                                    )
                                 }
+                                let newDownloadIDs = downloadManager.items
+                                    .map(\.id)
+                                    .filter { !existingDownloadIDs.contains($0) }
+                                downloadOwnershipStore.claim(
+                                    downloadIDs: newDownloadIDs,
+                                    as: ownerIdentity
+                                )
                             }
                         }
                     )

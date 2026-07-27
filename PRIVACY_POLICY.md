@@ -1,49 +1,56 @@
 # Privacy Policy
 
-Effective date: 7 March 2026
+Effective date: July 25, 2026
 
-This Privacy Policy explains how Plinx ("Plinx", "we", "us", or "our") handles information when you use the Plinx mobile application (the "App").
+Plinx is an independent, parent-managed client for Plex Media Server. This policy explains what the Plinx developer does not collect, what the app stores locally, and when the app communicates with Plex services and servers selected by the user.
 
-## Summary
+## Plinx Developer Collection
 
-- **Zero Collection.** Plinx collects no data of any kind.
-- The app connects directly to your Plex account; data flows only between your device and Plex.
-- We do not operate any servers and have no access to your media, account, or usage.
+The Plinx developer does not operate an analytics, advertising, telemetry, account, or media service. Plinx does not send the developer:
 
-## Information We Collect
+- names, email addresses, account identifiers, or device identifiers;
+- viewing history, searches, library contents, or downloaded media;
+- crash reports, diagnostics, analytics, or advertising data;
+- location, contacts, photos, or microphone data.
 
-**Plinx collects no data of any kind.**
+Plinx contains no advertising or third-party analytics SDK.
 
-This includes but is not limited to:
+## Plex and User-Selected Servers
 
-- Personal identifiers (name, email, account IDs)
-- Usage analytics
-- Location, contacts, or media
-- Crash reports or diagnostics
-- Telemetry or event tracking
+Plinx communicates with Plex services to authenticate an existing Plex account, discover available servers and profiles, and request media. It also communicates directly with the Plex Media Server selected by the user, including servers on the local network.
 
-All processing happens locally on your device.
+Those communications can include Plex account/profile identifiers, authentication tokens, server identifiers, media metadata, searches, playback requests, progress updates, and download requests. Plex and the server operator process that information under their own policies and configuration. Review the [Plex Privacy Policy](https://www.plex.tv/about/privacy-legal/) and the policies of the server operator.
 
-### Crash Reporting
+Plinx is not affiliated with or endorsed by Plex.
 
-Plinx does not include any crash reporting, analytics, or telemetry frameworks. Unlike many apps, we have intentionally excluded crash reporting SDKs (such as Sentry) to align our implementation with our zero-collection commitment. If the app crashes, you will not be tracked or reported to any external service.
+## Information Stored on the Device
 
-## Data Storage
+Plinx stores only information needed to provide app features:
 
-Any data required for the app to work (authentication tokens, settings, downloaded items) is stored solely on your device. It is never shared with Plinx or any third party.
+- Plex authentication tokens, connection details, and the parental PIN in the system Keychain;
+- content-control, appearance, playback, library, and download preferences in app-local settings;
+- downloaded media, artwork, playback progress, and an app-local server/profile ownership record for offline access.
 
-## Third‑Party Services
+The ownership record prevents a download created under one Plex server/profile from appearing after a different server or profile is selected. Plinx does not upload this record.
 
-The app uses the Plex API to fetch and play content. Data transmitted during these interactions is governed by Plex’s privacy policy:
+## Local Network
 
-- https://www.plex.tv/about/privacy-legal/
+Plinx requests local-network access so it can find and communicate with Plex Media Servers on the same network. Denying access can prevent local servers from loading; remote Plex connections may still work when available.
 
-Plinx has no involvement in these communications.
+## Retention and Deletion
 
-## Your Choices
+Settings and downloaded files remain on the device until they are changed or deleted. Signing out removes the stored Plex authentication token and default-server selection, but it does not silently delete downloads. Downloads from a different or unidentified profile are hidden and can be removed from parent-authorized download management.
 
-You can remove all local data at any time by signing out or uninstalling the app.
+Uninstalling Plinx removes its app container and downloaded files. The operating system controls Keychain retention; reinstalling may preserve Keychain items unless they are explicitly replaced or the device is erased.
 
-## Changes to This Policy
+## Children and Families
 
-We may update this Privacy Policy from time to time. The "Effective date" above will be updated accordingly. Continued use of the app after changes constitutes acceptance.
+Plinx is presented as a parent-managed family media client, not as a Kids Category app. The developer does not knowingly collect personal information from children or adults because the developer receives no app data.
+
+## Security
+
+Plinx uses Apple Keychain for sensitive credentials and prefers encrypted Plex connections when available. No method of storage or transmission is guaranteed to be completely secure, particularly when a user-selected Plex server offers only an unencrypted local connection.
+
+## Changes and Contact
+
+Material changes will be reflected in this policy and its effective date. Questions or privacy requests can be submitted through [Plinx Support](https://github.com/bballdavis/Plinx/issues).

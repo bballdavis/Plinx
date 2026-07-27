@@ -38,6 +38,7 @@ import UIKit
 
 @main
 struct PlinxApp: App {
+    @Environment(\.scenePhase) private var scenePhase
     #if !os(tvOS)
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate: AppDelegate
     #endif
@@ -59,6 +60,8 @@ struct PlinxApp: App {
     // MediaDetailHeaderSection reads @Environment(DownloadManager.self). Without this
     // injection the app crashes with an assertion failure when navigating to media detail.
     @State private var downloadManager: DownloadManager
+    @State private var parentalAccessCoordinator: ParentalAccessCoordinator
+    @State private var downloadOwnershipStore: DownloadOwnershipStore
 
     // ── Plinx Safety Layer ──────────────────────────────────────────────
     @AppStorage("plinx.maxMovieRating") private var maxMovieRatingRaw = PlinxRating.pg.rawValue
@@ -100,6 +103,7 @@ struct PlinxApp: App {
         let store = LibraryStore(context: context)
         let settings = SettingsManager()
         PlinxSettingsSanitizer.enforceSupportedPlaybackPlayer(settings)
+        PlinxSettingsSanitizer.disableUnsupportedExternalDiscovery(settings)
         let session = SessionManager(context: context, libraryStore: store)
         _plexApiContext = State(initialValue: context)
         _sessionManager = State(initialValue: session)
@@ -125,6 +129,8 @@ struct PlinxApp: App {
             context: context
         )
         _downloadManager = State(initialValue: downloads)
+        _parentalAccessCoordinator = State(initialValue: ParentalAccessCoordinator())
+        _downloadOwnershipStore = State(initialValue: DownloadOwnershipStore())
 
         // Layer 2: Plinx safety + theming are initialized via property defaults.
         // The ViewFactory is created in `body` since it needs the live state refs.
@@ -143,6 +149,8 @@ struct PlinxApp: App {
                 .environmentObject(mainCoordinator)
                 .environment(watchTogetherViewModel)
                 .environment(downloadManager)
+                .environment(parentalAccessCoordinator)
+                .environment(downloadOwnershipStore)
                 // ── Plinx layer injection ───────────────────────────
                 .environment(\.plinxTheme, theme)
                 .environment(\.safetyPolicy, safetyPolicy)
@@ -156,6 +164,11 @@ struct PlinxApp: App {
                 }
                 .onChange(of: accentColorName) { _, _ in
                     AppearanceSetup.apply(theme, accentColor: UIColor(accentColor))
+                }
+                .onChange(of: scenePhase) { _, newPhase in
+                    if newPhase != .active {
+                        parentalAccessCoordinator.lock()
+                    }
                 }
                 // ── Lifecycle hardening ─────────────────────────────
                 #if !os(tvOS)

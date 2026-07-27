@@ -16,6 +16,7 @@ struct PlinxPlayerView: View {
     let viewModel: PlayerViewModel
 
     @Environment(\.plinxTheme) private var theme
+    @Environment(\.safetyPolicy) private var safetyPolicy
 
     var body: some View {
         ZStack {
@@ -23,12 +24,23 @@ struct PlinxPlayerView: View {
 
             // Strimr's proven player engine (MPVKit-backed)
             #if os(tvOS)
-            PlayerTVWrapper(viewModel: viewModel) {
-                isPresented = false
-            }
+            PlayerTVWrapper(
+                viewModel: viewModel,
+                onExit: {
+                    isPresented = false
+                },
+                isPlaybackAuthorized: { item in
+                    StrimrAdapter.isAllowed(item, policy: safetyPolicy)
+                }
+            )
             .ignoresSafeArea()
             #else
-            PlayerWrapper(viewModel: viewModel)
+            PlayerWrapper(
+                viewModel: viewModel,
+                isPlaybackAuthorized: { item in
+                    StrimrAdapter.isAllowed(item, policy: safetyPolicy)
+                }
+            )
                 .ignoresSafeArea()
             #endif
 

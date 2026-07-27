@@ -8,19 +8,19 @@ struct SettingsDownloadsView: View {
         List {
             Section {
                 Toggle(
-                    "settings.downloads.wifiOnly",
+                    String(localized: "settings.downloads.wifiOnly", table: "Plinx"),
                     isOn: Binding(
                         get: { settingsManager.downloads.wifiOnly },
                         set: { settingsManager.setDownloadWiFiOnly($0) }
                     )
                 )
             } footer: {
-                Text("settings.downloads.wifiOnly.footer")
+                Text("settings.downloads.wifiOnly.footer", tableName: "Plinx")
             }
 
             Section {
                 Picker(
-                    "Download Quality",
+                    String(localized: "settings.downloads.quality", table: "Plinx"),
                     selection: Binding(
                         get: { settingsManager.downloads.quality },
                         set: { settingsManager.setDownloadQuality($0) }
@@ -34,9 +34,9 @@ struct SettingsDownloadsView: View {
                 .pickerStyle(.navigationLink)
                 #endif
             } header: {
-                Text("Download Quality")
+                Text("settings.downloads.quality", tableName: "Plinx")
             } footer: {
-                Text("Applies to future downloads. Original keeps the source file when possible; other options request a server-side transcode before saving offline.")
+                Text("settings.downloads.quality.description", tableName: "Plinx")
             }
         }
         #if os(tvOS)
@@ -44,6 +44,6 @@ struct SettingsDownloadsView: View {
         #else
         .listStyle(.insetGrouped)
         #endif
-        .navigationTitle("settings.downloads.title")
+        .navigationTitle(Text("settings.downloads.title", tableName: "Plinx"))
     }
 }

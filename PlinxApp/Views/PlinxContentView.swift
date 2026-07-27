@@ -4,6 +4,7 @@ import PlinxUI
 struct PlinxContentView: View {
     @Environment(SessionManager.self) private var sessionManager
     @Environment(PlexAPIContext.self) private var plexApiContext
+    @Environment(\.safetyPolicy) private var safetyPolicy
     @EnvironmentObject private var mainCoordinator: MainCoordinator
 
     private var uiTestScreenOverride: String? {
@@ -35,6 +36,9 @@ struct PlinxContentView: View {
                 ),
                 onExit: {
                     mainCoordinator.resetPlayer()
+                },
+                isPlaybackAuthorized: { item in
+                    StrimrAdapter.isAllowed(item, policy: safetyPolicy)
                 }
             )
             #else
@@ -43,7 +47,10 @@ struct PlinxContentView: View {
                     playQueue: playQueue,
                     context: plexApiContext,
                     shouldResumeFromOffset: mainCoordinator.shouldResumeFromOffset
-                )
+                ),
+                isPlaybackAuthorized: { item in
+                    StrimrAdapter.isAllowed(item, policy: safetyPolicy)
+                }
             )
             .onDisappear {
                 mainCoordinator.resetPlayer()
@@ -66,14 +73,50 @@ struct PlinxContentView: View {
                     ),
                 )
             case "playerSettings":
+                playerSettingsPreview
+            case "settings":
                 NavigationStack {
-                    playerSettingsPreview
+                    PlinxSettingsView(isUnlocked: true)
+                }
+            case "profileSwitcher":
+                NavigationStack {
+                    #if os(tvOS)
+                    ProfileSwitcherTVView(
+                        viewModel: ProfileSwitcherViewModel(
+                            context: plexApiContext,
+                            sessionManager: sessionManager
+                        )
+                    )
+                    #else
+                    ProfileSwitcherView(
+                        viewModel: ProfileSwitcherViewModel(
+                            context: plexApiContext,
+                            sessionManager: sessionManager
+                        )
+                    )
+                    #endif
+                }
+            case "selectServer":
+                NavigationStack {
+                    #if os(tvOS)
+                    SelectServerTVView(
+                        viewModel: ServerSelectionViewModel(
+                            sessionManager: sessionManager,
+                            context: plexApiContext
+                        )
+                    )
+                    #else
+                    SelectServerView(
+                        viewModel: ServerSelectionViewModel(
+                            sessionManager: sessionManager,
+                            context: plexApiContext
+                        )
+                    )
+                    #endif
                 }
             #if !os(tvOS)
             case DownloadUITestFixtures.screenName:
-                NavigationStack {
-                    PlinxDownloadsGridView()
-                }
+                PlinxDownloadsGridView()
             #endif
             default:
                 sessionContent
@@ -91,7 +134,7 @@ struct PlinxContentView: View {
                     .font(.system(size: 44, weight: .semibold))
                     .foregroundStyle(Color.accentColor)
 
-                Text("Player settings preview unavailable on tvOS")
+                Text("player.settings.previewUnavailable", tableName: "Plinx")
                     .font(.headline)
                     .foregroundStyle(.white)
                     .multilineTextAlignment(.center)
@@ -212,7 +255,16 @@ struct PlinxContentView: View {
             }
         case .ready:
             RootTabView()
-                .id(sessionManager.plexServer?.clientIdentifier ?? "no-server")
+                .id(sessionRootIdentity)
         }
+    }
+
+    private var sessionRootIdentity: String {
+        let server = sessionManager.plexServer?.clientIdentifier ?? "no-server"
+        let profile = sessionManager.user?.uuid
+            ?? sessionManager.user?.id.map(String.init)
+            ?? sessionManager.user?.username
+            ?? "no-profile"
+        return "\(server)|\(profile)"
     }
 }

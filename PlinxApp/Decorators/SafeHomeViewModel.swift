@@ -151,12 +151,6 @@ final class SafeHomeViewModel {
             return StrimrAdapter.filtered(hub, policy: policy)
         }
 
-        let otherVideoPolicy = SafetyPolicy(
-            labelMatchMode: policy.labelMatchMode,
-            maxMovieRating: policy.maxMovieRating,
-            maxTVRating: policy.maxTVRating,
-            allowUnrated: true
-        )
-        return StrimrAdapter.filtered(hub, policy: otherVideoPolicy)
+        return StrimrAdapter.filtered(hub, policy: policy)
     }
 }

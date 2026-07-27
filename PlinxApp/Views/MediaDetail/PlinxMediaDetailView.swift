@@ -6,6 +6,7 @@ struct PlinxMediaDetailView: View {
     var onSelectRelated: (MediaDisplayItem) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.safetyPolicy) private var safetyPolicy
 
     var body: some View {
         ZStack {
@@ -47,6 +48,9 @@ struct PlinxMediaDetailView: View {
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
         .accessibilityIdentifier("media.detail.screen")
+        .onChange(of: safetyPolicy) { _, newPolicy in
+            viewModel.updatePolicy(newPolicy)
+        }
     }
 
     // MARK: - Plinx back-button chrome

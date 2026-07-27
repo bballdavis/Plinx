@@ -3,12 +3,16 @@ import SwiftUI
 struct OfflineDownloadPlayerView: View {
     @Environment(DownloadManager.self) private var downloadManager
     @Environment(PlexAPIContext.self) private var context
+    @Environment(SessionManager.self) private var sessionManager
+    @Environment(DownloadOwnershipStore.self) private var downloadOwnershipStore
+    @Environment(\.safetyPolicy) private var safetyPolicy
     @Environment(\.dismiss) private var dismiss
 
     let item: DownloadItem
 
     var body: some View {
-        if let localURL = downloadManager.localVideoURL(for: item) {
+        if accessDecision == .allowed,
+           let localURL = downloadManager.localVideoURL(for: item) {
             OfflineActivePlayerView(
                 item: item,
                 localMedia: downloadManager.localMediaItem(for: item),
@@ -32,11 +36,11 @@ struct OfflineDownloadPlayerView: View {
                         .font(.title)
                         .foregroundStyle(.orange)
 
-                    Text("Downloaded video unavailable")
+                    Text("downloads.offline.unavailable.title", tableName: "Plinx")
                         .font(.headline)
                         .foregroundStyle(.white)
 
-                    Text("This download does not currently have a local file to play.")
+                    Text("downloads.offline.unavailable.message", tableName: "Plinx")
                         .font(.subheadline)
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.white.opacity(0.7))
@@ -57,6 +61,15 @@ struct OfflineDownloadPlayerView: View {
                 .padding(.trailing, 20)
             }
         }
+    }
+
+    private var accessDecision: DownloadAccessDecision {
+        DownloadAccessPolicy(
+            safetyPolicy: safetyPolicy,
+            currentIdentity: sessionManager.plinxDownloadOwnerIdentity,
+            ownershipStore: downloadOwnershipStore,
+            allowsLegacyOwner: ProcessInfo.processInfo.arguments.contains("--ui-testing")
+        ).decision(for: item)
     }
 
 }

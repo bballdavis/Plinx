@@ -7,6 +7,7 @@ struct PlinxCollectionDetailView: View {
     var onLongPressMedia: (MediaDisplayItem) -> Void = { _ in }
 
     @Environment(PlexAPIContext.self) private var plexApiContext
+    @Environment(\.safetyPolicy) private var safetyPolicy
     @Environment(\.preferredLandscapeArtworkKind) private var preferredLandscapeArtworkKind
     #if os(tvOS)
     @FocusState private var focusedItemID: String?
@@ -67,6 +68,9 @@ struct PlinxCollectionDetailView: View {
         #endif
         .toolbarBackground(.hidden, for: .navigationBar)
         .task { await viewModel.load() }
+        .onChange(of: safetyPolicy) { _, newPolicy in
+            viewModel.updatePolicy(newPolicy)
+        }
     }
 
     private var collectionGridPadding: CGFloat {

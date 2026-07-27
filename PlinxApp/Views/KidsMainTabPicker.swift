@@ -38,7 +38,13 @@ struct KidsMainTabPicker: View {
     @State private var playfulTiltDirection: Double = 1
 
     private var isRegular: Bool { sizeClass == .regular }
-    private var usesCompactDistribution: Bool { !isRegular && tabs.count >= 4 }
+    private var usesCompactDistribution: Bool {
+        #if os(tvOS)
+        false
+        #else
+        !isRegular && tabs.count >= 4
+        #endif
+    }
     private var isInline: Bool { placement == .inline }
     private var isHeader: Bool { placement == .header }
 
@@ -127,7 +133,6 @@ struct KidsMainTabPicker: View {
         }
         .padding(.horizontal, contentHorizontalPadding)
         .padding(.vertical, isInline ? 0 : (isHeader ? 5 : (playfulAnimationsEnabled ? (isRegular ? 12 : 10) : 10)))
-        .frame(maxWidth: isHeader ? .infinity : nil, alignment: .center)
         .onChange(of: selectedTab) { _, _ in
             guard playfulAnimationsEnabled else { return }
             playfulSelectionTrigger &+= 1
@@ -139,6 +144,7 @@ struct KidsMainTabPicker: View {
         } else {
             row
                 .liquidGlassBackground()
+                .frame(maxWidth: isHeader ? .infinity : nil, alignment: .center)
                 .padding(.horizontal, containerHorizontalPadding)
                 .padding(.bottom, isHeader ? 0 : 1)
         }

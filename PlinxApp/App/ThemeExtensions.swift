@@ -200,6 +200,27 @@ struct PlinxChromeButton: View {
         )
         .animation(.interpolatingSpring(stiffness: 340, damping: 18), value: isAnimatingTap)
         .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityHint(Text("accessibility.chromeButton.hint", tableName: "Plinx"))
+    }
+
+    private var accessibilityLabel: Text {
+        let key: String
+        switch systemImage {
+        case "chevron.left":
+            key = "common.actions.back"
+        case "xmark":
+            key = "common.actions.close"
+        case "gearshape.fill":
+            key = "tabs.settings"
+        case "magnifyingglass":
+            key = "tabs.search"
+        case "rectangle.portrait.and.arrow.right":
+            key = "common.actions.logOut"
+        default:
+            key = "accessibility.chromeButton.action"
+        }
+        return Text(LocalizedStringKey(key), tableName: "Plinx")
     }
 
     private func handleTap() {

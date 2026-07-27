@@ -63,3 +63,13 @@ When a Plinx need forces a Strimr patch, document:
 1. why the patch could not live in Plinx-owned layers
 2. whether it is temporary or expected to remain upstreamable
 3. which branch pairing or dependency assumption it relies on
+
+## Current Release Patch
+
+The pinned release applies `patches/strimr-volume-cap.patch`. The Strimr edit is limited to player injection points that cannot be supplied by a Plinx decorator:
+
+- tvOS playback-gain propagation and MPV lifecycle reapplication;
+- an optional authorization callback before autoplay or next-queue playback on iOS and tvOS.
+- default-allow playlist and media-detail cache authorization hooks required because those upstream views load their own models.
+
+Plinx supplies the actual content decision in `StrimrAdapter`; Strimr remains unaware of Plinx policy or product copy.

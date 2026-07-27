@@ -1,5 +1,15 @@
 # CI
 
+## Pinned Release Toolchain And Dependencies
+
+CI uses macOS 15, Xcode 26.5, the exact sibling commits in `config/release-dependencies.env`, and `patches/strimr-volume-cap.patch`. Dependency checkout or patch failure is fatal; do not restore branch-based or `|| true` dependency fetches.
+
+The iOS destinations are pinned to dedicated iPhone 17 Pro and iPad Pro
+13-inch simulators on iOS 26.5. CI downloads the iOS 26.5 runtime when it is
+absent, then creates those named devices before building. When changing Xcode,
+update `.xcode-version`, the workflow, the test documentation, and simulator
+runtime together.
+
 ## Build Workflow
 
 The main CI workflow lives in `.github/workflows/build.yml`.
@@ -44,8 +54,9 @@ CI also:
 
 1. installs XcodeGen
 2. generates the Xcode project
-3. builds `Plinx-iOS` for simulator
-4. runs `Plinx-iOS-UnitTests`
+3. installs/verifies the pinned iOS runtime and creates iPhone/iPad devices
+4. builds `Plinx-iOS` for both simulator form factors
+5. runs the unit and UI suites on both destinations
 
 ## What CI Does Not Cover By Default
 

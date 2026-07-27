@@ -77,6 +77,9 @@ struct PlinxLibraryDetailView: View {
             focusedRootNavTab = .library
             focusedLibraryFilterTab = selectedTab
         }
+        .onExitCommand {
+            dismiss()
+        }
         #endif
     }
 
@@ -295,6 +298,7 @@ struct PlinxLibraryDetailView: View {
                         .frame(minWidth: 58, minHeight: 58)
                 }
                 .buttonStyle(TvPillButtonStyle(isSelected: false))
+                .accessibilityIdentifier("library.detail.back")
 
                 Text(library.title)
                     .font(.headline.weight(.semibold))

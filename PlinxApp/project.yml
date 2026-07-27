@@ -75,10 +75,9 @@ targets:
         excludes:
           # VLC player — Plinx uses MPVKit exclusively
           - "Library/VLC/**"
-          # PlaybackLauncher has a @MainActor isolation violation that
-          # is a hard error in the Swift 6.2 compiler. Replaced by
-          # Adapters/PlinxPlaybackLauncher.swift with the fix.
-          # Upstream PR: fix `play()` actor isolation on `settingsManager.playback`
+          # Replaced by Plinx's final playback authorization boundary, which
+          # also avoids Strimr's @MainActor isolation violation and disables
+          # external-player handoff for the first release.
           - "Features/Player/PlaybackLauncher.swift"
           # PlayerFactory static methods call @MainActor initializers from
           # nonisolated context. Replaced by Adapters/PlinxPlayerFactory.swift.
@@ -105,6 +104,9 @@ targets:
           # Strimr's MainTabView uses iOS 18+ Tab API; Plinx has its own
           # RootTabView with Liquid Glass tab bar.
           - "Tab/MainTabView.swift"
+          # Plinx owns the downloads settings surface. Keeping both files in
+          # the same module produces a duplicate Swift filename error.
+          - "Settings/SettingsDownloadsView.swift"
           # Strimr's ContentView — replaced by PlinxContentView.swift
           - "ContentView.swift"
 
@@ -128,6 +130,12 @@ targets:
       path: Resources/Info.plist
       properties:
         CFBundleDisplayName: Plinx
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        PlinxBuildConfiguration: $(CONFIGURATION)
+        NSLocalNetworkUsageDescription: Plinx connects to Plex Media Servers on your local network when you choose a local server connection.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
         UILaunchStoryboardName: LaunchScreen
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
@@ -290,6 +298,12 @@ targets:
       path: Resources/Info-tvOS.plist
       properties:
         CFBundleDisplayName: Plinx
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        PlinxBuildConfiguration: $(CONFIGURATION)
+        NSLocalNetworkUsageDescription: Plinx connects to Plex Media Servers on your local network when you choose a local server connection.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
 
     settings:
       base:

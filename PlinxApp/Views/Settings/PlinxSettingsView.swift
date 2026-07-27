@@ -4,17 +4,18 @@ import PlinxUI
 
 /// The Plinx settings screen, protected by a parental gate.
 struct PlinxSettingsView: View {
-    @State private var isUnlocked = false
+    @Environment(ParentalAccessCoordinator.self) private var parentalAccessCoordinator
+    private let bypassGateForTesting: Bool
+
+    init(isUnlocked: Bool = false) {
+        bypassGateForTesting = isUnlocked
+    }
 
     var body: some View {
-        if isUnlocked {
+        if bypassGateForTesting || parentalAccessCoordinator.isUnlocked {
             settingsContent
         } else {
-            ParentalGateView {
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                    isUnlocked = true
-                }
-            }
+            ParentalGateView(onAllowed: {})
         }
     }
 
@@ -67,7 +68,7 @@ private struct SettingsBody: View {
                 }
                 NavigationLink(destination: LibraryViewsSettingsView()) {
                     Label {
-                        Text("Library Views")
+                        Text("settings.libraryViews.title", tableName: "Plinx")
                     } icon: {
                         Image(systemName: "rectangle.3.group.fill")
                     }
@@ -81,7 +82,7 @@ private struct SettingsBody: View {
                     )
                 ) {
                     Label {
-                        Text("Default Server")
+                        Text("settings.server.default.title", tableName: "Plinx")
                     } icon: {
                         Image(systemName: "server.rack")
                     }
@@ -201,8 +202,11 @@ private struct SettingsBody: View {
                             Image(systemName: "minus.circle.fill")
                         }
                         .buttonStyle(.bordered)
+                        .accessibilityLabel(
+                            Text("settings.safety.maxVolume.decrease", tableName: "Plinx")
+                        )
 
-                        Text("Adjust volume cap")
+                        Text("settings.safety.maxVolume.adjust", tableName: "Plinx")
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
@@ -212,9 +216,15 @@ private struct SettingsBody: View {
                             Image(systemName: "plus.circle.fill")
                         }
                         .buttonStyle(.bordered)
+                        .accessibilityLabel(
+                            Text("settings.safety.maxVolume.increase", tableName: "Plinx")
+                        )
                     }
                     #else
                     Slider(value: maxVolumeBinding, in: 0...100, step: 5)
+                        .accessibilityLabel(
+                            Text("settings.safety.maxVolume.title", tableName: "Plinx")
+                        )
                     #endif
                 }
                 .padding(.vertical, 4)
@@ -237,7 +247,7 @@ private struct SettingsBody: View {
                 }
                 NavigationLink(destination: SetPinView()) {
                     Label {
-                        Text("Set Parental PIN", tableName: "Plinx")
+                        Text("settings.parentalPIN.title", tableName: "Plinx")
                     } icon: {
                         Image(systemName: "key.fill")
                     }
@@ -281,6 +291,24 @@ private struct SettingsBody: View {
                         Text("settings.about.plinx", tableName: "Plinx")
                     } icon: {
                         Image(systemName: "chevron.left.forwardslash.chevron.right")
+                    }
+                }
+                .foregroundStyle(.primary)
+
+                Link(destination: URL(string: "https://github.com/bballdavis/Plinx/blob/main/PRIVACY_POLICY.md")!) {
+                    Label {
+                        Text("settings.about.privacy", tableName: "Plinx")
+                    } icon: {
+                        Image(systemName: "hand.raised.fill")
+                    }
+                }
+                .foregroundStyle(.primary)
+
+                Link(destination: URL(string: "https://github.com/bballdavis/Plinx/issues")!) {
+                    Label {
+                        Text("settings.about.support", tableName: "Plinx")
+                    } icon: {
+                        Image(systemName: "questionmark.circle.fill")
                     }
                 }
                 .foregroundStyle(.primary)

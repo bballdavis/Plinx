@@ -1,0 +1,475 @@
+diff --git a/Shared/Library/Player/PlayerCoordinating.swift b/Shared/Library/Player/PlayerCoordinating.swift
+--- a/Shared/Library/Player/PlayerCoordinating.swift
++++ b/Shared/Library/Player/PlayerCoordinating.swift
+@@ -1,14 +1,25 @@
+ import Foundation
+ 
+ @MainActor
+-protocol PlayerCoordinating: AnyObject {
++protocol PlaybackVolumeApplying: AnyObject {
++    func setVolume(_ volumePercent: Int)
++}
++
++@MainActor
++enum PlaybackVolumeCap {
++    static func apply(_ volumePercent: Int, to target: any PlaybackVolumeApplying) {
++        target.setVolume(PlaybackSettings.clampVolumePercent(volumePercent))
++    }
++}
++
++@MainActor
++protocol PlayerCoordinating: PlaybackVolumeApplying {
+     func play(_ url: URL)
+     func togglePlayback()
+     func pause()
+     func resume()
+     func seek(to time: Double)
+     func seek(by delta: Double)
+-    func setVolume(_ volumePercent: Int)
+     func setPlaybackRate(_ rate: Float)
+     func selectAudioTrack(id: Int?)
+     func selectSubtitleTrack(id: Int?)
+diff --git a/Strimr-iOS/Features/Player/PlayerWrapper.swift b/Strimr-iOS/Features/Player/PlayerWrapper.swift
+--- a/Strimr-iOS/Features/Player/PlayerWrapper.swift
++++ b/Strimr-iOS/Features/Player/PlayerWrapper.swift
+@@ -3,6 +3,15 @@ import SwiftUI
+ struct PlayerWrapper: View {
+     @Environment(SettingsManager.self) private var settingsManager
+     let viewModel: PlayerViewModel
++    let isPlaybackAuthorized: (PlexItem) -> Bool
++
++    init(
++        viewModel: PlayerViewModel,
++        isPlaybackAuthorized: @escaping (PlexItem) -> Bool = { _ in true }
++    ) {
++        self.viewModel = viewModel
++        self.isPlaybackAuthorized = isPlaybackAuthorized
++    }
+ 
+     var body: some View {
+         if let internalPlayer = InternalPlaybackPlayer(player: settingsManager.playback.player) {
+@@ -11,6 +20,7 @@ struct PlayerWrapper: View {
+                 initialPlayer: internalPlayer,
+                 initialVolumePercent: settingsManager.playback.maxVolumePercent,
+                 options: PlayerOptions(subtitleScale: settingsManager.playback.subtitleScale),
++                isPlaybackAuthorized: isPlaybackAuthorized
+             )
+             .transition(.opacity)
+         } else {
+diff --git a/Strimr-iOS/Features/Player/PlayerView.swift b/Strimr-iOS/Features/Player/PlayerView.swift
+--- a/Strimr-iOS/Features/Player/PlayerView.swift
++++ b/Strimr-iOS/Features/Player/PlayerView.swift
+@@ -37,6 +37,7 @@ struct PlayerView: View {
+     @State private var pendingRestartPosition: Double?
+     @State private var bufferingTimeoutTask: Task<Void, Never>?
+     private let playerOptions: PlayerOptions
++    private let isPlaybackAuthorized: (PlexItem) -> Bool
+ 
+     private let controlsHideDelay: TimeInterval = 3.0
+     private var seekBackwardInterval: Double {
+@@ -47,10 +48,17 @@ struct PlayerView: View {
+         Double(settingsManager.playback.seekForwardSeconds)
+     }
+ 
+-    init(viewModel: PlayerViewModel, initialPlayer: InternalPlaybackPlayer, initialVolumePercent: Int, options: PlayerOptions) {
++    init(
++        viewModel: PlayerViewModel,
++        initialPlayer: InternalPlaybackPlayer,
++        initialVolumePercent: Int,
++        options: PlayerOptions,
++        isPlaybackAuthorized: @escaping (PlexItem) -> Bool = { _ in true }
++    ) {
+         _viewModel = State(initialValue: viewModel)
+         activePlayer = initialPlayer
+         playerOptions = options
++        self.isPlaybackAuthorized = isPlaybackAuthorized
+         let coordinator = PlayerFactory.makeCoordinator(for: initialPlayer, options: options)
+-        coordinator.setVolume(initialVolumePercent)
++        PlaybackVolumeCap.apply(initialVolumePercent, to: coordinator)
+         _playerCoordinator = State(initialValue: coordinator)
+@@ -193,7 +201,7 @@ struct PlayerView: View {
+             playerCoordinator.pause()
+         }
+         .onChange(of: settingsManager.playback.maxVolumePercent) { _, newValue in
+-            playerCoordinator.setVolume(newValue)
++            PlaybackVolumeCap.apply(newValue, to: playerCoordinator)
+         }
+         .onChange(of: watchTogetherViewModel.isInSession) { _, newValue in
+             guard wasInWatchTogetherSession, !newValue else { return }
+@@ -347,6 +355,7 @@ struct PlayerView: View {
+         guard selectedAudioTrackID != id else { return }
+         selectedAudioTrackID = id
+         playerCoordinator.selectAudioTrack(id: id)
++        PlaybackVolumeCap.apply(settingsManager.playback.maxVolumePercent, to: playerCoordinator)
+ 
+         guard
+             let id,
+@@ -364,6 +373,7 @@ struct PlayerView: View {
+         guard selectedSubtitleTrackID != id else { return }
+         selectedSubtitleTrackID = id
+         playerCoordinator.selectSubtitleTrack(id: id)
++        PlaybackVolumeCap.apply(settingsManager.playback.maxVolumePercent, to: playerCoordinator)
+ 
+         guard
+             let id,
+@@ -402,6 +412,7 @@ struct PlayerView: View {
+         guard awaitingMediaLoad else { return }
+         awaitingMediaLoad = false
+         viewModel.isBuffering = false
++        PlaybackVolumeCap.apply(settingsManager.playback.maxVolumePercent, to: playerCoordinator)
+         bufferingTimeoutTask?.cancel()
+         bufferingTimeoutTask = nil
+         refreshTracks()
+@@ -463,6 +474,7 @@ struct PlayerView: View {
+         awaitingMediaLoad = true
+         sessionRequiresReload = false
+         viewModel.isBuffering = !viewModel.isLocalPlayback
++        PlaybackVolumeCap.apply(settingsManager.playback.maxVolumePercent, to: playerCoordinator)
+         playerCoordinator.play(url)
+         playerCoordinator.setPlaybackRate(playbackRate)
+         showControls(temporarily: true)
+@@ -512,7 +524,7 @@ struct PlayerView: View {
+         }
+ 
+         let coordinator = PlayerFactory.makeCoordinator(for: activePlayer, options: playerOptions)
+-        coordinator.setVolume(settingsManager.playback.maxVolumePercent)
++        PlaybackVolumeCap.apply(settingsManager.playback.maxVolumePercent, to: coordinator)
+         coordinator.setPlaybackRate(playbackRate)
+         playerCoordinator = coordinator
+         playerSessionID = UUID()
+@@ -648,6 +656,13 @@ struct PlayerView: View {
+     }
+ 
+     private func startPlayback(of episode: PlexItem) async {
++        guard isPlaybackAuthorized(episode) else {
++            await MainActor.run {
++                dismissPlayer(force: true)
++            }
++            return
++        }
++
+         await MainActor.run {
+             viewModel = PlayerViewModel(
+                 playQueue: viewModel.playQueue,
+diff --git a/Shared/Features/MediaDetail/MediaDetailViewModel.swift b/Shared/Features/MediaDetail/MediaDetailViewModel.swift
+--- a/Shared/Features/MediaDetail/MediaDetailViewModel.swift
++++ b/Shared/Features/MediaDetail/MediaDetailViewModel.swift
+@@ -13,6 +13,8 @@ struct MediaExternalRating: Identifiable, Hashable {
+ @Observable
+ final class MediaDetailViewModel {
+     @ObservationIgnored private let context: PlexAPIContext
++    @ObservationIgnored private var contentAuthorization: (MediaDisplayItem) -> Bool = { _ in true }
+ 
+     var media: PlayableMediaItem
++    private(set) var isContentAuthorized = true
+     var onDeckItem: MediaItem?
+@@ -34,6 +35,9 @@ final class MediaDetailViewModel {
+     var seasonsErrorMessage: String?
+     var episodesErrorMessage: String?
+     var relatedHubsErrorMessage: String?
++    private var sourceOnDeckItem: MediaItem?
++    private var sourceEpisodes: [MediaItem] = []
++    private var sourceRelatedHubs: [Hub] = []
+     private var updatingWatchStatusIds: Set<String> = []
+     var watchActionErrorMessage: String?
+     var isLoadingWatchlistStatus = false
+@@ -46,8 +50,14 @@ final class MediaDetailViewModel {
+         resolveArtwork()
+     }
+ 
++    func setContentAuthorization(_ authorization: @escaping (MediaDisplayItem) -> Bool) {
++        contentAuthorization = authorization
++        applyContentAuthorization()
++    }
++
+     func loadDetails() async {
+         cast = []
++        sourceRelatedHubs = []
+         relatedHubs = []
+         guard let metadataRepository = try? MetadataRepository(context: context) else {
+             errorMessage = String(localized: "errors.selectServer.loadDetails")
+@@ -60,6 +70,7 @@ final class MediaDetailViewModel {
+ 
+         isLoading = true
+         errorMessage = nil
++        sourceOnDeckItem = nil
+         onDeckItem = nil
+         watchActionErrorMessage = nil
+ 
+@@ -79,7 +90,10 @@ final class MediaDetailViewModel {
+                 resolveArtwork()
+                 resolveGradient()
+             }
+-            onDeckItem = response.mediaContainer.metadata?.first?.onDeck?.metadata.map { MediaItem(plexItem: $0) }
++            sourceOnDeckItem = response.mediaContainer.metadata?.first?.onDeck?.metadata.map {
++                MediaItem(plexItem: $0)
++            }
++            applyContentAuthorization()
+             await loadWatchlistStatus()
+         } catch {
+             errorMessage = error.localizedDescription
+@@ -100,6 +114,7 @@ final class MediaDetailViewModel {
+     func selectSeason(id: String) async {
+         guard selectedSeasonId != id else { return }
+         selectedSeasonId = id
++        sourceEpisodes = []
+         episodes = []
+         episodesErrorMessage = nil
+         await fetchEpisodes(for: id)
+@@ -425,6 +440,7 @@ final class MediaDetailViewModel {
+             let response = try await metadataRepository.getMetadataChildren(ratingKey: media.metadataRatingKey)
+             let fetchedSeasons = (response.mediaContainer.metadata ?? []).map(MediaItem.init)
+             seasons = fetchedSeasons
++            sourceEpisodes = []
+             episodes = []
+ 
+             guard !fetchedSeasons.isEmpty else {
+@@ -444,6 +460,7 @@ final class MediaDetailViewModel {
+         } catch {
+             seasons = []
+             selectedSeasonId = nil
++            sourceEpisodes = []
+             episodes = []
+             seasonsErrorMessage = error.localizedDescription
+         }
+@@ -464,9 +481,11 @@ final class MediaDetailViewModel {
+             let fetchedEpisodes = (response.mediaContainer.metadata ?? []).map(MediaItem.init)
+ 
+             guard selectedSeasonId == seasonId else { return }
+-            episodes = fetchedEpisodes
++            sourceEpisodes = fetchedEpisodes
++            applyContentAuthorization()
+         } catch {
+             if selectedSeasonId == seasonId {
++                sourceEpisodes = []
+                 episodes = []
+                 episodesErrorMessage = error.localizedDescription
+             }
+@@ -621,10 +640,32 @@ final class MediaDetailViewModel {
+ 
+         do {
+             let response = try await hubRepository.getRelatedMediaHubs(ratingKey: media.metadataRatingKey)
+-            relatedHubs = (response.mediaContainer.hub ?? []).map(Hub.init)
++            sourceRelatedHubs = (response.mediaContainer.hub ?? []).map(Hub.init)
++            applyContentAuthorization()
+         } catch {
++            sourceRelatedHubs = []
+             relatedHubs = []
+             relatedHubsErrorMessage = error.localizedDescription
+         }
+     }
++
++    private func applyContentAuthorization() {
++        isContentAuthorized = contentAuthorization(.playable(media.mediaItem))
++
++        if let sourceOnDeckItem,
++           contentAuthorization(.playable(sourceOnDeckItem)) {
++            onDeckItem = sourceOnDeckItem
++        } else {
++            onDeckItem = nil
++        }
++
++        episodes = sourceEpisodes.filter {
++            contentAuthorization(.playable($0))
++        }
++        relatedHubs = sourceRelatedHubs.compactMap { hub in
++            let allowedItems = hub.items.filter(contentAuthorization)
++            guard !allowedItems.isEmpty else { return nil }
++            return Hub(id: hub.id, title: hub.title, items: allowedItems)
++        }
++    }
+ }
+diff --git a/Shared/Features/PlaylistDetail/PlaylistDetailViewModel.swift b/Shared/Features/PlaylistDetail/PlaylistDetailViewModel.swift
+--- a/Shared/Features/PlaylistDetail/PlaylistDetailViewModel.swift
++++ b/Shared/Features/PlaylistDetail/PlaylistDetailViewModel.swift
+@@ -5,11 +5,14 @@ import Observation
+ @Observable
+ final class PlaylistDetailViewModel {
+     @ObservationIgnored private let context: PlexAPIContext
++    @ObservationIgnored private var itemAuthorization: (MediaDisplayItem) -> Bool = { _ in true }
+ 
+     var playlist: PlaylistMediaItem
+     var items: [MediaDisplayItem] = []
+     var isLoading = false
+     var errorMessage: String?
++    private var sourceItems: [MediaDisplayItem] = []
++    private var hasLoaded = false
+ 
+     init(playlist: PlaylistMediaItem, context: PlexAPIContext) {
+         self.playlist = playlist
+@@ -31,8 +34,13 @@ final class PlaylistDetailViewModel {
+         return durationSeconds.mediaDurationText()
+     }
+ 
++    func setItemAuthorization(_ authorization: @escaping (MediaDisplayItem) -> Bool) {
++        itemAuthorization = authorization
++        applyItemAuthorization()
++    }
++
+     func load() async {
+-        guard items.isEmpty else { return }
++        guard !hasLoaded else { return }
+         await fetch()
+     }
+ 
+@@ -57,10 +65,17 @@ final class PlaylistDetailViewModel {
+                 playlist = PlaylistMediaItem(plexItem: plexPlaylist)
+             }
+ 
+-            items = (itemsContainer.mediaContainer.metadata ?? []).compactMap(MediaDisplayItem.init)
++            sourceItems = (itemsContainer.mediaContainer.metadata ?? []).compactMap(MediaDisplayItem.init)
++            applyItemAuthorization()
++            hasLoaded = true
+         } catch {
++            sourceItems = []
+             items = []
+             errorMessage = error.localizedDescription
+         }
+     }
++
++    private func applyItemAuthorization() {
++        items = sourceItems.filter(itemAuthorization)
++    }
+ }
+diff --git a/Strimr-tvOS/Features/Player/PlayerTVWrapper.swift b/Strimr-tvOS/Features/Player/PlayerTVWrapper.swift
+--- a/Strimr-tvOS/Features/Player/PlayerTVWrapper.swift
++++ b/Strimr-tvOS/Features/Player/PlayerTVWrapper.swift
+@@ -4,14 +4,27 @@ struct PlayerTVWrapper: View {
+     @Environment(SettingsManager.self) private var settingsManager
+     let viewModel: PlayerViewModel
+     let onExit: () -> Void
++    let isPlaybackAuthorized: (PlexItem) -> Bool
++
++    init(
++        viewModel: PlayerViewModel,
++        onExit: @escaping () -> Void,
++        isPlaybackAuthorized: @escaping (PlexItem) -> Bool = { _ in true }
++    ) {
++        self.viewModel = viewModel
++        self.onExit = onExit
++        self.isPlaybackAuthorized = isPlaybackAuthorized
++    }
+ 
+     var body: some View {
+         if let internalPlayer = InternalPlaybackPlayer(player: settingsManager.playback.player) {
+             PlayerTVView(
+                 viewModel: viewModel,
+                 initialPlayer: internalPlayer,
++                initialVolumePercent: settingsManager.playback.maxVolumePercent,
+                 options: PlayerOptions(subtitleScale: settingsManager.playback.subtitleScale),
+                 onExit: onExit,
++                isPlaybackAuthorized: isPlaybackAuthorized
+             )
+         } else {
+             ProgressView()
+diff --git a/Strimr-tvOS/Features/Player/PlayerTVView.swift b/Strimr-tvOS/Features/Player/PlayerTVView.swift
+--- a/Strimr-tvOS/Features/Player/PlayerTVView.swift
++++ b/Strimr-tvOS/Features/Player/PlayerTVView.swift
+@@ -30,6 +30,7 @@ struct PlayerTVView: View {
+     @State private var showingTerminationAlert = false
+     @State private var terminationAlertMessage = ""
+     @State private var wasInWatchTogetherSession = false
++    private let isPlaybackAuthorized: (PlexItem) -> Bool
+ 
+     private let controlsHideDelay: TimeInterval = 3.0
+     private let seekFeedbackDelay: TimeInterval = 1.2
+@@ -45,13 +46,18 @@ struct PlayerTVView: View {
+     init(
+         viewModel: PlayerViewModel,
+         initialPlayer: InternalPlaybackPlayer,
++        initialVolumePercent: Int,
+         options: PlayerOptions,
+         onExit: @escaping () -> Void,
++        isPlaybackAuthorized: @escaping (PlexItem) -> Bool = { _ in true }
+     ) {
+         _viewModel = State(initialValue: viewModel)
+         activePlayer = initialPlayer
+-        _playerCoordinator = State(initialValue: PlayerFactory.makeCoordinator(for: initialPlayer, options: options))
++        let coordinator = PlayerFactory.makeCoordinator(for: initialPlayer, options: options)
++        PlaybackVolumeCap.apply(initialVolumePercent, to: coordinator)
++        _playerCoordinator = State(initialValue: coordinator)
+         self.onExit = onExit
++        self.isPlaybackAuthorized = isPlaybackAuthorized
+     }
+ 
+     var body: some View {
+@@ -153,6 +159,7 @@ struct PlayerTVView: View {
+         }
+         .onAppear {
+             showControls(temporarily: true)
++            PlaybackVolumeCap.apply(settingsManager.playback.maxVolumePercent, to: playerCoordinator)
+             playerCoordinator.setPlaybackRate(playbackRate)
+             if watchTogetherViewModel.isInSession {
+                 watchTogetherViewModel.attachPlayerCoordinator(playerCoordinator)
+@@ -188,6 +195,7 @@ struct PlayerTVView: View {
+             selectedSubtitleTrackID = nil
+             appliedResumeOffset = false
+             awaitingMediaLoad = true
++            PlaybackVolumeCap.apply(settingsManager.playback.maxVolumePercent, to: playerCoordinator)
+             playerCoordinator.play(url)
+             playerCoordinator.setPlaybackRate(playbackRate)
+             showControls(temporarily: true)
+@@ -196,6 +204,9 @@ struct PlayerTVView: View {
+             guard !isScrubbing else { return }
+             timelinePosition = newValue
+         }
++        .onChange(of: settingsManager.playback.maxVolumePercent) { _, newValue in
++            PlaybackVolumeCap.apply(newValue, to: playerCoordinator)
++        }
+         .onChange(of: bindableViewModel.terminationMessage) { _, newValue in
+             guard let newValue else { return }
+             terminationAlertMessage = newValue
+@@ -344,6 +355,7 @@ struct PlayerTVView: View {
+     private func selectAudioTrack(_ id: Int?) {
+         selectedAudioTrackID = id
+         playerCoordinator.selectAudioTrack(id: id)
++        PlaybackVolumeCap.apply(settingsManager.playback.maxVolumePercent, to: playerCoordinator)
+ 
+         guard
+             let id,
+@@ -360,6 +372,7 @@ struct PlayerTVView: View {
+     private func selectSubtitleTrack(_ id: Int?) {
+         selectedSubtitleTrackID = id
+         playerCoordinator.selectSubtitleTrack(id: id)
++        PlaybackVolumeCap.apply(settingsManager.playback.maxVolumePercent, to: playerCoordinator)
+ 
+         guard
+             let id,
+@@ -402,6 +415,7 @@ struct PlayerTVView: View {
+     private func handleMediaLoaded() {
+         guard awaitingMediaLoad else { return }
+         awaitingMediaLoad = false
++        PlaybackVolumeCap.apply(settingsManager.playback.maxVolumePercent, to: playerCoordinator)
+         refreshTracks()
+         applyResumeOffsetIfNeeded()
+     }
+@@ -460,6 +474,7 @@ struct PlayerTVView: View {
+         {
+             selectedAudioTrackID = track.id
+             playerCoordinator.selectAudioTrack(id: track.id)
++            PlaybackVolumeCap.apply(settingsManager.playback.maxVolumePercent, to: playerCoordinator)
+             appliedPreferredAudio = true
+         }
+ 
+@@ -469,6 +484,7 @@ struct PlayerTVView: View {
+         {
+             selectedSubtitleTrackID = track.id
+             playerCoordinator.selectSubtitleTrack(id: track.id)
++            PlaybackVolumeCap.apply(settingsManager.playback.maxVolumePercent, to: playerCoordinator)
+             appliedPreferredSubtitle = true
+         }
+     }
+@@ -601,6 +617,13 @@ struct PlayerTVView: View {
+     }
+ 
+     private func startPlayback(of episode: PlexItem) async {
++        guard isPlaybackAuthorized(episode) else {
++            await MainActor.run {
++                dismissPlayer()
++            }
++            return
++        }
++
+         await MainActor.run {
+             viewModel = PlayerViewModel(
+                 playQueue: viewModel.playQueue,

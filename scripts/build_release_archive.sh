@@ -69,6 +69,7 @@ echo ""
 # Generate project from XcodeGen
 echo "📋 Generating Xcode project..."
 bash ./scripts/generate_xcodeproj.sh --quiet
+bash ./scripts/verify_release_dependency_state.sh
 
 # Build archive
 echo "🏗️  Building archive..."
@@ -91,7 +92,15 @@ fi
 
 xcodebuild "${xcodebuild_args[@]}"
 
-bash ./scripts/validate_testflight_archive.sh "$ARCHIVE_PATH"
+validation_args=(
+  "$ARCHIVE_PATH"
+  --expected-build "$BUILD_NUMBER"
+  --expected-bundle-id "$BUNDLE_ID"
+)
+if [[ -n "$MARKETING_VERSION_OVERRIDE" ]]; then
+  validation_args+=(--expected-version "$MARKETING_VERSION_OVERRIDE")
+fi
+bash ./scripts/tests/validate_testflight_archive.sh "${validation_args[@]}"
 
 echo ""
 echo "✅ Archive created successfully!"

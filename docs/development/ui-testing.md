@@ -55,6 +55,29 @@ Tests/PlinxUITests/
 - library browsing
 - quick actions
 - targeted smoke behavior
+- deterministic visual-audit surfaces through `PLINX_UI_TEST_SCREEN`
+
+### Visual-audit fixtures
+
+`VisualAuditUITests` captures real Plinx views without changing normal app
+startup. The following `PLINX_UI_TEST_SCREEN` values are available only when
+the app also receives `--ui-testing`:
+
+- `signIn`
+- `parentalGate`
+- `settings`
+- `profileSwitcher`
+- `selectServer`
+- `playerSettings`
+- `downloadsGrid`
+
+Keep these routes deterministic and free of credentials or personal data.
+When a visual-audit route needs account-backed content, capture loading or
+empty states unless the test explicitly opts into the existing live-test mode.
+On tvOS, the `signIn` route must not request or render a live Plex link QR
+code. It renders a deterministic, credential-free preview QR payload so the
+plate, hierarchy, and initial Refresh Code focus state can be captured without
+network access.
 
 ### tvOS focus rules
 

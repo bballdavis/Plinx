@@ -5,7 +5,7 @@ import PlinxUI
 
 struct ParentalGateView: View {
     @Environment(\.plinxTheme) private var theme
-    @AppStorage("plinx.parentalPin") private var storedPin = ""
+    @Environment(ParentalAccessCoordinator.self) private var parentalAccessCoordinator
 
     // Math gate state
     @State private var challenge: MathGate.Challenge
@@ -15,6 +15,7 @@ struct ParentalGateView: View {
     // PIN gate state
     @State private var pinEntry = ""
     @State private var pinError = false
+    @State private var lockoutMessage: String?
 
     var onAllowed: () -> Void
 
@@ -24,7 +25,7 @@ struct ParentalGateView: View {
         self.onAllowed = onAllowed
     }
 
-    private var usePIN: Bool { !storedPin.isEmpty }
+    private var usePIN: Bool { parentalAccessCoordinator.hasPIN }
     private let entryFieldSize = CGSize(width: 100, height: 32)
     private let entryFieldSlotHeight: CGFloat = 72
 
@@ -64,6 +65,11 @@ struct ParentalGateView: View {
                 placeholder: "",
                 isSecure: true,
                 maximumDigits: 6,
+                accessibilityLabel: NSLocalizedString(
+                    "parental.gate.pin.accessibilityLabel",
+                    tableName: "Plinx",
+                    comment: ""
+                ),
                 onSubmit: submitPin
             )
                 .frame(width: entryFieldSize.width, height: entryFieldSize.height)
@@ -76,15 +82,14 @@ struct ParentalGateView: View {
                 Text("parental.gate.pin.wrong", tableName: "Plinx")
                     .font(.caption)
                     .foregroundStyle(.red)
+            } else if let lockoutMessage {
+                Text(lockoutMessage)
+                    .font(.caption)
+                    .foregroundStyle(.red)
             }
 
             LiquidGlassButton(LocalizedStringResource("parental.gate.unlock", table: "Plinx")) {
-                if pinEntry == storedPin {
-                    onAllowed()
-                } else {
-                    pinError = true
-                    pinEntry = ""
-                }
+                submitPin()
             }
         }
     }
@@ -105,19 +110,18 @@ struct ParentalGateView: View {
             NumberPadEntryField(
                 text: $answerText,
                 placeholder: NSLocalizedString("parental.gate.placeholder", tableName: "Plinx", comment: ""),
+                accessibilityLabel: NSLocalizedString(
+                    "parental.gate.answer.accessibilityLabel",
+                    tableName: "Plinx",
+                    comment: ""
+                ),
                 onSubmit: submitMathAnswer
             )
                 .frame(width: entryFieldSize.width, height: entryFieldSize.height)
                 .frame(maxWidth: .infinity, minHeight: entryFieldSlotHeight, maxHeight: entryFieldSlotHeight, alignment: .center)
 
             LiquidGlassButton(LocalizedStringResource("parental.gate.unlock", table: "Plinx")) {
-                if let answer = Int(answerText), mathGate.validate(answer: answer, for: challenge) {
-                    onAllowed()
-                } else {
-                    var rng = SystemRandomNumberGenerator()
-                    challenge = mathGate.makeChallenge(rng: &rng)
-                    answerText = ""
-                }
+                submitMathAnswer()
             }
         }
     }
@@ -125,17 +129,36 @@ struct ParentalGateView: View {
 
 extension ParentalGateView {
     private func submitPin() {
-        if pinEntry == storedPin {
+        pinError = false
+        lockoutMessage = nil
+        switch parentalAccessCoordinator.unlock(withPIN: pinEntry) {
+        case .allowed:
             onAllowed()
-        } else {
+        case .denied:
             pinError = true
+            pinEntry = ""
+            UIAccessibility.post(
+                notification: .announcement,
+                argument: NSLocalizedString("parental.gate.pin.wrong", tableName: "Plinx", comment: "")
+            )
+        case .lockedOut:
+            pinEntry = ""
+            lockoutMessage = NSLocalizedString(
+                "parental.gate.pin.lockedOut",
+                tableName: "Plinx",
+                comment: ""
+            )
+            UIAccessibility.post(notification: .announcement, argument: lockoutMessage)
+        case .unavailable:
             pinEntry = ""
         }
     }
 
     private func submitMathAnswer() {
         if let answer = Int(answerText), mathGate.validate(answer: answer, for: challenge) {
-            onAllowed()
+            if parentalAccessCoordinator.unlockWithMathChallenge() == .allowed {
+                onAllowed()
+            }
         } else {
             var rng = SystemRandomNumberGenerator()
             challenge = mathGate.makeChallenge(rng: &rng)
@@ -149,6 +172,7 @@ private struct NumberPadEntryField: UIViewRepresentable {
     let placeholder: String
     var isSecure: Bool = false
     var maximumDigits: Int? = nil
+    var accessibilityLabel: String
     var onSubmit: () -> Void = {}
 
     func makeCoordinator() -> Coordinator {
@@ -168,6 +192,7 @@ private struct NumberPadEntryField: UIViewRepresentable {
         textField.textAlignment = .center
         textField.placeholder = placeholder
         textField.isSecureTextEntry = isSecure
+        textField.accessibilityLabel = accessibilityLabel
         textField.addTarget(context.coordinator, action: #selector(Coordinator.textDidChange(_:)), for: .editingChanged)
         #if !os(tvOS)
         let toolbar = UIToolbar()
@@ -192,6 +217,7 @@ private struct NumberPadEntryField: UIViewRepresentable {
         }
         uiView.placeholder = placeholder
         uiView.isSecureTextEntry = isSecure
+        uiView.accessibilityLabel = accessibilityLabel
     }
 
     final class Coordinator: NSObject, UITextFieldDelegate {

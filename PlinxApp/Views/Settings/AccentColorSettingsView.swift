@@ -87,7 +87,7 @@ struct AppearanceSettingsView: View {
                         }
                         .buttonStyle(.bordered)
 
-                        Text("Adjust button size")
+                        Text("settings.appearance.buttons.adjust", tableName: "Plinx")
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
@@ -123,12 +123,16 @@ struct AppearanceSettingsView: View {
 
             Section {
                 Toggle(isOn: $hotReloadLibraryArtwork) {
-                    Label("Refresh library banners on every tab visit", systemImage: "photo.stack")
+                    Label {
+                        Text("settings.appearance.banners.refresh", tableName: "Plinx")
+                    } icon: {
+                        Image(systemName: "photo.stack")
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 14) {
                     HStack(alignment: .firstTextBaseline) {
-                        Text("Library banner thumbnails")
+                        Text("settings.appearance.banners.thumbnails", tableName: "Plinx")
                         Spacer()
                         Text("\(bannerArtworkCount)")
                             .monospacedDigit()
@@ -145,7 +149,7 @@ struct AppearanceSettingsView: View {
                         }
                         .buttonStyle(.bordered)
 
-                        Text("Adjust banner thumbnails")
+                        Text("settings.appearance.banners.adjust", tableName: "Plinx")
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
@@ -172,7 +176,7 @@ struct AppearanceSettingsView: View {
                 }
                 .padding(.vertical, 4)
             } footer: {
-                Text("When refresh is off, banner art loads once per app launch. iPhone supports up to 3 thumbnails; iPad supports up to 5.")
+                Text("settings.appearance.banners.description", tableName: "Plinx")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

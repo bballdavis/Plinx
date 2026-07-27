@@ -1,64 +1,96 @@
 import Foundation
+import PlinxCore
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PlinxPlaybackLauncher — Actor-safe replacement for Strimr's PlaybackLauncher
+// PlinxPlaybackLauncher — Safety-enforcing replacement for Strimr's launcher
 //
-// Strimr's PlaybackLauncher.swift has a Swift 6.2 actor-isolation error:
-//   `settingsManager.playback` is @MainActor-isolated but accessed from
-//   a non-isolated async context in `play()`.
-//
-// This file provides the same struct with the fix applied:
-//   the `play()` method is marked `@MainActor` so the access is safe.
-//
-// Upstream PR candidate: fix actor isolation in PlaybackLauncher.play()
+// Fetches current metadata immediately before playback, rejects unsafe queue
+// members, and keeps playback inside Plinx's MPV path so content authorization
+// and Maximum Playback Level cannot be bypassed by an external player.
 //
 // When Strimr fixes this upstream, delete this file and remove the exclude
 // from project.yml.
 // ─────────────────────────────────────────────────────────────────────────────
 
 struct PlaybackLauncher {
+    enum Result: Equatable {
+        case started
+        case blocked
+        case failed
+    }
+
     let context: PlexAPIContext
     let coordinator: MainCoordinator
-    let settingsManager: SettingsManager
-    let openURL: (URL) -> Void
+    let safetyPolicy: SafetyPolicy
 
     @MainActor
     func play(
         ratingKey: String,
         type: PlexItemType,
         shouldResumeFromOffset: Bool = true
-    ) async {
+    ) async -> Result {
         do {
+            let authorizer = PlexSafetyPlaybackAuthorizer(context: context, policy: safetyPolicy)
+            guard await authorizer.decision(
+                ratingKey: ratingKey
+            ) == .allowed else {
+                return .blocked
+            }
+
             let manager = try PlayQueueManager(context: context)
-            let playQueue = try await manager.createQueue(
+            var playQueue = try await manager.createQueue(
                 for: ratingKey,
                 itemType: type,
                 continuous: type == .episode
             )
 
-            guard let selectedRatingKey = playQueue.selectedRatingKey else {
-                return
+            if !authorizer.isAllowed(playQueue: playQueue) {
+                playQueue = try await manager.createQueue(
+                    for: ratingKey,
+                    itemType: type,
+                    continuous: false
+                )
+            }
+            guard authorizer.isAllowed(playQueue: playQueue) else {
+                return .blocked
             }
 
-            if settingsManager.playback.player.isExternal {
-                await launchExternalPlayback(ratingKey: selectedRatingKey)
-            } else {
-                coordinator.showPlayer(for: playQueue, shouldResumeFromOffset: shouldResumeFromOffset)
+            guard playQueue.selectedRatingKey != nil else {
+                return .failed
             }
+
+            coordinator.showPlayer(for: playQueue, shouldResumeFromOffset: shouldResumeFromOffset)
+            return .started
         } catch {
             debugPrint("Failed to create play queue:", error)
             ErrorReporter.capture(error)
+            return .failed
         }
     }
 
-    @MainActor
-    private func launchExternalPlayback(ratingKey: String) async {
+}
+
+private struct PlexSafetyPlaybackAuthorizer {
+    let context: PlexAPIContext
+    let policy: SafetyPolicy
+
+    func decision(ratingKey: String) async -> ContentAccessDecision {
         do {
-            let launcher = ExternalPlaybackLauncher(context: context)
-            let infuseURL = try await launcher.infuseURL(for: ratingKey)
-            openURL(infuseURL)
+            let repository = try MetadataRepository(context: context)
+            let response = try await repository.getMetadata(ratingKey: ratingKey)
+            guard let item = response.mediaContainer.metadata?.first else {
+                return .rejected(reason: .missingRating)
+            }
+            return StrimrAdapter.decision(MediaItem(plexItem: item), policy: policy)
         } catch {
-            debugPrint("Failed to launch external playback:", error)
+            return .rejected(reason: .missingRating)
+        }
+    }
+
+    func isAllowed(playQueue: PlayQueueState) -> Bool {
+        guard !playQueue.items.isEmpty else { return false }
+        return playQueue.items.allSatisfy {
+            StrimrAdapter.isAllowed(MediaItem(plexItem: $0), policy: policy)
         }
     }
 }

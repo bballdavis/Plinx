@@ -58,10 +58,6 @@ enum StrimrAdapter {
     static func isAllowed(_ item: MediaItem, policy: SafetyPolicy) -> Bool {
         guard let ratingString = item.contentRating,
               !ratingString.isEmpty else {
-            // Clip-type content (other videos, YouTube, personal home videos, etc.)
-            // does not carry MPAA/TV ratings. Always allow clips — they are
-            // personal/curated media and not subject to the "Exclude Unrated" gate.
-            if item.type == .clip { return true }
             return policy.allowUnrated
         }
         guard let rating = PlinxRating.from(contentRating: ratingString) else {
@@ -88,9 +84,18 @@ enum StrimrAdapter {
     static func isAllowed(_ item: PlayableMediaItem, policy: SafetyPolicy) -> Bool {
         guard let ratingString = item.contentRating,
               !ratingString.isEmpty else {
-            // Clip-type content (other videos, YouTube, personal home videos, etc.)
-            // does not carry MPAA/TV ratings. Always allow clips.
-            if item.type == .clip { return true }
+            return policy.allowUnrated
+        }
+        guard let rating = PlinxRating.from(contentRating: ratingString) else {
+            return policy.allowUnrated
+        }
+        return isAllowed(rating: rating, policy: policy)
+    }
+
+    /// Check a raw Plex queue entry before autoplay or next-item playback.
+    static func isAllowed(_ item: PlexItem, policy: SafetyPolicy) -> Bool {
+        guard let ratingString = item.contentRating,
+              !ratingString.isEmpty else {
             return policy.allowUnrated
         }
         guard let rating = PlinxRating.from(contentRating: ratingString) else {
@@ -122,6 +127,14 @@ enum StrimrAdapter {
     /// Filter an array of base media items.
     static func filteredMediaItems(_ items: [MediaItem], policy: SafetyPolicy) -> [MediaItem] {
         items.filter { isAllowed($0, policy: policy) }
+    }
+
+    static func decision(_ item: MediaItem, policy: SafetyPolicy) -> ContentAccessDecision {
+        PolicyPlaybackAuthorizer(policy: policy).decision(for: toPlinx(item))
+    }
+
+    static func decision(_ item: PlayableMediaItem, policy: SafetyPolicy) -> ContentAccessDecision {
+        PolicyPlaybackAuthorizer(policy: policy).decision(for: toPlinx(item))
     }
 
     // MARK: - Type Conversion (Strimr → PlinxCore)

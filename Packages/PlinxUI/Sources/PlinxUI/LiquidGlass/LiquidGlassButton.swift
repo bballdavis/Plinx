@@ -5,17 +5,16 @@ import PlinxCore
 // LiquidGlassButton — The Plinx "Plink" Button
 // ─────────────────────────────────────────────────────────────────────────────
 //
-// Every interactive element in Plinx triggers the signature "Plink" feedback:
+// Every LiquidGlassButton triggers tactile and visual feedback:
 //   1. Heavy haptic impact (UIImpactFeedbackGenerator)
-//   2. Audio "plink" sound (PlinkAudioManager → bundled .caf file)
-//   3. Spring scale animation (press → shrink 0.92, release → bounce back)
+//   2. Spring scale animation (press → shrink 0.92, release → bounce back)
 //
 // The button uses Liquid Glass styling: frosted material background,
 // specular highlight, depth shadow, continuous-curve corners.
 //
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// A button styled with Liquid Glass that triggers haptic + audio feedback.
+/// A button styled with Liquid Glass that triggers haptic feedback.
 ///
 /// Usage:
 /// ```swift
@@ -29,7 +28,6 @@ public struct LiquidGlassButton: View {
     private let glassStyle: PlinxTheme.Glass
     private let action: () -> Void
     private let haptics: HapticManaging
-    private let audio: PlinkAudioManaging
     private let theme: PlinxTheme
 
     @State private var isPressed = false
@@ -40,7 +38,6 @@ public struct LiquidGlassButton: View {
         style: PlinxTheme.Glass? = nil,
         theme: PlinxTheme = PlinxTheme(),
         haptics: HapticManaging = HapticManager(),
-        audio: PlinkAudioManaging = PlinkAudioManager(),
         action: @escaping () -> Void
     ) {
         self.title = title
@@ -48,14 +45,11 @@ public struct LiquidGlassButton: View {
         self.glassStyle = style ?? theme.glass
         self.theme = theme
         self.haptics = haptics
-        self.audio = audio
         self.action = action
     }
 
     public var body: some View {
         Button(action: {
-            // "Plink" — the signature Plinx interaction
-            audio.playPlink()
             haptics.plink()
             action()
         }) {

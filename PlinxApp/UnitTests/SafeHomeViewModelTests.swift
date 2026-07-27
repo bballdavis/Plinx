@@ -8,7 +8,7 @@ final class SafeHomeViewModelTests: XCTestCase {
     private let strictPolicy = SafetyPolicy.ratingOnly(maxMovie: .g, maxTV: .tvY, allowUnrated: false)
     private let permissivePolicy = SafetyPolicy.ratingOnly(maxMovie: .g, maxTV: .tvY, allowUnrated: true)
 
-    func test_recentlyAdded_otherVideoHub_preservedUnderStrictPolicy() {
+    func test_recentlyAdded_otherVideoHub_isFilteredUnderStrictPolicy() {
         let context = PlexAPIContext()
         let settings = SettingsManager()
         let libraryStore = LibraryStore(context: context)
@@ -31,8 +31,10 @@ final class SafeHomeViewModelTests: XCTestCase {
         let safe = SafeHomeViewModel(inner: inner, policy: permissivePolicy, libraryStore: libraryStore)
         safe.updatePolicy(strictPolicy)
 
-        XCTAssertEqual(safe.recentlyAdded.count, 1, "Other-video hubs should not be dropped when strict unrated filtering is enabled")
-        XCTAssertEqual(safe.recentlyAdded.first?.items.count, 1)
+        XCTAssertTrue(
+            safe.recentlyAdded.isEmpty,
+            "Other-video hubs must follow the parent-selected unrated-content policy"
+        )
     }
 
     func test_recentlyAdded_movieHub_stillFilteredUnderStrictPolicy() {
@@ -55,7 +57,7 @@ final class SafeHomeViewModelTests: XCTestCase {
         XCTAssertTrue(safe.recentlyAdded.isEmpty, "Movie hubs with unrated movie items must still be filtered under strict policy")
     }
 
-    func test_recentlyAdded_otherVideoHub_preservedWhenLibraryStoreUnavailable() {
+    func test_recentlyAdded_otherVideoHub_isFilteredWhenLibraryStoreUnavailable() {
         let context = PlexAPIContext()
         let settings = SettingsManager()
         let libraryStore = LibraryStore(context: context)
@@ -74,12 +76,10 @@ final class SafeHomeViewModelTests: XCTestCase {
         let safe = SafeHomeViewModel(inner: inner, policy: permissivePolicy, libraryStore: libraryStore)
         safe.updatePolicy(strictPolicy)
 
-        XCTAssertEqual(
-            safe.recentlyAdded.count,
-            1,
-            "Other-video hubs should remain visible even when library metadata is unavailable"
+        XCTAssertTrue(
+            safe.recentlyAdded.isEmpty,
+            "Missing library metadata must not create an unrated-content bypass"
         )
-        XCTAssertEqual(safe.recentlyAdded.first?.items.count, 1)
     }
 
     func test_recentlyAdded_otherVideoHub_stillRejectsExplicitlyDisallowedRating() {
@@ -107,7 +107,7 @@ final class SafeHomeViewModelTests: XCTestCase {
 
         XCTAssertTrue(
             safe.recentlyAdded.isEmpty,
-            "Other-video hubs should only bypass unrated filtering; explicit disallowed ratings must still be filtered"
+            "Other-video hubs must reject explicitly disallowed ratings"
         )
     }
 }

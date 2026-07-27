@@ -1,4 +1,5 @@
 import XCTest
+import PlinxCore
 @testable import Plinx
 
 final class OfflinePlaybackTests: XCTestCase {
@@ -110,6 +111,71 @@ final class OfflinePlaybackTests: XCTestCase {
         XCTAssertFalse(failed.isPlayable)
     }
 
+    // MARK: - Download access policy
+
+    @MainActor
+    func test_downloadAccessRequiresMatchingOwnerAndCurrentPolicy() throws {
+        let suite = "OfflinePlaybackTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let ownership = DownloadOwnershipStore(defaults: defaults)
+        let owner = DownloadOwnerIdentity(serverIdentifier: "server-a", profileIdentifier: "profile-a")
+        let item = makeDownloadItem(id: "owned", type: .movie, contentRating: "PG")
+        ownership.claim(downloadIDs: [item.id], as: owner)
+        let policy = DownloadAccessPolicy(
+            safetyPolicy: .ratingOnly(maxMovie: .pg, maxTV: .tvPg, allowUnrated: false),
+            currentIdentity: owner,
+            ownershipStore: ownership
+        )
+
+        XCTAssertEqual(policy.decision(for: item), .allowed)
+    }
+
+    @MainActor
+    func test_downloadAccessHidesWrongOwnerAndNewlyDisallowedItem() throws {
+        let suite = "OfflinePlaybackTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let ownership = DownloadOwnershipStore(defaults: defaults)
+        let owner = DownloadOwnerIdentity(serverIdentifier: "server-a", profileIdentifier: "profile-a")
+        let otherOwner = DownloadOwnerIdentity(serverIdentifier: "server-b", profileIdentifier: "profile-b")
+        let item = makeDownloadItem(id: "restricted", type: .movie, contentRating: "R")
+        ownership.claim(downloadIDs: [item.id], as: owner)
+
+        let wrongOwnerPolicy = DownloadAccessPolicy(
+            safetyPolicy: .ratingOnly(maxMovie: .r, maxTV: .tvMa, allowUnrated: false),
+            currentIdentity: otherOwner,
+            ownershipStore: ownership
+        )
+        let newlyRestrictedPolicy = DownloadAccessPolicy(
+            safetyPolicy: .ratingOnly(maxMovie: .pg, maxTV: .tvPg, allowUnrated: false),
+            currentIdentity: owner,
+            ownershipStore: ownership
+        )
+
+        XCTAssertEqual(wrongOwnerPolicy.decision(for: item), .wrongOwner)
+        XCTAssertEqual(newlyRestrictedPolicy.decision(for: item), .blockedByContentPolicy)
+    }
+
+    @MainActor
+    func test_legacyDownloadFailsClosedWithoutExplicitTestOverride() throws {
+        let suite = "OfflinePlaybackTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let ownership = DownloadOwnershipStore(defaults: defaults)
+        let item = makeDownloadItem(id: "legacy", type: .movie, contentRating: "G")
+        let policy = DownloadAccessPolicy(
+            safetyPolicy: .ratingOnly(maxMovie: .pg, maxTV: .tvPg, allowUnrated: false),
+            currentIdentity: DownloadOwnerIdentity(
+                serverIdentifier: "server-a",
+                profileIdentifier: "profile-a"
+            ),
+            ownershipStore: ownership
+        )
+
+        XCTAssertEqual(policy.decision(for: item), .missingOwner)
+    }
+
     // MARK: - Helpers
 
     @MainActor
@@ -135,7 +201,8 @@ final class OfflinePlaybackTests: XCTestCase {
         grandparentTitle: String? = nil,
         parentTitle: String? = nil,
         parentIndex: Int? = nil,
-        index: Int? = nil
+        index: Int? = nil,
+        contentRating: String? = nil
     ) -> DownloadItem {
         DownloadItem(
             id: id,
@@ -156,7 +223,7 @@ final class OfflinePlaybackTests: XCTestCase {
                 genres: [],
                 year: 2024,
                 duration: duration,
-                contentRating: nil,
+                contentRating: contentRating,
                 studio: nil,
                 tagline: nil,
                 parentRatingKey: nil,

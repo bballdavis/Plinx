@@ -34,6 +34,15 @@ enum HomeVerticalFocusRouting {
         }
     }
 }
+
+enum HomeHeroSelection {
+    static func resolvedMediaID(currentID: String?, availableIDs: [String]) -> String? {
+        if let currentID, availableIDs.contains(currentID) {
+            return currentID
+        }
+        return availableIDs.first
+    }
+}
 #endif
 
 struct PlinxHomeView: View {
@@ -55,6 +64,7 @@ struct PlinxHomeView: View {
     #if os(tvOS)
     @Environment(MediaFocusModel.self) private var mediaFocusModel
     @FocusState private var focusedCard: HomeFocusTarget?
+    @State private var selectedHeroMedia: MediaItem?
     #endif
 
     // Plinx-specific home screen settings (separate from Library-tab visibility)
@@ -98,10 +108,10 @@ struct PlinxHomeView: View {
         }
         #if os(tvOS)
         .onAppear {
-            updateInitialHeroFocus()
+            synchronizeHeroSelection()
         }
         .onChange(of: defaultHeroMedia?.id) { _, _ in
-            updateInitialHeroFocus()
+            synchronizeHeroSelection()
         }
         #endif
     }
@@ -121,7 +131,7 @@ struct PlinxHomeView: View {
     private var scrollContent: some View {
         #if os(tvOS)
         SharedTvBrowsePageLayout(
-            heroMedia: mediaFocusModel.focusedMedia ?? defaultHeroMedia,
+            heroMedia: selectedHeroMedia ?? defaultHeroMedia,
             showsFilters: false,
             heroMetrics: .home,
             navigationContent: {
@@ -216,19 +226,33 @@ struct PlinxHomeView: View {
         return rows
     }
 
+    private var availableHeroMedia: [MediaItem] {
+        homeRows.flatMap { $0.hub.items.compactMap(\.playableItem) }
+    }
+
     private var defaultHeroMedia: MediaItem? {
-        for row in homeRows where row.hub.hasItems {
-            if let item = row.hub.items.compactMap(\.playableItem).first {
-                return item
-            }
-        }
-        return nil
+        availableHeroMedia.first
     }
 
     #if os(tvOS)
-    private func updateInitialHeroFocus() {
-        guard mediaFocusModel.focusedMedia == nil, let defaultHeroMedia else { return }
-        mediaFocusModel.focusedMedia = defaultHeroMedia
+    private func synchronizeHeroSelection() {
+        let availableIDs = availableHeroMedia.map(\.id)
+        guard let selectedID = HomeHeroSelection.resolvedMediaID(
+            currentID: selectedHeroMedia?.id,
+            availableIDs: availableIDs
+        ), let media = availableHeroMedia.first(where: { $0.id == selectedID }) else {
+            selectedHeroMedia = nil
+            return
+        }
+
+        selectedHeroMedia = media
+    }
+
+    private func selectHeroMedia(_ media: MediaItem) {
+        selectedHeroMedia = media
+        // Keep generic library cards in sync without allowing a previous
+        // library focus to choose the Home hero when this screen returns.
+        mediaFocusModel.focusedMedia = media
     }
     #endif
 
@@ -471,6 +495,9 @@ struct PlinxHomeView: View {
                 .padding(.vertical, cardFocusPadding)
                 .padding(.horizontal, 20)
             }
+            #if os(tvOS)
+            .scrollClipDisabled()
+            #endif
         }
         .accessibilityIdentifier("home.hub.\(sectionKey)")
     }
@@ -495,7 +522,7 @@ struct PlinxHomeView: View {
                 guard newTarget == .card(row: rowIndex, item: index),
                       let playableItem = item.playableItem
                 else { return }
-                mediaFocusModel.focusedMedia = playableItem
+                selectHeroMedia(playableItem)
             }
             .onTapGesture { onSelectMedia(item) }
             .onLongPressGesture { onLongPressMedia(item) }
@@ -666,6 +693,7 @@ private struct HomeMediaCardBody: View {
                 if isFocused {
                     RoundedRectangle(cornerRadius: artworkCornerRadius + 4, style: .continuous)
                         .stroke(Color.accentColor.opacity(0.78), lineWidth: 8)
+                        .frame(width: cardWidth, height: thumbHeight)
                         .blur(radius: 10)
                         .padding(6)
                         .transition(.opacity)
@@ -676,7 +704,6 @@ private struct HomeMediaCardBody: View {
                         viewModel: imageViewModel
                     )
                     .frame(width: cardWidth, height: thumbHeight)
-                    .scaleEffect(isFocused ? 1.05 : 1.0)
                     .clipped()
                     .clipShape(RoundedRectangle(cornerRadius: artworkCornerRadius, style: .continuous))
                     .overlay(alignment: .topTrailing) {
@@ -719,6 +746,7 @@ private struct HomeMediaCardBody: View {
                         }
                     }
                 }
+                .scaleEffect(isFocused ? 1.08 : 1.0)
                 .shadow(color: isFocused ? Color.accentColor.opacity(0.62) : .clear, radius: isFocused ? 10 : 0)
                 .shadow(color: isFocused ? Color.accentColor.opacity(0.24) : .clear, radius: isFocused ? 16 : 0)
             }
@@ -765,15 +793,13 @@ struct TvBrowseHeroMetrics {
     let contentHorizontalPadding: CGFloat
     let contentTopPadding: CGFloat
     let metadataBottomPadding: CGFloat
-    let bottomBlendHeight: CGFloat
 
     static let `default` = TvBrowseHeroMetrics(
         heightRatio: 0.408,
         leadingSafeAreaReduction: 0,
         contentHorizontalPadding: 4,
         contentTopPadding: 1,
-        metadataBottomPadding: 8,
-        bottomBlendHeight: 46
+        metadataBottomPadding: 8
     )
 
     static let home = TvBrowseHeroMetrics(
@@ -781,8 +807,7 @@ struct TvBrowseHeroMetrics {
         leadingSafeAreaReduction: 0.5,
         contentHorizontalPadding: 4,
         contentTopPadding: 0,
-        metadataBottomPadding: 8,
-        bottomBlendHeight: 46
+        metadataBottomPadding: 8
     )
 }
 
@@ -805,21 +830,21 @@ struct SharedTvBrowsePageLayout<NavigationContent: View, FilterContent: View, Ro
                     heroSection(availableWidth: proxy.size.width)
                         .frame(height: heroHeight)
                         .background(Color.appBackground.ignoresSafeArea(edges: [.top, .horizontal]))
-                        .overlay(alignment: .bottom) {
-                            LinearGradient(
-                                colors: [Color.clear, Color.appBackground],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                            .frame(height: heroMetrics.bottomBlendHeight)
-                        }
 
                     ScrollView {
-                        rowsContent(scrollProxy)
-                            .padding(.top, 10)
-                            .padding(.bottom, 22)
-                            .frame(minHeight: rowsHeight, alignment: .top)
+                        VStack(alignment: .leading, spacing: 18) {
+                            if showsFilters {
+                                filterContent()
+                                    .padding(.top, 6)
+                            }
+
+                            rowsContent(scrollProxy)
+                        }
+                        .padding(.top, 10)
+                        .padding(.bottom, 22)
+                        .frame(minHeight: rowsHeight, alignment: .top)
                     }
+                    .scrollClipDisabled()
                     .frame(height: rowsHeight)
                 }
                 .padding(.leading, leadingShift)
@@ -840,17 +865,11 @@ struct SharedTvBrowsePageLayout<NavigationContent: View, FilterContent: View, Ro
             VStack(alignment: .leading, spacing: 8) {
                 navigationContent()
 
-                if showsFilters {
-                    filterContent()
-                }
-
                 Spacer(minLength: 0)
 
                 if let heroMedia {
-                    VStack(alignment: .leading, spacing: 10) {
-                        TvHeroMetadataPanel(media: heroMedia)
-                            .frame(maxWidth: availableWidth * 0.72, alignment: .leading)
-                    }
+                    TvHeroMetadataPanel(media: heroMedia)
+                        .frame(maxWidth: availableWidth * 0.54, alignment: .leading)
                     .padding(.bottom, heroMetrics.metadataBottomPadding)
                 }
             }
@@ -957,8 +976,15 @@ private struct TvHeroMetadataPanel: View {
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(Color.black.opacity(0.36))
+            ZStack {
+                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                    .fill(Color.black.opacity(0.28))
+                    .blur(radius: 10)
+                    .padding(-5)
+
+                RoundedRectangle(cornerRadius: 26, style: .continuous)
+                    .fill(Color.black.opacity(0.34))
+            }
         )
         .task(id: media.id) {
             await loadHeroMetadata()
@@ -1272,12 +1298,12 @@ private struct TvPinnedHeroBackdrop: View {
                         }
                     }
                     .frame(
-                        width: (proxy.size.width * 0.58) + 72,
-                        height: proxy.size.height + 48
+                        width: (proxy.size.width * 0.62) + 96,
+                        height: proxy.size.height + 72
                     )
                     .clipped()
                     .mask(TvPinnedHeroImageMask())
-                    .offset(x: 36, y: -24)
+                    .offset(x: 48, y: -36)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                 }
 
@@ -1289,16 +1315,6 @@ private struct TvPinnedHeroBackdrop: View {
                     ],
                     startPoint: .leading,
                     endPoint: .trailing
-                )
-
-                LinearGradient(
-                    stops: [
-                        .init(color: .clear, location: 0.0),
-                        .init(color: .clear, location: 0.58),
-                        .init(color: Color.appBackground.opacity(0.98), location: 1.0),
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
                 )
 
                 heroIdentityOverlay

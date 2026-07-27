@@ -218,6 +218,38 @@ Use this richer treatment for:
 
 Do not use it behind dense content browsing surfaces; it is too loud for content-heavy screens.
 
+### Guided portal sign-in
+
+The sign-in surface uses the guided portal direction:
+
+- a dark `appBackground` shell around one luminous, continuous-corner portal
+- the full-color Plinx logo as the first brand landmark
+- an explicit “Grown-up step” cue before Plex authentication
+- a short title and outcome-oriented follow-up that explains profile selection comes next
+- one oversized, bottom-anchored primary action with a dark teal base and accent-aware stroke/glow
+- errors contained inside the portal immediately above the primary action
+
+The portal must remain centered and width-constrained on iPad, expand vertically
+for Dynamic Type, and scroll rather than clip on compact-height devices. The
+user-selectable accent may tint interactive emphasis, but it must not replace
+the foundational green-to-teal portal gradient.
+
+On tvOS, adapt the same hierarchy to one wide, overscan-safe portal:
+
+- keep the full-color logo inside the portal as its first landmark
+- place the large QR plate before the grown-up instructions in reading order
+- preserve the grown-up cue, connection title, and kid-profile next-step copy
+- keep the status and Refresh Code action grouped directly beneath the
+  instructions instead of separating them with flexible empty space
+- make Refresh Code the initial focus target and give it a dark-teal glass
+  base, accent edge, inset white outline, subtle scale, and restrained glow;
+  suppress the platform focus plate so the control remains recognizably Plinx
+  while still reading clearly from couch distance
+- align the status and action to the instruction column and keep the action
+  narrower than that column rather than spanning the remaining portal width
+- keep errors inside the instruction column instead of moving them below the
+  portal or changing the portal's overall position
+
 ## User accent palette
 
 From `PlinxAccentColor`:
@@ -417,10 +449,10 @@ Current canonical springs:
 ## Interaction rules
 
 - `LiquidGlassButton` is the canonical branded button.
-- Branded interactions should trigger the signature Plink feedback pattern:
-  - sound
+- Branded interactions should trigger the Plinx feedback pattern:
   - haptic
   - spring-scale press
+- Do not promise or synthesize UI audio unless a respectful, user-controlled bundled sound is designed and tested.
 - Selected or emphasized controls may tilt, lift, or glow slightly.
 - Back buttons and tab items may have subtle playful motion when the setting allows it.
 
@@ -587,10 +619,12 @@ Rules:
 - Let media art carry the color richness.
 - Brand should frame the experience, not compete with cover art.
 - Section titles should remain large and readable, with enough spacing to breathe.
-- On tvOS, the main header navigation should read as a full-width centered glass bar with tighter top insets than before; do not float a small pill in the middle with excess dead space above it.
-- On tvOS, hero artwork should pin to the top-right edge and blend only on the left and bottom into the dark shell; text metadata can use a dark translucent hero panel with branded continuous corners.
+- On tvOS, the main header navigation should be a centered, controls-width glass capsule; do not leave empty glass spanning the hero.
+- On tvOS, hero artwork should overscan to the top-right edge and blend only on the left and bottom into the dark shell. Keep the clear-logo layer above those fades with no dark rectangular backing.
+- On tvOS, text metadata belongs in the leading safe area, sized to its content with continuous corners and a softly feathered dark edge. It must reserve the trailing logo area rather than overlap it.
+- On tvOS library detail screens, Recommended/Browse/Collections controls sit below the hero metadata and before the first content section, never in front of the artwork.
 - On tvOS, hero artwork should overscan slightly past the top and right edges so the shell background never peeks through there.
-- tvOS selected media tiles should use a solid accent border plus a short, fully fading accent glow rather than a clipped hard-edged shadow.
+- tvOS selected media tiles should scale up slightly and use a solid accent border plus a short, fully fading accent glow. Reserve enough surrounding space and disable scroll clipping so the halo never ends in a hard edge.
 
 ## Settings
 
@@ -665,7 +699,7 @@ Characteristics:
 
 - white text
 - glass treatment
-- haptic/audio plink
+- haptic feedback
 - spring press feedback
 - rounded continuous corners
 

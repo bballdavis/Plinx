@@ -58,6 +58,26 @@ final class SettingsManagerPlaybackTests: XCTestCase {
         XCTAssertEqual(reloaded.playback.maxVolumePercent, 100)
     }
 
+    func test_loadingOutOfRangePersistedVolumeClampsImmediately() {
+        let stored = """
+        {
+          "playback": {
+            "autoPlayNextEpisode": true,
+            "seekBackwardSeconds": 10,
+            "seekForwardSeconds": 10,
+            "player": "mpv",
+            "subtitleScale": 100,
+            "maxVolumePercent": -20
+          },
+          "interface": {},
+          "downloads": {}
+        }
+        """
+        defaults.set(Data(stored.utf8), forKey: "strimr.settings")
+
+        XCTAssertEqual(SettingsManager(userDefaults: defaults).playback.maxVolumePercent, 0)
+    }
+
     func test_enforceSupportedPlaybackPlayer_convertsLegacyVLCToMPV() {
         let stored = """
         {
@@ -91,6 +111,32 @@ final class SettingsManagerPlaybackTests: XCTestCase {
         let settings = SettingsManager(userDefaults: defaults)
 
         XCTAssertEqual(settings.playback.player, .mpv)
+
+        PlinxSettingsSanitizer.enforceSupportedPlaybackPlayer(settings)
+
+        XCTAssertEqual(settings.playback.player, .mpv)
+    }
+
+    func test_enforceSupportedPlaybackPlayer_convertsExternalInfuseToMPV() {
+        let stored = """
+        {
+          "playback": {
+            "autoPlayNextEpisode": true,
+            "seekBackwardSeconds": 10,
+            "seekForwardSeconds": 10,
+            "player": "infuse",
+            "subtitleScale": 100,
+            "maxVolumePercent": 70,
+            "pauseWhenScreenTurnsOff": true
+          },
+          "interface": {},
+          "downloads": {}
+        }
+        """
+        defaults.set(Data(stored.utf8), forKey: "strimr.settings")
+        let settings = SettingsManager(userDefaults: defaults)
+
+        XCTAssertEqual(settings.playback.player, .infuse)
 
         PlinxSettingsSanitizer.enforceSupportedPlaybackPlayer(settings)
 

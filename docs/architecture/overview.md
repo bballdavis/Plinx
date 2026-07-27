@@ -1,5 +1,11 @@
 # Architecture Overview
 
+## Release Safety Boundaries
+
+`ParentalAccessCoordinator` is the single authorization state for settings and other parent-only surfaces. Content flows through Plinx decorators for display and through `SafePlaybackAuthorizing` again immediately before queue launch. Playlists are reduced to authorized entries, and offline items require both current content-policy approval and a matching server/profile ownership record.
+
+The first App Store release exposes only iOS/iPadOS product routes. Seerr discovery/request navigation is disabled until it can use the same authorization boundaries.
+
 ## Product Model
 
 Plinx is a kid-safe product layer built on top of a sibling Strimr checkout. Plinx owns the product shell, branding, safety rules, parental controls, and app-specific adapters. Strimr remains the underlying media engine and Plex foundation.
@@ -46,7 +52,7 @@ Owns Plinx domain logic:
 - parental gate helpers
 - playback policy owned by Plinx
 - public bridge models that do not depend on Strimr internals
-- app-domain utilities like haptics and audio
+- app-domain utilities like haptics
 
 ### `Packages/PlinxUI/`
 

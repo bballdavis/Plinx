@@ -3,7 +3,7 @@
   Plinx
 </h1>
 
-A safe, playful Plex client designed specifically for kids. Browse, search, and watch your family's media library on your own, with built-in parental controls to keep age-appropriate content front and center.
+A playful, parent-managed Plex client for family media. Browse, search, and watch a parent-selected library with configurable rating ceilings, library visibility, and offline access.
 
  <a href="https://apps.apple.com/app/idYOUR_APP_ID"><img src="assets/branding/app-store-badge.svg" alt="Download on the App Store" width="140"/></a> (coming soon)
 
@@ -16,7 +16,7 @@ A safe, playful Plex client designed specifically for kids. Browse, search, and 
 - Parents control settings access via a math challenge or PIN
 - No external links, no social features, no data collection
 
-**Easy for Kids**
+**Simple Family Interface**
 - Large buttons and responsive touch targets
 - Clean interface with a floating tab bar
 - Continue Watching picks up where you left off
@@ -145,7 +145,7 @@ All content is filtered before display using configurable content ratings. Setti
 
 ## Built on Strimr
 
-Plinx is built on the open-source [Strimr](https://github.com/wunax/strimr) Plex client, which provides core features like playback, downloads, and library browsing. We've added a kid-safe interface with parental controls, clip/video library support, and download quality options.
+Plinx is built on the open-source [Strimr](https://github.com/wunax/strimr) Plex client, which provides core features like playback, downloads, and library browsing. Plinx adds a parent-managed interface, content controls, clip/video library support, and download quality options.
 
 ---
 

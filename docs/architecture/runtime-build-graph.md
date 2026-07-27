@@ -21,6 +21,8 @@ This is a same-module integration strategy, not a clean framework boundary. Plin
 
 - playback launcher fixes for actor-isolation issues
 - player factory fixes for main-actor initialization
+- Plinx-owned settings surfaces whose upstream equivalents would otherwise
+  collide by filename in the shared app module
 - media backdrop rendering adjustments for current SDK behavior
 - no-op error reporting to preserve zero-collection requirements
 - branded auth/root views so no Strimr assets leak into the Plinx binary
@@ -42,11 +44,17 @@ When adding another exclusion, document:
 `scripts/patch_resources.py` exists to ensure the generated project retains the required resource references for:
 
 - `Assets.xcassets`
+- iOS `LaunchScreen.storyboard`
 - `PrivacyInfo.xcprivacy`
 - `Plinx.strings`
 - sibling `../../strimr/Localizable.xcstrings`
 
 That script should reflect the current runtime layout only. It is not a place to preserve obsolete path migrations.
+The generated app targets must each own a distinct resource build phase and
+distinct build-file entries. Sharing a resource phase or build-file object
+between `Plinx-iOS` and `Plinx-tvOS` can make Xcode copy resources into only one
+bundle. Generated target ordering is not stable enough to patch the first
+`PBXNativeTarget` build-phase list.
 
 ## Related Docs
 

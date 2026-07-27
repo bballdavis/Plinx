@@ -4,53 +4,63 @@ import PlinxUI
 /// Lets the parent set (or clear) a 4-6 digit numeric PIN that will replace
 /// the math-equation gate when the settings are opened.
 struct SetPinView: View {
-    @AppStorage("plinx.parentalPin") private var storedPin = ""
+    @Environment(ParentalAccessCoordinator.self) private var parentalAccessCoordinator
     @Environment(\.plinxTheme) private var theme
 
-    private enum Step { case enter, confirm }
+    private enum Step { case verifyCurrent, enter, confirm }
 
     @State private var step: Step = .enter
+    @State private var currentEntry = ""
     @State private var firstEntry = ""
     @State private var secondEntry = ""
     @State private var entryError = false
 
     var body: some View {
         List {
-            if !storedPin.isEmpty {
+            if parentalAccessCoordinator.hasPIN {
                 // MARK: Current PIN status
                 Section {
-                    Label("PIN is set", systemImage: "checkmark.shield.fill")
+                    Label {
+                        Text("settings.parentalPIN.isSet", tableName: "Plinx")
+                    } icon: {
+                        Image(systemName: "checkmark.shield.fill")
+                    }
                         .foregroundStyle(.green)
                     Button(role: .destructive) {
-                        storedPin = ""
-                        firstEntry = ""
-                        secondEntry = ""
-                        step = .enter
-                        entryError = false
+                        removePIN()
                     } label: {
-                        Label("Remove PIN (use math gate)", systemImage: "xmark.shield")
+                        Label {
+                            Text("settings.parentalPIN.remove", tableName: "Plinx")
+                        } icon: {
+                            Image(systemName: "xmark.shield")
+                        }
                     }
                 } header: {
-                    Text("Current PIN")
+                    Text("settings.parentalPIN.current", tableName: "Plinx")
                 }
             }
 
             // MARK: Set new PIN
             Section {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text(step == .enter ? "Enter new PIN" : "Confirm new PIN")
+                    Text(stepTitle)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
 
                     HStack {
-                        SecureField("4-6 digits", text: step == .enter ? $firstEntry : $secondEntry)
+                        SecureField(
+                            String(localized: "settings.parentalPIN.digits", table: "Plinx"),
+                            text: activeEntryBinding
+                        )
                             .keyboardType(.numberPad)
                             .font(.title2.monospacedDigit())
-                            .onChange(of: step == .enter ? firstEntry : secondEntry) { _, newVal in
+                            .onChange(of: activeEntryValue) { _, newVal in
                                 entryError = false
                                 // Limit to 6 digits
                                 let digits = newVal.filter { $0.isNumber }
-                                if step == .enter {
+                                if step == .verifyCurrent {
+                                    currentEntry = String(digits.prefix(6))
+                                } else if step == .enter {
                                     firstEntry = String(digits.prefix(6))
                                 } else {
                                     secondEntry = String(digits.prefix(6))
@@ -59,7 +69,7 @@ struct SetPinView: View {
                     }
 
                     if entryError {
-                        Text(step == .enter ? "PIN must be 4-6 digits" : "PINs do not match. Try again.")
+                        Text(errorMessage)
                             .font(.caption)
                             .foregroundStyle(.red)
                     }
@@ -67,18 +77,26 @@ struct SetPinView: View {
                     Button {
                         handleNext()
                     } label: {
-                        Text(step == .enter ? "Next" : "Save PIN")
+                        Text(
+                            step == .confirm
+                                ? String(localized: "settings.parentalPIN.save", table: "Plinx")
+                                : String(localized: "common.actions.next", table: "Plinx")
+                        )
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.accentColor)
-                    .disabled((step == .enter ? firstEntry : secondEntry).count < 4)
+                    .disabled(activeEntryValue.count < 4)
                 }
                 .padding(.vertical, 4)
             } header: {
-                Text(storedPin.isEmpty ? "Set a PIN" : "Change PIN")
+                Text(
+                    parentalAccessCoordinator.hasPIN
+                        ? String(localized: "settings.parentalPIN.change", table: "Plinx")
+                        : String(localized: "settings.parentalPIN.set", table: "Plinx")
+                )
             } footer: {
-                Text("Enter 4-6 digits. This PIN will replace the math challenge when unlocking settings.")
+                Text("settings.parentalPIN.footer", tableName: "Plinx")
                     .font(.caption)
             }
         }
@@ -89,7 +107,10 @@ struct SetPinView: View {
         .scrollContentBackground(.hidden)
         #endif
         .background(Color.appBackground.ignoresSafeArea())
-        .navigationTitle("Set PIN")
+        .navigationTitle(Text("settings.parentalPIN.navigationTitle", tableName: "Plinx"))
+        .onAppear {
+            step = parentalAccessCoordinator.hasPIN ? .verifyCurrent : .enter
+        }
         #if !os(tvOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
@@ -97,6 +118,14 @@ struct SetPinView: View {
 
     private func handleNext() {
         switch step {
+        case .verifyCurrent:
+            guard currentEntry.count >= 4 else {
+                entryError = true
+                return
+            }
+            step = .enter
+            firstEntry = ""
+            entryError = false
         case .enter:
             guard firstEntry.count >= 4 else {
                 entryError = true
@@ -107,15 +136,87 @@ struct SetPinView: View {
             entryError = false
         case .confirm:
             if secondEntry == firstEntry {
-                storedPin = firstEntry
+                let result = parentalAccessCoordinator.setPIN(
+                    firstEntry,
+                    currentPIN: parentalAccessCoordinator.hasPIN ? currentEntry : nil
+                )
+                guard result == .success else {
+                    entryError = true
+                    secondEntry = ""
+                    return
+                }
                 firstEntry = ""
                 secondEntry = ""
-                step = .enter
+                currentEntry = ""
+                step = .verifyCurrent
                 entryError = false
             } else {
                 entryError = true
                 secondEntry = ""
             }
+        }
+    }
+
+    private var activeEntryBinding: Binding<String> {
+        switch step {
+        case .verifyCurrent:
+            return $currentEntry
+        case .enter:
+            return $firstEntry
+        case .confirm:
+            return $secondEntry
+        }
+    }
+
+    private var activeEntryValue: String {
+        switch step {
+        case .verifyCurrent:
+            return currentEntry
+        case .enter:
+            return firstEntry
+        case .confirm:
+            return secondEntry
+        }
+    }
+
+    private var stepTitle: String {
+        switch step {
+        case .verifyCurrent:
+            return String(localized: "settings.parentalPIN.enterCurrent", table: "Plinx")
+        case .enter:
+            return String(localized: "settings.parentalPIN.enterNew", table: "Plinx")
+        case .confirm:
+            return String(localized: "settings.parentalPIN.confirmNew", table: "Plinx")
+        }
+    }
+
+    private var errorMessage: String {
+        switch step {
+        case .verifyCurrent:
+            return String(localized: "settings.parentalPIN.error.currentRequired", table: "Plinx")
+        case .enter:
+            return String(localized: "settings.parentalPIN.error.invalidFormat", table: "Plinx")
+        case .confirm:
+            return String(localized: "settings.parentalPIN.error.mismatch", table: "Plinx")
+        }
+    }
+
+    private func removePIN() {
+        guard currentEntry.count >= 4 else {
+            step = .verifyCurrent
+            entryError = true
+            return
+        }
+        if parentalAccessCoordinator.removePIN(currentPIN: currentEntry) == .success {
+            currentEntry = ""
+            firstEntry = ""
+            secondEntry = ""
+            step = .enter
+            entryError = false
+        } else {
+            step = .verifyCurrent
+            currentEntry = ""
+            entryError = true
         }
     }
 }

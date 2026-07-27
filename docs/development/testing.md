@@ -32,7 +32,7 @@ cd PlinxApp
 xcodebuild test \
   -project Plinx.xcodeproj \
   -scheme Plinx-iOS \
-  -destination "platform=iOS Simulator,name=iPhone 16,OS=latest" \
+  -destination "platform=iOS Simulator,name=iPhone 16,OS=26.5" \
   -only-testing:Plinx-iOS-UnitTests \
   CODE_SIGNING_ALLOWED=NO
 ```
@@ -58,7 +58,7 @@ xcodebuild test \
 ### Release archive validation
 
 ```bash
-./scripts/tests/validate_testflight_archive.sh
+./scripts/tests/validate_testflight_archive.sh ./build/Plinx.xcarchive
 ```
 
 ## What Lives Where
@@ -92,6 +92,7 @@ App integration logic such as:
 - safety adapters
 - navigation coordination
 - offline playback decisions
+- parental authorization, download ownership, safe playlists, and playback-volume application
 
 ### `PlinxApp/UITests/`
 

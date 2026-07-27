@@ -120,6 +120,30 @@ final class HeaderFocusOrderTests: XCTestCase {
 #if os(tvOS)
 final class HomeVerticalFocusRoutingTests: XCTestCase {
 
+    func test_heroSelectionKeepsTheFocusedHomeItem() {
+        XCTAssertEqual(
+            HomeHeroSelection.resolvedMediaID(
+                currentID: "bluey",
+                availableIDs: ["kpop", "bluey", "barry"]
+            ),
+            "bluey"
+        )
+    }
+
+    func test_heroSelectionFallsBackWhenTheFocusedItemLeavesHome() {
+        XCTAssertEqual(
+            HomeHeroSelection.resolvedMediaID(
+                currentID: "stale-library-item",
+                availableIDs: ["kpop", "bluey"]
+            ),
+            "kpop"
+        )
+    }
+
+    func test_heroSelectionIsNilWhenHomeHasNoPlayableItems() {
+        XCTAssertNil(HomeHeroSelection.resolvedMediaID(currentID: "stale", availableIDs: []))
+    }
+
     func test_nextRoute_returnsNavigationWhenMovingUpFromTopRow() {
         XCTAssertEqual(
             HomeVerticalFocusRouting.nextRoute(direction: .up, fromRow: 0, rowCount: 3),
