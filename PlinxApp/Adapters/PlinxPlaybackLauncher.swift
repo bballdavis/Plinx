@@ -1,6 +1,11 @@
 import Foundation
 import PlinxCore
 
+@MainActor
+protocol PlaybackPresenting: AnyObject {
+    func showPlayer(for playQueue: PlayQueueState, shouldResumeFromOffset: Bool)
+}
+
 /// Final playback authorization boundary for Plinx.
 ///
 /// Navigation decorators keep unsafe content out of the UI, while this launcher
