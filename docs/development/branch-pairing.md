@@ -9,7 +9,7 @@ Pinned development pairing:
 
 - Plinx `dev`
 - Strimr `dev-plinx` at
-  `9e0752f1f46f3cd233fc2af0b415cddb67b3be4f`
+  `554256d78bd7e338d57567aa54b60019f5d89a6d`
 
 ## Expected Local Layout
 
