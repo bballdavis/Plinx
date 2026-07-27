@@ -206,10 +206,8 @@ struct PlinxContentView: View {
             subtitleTracks: subtitleTracks,
             selectedAudioTrackID: 1,
             selectedSubtitleTrackID: 11,
-            playbackRate: 1,
             onSelectAudio: { _ in },
             onSelectSubtitle: { _ in },
-            onSelectPlaybackRate: { _ in },
             onClose: {}
         )
         #endif
