@@ -77,13 +77,13 @@ final class OfflinePlaybackTests: XCTestCase {
     }
 
     @MainActor
-    func test_localPlayerViewModel_suppressesBufferingOnPropertyChange() {
+    func test_localPlayerViewModel_suppressesBufferingFromAetherUpdates() {
         let (viewModel, _) = makeLocalPlayerViewModel()
 
-        viewModel.handlePropertyChange(property: .pausedForCache, data: true, isScrubbing: false)
+        viewModel.handlePlaybackState(isPaused: false, isBuffering: true)
         XCTAssertFalse(viewModel.isBuffering, "Local playback must suppress buffering state")
 
-        viewModel.handlePropertyChange(property: .timePos, data: 30.0, isScrubbing: false)
+        viewModel.handlePlaybackPosition(30, isScrubbing: false)
         XCTAssertFalse(viewModel.isBuffering, "Local playback must suppress buffering on position update")
     }
 
