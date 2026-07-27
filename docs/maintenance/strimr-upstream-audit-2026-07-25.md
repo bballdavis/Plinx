@@ -2,6 +2,29 @@
 
 Baseline refreshed on 2026-07-26 before migration work began.
 
+## Implementation Status
+
+Implementation is underway on the feature-specific pair:
+
+- Plinx `feat/strimr-aether-upgrade`
+- Strimr `feat/plinx-upstream-seams`
+
+The Strimr branch starts directly from audited upstream `e0a8cbc`; it does not
+merge the accumulated `atv` history. The current implementation has:
+
+- pinned and resolved AetherEngine at the audited revision
+- removed the MPVKit dependency and obsolete MPV/VLC adapters
+- restored clip support, strict Plex boolean decoding, filtered pagination,
+  hidden-library search parity, clear-title-logo selection, and a SharePlay
+  presentation policy on the new baseline
+- retained Plinx-owned safety authorization, library presentation, branding
+  assets, maximum-volume policy, and the no-op reporter
+- generated the Plinx Xcode project and compiled the Strimr macOS target as a
+  shared-source compatibility check
+
+iOS and tvOS build/test gates remain mandatory and require an Xcode installation
+with those platform SDKs and simulator runtimes.
+
 ## Decision
 
 Plinx should move to the current Strimr architecture, but it should not merge the
@@ -184,8 +207,9 @@ or rebase of the accumulated fork branch.
    moving `main` branch.
 3. Update `PlinxApp/project.yml` for moved shared/download files and remove
    obsolete MPV/VLC excludes and dependencies.
-4. Remove `PlinxPlayerFactory`, `PlinxPlaybackLauncher`, the VLC stub, and the
-   playback-player sanitizer after their callers compile against Aether.
+4. Remove `PlinxPlayerFactory`, the VLC stub, and the playback-player sanitizer.
+   Replace the old launcher with a Plinx-owned fail-closed authorization
+   boundary that delegates presentation to Aether-backed Strimr playback.
 5. Update the composition root to inject `SharePlayCoordinator` in a dormant
    configuration.
 

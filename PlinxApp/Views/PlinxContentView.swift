@@ -154,6 +154,10 @@ struct PlinxContentView: View {
                     language: "en",
                     codec: "AAC",
                     isDefault: true,
+                    isForced: false,
+                    isHearingImpaired: false,
+                    isCommentary: false,
+                    isExternal: false,
                     isSelected: true
                 ),
                 plexStream: nil
@@ -167,6 +171,10 @@ struct PlinxContentView: View {
                     language: "es",
                     codec: "AAC",
                     isDefault: false,
+                    isForced: false,
+                    isHearingImpaired: false,
+                    isCommentary: false,
+                    isExternal: false,
                     isSelected: false
                 ),
                 plexStream: nil
@@ -183,6 +191,10 @@ struct PlinxContentView: View {
                     language: "en",
                     codec: "SRT",
                     isDefault: true,
+                    isForced: false,
+                    isHearingImpaired: true,
+                    isCommentary: false,
+                    isExternal: false,
                     isSelected: false
                 ),
                 plexStream: nil
@@ -194,8 +206,10 @@ struct PlinxContentView: View {
             subtitleTracks: subtitleTracks,
             selectedAudioTrackID: 1,
             selectedSubtitleTrackID: 11,
+            playbackRate: 1,
             onSelectAudio: { _ in },
             onSelectSubtitle: { _ in },
+            onSelectPlaybackRate: { _ in },
             onClose: {}
         )
         #endif

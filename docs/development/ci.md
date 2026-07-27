@@ -2,7 +2,10 @@
 
 ## Pinned Release Toolchain And Dependencies
 
-CI uses macOS 15, Xcode 26.5, the exact sibling commits in `config/release-dependencies.env`, and `patches/strimr-volume-cap.patch`. Dependency checkout or patch failure is fatal; do not restore branch-based or `|| true` dependency fetches.
+CI uses macOS 15, Xcode 26.5, the exact Strimr sibling commit in
+`config/release-dependencies.env`, and the exact AetherEngine revision in
+`PlinxApp/project.yml`. Dependency checkout or resolution failure is fatal; do
+not restore branch-based or `|| true` dependency fetches.
 
 The iOS destinations are pinned to dedicated iPhone 17 Pro and iPad Pro
 13-inch simulators on iOS 26.5. CI downloads the iOS 26.5 runtime when it is

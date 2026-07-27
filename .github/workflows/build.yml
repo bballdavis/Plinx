@@ -43,7 +43,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Fetch sibling repos (strimr, MPVKit)
+      - name: Fetch pinned Strimr source
         env:
           STRIMR_REPO: "bballdavis/strimr"
           STRIMR_PAT: ${{ secrets.STRIMR_PAT }}
@@ -60,11 +60,6 @@ jobs:
           fi
           git clone --filter=blob:none "https://x-access-token:${AUTH_TOKEN}@github.com/${STRIMR_REPO}.git" ../strimr
           git -C ../strimr checkout --detach "$STRIMR_COMMIT"
-
-          echo "Cloning MPVKit@${MPVKIT_COMMIT} into ../MPVKit"
-          git clone --filter=blob:none https://github.com/bballdavis/MPVKit.git ../MPVKit
-          git -C ../MPVKit checkout --detach "$MPVKIT_COMMIT"
-          bash scripts/apply_dependency_patches.sh
 
       - name: Select pinned Xcode
         uses: maxim-lobanov/setup-xcode@v1
@@ -129,7 +124,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Fetch sibling repos (strimr, MPVKit)
+      - name: Fetch pinned Strimr source
         env:
           STRIMR_REPO: "bballdavis/strimr"
           STRIMR_PAT: ${{ secrets.STRIMR_PAT }}
@@ -146,11 +141,6 @@ jobs:
           fi
           git clone --filter=blob:none "https://x-access-token:${AUTH_TOKEN}@github.com/${STRIMR_REPO}.git" ../strimr
           git -C ../strimr checkout --detach "$STRIMR_COMMIT"
-
-          echo "Cloning MPVKit@${MPVKIT_COMMIT} into ../MPVKit"
-          git clone --filter=blob:none https://github.com/bballdavis/MPVKit.git ../MPVKit
-          git -C ../MPVKit checkout --detach "$MPVKIT_COMMIT"
-          bash scripts/apply_dependency_patches.sh
 
       - name: Select pinned Xcode
         uses: maxim-lobanov/setup-xcode@v1

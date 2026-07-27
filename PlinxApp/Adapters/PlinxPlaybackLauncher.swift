@@ -1,17 +1,13 @@
 import Foundation
 import PlinxCore
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PlinxPlaybackLauncher — Safety-enforcing replacement for Strimr's launcher
-//
-// Fetches current metadata immediately before playback, rejects unsafe queue
-// members, and keeps playback inside Plinx's MPV path so content authorization
-// and Maximum Playback Level cannot be bypassed by an external player.
-//
-// When Strimr fixes this upstream, delete this file and remove the exclude
-// from project.yml.
-// ─────────────────────────────────────────────────────────────────────────────
-
+/// Final playback authorization boundary for Plinx.
+///
+/// Navigation decorators keep unsafe content out of the UI, while this launcher
+/// re-fetches the selected item and validates every queue member immediately
+/// before presenting the player. Missing metadata and request failures reject
+/// playback.
+@MainActor
 struct PlaybackLauncher {
     enum Result: Equatable {
         case started
@@ -20,77 +16,77 @@ struct PlaybackLauncher {
     }
 
     let context: PlexAPIContext
-    let coordinator: MainCoordinator
+    let coordinator: any PlaybackPresenting
     let safetyPolicy: SafetyPolicy
 
-    @MainActor
     func play(
         ratingKey: String,
         type: PlexItemType,
-        shouldResumeFromOffset: Bool = true
+        shuffle: Bool = false,
+        shouldResumeFromOffset: Bool = true,
     ) async -> Result {
         do {
-            let authorizer = PlexSafetyPlaybackAuthorizer(context: context, policy: safetyPolicy)
-            guard await authorizer.decision(
-                ratingKey: ratingKey
-            ) == .allowed else {
+            guard try await isAllowed(ratingKey: ratingKey) else {
                 return .blocked
             }
 
             let manager = try PlayQueueManager(context: context)
+            let continuous = type == .episode || type == .show || type == .season
             var playQueue = try await manager.createQueue(
                 for: ratingKey,
                 itemType: type,
-                continuous: type == .episode
+                continuous: continuous,
+                shuffle: shuffle,
             )
 
-            if !authorizer.isAllowed(playQueue: playQueue) {
+            if try await isAllowed(playQueue: playQueue) == false, continuous {
                 playQueue = try await manager.createQueue(
                     for: ratingKey,
                     itemType: type,
-                    continuous: false
+                    continuous: false,
+                    shuffle: false,
                 )
-            }
-            guard authorizer.isAllowed(playQueue: playQueue) else {
-                return .blocked
             }
 
             guard playQueue.selectedRatingKey != nil else {
                 return .failed
             }
+            guard try await isAllowed(playQueue: playQueue) else {
+                return .blocked
+            }
 
-            coordinator.showPlayer(for: playQueue, shouldResumeFromOffset: shouldResumeFromOffset)
+            coordinator.showPlayer(
+                for: playQueue,
+                shouldResumeFromOffset: shouldResumeFromOffset,
+            )
             return .started
         } catch {
-            debugPrint("Failed to create play queue:", error)
+            guard !Task.isCancelled, !error.isCancellation else {
+                return .failed
+            }
             ErrorReporter.capture(error)
             return .failed
         }
     }
 
-}
-
-private struct PlexSafetyPlaybackAuthorizer {
-    let context: PlexAPIContext
-    let policy: SafetyPolicy
-
-    func decision(ratingKey: String) async -> ContentAccessDecision {
-        do {
-            let repository = try MetadataRepository(context: context)
-            let response = try await repository.getMetadata(ratingKey: ratingKey)
-            guard let item = response.mediaContainer.metadata?.first else {
-                return .rejected(reason: .missingRating)
-            }
-            return StrimrAdapter.decision(MediaItem(plexItem: item), policy: policy)
-        } catch {
-            return .rejected(reason: .missingRating)
+    private func isAllowed(ratingKey: String) async throws -> Bool {
+        let repository = try MetadataRepository(context: context)
+        let response = try await repository.getMetadata(ratingKey: ratingKey)
+        guard let item = response.mediaContainer.metadata?.first else {
+            return false
         }
+        return StrimrAdapter.isAllowed(
+            MediaItem(plexItem: item),
+            policy: safetyPolicy,
+        )
     }
 
-    func isAllowed(playQueue: PlayQueueState) -> Bool {
-        guard !playQueue.items.isEmpty else { return false }
-        return playQueue.items.allSatisfy {
-            StrimrAdapter.isAllowed(MediaItem(plexItem: $0), policy: policy)
+    private func isAllowed(playQueue: PlayQueueState) async throws -> Bool {
+        for item in playQueue.items {
+            guard try await isAllowed(ratingKey: item.ratingKey) else {
+                return false
+            }
         }
+        return true
     }
 }

@@ -32,3 +32,12 @@ enum ErrorReporter {
         // print("Error (not reported): \(error)")
     }
 }
+
+/// Matches Strimr's non-telemetry cancellation classification without bringing
+/// its Sentry-backed reporter into the Plinx target.
+extension Error {
+    var isCancellation: Bool {
+        self is CancellationError
+            || (self as? URLError)?.code == .cancelled
+    }
+}

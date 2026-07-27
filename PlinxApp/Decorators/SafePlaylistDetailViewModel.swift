@@ -35,7 +35,7 @@ final class SafePlaylistDetailViewModel {
     init(inner: PlaylistDetailViewModel, policy: SafetyPolicy) {
         self.inner = inner
         self.policy = policy
-        inner.setItemAuthorization {
+        inner.itemFilter = {
             StrimrAdapter.isAllowed($0, policy: policy)
         }
     }
@@ -60,7 +60,7 @@ final class SafePlaylistDetailViewModel {
     }
 
     private func applyFilters() {
-        inner.setItemAuthorization {
+        inner.itemFilter = {
             StrimrAdapter.isAllowed($0, policy: self.policy)
         }
     }

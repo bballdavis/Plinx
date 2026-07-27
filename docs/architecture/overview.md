@@ -28,9 +28,9 @@ The app target defined in `PlinxApp/project.yml` compiles together:
 - sibling Strimr iOS feature source from `../strimr/Strimr-iOS/Features`
 - `Packages/PlinxCore`
 - `Packages/PlinxUI`
-- sibling `MPVKit`
+- AetherEngine, pinned to an exact source revision
 
-This same-module compilation model exists because parts of Strimr still depend on Swift `internal` access.
+This same-module compilation model exists because parts of Strimr still depend on Swift `internal` access. AetherEngine replaces the previous MPVKit integration and is consumed only by the app target.
 
 ## Module Ownership
 

@@ -76,6 +76,7 @@ final class QuickActionDownloadActionPolicyTests: XCTestCase {
             duration: nil,
             videoResolution: nil,
             rating: nil,
+            ratings: [],
             contentRating: nil,
             studio: nil,
             tagline: nil,

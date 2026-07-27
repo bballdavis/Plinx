@@ -266,13 +266,18 @@ Use `scripts/flatten_screenshot_alpha.sh INPUT.png OUTPUT.png` only after captur
 
 ### `build_compliance_bundle.sh` — Package Corresponding Source
 
-Creates the release's Plinx, pinned Strimr, and pinned MPVKit source bundle plus the applied vendor patch. Run only from a clean committed release checkout:
+Creates the release's Plinx and pinned Strimr source bundle. AetherEngine is an
+exact Swift Package Manager source dependency recorded by `project.yml` and the
+generated package resolution. Run only from a clean committed release checkout:
 
 ```bash
 ./scripts/build_compliance_bundle.sh
 ```
 
-Both release scripts call `scripts/verify_release_dependency_state.sh`. It compares the live sibling trees against the pinned Strimr commit plus the documented patch and the exact MPVKit commit, preventing unrelated local dependency changes from entering a release archive.
+Both release scripts call `scripts/verify_release_dependency_state.sh`. It
+compares the live sibling tree against the exact Strimr commit in
+`config/release-dependencies.env`, preventing unrelated local dependency
+changes from entering a release archive.
 
 ---
 
@@ -310,22 +315,21 @@ Or just run a script with an invalid name—it will show the available options.
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen) installed (used by build scripts)
 - iOS Simulator runtime
 
-## Local Dependency Mirrors
+## Local Source And Package Dependencies
 
-For local stability, Plinx references sibling clones of forked package repositories directly from [PlinxApp/project.yml](PlinxApp/project.yml):
+Plinx compiles the paired sibling Strimr checkout directly and resolves its
+player engine through Swift Package Manager:
 
 ```bash
 <local path>/Repos/
   Plinx/
   strimr/
-  MPVKit/
-
-The live app target currently compiles directly from sibling `strimr/Shared` and `strimr/Strimr-iOS/Features` paths.
 ```
 
-MPVKit is referenced via `../../MPVKit` from the `PlinxApp` directory. Sentry is intentionally not a Plinx dependency; the vendored reporter source is excluded and replaced by the app's no-op privacy adapter.
-
-This removes dependency on cloning the package source from upstream during project generation and package resolution. It does not, by itself, eliminate all remote binary artifact downloads if the package manifests still point to release ZIPs.
+The live app target compiles sibling `strimr/Shared` and platform feature paths.
+`AetherEngine` is pinned to an exact revision in `PlinxApp/project.yml`.
+Plinx excludes Strimr's Sentry-backed reporter and does not declare Sentry as a
+package dependency.
 
 ## Troubleshooting
 

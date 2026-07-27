@@ -12,9 +12,7 @@ import PlinxCore
 @Observable
 final class SafeMediaDetailViewModel {
     // MARK: - Safety gate
-    var isBlocked: Bool {
-        !inner.isContentAuthorized
-    }
+    private(set) var isBlocked: Bool
 
     // MARK: - Delegated state
     var media: PlayableMediaItem { inner.media }
@@ -51,9 +49,14 @@ final class SafeMediaDetailViewModel {
     init(inner: MediaDetailViewModel, policy: SafetyPolicy = .ratingOnly()) {
         self.inner = inner
         self.policy = policy
-        inner.setContentAuthorization {
+        inner.itemFilter = {
             StrimrAdapter.isAllowed($0, policy: policy)
         }
+        inner.hubFilter = {
+            StrimrAdapter.filtered($0, policy: policy)
+        }
+        // Belt-and-suspenders: block immediately if the media itself is unsafe.
+        self.isBlocked = !StrimrAdapter.isAllowed(inner.media, policy: policy)
     }
 
     // MARK: - Actions
@@ -61,6 +64,13 @@ final class SafeMediaDetailViewModel {
     func loadDetails() async {
         guard !isBlocked else { return }
         await inner.loadDetails()
+        isBlocked = !StrimrAdapter.isAllowed(inner.media, policy: policy)
+        guard !isBlocked else {
+            seasons = []
+            episodes = []
+            relatedHubs = []
+            return
+        }
         applyFilters()
     }
 
@@ -84,9 +94,13 @@ final class SafeMediaDetailViewModel {
     func updatePolicy(_ newPolicy: SafetyPolicy) {
         guard newPolicy != policy else { return }
         policy = newPolicy
-        inner.setContentAuthorization {
+        inner.itemFilter = {
             StrimrAdapter.isAllowed($0, policy: newPolicy)
         }
+        inner.hubFilter = {
+            StrimrAdapter.filtered($0, policy: newPolicy)
+        }
+        isBlocked = !StrimrAdapter.isAllowed(inner.media, policy: newPolicy)
         applyFilters()
     }
 
@@ -95,10 +109,14 @@ final class SafeMediaDetailViewModel {
     private func applyFilters() {
         seasons = inner.seasons
         filterEpisodes()
-        relatedHubs = inner.relatedHubs
+        relatedHubs = inner.relatedHubs.compactMap {
+            StrimrAdapter.filtered($0, policy: policy)
+        }
     }
 
     private func filterEpisodes() {
-        episodes = inner.episodes
+        episodes = inner.episodes.filter {
+            StrimrAdapter.isAllowed($0, policy: policy)
+        }
     }
 }

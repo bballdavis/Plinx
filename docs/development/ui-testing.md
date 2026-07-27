@@ -128,7 +128,7 @@ Review the generated images before committing them.
 ## What Is Intentionally Out Of Scope
 
 - generic network/server correctness beyond the mocked test boundary
-- MPVKit internals
+- AetherEngine internals
 - complete live-service coverage in CI
 
 Use live parity tests and manual verification when a change crosses those boundaries.

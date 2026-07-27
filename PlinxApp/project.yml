@@ -13,7 +13,7 @@
 #   PlinxApp (this target)
 #     ├── Strimr sources (compiled inline, internal access)
 #     ├── PlinxUI (SPM) → PlinxCore (SPM)
-#     └── MPVKit (SPM)
+#     └── AetherEngine (SPM)
 #
 # Note: Sentry (crash reporting SDK) has been removed entirely as part of the
 # zero-collection privacy commitment. Plinx provides its own no-op ErrorReporter
@@ -40,8 +40,9 @@ packages:
     path: ../Packages/PlinxCore
   PlinxUI:
     path: ../Packages/PlinxUI
-  MPVKit:
-    path: ../../MPVKit
+  AetherEngine:
+    url: https://github.com/wunax/AetherEngine
+    revision: d882f47811757f8ebbf44e791abf96416262b49a
 
 settings:
   base:
@@ -73,19 +74,16 @@ targets:
       - path: ../../strimr/Shared
         name: StrimrShared
         excludes:
-          # VLC player — Plinx uses MPVKit exclusively
-          - "Library/VLC/**"
-          # Replaced by Plinx's final playback authorization boundary, which
-          # also avoids Strimr's @MainActor isolation violation and disables
-          # external-player handoff for the first release.
+          # Plinx replaces the generic launcher with a final fail-closed
+          # authorization boundary immediately before queue creation.
           - "Features/Player/PlaybackLauncher.swift"
-          # PlayerFactory static methods call @MainActor initializers from
-          # nonisolated context. Replaced by Adapters/PlinxPlayerFactory.swift.
-          - "Library/Player/PlayerFactory.swift"
           # MediaBackdropGradient uses Color.background which is ambiguous
           # in iOS 26 SDK (resolves to BackgroundStyle, not Color).
           # Replaced by Adapters/PlinxMediaBackdropGradient.swift.
           - "Views/Media/MediaBackdropGradient.swift"
+          # Plinx ships its own rating artwork names and renders the same
+          # upstream model through a local label adapter.
+          - "Views/Media/MediaRatingLabel.swift"
           # ErrorReporter would initialize Sentry. Plinx has zero data collection,
           # so we provide our own no-op ErrorReporter instead (App/ErrorReporter.swift).
           # See docs/security/privacy-and-safety.md for the privacy rationale.
@@ -123,8 +121,8 @@ targets:
     dependencies:
       - package: PlinxCore
       - package: PlinxUI
-      - package: MPVKit
-        product: MPVKit-GPL
+      - package: AetherEngine
+        product: AetherEngine
 
     info:
       path: Resources/Info.plist
@@ -253,17 +251,14 @@ targets:
       - path: ../../strimr/Shared
         name: StrimrShared
         excludes:
-          - "Library/VLC/**"
           - "Features/Player/PlaybackLauncher.swift"
-          - "Library/Player/PlayerFactory.swift"
           - "Views/Media/MediaBackdropGradient.swift"
+          - "Views/Media/MediaRatingLabel.swift"
           - "Monitoring/ErrorReporter.swift"
-
-      # ── Strimr iOS download stack core (model + manager only) ────────────
-      - path: ../../strimr/Strimr-iOS/Features/Downloads/DownloadManager.swift
-        name: StrimrIOSDownloadManager
-      - path: ../../strimr/Strimr-iOS/Features/Downloads/DownloadModels.swift
-        name: StrimrIOSDownloadModels
+          # tvOS ships paged focus-aware implementations with the same type
+          # names as the sequential shared iOS view models.
+          - "Features/Library/LibraryBrowseViewModel.swift"
+          - "Features/Library/LibraryCollectionsViewModel.swift"
 
       # ── Strimr tvOS-specific UI features ────────────────────────────────
       - path: ../../strimr/Strimr-tvOS/Features
@@ -276,8 +271,6 @@ targets:
           - "Tab/**"
           # Plinx uses its own sign-in and does not need Strimr's tvOS sign-in view.
           - "Auth/SignInTVView.swift"
-          # Watch Together is currently dormant in Plinx and can be omitted on tvOS.
-          - "WatchTogether/**"
 
       # ── Strimr tvOS shared UI components ────────────────────────────────
       - path: ../../strimr/Strimr-tvOS/Shared
@@ -291,8 +284,8 @@ targets:
     dependencies:
       - package: PlinxCore
       - package: PlinxUI
-      - package: MPVKit
-        product: MPVKit-GPL
+      - package: AetherEngine
+        product: AetherEngine
 
     info:
       path: Resources/Info-tvOS.plist

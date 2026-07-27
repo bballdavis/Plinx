@@ -88,7 +88,8 @@ Store final captures in `screenshots/app-store/`, flatten alpha with `scripts/fl
 - P0 parental, content, playlist, playback, and offline authorization tests pass.
 - Clean iPhone and iPad Release builds pass with the pinned Xcode/runtime.
 - Signed archive passes `scripts/tests/validate_testflight_archive.sh`.
-- Xcode privacy report is reviewed for the app, Strimr, MPVKit, and embedded frameworks.
+- Xcode privacy report is reviewed for the app, Strimr, AetherEngine, and
+  embedded frameworks.
 - Privacy and support URLs are public.
 - Corresponding-source bundle is generated and GPL/EULA distribution is reviewed.
 - Reviewer account and instructions pass on a fresh device.

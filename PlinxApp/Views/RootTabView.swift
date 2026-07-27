@@ -61,6 +61,7 @@ struct RootTabView: View {
     @Environment(DownloadManager.self) private var downloadManager
     @Environment(ParentalAccessCoordinator.self) private var parentalAccessCoordinator
     @Environment(DownloadOwnershipStore.self) private var downloadOwnershipStore
+    @Environment(SharePlayCoordinator.self) private var sharePlayCoordinator
     @EnvironmentObject private var mainCoordinator: MainCoordinator
     @Environment(\.safetyPolicy) private var safetyPolicy
 
@@ -189,6 +190,9 @@ struct RootTabView: View {
 
     var body: some View {
         mainTabView
+            .onAppear {
+                sharePlayCoordinator.configurePlaybackLauncher(launcher)
+            }
             #if os(tvOS)
             .allowsHitTesting(selectedQuickActionMedia == nil)
             #endif
@@ -750,8 +754,14 @@ struct RootTabView: View {
                 onPlay: { ratingKey, type in
                     startPlayback(ratingKey: ratingKey, type: type)
                 },
+                onShuffle: { ratingKey, type in
+                    startPlayback(ratingKey: ratingKey, type: type, shuffle: true)
+                },
                 onSelectRelated: { displayItem in
                     mainCoordinator.showMediaDetail(displayItem)
+                },
+                onSelectParentSeries: { series in
+                    mainCoordinator.returnToSeries(series)
                 }
             )
         case let .collectionDetail(collection):
@@ -786,7 +796,23 @@ struct RootTabView: View {
                     startPlayback(ratingKey: media.id, type: media.type)
                 }
             )
+        case let .hubDetail(hub):
+            HubDetailView(
+                viewModel: makeHubDetailViewModel(hub: hub),
+                onSelectMedia: { displayItem in
+                    mainCoordinator.showMediaDetail(displayItem)
+                }
+            )
         }
+    }
+
+    private func makeHubDetailViewModel(hub: Hub) -> HubDetailViewModel {
+        let viewModel = HubDetailViewModel(hub: hub, context: plexApiContext)
+        let policy = safetyPolicy
+        viewModel.itemFilter = {
+            StrimrAdapter.isAllowed($0, policy: policy)
+        }
+        return viewModel
     }
 
     private func handlePrimarySelection(_ displayItem: MediaDisplayItem) {
@@ -803,12 +829,14 @@ struct RootTabView: View {
     private func startPlayback(
         ratingKey: String,
         type: PlexItemType,
+        shuffle: Bool = false,
         shouldResumeFromOffset: Bool = true
     ) {
         Task { @MainActor in
             let result = await launcher.play(
                 ratingKey: ratingKey,
                 type: type,
+                shuffle: shuffle,
                 shouldResumeFromOffset: shouldResumeFromOffset
             )
             switch result {

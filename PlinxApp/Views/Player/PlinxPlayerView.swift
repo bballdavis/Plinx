@@ -22,7 +22,7 @@ struct PlinxPlayerView: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            // Strimr's proven player engine (MPVKit-backed)
+            // Strimr's AetherEngine-backed player surface.
             #if os(tvOS)
             PlayerTVWrapper(
                 viewModel: viewModel,

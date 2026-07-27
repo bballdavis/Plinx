@@ -8,10 +8,11 @@ Sibling checkouts should look like:
 Repos/
   Plinx/
   strimr/
-  MPVKit/
 ```
 
 Plinx runtime builds currently expect the Strimr checkout at `../strimr` relative to the repo root and `../../strimr` relative to `PlinxApp/project.yml`.
+AetherEngine is resolved by Swift Package Manager at the exact revision pinned
+in `project.yml`; it is no longer a sibling checkout.
 
 ## Branch Pairing
 
@@ -19,6 +20,11 @@ Stable branch pairing:
 
 - Plinx `main` <-> Strimr `plinx-patches`
 - Plinx `dev` <-> Strimr `dev-plinx`
+
+Plinx `dev` currently pins Strimr `dev-plinx` at
+`c925d449c724c2e0ed8cbad2c4c6c83ec3ae2149`, based on upstream `main` at
+`e0a8cbc`. CI and release builds use that exact commit rather than resolving a
+moving branch head.
 
 See `docs/development/branch-pairing.md` for commands and day-to-day verification steps.
 
@@ -49,6 +55,12 @@ Patch the Strimr fork when the fix is generic and would still matter without the
 - shared models and stores
 - engine-level concurrency or lifecycle bugs
 
+The migration keeps Plinx-only presentation, maximum-volume policy, and
+fail-closed playback authorization out of generic upstream PRs. Reusable
+filtering injection points, strict Plex boolean decoding, clip support, and the
+SharePlay presentation policy are maintained as independently reviewable
+upstream candidates.
+
 ## Upstream PR Candidate Criteria
 
 Flag a Strimr-side change as an upstream candidate when it is:
@@ -66,7 +78,8 @@ When a Plinx need forces a Strimr patch, document:
 
 ## Current Release Patch
 
-The pinned release applies `patches/strimr-volume-cap.patch`. The Strimr edit is limited to player injection points that cannot be supplied by a Plinx decorator:
+The pinned `dev-plinx` revision contains the Strimr-side injection points that
+cannot be supplied by a Plinx decorator:
 
 - tvOS playback-gain propagation and MPV lifecycle reapplication;
 - an optional authorization callback before autoplay or next-queue playback on iOS and tvOS.

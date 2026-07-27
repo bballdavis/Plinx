@@ -15,6 +15,8 @@ Current implementation anchors:
 - `PlinxApp/Resources/PrivacyInfo.xcprivacy` declares no tracking or collected data types and declares approved reasons for app-local `UserDefaults` and user-visible disk-space checks
 - `PlinxApp/App/ErrorReporter.swift` is a no-op reporter so no crash or analytics SDK is active
 - `PlinxApp/project.yml` excludes Strimr's reporting implementation and wires in the no-op replacement
+- the resolved Plinx package graph excludes Sentry even though upstream Strimr
+  can use it in its own standalone targets
 
 Do not add analytics, crash reporting, telemetry, or usage tracking without explicitly changing product policy and documentation first.
 
@@ -27,8 +29,13 @@ Safety-critical behavior lives primarily in:
   rate-limits PIN attempts, relocks when protected UI closes or the app
   backgrounds, and fails closed when Keychain is unavailable
 - Plinx adapters/decorators that filter or reshape upstream content before display
-- the final playback authorizer, which fetches current metadata and rechecks every play queue before handing it to a player
+- `PlinxPlaybackLauncher`, which refetches current metadata and rechecks every
+  play-queue member before local or SharePlay-initiated playback is presented
 - `DownloadOwnershipStore`, which keeps offline media scoped to the Plex server/profile that created it
+
+Strimr view models expose item/hub filters, but Plinx supplies the policies.
+Incoming SharePlay activity uses the same launcher boundary, and kid-facing
+SharePlay initiation controls are hidden through an environment policy.
 
 Safety behavior should fail closed whenever possible. If filtering metadata is missing or uncertain, the default should not broaden kid-facing visibility by accident.
 
@@ -38,9 +45,9 @@ All libraries are visible by default, but visibility is independent from content
 
 - No external links in kid-facing UI.
 - Any legal, attribution, or source links belong behind parental gate or settings surfaces.
-- Legacy VLC and Infuse selections are migrated to Plinx's MPV player. The
-  first release does not hand playback to an external app because doing so
-  would bypass Plinx's content checks and playback-level cap.
+- AetherEngine is the only in-app playback engine. Plinx does not hand playback
+  to an external app because doing so would bypass content checks and the
+  playback-level cap.
 - Repository docs and release material may link externally; the restriction applies to the app experience.
 
 ## Secrets Handling
