@@ -29,7 +29,8 @@ struct LifecycleHardeningModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .onChange(of: scenePhase) { newPhase in
+            .onChange(of: scenePhase) {
+                let newPhase = scenePhase
                 if newPhase == .background {
                     coordinator.handleBackgrounding()
 
