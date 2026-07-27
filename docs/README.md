@@ -1,8 +1,12 @@
-# Plinx Engineering Docs
+# Plinx Documentation
 
 ## Read This First
 
-Use this directory as the canonical engineering source of truth for Plinx.
+Use this directory as the canonical Markdown source of truth for Plinx. The
+public Docusaurus site in `website/` renders these files without duplicating
+their content.
+
+For family-facing guidance, begin with `docs/welcome.md` and `docs/user/`.
 
 Recommended reading order for most work:
 
@@ -29,6 +33,7 @@ Recommended reading order for most work:
 | App Store submission copy | `docs/release/app-store.md` |
 | Strimr upgrade decision and upstream contribution queue | `docs/maintenance/strimr-upstream-audit-2026-07-25.md` |
 | Future cleanup candidates outside this pass | `docs/maintenance/cleanup-roadmap.md` |
+| Current pinned Strimr, AetherEngine, and Xcode versions | `docs/maintenance/current-dependencies.mdx` |
 
 ## Repo Map
 
@@ -44,6 +49,7 @@ Recommended reading order for most work:
 | `assets/branding/` | Marketing/reference brand assets | Canonical reference assets |
 | `screenshots/` | Product screenshots for docs/store material | Reference material |
 | `docs/` | Engineering documentation | Canonical |
+| `website/` | Docusaurus renderer, navigation, and theme | Canonical presentation layer; not a second doc source |
 | `PlinxApp/Plinx.xcodeproj/`, `build/`, `.build/`, `.swiftpm/`, `DerivedData/` | Generated local artifacts | Never source of truth |
 
 ## Change Matrix
@@ -56,5 +62,6 @@ Recommended reading order for most work:
 | Safety, privacy, logging, secrets, or parental gate behavior | `docs/security/privacy-and-safety.md`, `docs/development/testing.md` | Safety/unit tests, targeted UI tests, release/archive validation when applicable |
 | Scripts, CI, or contributor workflow | `docs/development/setup.md`, `docs/development/testing.md`, `docs/development/ci.md` | Run the modified script locally when possible; run docs guard |
 | Release metadata or submission workflow | `docs/release/app-store.md`, `docs/development/ci.md` | Archive validation and any release-script checks touched by the change |
+| User-facing product behavior, support, or privacy disclosure | `docs/user/`, `PRIVACY_POLICY.md` when legal disclosure changes | Documentation site build plus focused app validation |
 
 When a change does not alter the source of truth, still refresh the relevant doc in the same PR or confirm that no update was needed.

@@ -27,6 +27,17 @@ It currently enforces:
 - Xcode project generation
 - iPhone and iPad app builds and app unit/UI tests
 
+## Documentation Workflow
+
+`.github/workflows/docs.yml` runs the documentation tests, TypeScript
+type-check, and production Docusaurus build for pull requests targeting `dev`
+or `main`. Every push to `main` rebuilds the same site and deploys it to GitHub
+Pages.
+
+The workflow uses an Ubuntu runner and deploys only after a successful build.
+The site reads its current dependency status at build time from the pinned
+configuration, so deployment does not move or resolve any dependency.
+
 ## Docs Guard
 
 CI includes a documentation guard job that verifies:
@@ -35,6 +46,8 @@ CI includes a documentation guard job that verifies:
 - obsolete path references are not reintroduced
 - duplicate instruction-style references are not reintroduced outside `AGENTS.md`
 - PRs that change code, scripts, workflows, or key root files also update repository guidance
+- the Docusaurus source and required user/maintenance entry points exist
+- current Strimr revisions are not copied into pairing narrative pages
 
 Use the same validation locally with:
 

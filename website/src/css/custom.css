@@ -1,0 +1,34 @@
+:root {
+  --ifm-color-primary: #218f82;
+  --ifm-color-primary-dark: #1e8175;
+  --ifm-color-primary-darker: #1c796e;
+  --ifm-color-primary-darkest: #17645b;
+  --ifm-color-primary-light: #269d8f;
+  --ifm-color-primary-lighter: #29a597;
+  --ifm-color-primary-lightest: #48b9ac;
+  --ifm-font-family-base: ui-rounded, "SF Pro Rounded", "Avenir Next", system-ui, sans-serif;
+  --ifm-heading-font-family: ui-rounded, "SF Pro Rounded", "Avenir Next", system-ui, sans-serif;
+  --ifm-code-font-size: 92%;
+  --plinx-surface: #ffffff;
+}
+
+[data-theme='dark'] {
+  --ifm-background-color: #0c1210;
+  --ifm-background-surface-color: #18211d;
+  --ifm-color-emphasis-200: #33423b;
+  --ifm-color-emphasis-300: #42554b;
+  --ifm-font-color-base: #f4f7f3;
+  --plinx-surface: #18211d;
+}
+
+.navbar {
+  backdrop-filter: blur(16px);
+  background: color-mix(in srgb, var(--ifm-background-color) 86%, transparent);
+}
+
+.navbar__logo img { border-radius: 0.55rem; }
+.button--secondary { border-color: currentColor; background: transparent; color: inherit; }
+.button--secondary:hover { background: rgba(0, 0, 0, 0.08); color: inherit; }
+[data-theme='dark'] .button--secondary:hover { background: rgba(255, 255, 255, 0.12); }
+
+table { display: table; width: 100%; }

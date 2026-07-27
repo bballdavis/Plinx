@@ -57,6 +57,11 @@ Select the `Plinx-iOS` scheme and an iPhone or iPad simulator, then build and ru
 
 ### From The Command Line
 
+The repository scripts use Bash and can be launched directly from any shell.
+Prefer the repository-relative form below; if explicitly launched with `zsh
+./scripts/run_iphone_sim.sh`, the script re-enters through Bash before resolving
+its repository-relative paths.
+
 ```bash
 cd PlinxApp
 xcodebuild build \
@@ -86,6 +91,19 @@ xcodegen generate
 ## Testing
 
 Use `docs/development/testing.md` as the canonical test index and `docs/development/ui-testing.md` for snapshot/UI strategy details.
+
+## Documentation Site
+
+The Docusaurus site renders the repository's `docs/` directory directly. From
+the repository root, install and preview it with:
+
+```bash
+npm ci --prefix website
+npm run start --prefix website
+```
+
+Use `npm run build --prefix website` before changing documentation navigation,
+links, theme, generated dependency status, or deployment configuration.
 
 ## Troubleshooting
 

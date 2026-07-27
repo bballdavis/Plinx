@@ -18,13 +18,13 @@ in `project.yml`; it is no longer a sibling checkout.
 
 Stable branch pairing:
 
-- Plinx `main` <-> Strimr `plinx-patches`
-- Plinx `dev` <-> Strimr `dev-plinx`
+- Plinx `main` ↔ Strimr `plinx-patches`
+- Plinx `dev` ↔ Strimr `dev-plinx`
 
-Plinx `dev` currently pins Strimr `dev-plinx` at
-`0ac2a8e6d139640c0a778f730a417485c13427aa`, based on upstream `main` at
-`e0a8cbc`. CI and release builds use that exact commit rather than resolving a
-moving branch head.
+CI and release builds use an exact configured Strimr commit rather than
+resolving a moving branch head. View the branch, commit, and upstream base on
+the generated [current dependency status](../maintenance/current-dependencies.mdx)
+page.
 
 See `docs/development/branch-pairing.md` for commands and day-to-day verification steps.
 

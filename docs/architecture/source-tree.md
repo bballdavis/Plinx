@@ -8,7 +8,8 @@
 | `Packages/` | Canonical package source | Plinx-owned packages plus the Strimr wrapper/migration package |
 | `scripts/` | Canonical tooling | Build, test, simulator, validation, and CI-support scripts |
 | `.github/workflows/` | Canonical automation | CI policy and build/test orchestration |
-| `docs/` | Canonical documentation | Source of truth for engineering structure and workflow |
+| `docs/` | Canonical documentation | Source of truth for user and engineering Markdown content |
+| `website/` | Documentation presentation | Docusaurus renderer, theme, navigation, and build-only dependency status |
 | `assets/branding/` | Canonical reference assets | Marketing/reference logos and app-store artwork |
 | `screenshots/` | Reference material | Product screenshots for docs and release assets |
 | `README.md`, `PRIVACY_POLICY.md`, `LICENSE`, `AGENTS.md` | Canonical root docs | Minimal root-level documentation set |
@@ -55,6 +56,14 @@ Canonical for developer workflows. If a command is expected to be repeated, docu
 ### `.github/workflows/`
 
 Canonical for CI and policy enforcement. If the workflow changes, update `docs/development/ci.md` in the same PR.
+
+### `website/`
+
+The Docusaurus site renders `docs/` directly and deploys through GitHub Pages.
+Keep product and engineering prose in `docs/`; use `website/` only for site
+configuration, reusable presentation components, navigation, theme styling,
+and build-time data loaders. It must not add analytics, remote search, or
+third-party tracking.
 
 ### Root Docs
 

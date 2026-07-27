@@ -1,4 +1,9 @@
 #!/bin/bash
+
+if [ -z "${BASH_VERSION:-}" ]; then
+  exec /bin/bash "$0" "$@"
+fi
+
 set -euo pipefail
 
 # Verifies the Plinx <-> Strimr source-integration contract without changing

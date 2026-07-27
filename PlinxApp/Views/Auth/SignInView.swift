@@ -38,8 +38,13 @@ struct SignInView: View {
         #else
         GeometryReader { proxy in
             ZStack {
-                Color.appBackground
-                    .ignoresSafeArea()
+                if proxy.size.width >= 700 {
+                    portalBackground(expandedLayout: true)
+                        .ignoresSafeArea()
+                } else {
+                    Color.appBackground
+                        .ignoresSafeArea()
+                }
 
                 RadialGradient(
                     colors: [
@@ -53,13 +58,15 @@ struct SignInView: View {
                 .ignoresSafeArea()
 
                 ScrollView {
-                    guidedPortal
+                    let expandedLayout = proxy.size.width >= 700
+
+                    guidedPortal(expandedLayout: expandedLayout)
                         .frame(
-                            maxWidth: 620,
+                            maxWidth: expandedLayout ? .infinity : 620,
                             minHeight: max(680, proxy.size.height - 28)
                         )
-                        .padding(.horizontal, 28)
-                        .padding(.vertical, 14)
+                        .padding(.horizontal, expandedLayout ? 0 : 28)
+                        .padding(.vertical, expandedLayout ? 0 : 14)
                         .frame(maxWidth: .infinity)
                 }
                 .scrollIndicators(.hidden)
@@ -69,17 +76,17 @@ struct SignInView: View {
     }
 
     #if !os(tvOS)
-    private var guidedPortal: some View {
+    private func guidedPortal(expandedLayout: Bool) -> some View {
         VStack(spacing: 0) {
             PlinxBrandLogoView(
                 preferredAssetName: PlinxBrandingSemantics.fullColorLogoAssetName,
                 accessibilityIdentifier: "signIn.logo.fullColor",
-                maxWidth: 220
+                maxWidth: expandedLayout ? 280 : 220
             )
-            .padding(.top, 96)
+            .padding(.top, expandedLayout ? 64 : 96)
 
             Spacer()
-                .frame(height: 108)
+                .frame(height: expandedLayout ? 52 : 108)
 
             VStack(spacing: 18) {
                 Label {
@@ -105,11 +112,11 @@ struct SignInView: View {
                 .lineLimit(1)
 
                 Text("signIn.portal.title", tableName: "Plinx")
-                    .font(.system(size: 39, weight: .bold, design: .rounded))
+                    .font(.system(size: expandedLayout ? 52 : 39, weight: .bold, design: .rounded))
                     .minimumScaleFactor(0.82)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(Color.white)
-                    .frame(maxWidth: 430)
+                    .frame(maxWidth: expandedLayout ? 680 : 430)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("signIn.portal.title")
 
@@ -117,12 +124,12 @@ struct SignInView: View {
                     .font(.system(.body, design: .rounded, weight: .medium))
                     .multilineTextAlignment(.center)
                     .foregroundStyle(Color(red: 0.65, green: 0.94, blue: 0.76))
-                    .frame(maxWidth: 430)
+                    .frame(maxWidth: expandedLayout ? 680 : 430)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.horizontal, 28)
+            .padding(.horizontal, expandedLayout ? 64 : 28)
 
-            Spacer(minLength: 44)
+            Spacer(minLength: expandedLayout ? 32 : 44)
 
             if let error = viewModel.errorMessage {
                 Label {
@@ -134,7 +141,7 @@ struct SignInView: View {
                 }
                 .foregroundStyle(Color.white)
                 .multilineTextAlignment(.leading)
-                .padding(.horizontal, 16)
+                .padding(.horizontal, expandedLayout ? 64 : 16)
                 .padding(.vertical, 12)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(
@@ -166,8 +173,8 @@ struct SignInView: View {
                     .minimumScaleFactor(0.75)
                 }
                 .foregroundStyle(Color.white)
-                .frame(maxWidth: .infinity, minHeight: 90)
-                .padding(.horizontal, 20)
+                .frame(maxWidth: .infinity, minHeight: expandedLayout ? 104 : 90)
+                .padding(.horizontal, expandedLayout ? 48 : 20)
                 .background(
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
                         .fill(
@@ -202,23 +209,41 @@ struct SignInView: View {
             .accessibilityIdentifier("signIn.primaryButton")
             .accessibilityValue(PlinxBrandingSemantics.signInPrimaryButtonStyleValue)
             .dynamicTypeSize(...DynamicTypeSize.accessibility1)
-            .padding(.horizontal, 16)
-            .padding(.bottom, 56)
+            .padding(.horizontal, expandedLayout ? 64 : 16)
+            .padding(.bottom, expandedLayout ? 48 : 56)
         }
-        .background(
-            RoundedRectangle(cornerRadius: 42, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(red: 0.69, green: 0.88, blue: 0.43),
-                            Color(red: 0.15, green: 0.61, blue: 0.47),
-                            Color(red: 0.02, green: 0.39, blue: 0.39),
-                            Color(red: 0.02, green: 0.17, blue: 0.18)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
+        .background {
+            portalBackground(expandedLayout: expandedLayout)
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    @ViewBuilder
+    private func portalBackground(expandedLayout: Bool) -> some View {
+        let gradient = LinearGradient(
+            colors: [
+                Color(red: 0.69, green: 0.88, blue: 0.43),
+                Color(red: 0.15, green: 0.61, blue: 0.47),
+                Color(red: 0.02, green: 0.39, blue: 0.39),
+                Color(red: 0.02, green: 0.17, blue: 0.18)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+
+        if expandedLayout {
+            gradient
+                .overlay(
+                    RadialGradient(
+                        colors: [Color.white.opacity(0.18), .clear],
+                        center: .topLeading,
+                        startRadius: 20,
+                        endRadius: 720
                     )
                 )
+        } else {
+            RoundedRectangle(cornerRadius: 42, style: .continuous)
+                .fill(gradient)
                 .overlay(
                     RoundedRectangle(cornerRadius: 42, style: .continuous)
                         .fill(
@@ -245,8 +270,7 @@ struct SignInView: View {
                         )
                 )
                 .shadow(color: Color.accentColor.opacity(0.26), radius: 24, x: 0, y: 10)
-        )
-        .accessibilityElement(children: .contain)
+        }
     }
     #endif
 }

@@ -1,5 +1,9 @@
 #!/bin/bash
 
+if [ -z "${BASH_VERSION:-}" ]; then
+  exec /bin/bash "$0" "$@"
+fi
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -32,6 +36,14 @@ required_files=(
   "docs/security/privacy-and-safety.md"
   "docs/release/app-store.md"
   "docs/maintenance/cleanup-roadmap.md"
+  "docs/welcome.md"
+  "docs/user/getting-started.md"
+  "docs/user/parent-guide.md"
+  "docs/maintenance/current-dependencies.mdx"
+  "website/package.json"
+  "website/docusaurus.config.ts"
+  "website/sidebars.ts"
+  "website/src/plugins/dependencyStatus.mjs"
 )
 
 check_required_files() {
@@ -121,6 +133,32 @@ check_forbidden_content() {
   pass "Forbidden references are absent"
 }
 
+check_dependency_documentation_contract() {
+  info "Checking dependency documentation contract"
+
+  # shellcheck disable=SC1091
+  source config/release-dependencies.env
+
+  local narrative_files=(
+    "docs/development/branch-pairing.md"
+    "docs/architecture/strimr-integration.md"
+  )
+  local file
+  for file in "${narrative_files[@]}"; do
+    if rg -F -- "$STRIMR_COMMIT" "$file" >/dev/null; then
+      fail "Current STRIMR_COMMIT is duplicated in narrative documentation: $file"
+    fi
+    if rg -F -- "$STRIMR_UPSTREAM_BASE" "$file" >/dev/null; then
+      fail "Current STRIMR_UPSTREAM_BASE is duplicated in narrative documentation: $file"
+    fi
+  done
+
+  rg -F -- "current-dependencies" docs/development/branch-pairing.md docs/architecture/strimr-integration.md >/dev/null \
+    || fail "Strimr pairing documentation must link to the generated dependency status page"
+
+  pass "Dependency documentation contract is intact"
+}
+
 check_pr_diff_requirements() {
   if [[ "${GITHUB_EVENT_NAME:-}" != "pull_request" || -z "${GITHUB_BASE_REF:-}" ]]; then
     info "Skipping PR diff requirement check outside pull_request context"
@@ -155,6 +193,7 @@ check_pr_diff_requirements() {
 main() {
   check_required_files
   check_forbidden_content
+  check_dependency_documentation_contract
   check_pr_diff_requirements
   pass "Docs guard passed"
 }

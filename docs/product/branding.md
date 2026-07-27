@@ -229,10 +229,16 @@ The sign-in surface uses the guided portal direction:
 - one oversized, bottom-anchored primary action with a dark teal base and accent-aware stroke/glow
 - errors contained inside the portal immediately above the primary action
 
-The portal must remain centered and width-constrained on iPad, expand vertically
-for Dynamic Type, and scroll rather than clip on compact-height devices. The
-user-selectable accent may tint interactive emphasis, but it must not replace
-the foundational green-to-teal portal gradient.
+The compact portal must remain centered and width-constrained on iPhone,
+expand vertically for Dynamic Type, and scroll rather than clip on compact-height
+devices. The user-selectable accent may tint interactive emphasis, but it must
+not replace the foundational green-to-teal portal gradient.
+
+On iPad, the sign-in surface is an edge-to-edge branded screen rather than an
+iPhone-sized card centered inside a dark surround. Use the full canvas for the
+gradient, increase the logo and display type modestly, and give the primary
+action a wider target while preserving the centered reading order. Keep the
+compact rounded portal treatment for iPhone widths.
 
 On tvOS, adapt the same hierarchy to one wide, overscan-safe portal:
 

@@ -1,4 +1,9 @@
 #!/bin/bash
+
+if [ -z "${BASH_VERSION:-}" ]; then
+    exec /bin/bash "$0" "$@"
+fi
+
 # ─────────────────────────────────────────────────────────────────────────────
 # scripts/strimr/run_ipad_sim.sh — Build and run the Strimr iOS app on iPad Simulator
 # ─────────────────────────────────────────────────────────────────────────────

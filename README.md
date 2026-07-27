@@ -155,6 +155,12 @@ Want to build, contribute, or run Plinx locally? Start with [docs/development/se
 
 The app is open source under GPL-3.0. See [LICENSE](LICENSE) for details.
 
+## Documentation
+
+The full user, parent, contributor, architecture, and maintenance guide is
+published at [bballdavis.github.io/Plinx](https://bballdavis.github.io/Plinx/)
+whenever changes are merged to `main`.
+
 ---
 
 ## Support

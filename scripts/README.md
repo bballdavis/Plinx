@@ -1,5 +1,9 @@
 # Plinx Build & Run Scripts
 
+All executable scripts use Bash. They can be invoked directly from any shell,
+for example `./scripts/run_ipad_sim.sh`; if launched with `zsh script.sh`, they
+re-enter through Bash before resolving repository-relative paths.
+
 Convenient shell scripts for building and running the Plinx iOS app on the simulator, plus UI/logic tests.
 
 ## Strimr Source Of Truth

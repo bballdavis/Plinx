@@ -1,0 +1,24 @@
+---
+sidebar_position: 1
+---
+
+import DependencyStatus from '@site/src/components/DependencyStatus';
+
+# Current dependencies
+
+This page is generated during the documentation build from the repository's
+machine-readable configuration. It is the current status view, not a second
+source of truth.
+
+<DependencyStatus />
+
+## Updating Strimr
+
+The exact commit is intentional. Plinx compiles selected Strimr source directly
+and relies on verified seams, so an upstream update is a manual compatibility
+operation rather than an automatic branch-head update.
+
+Follow the [branch pairing guide](../development/branch-pairing.md) when you
+prepare, test, promote, or roll back a Strimr candidate. Update the dependency
+configuration only after the candidate's seam checks, relevant tests, and
+paired builds have passed.

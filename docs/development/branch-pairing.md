@@ -9,11 +9,9 @@ The machine-readable source of truth is
 `config/release-dependencies.env`. It records the exact release commit, the
 paired branch, the upstream base, and the source seams that Plinx compiles.
 
-Current pinned development pairing:
-
-- Plinx `dev`
-- Strimr `dev-plinx` at
-  `0ac2a8e6d139640c0a778f730a417485c13427aa`
+The current branch, exact Strimr commit, and upstream base are displayed from
+the canonical configuration on the [current dependency status](../maintenance/current-dependencies.mdx)
+page. Do not duplicate those moving values in this guide.
 
 ## Expected Local Layout
 
@@ -55,7 +53,7 @@ the downstream patch stack.
 Never rebase the published `dev-plinx` branch in place while Plinx points to
 it. Treat it as the currently promoted integration release.
 
-1. Fetch `upstream/main` and create `candidate/plinx-<upstream-short-sha>` from
+1. Fetch `upstream/main` and create a `candidate/plinx-<upstream-short-sha>` branch from
    the new upstream commit. Reapply the downstream commits there as a linear
    patch train; do not merge upstream into the candidate.
 2. Compare the old and candidate stacks with `git range-diff`, review every
