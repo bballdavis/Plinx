@@ -215,7 +215,7 @@ struct YoutarrRequestsView: View {
             }
         }
         .navigationTitle(Text("youtarr.requests.title", tableName: "Plinx"))
-        .navigationBarTitleDisplayMode(.inline)
+        .youtarrRequestsInlineNavigationTitle()
         .task {
             await viewModel.appear()
         }
@@ -261,6 +261,17 @@ struct YoutarrRequestsView: View {
         .refreshable {
             await viewModel.reload()
         }
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func youtarrRequestsInlineNavigationTitle() -> some View {
+#if os(iOS)
+        navigationBarTitleDisplayMode(.inline)
+#else
+        self
+#endif
     }
 }
 

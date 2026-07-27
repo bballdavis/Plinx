@@ -28,6 +28,22 @@ git status                     # Verify clean working tree
 
 If `../strimr` is on the wrong branch or has uncommitted changes, the build can pick up the wrong engine code. Developers are responsible for managing both local git states intentionally.
 
+Run the pairing verifier before a combined build:
+
+```bash
+# Verify source roots and required Strimr seam symbols.
+./scripts/verify_strimr_integration_contract.sh --quick
+
+# Also require a clean sibling, exact pin, expected branch, upstream ancestry,
+# and a linear downstream patch stack.
+./scripts/verify_strimr_integration_contract.sh --full
+```
+
+The exact pairing and seam inventory live in
+`config/release-dependencies.env`. See
+[`docs/development/branch-pairing.md`](../docs/development/branch-pairing.md)
+for candidate-update workflow and CI behavior.
+
 ## Scripts
 
 ### `generate_xcodeproj.sh` — Generate the App Project

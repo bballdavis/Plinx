@@ -22,11 +22,22 @@ Stable branch pairing:
 - Plinx `dev` <-> Strimr `dev-plinx`
 
 Plinx `dev` currently pins Strimr `dev-plinx` at
-`2eb041b2624d2f16fa93620c9b9a4b5b53c93c7d`, based on upstream `main` at
+`0ac2a8e6d139640c0a778f730a417485c13427aa`, based on upstream `main` at
 `e0a8cbc`. CI and release builds use that exact commit rather than resolving a
 moving branch head.
 
 See `docs/development/branch-pairing.md` for commands and day-to-day verification steps.
+
+## Integration Contract
+
+`config/release-dependencies.env` is the single machine-readable contract for
+the paired Strimr revision. Along with the exact commit, it records the paired
+branch, upstream base, Plinx-compiled source roots, and narrow source seams.
+`scripts/verify_strimr_integration_contract.sh --quick` verifies the static
+source integration; `--full` additionally verifies the local Git pairing is
+clean, pinned, based on the configured upstream commit, and linear. This keeps
+the same-module integration explicit without treating Strimr's moving branch
+head as a build dependency.
 
 ## When To Change Plinx Instead Of Strimr
 

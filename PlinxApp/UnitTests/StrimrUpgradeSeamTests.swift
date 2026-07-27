@@ -25,7 +25,7 @@ final class StrimrUpgradeSeamTests: XCTestCase {
     func test_flexiblePlexBooleanRejectsAmbiguousValues() {
         let decoder = JSONDecoder()
 
-        for json in ["2", "-1", "\"yes\"", "\"\""] {
+        for json in ["2", "-1", "\"yes\"", "\"\"", "null", "[]", "{}"] {
             XCTAssertThrowsError(
                 try decoder.decode(PlexFlexibleBool.self, from: Data(json.utf8)),
                 "Expected \(json) to be rejected"
@@ -59,5 +59,23 @@ final class StrimrUpgradeSeamTests: XCTestCase {
         )
 
         XCTAssertNil(MediaDetailViewModel.preferredTitleLogo(in: [poster]))
+    }
+
+    func test_titleLogoSelectionIsCaseInsensitiveAndKeepsSourceOrder() {
+        let firstLogo = PlexImage(
+            alt: "Primary title",
+            type: "CLEARLOGO",
+            url: URL(string: "https://example.test/first-logo.png")!
+        )
+        let laterLogo = PlexImage(
+            alt: "Alternate title",
+            type: "logo",
+            url: URL(string: "https://example.test/later-logo.png")!
+        )
+
+        XCTAssertEqual(
+            MediaDetailViewModel.preferredTitleLogo(in: [firstLogo, laterLogo]),
+            firstLogo
+        )
     }
 }

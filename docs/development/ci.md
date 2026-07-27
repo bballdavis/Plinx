@@ -20,10 +20,12 @@ The main CI workflow lives in `.github/workflows/build.yml`.
 It currently enforces:
 
 - documentation and repository-structure guardrails
+- the full Plinx↔Strimr contract after checking out the configured branch at
+  the exact pinned commit
 - `PlinxCore` package tests with coverage enforcement for safety-critical files
 - `PlinxUI` package tests
 - Xcode project generation
-- app build and app unit tests
+- iPhone and iPad app builds and app unit/UI tests
 
 ## Docs Guard
 
@@ -60,6 +62,19 @@ CI also:
 3. installs/verifies the pinned iOS runtime and creates iPhone/iPad devices
 4. builds `Plinx-iOS` for both simulator form factors
 5. runs the unit and UI suites on both destinations
+
+The workflow creates a local `dev-plinx` branch at the configured exact commit
+only inside its disposable clone, then runs:
+
+```bash
+./scripts/verify_strimr_integration_contract.sh --full
+```
+
+This is a read-only contract check. It confirms the sibling is clean, the
+branch and pin match `config/release-dependencies.env`, the configured upstream
+base is an ancestor, the downstream stack is linear, and the source seams that
+Plinx compiles still exist. It never pushes, rebases, or otherwise mutates a
+remote branch.
 
 ## What CI Does Not Cover By Default
 

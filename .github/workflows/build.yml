@@ -59,7 +59,10 @@ jobs:
             exit 1
           fi
           git clone --filter=blob:none "https://x-access-token:${AUTH_TOKEN}@github.com/${STRIMR_REPO}.git" ../strimr
-          git -C ../strimr checkout --detach "$STRIMR_COMMIT"
+          git -C ../strimr checkout --force -B "$STRIMR_BRANCH" "$STRIMR_COMMIT"
+
+      - name: Verify Strimr integration contract
+        run: bash ./scripts/verify_strimr_integration_contract.sh --full
 
       - name: Select pinned Xcode
         uses: maxim-lobanov/setup-xcode@v1
@@ -140,7 +143,10 @@ jobs:
             exit 1
           fi
           git clone --filter=blob:none "https://x-access-token:${AUTH_TOKEN}@github.com/${STRIMR_REPO}.git" ../strimr
-          git -C ../strimr checkout --detach "$STRIMR_COMMIT"
+          git -C ../strimr checkout --force -B "$STRIMR_BRANCH" "$STRIMR_COMMIT"
+
+      - name: Verify Strimr integration contract
+        run: bash ./scripts/verify_strimr_integration_contract.sh --full
 
       - name: Select pinned Xcode
         uses: maxim-lobanov/setup-xcode@v1

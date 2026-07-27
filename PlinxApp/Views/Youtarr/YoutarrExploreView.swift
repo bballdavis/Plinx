@@ -433,7 +433,7 @@ struct YoutarrExploreView: View {
             }
         }
         .navigationTitle(Text("youtarr.explore.title", tableName: "Plinx"))
-        .navigationBarTitleDisplayMode(.inline)
+        .youtarrInlineNavigationTitle()
         .toolbar {
             if let capabilities = viewModel.capabilities,
                YoutarrRequestCapabilityPolicy.canRead(capabilities) {
@@ -463,9 +463,8 @@ struct YoutarrExploreView: View {
                 .accessibilityIdentifier("youtarr.explore.close")
             }
         }
-        .searchable(
+        .youtarrSearchable(
             text: $viewModel.searchText,
-            placement: .navigationBarDrawer(displayMode: .always),
             prompt: Text("youtarr.explore.searchChannels", tableName: "Plinx")
         )
         .onSubmit(of: .search) {
@@ -585,7 +584,7 @@ private struct YoutarrChannelView: View {
             }
         }
         .navigationTitle(channel.title)
-        .navigationBarTitleDisplayMode(.inline)
+        .youtarrInlineNavigationTitle()
         .searchable(
             text: $viewModel.searchText,
             prompt: Text("youtarr.explore.searchVideos", tableName: "Plinx")
@@ -677,6 +676,30 @@ private struct YoutarrChannelView: View {
             await viewModel.requestVideo(video)
             requestTasks[video.youtubeId] = nil
         }
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func youtarrInlineNavigationTitle() -> some View {
+#if os(iOS)
+        navigationBarTitleDisplayMode(.inline)
+#else
+        self
+#endif
+    }
+
+    @ViewBuilder
+    func youtarrSearchable(text: Binding<String>, prompt: Text) -> some View {
+#if os(iOS)
+        searchable(
+            text: text,
+            placement: .navigationBarDrawer(displayMode: .always),
+            prompt: prompt
+        )
+#else
+        searchable(text: text, prompt: prompt)
+#endif
     }
 }
 

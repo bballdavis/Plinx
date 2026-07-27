@@ -37,6 +37,20 @@ xcodebuild test \
   CODE_SIGNING_ALLOWED=NO
 ```
 
+### Strimr integration contract
+
+```bash
+# Fast source-seam check
+./scripts/verify_strimr_integration_contract.sh --quick
+
+# CI-equivalent sibling checkout and history check
+./scripts/verify_strimr_integration_contract.sh --full
+```
+
+Use `--full` when changing the Strimr pin, branch pairing, XcodeGen source
+roots, or a Plinx↔Strimr seam. The focused `StrimrUpgradeSeamTests` remain the
+behavioral coverage for testable upstream seams.
+
 ### Snapshot tests
 
 ```bash
