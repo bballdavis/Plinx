@@ -130,6 +130,23 @@
 "youtarr.explore.downloaded" = "Downloaded";
 "youtarr.explore.requested" = "Requested";
 "youtarr.explore.rating.level" = "Rating level";
+"youtarr.request.action" = "Request";
+"youtarr.request.submitting" = "Sending request";
+"youtarr.request.retry" = "Try Request Again";
+"youtarr.request.failed" = "The request couldn’t be completed.";
+"youtarr.requests.title" = "My Requests";
+"youtarr.requests.loading" = "Loading Requests";
+"youtarr.requests.error" = "Requests Couldn’t Load";
+"youtarr.requests.empty" = "No Requests Yet";
+"youtarr.requests.empty.help" = "Videos you request from Explore will appear here.";
+"youtarr.requests.video" = "Video request";
+"youtarr.requests.status.pending" = "Waiting for approval";
+"youtarr.requests.status.approved" = "Approved";
+"youtarr.requests.status.processing" = "Preparing";
+"youtarr.requests.status.completed" = "Ready";
+"youtarr.requests.status.rejected" = "Not approved";
+"youtarr.requests.status.failed" = "Couldn’t complete";
+"youtarr.requests.status.cancelled" = "Cancelled";
 
 /* Settings — Home Screen */
 "settings.homescreen.title" = "Home Screen";

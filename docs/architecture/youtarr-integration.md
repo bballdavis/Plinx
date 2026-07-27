@@ -15,7 +15,20 @@ are represented by a generic in-app notice rather than exposing server text.
 
 The Explore presentation and navigation stack are entirely Plinx-owned.
 Strimr's coordinator and the paired Strimr/MPVKit repositories are unchanged.
-This browse slice displays download/request status but does not submit requests.
+
+Keys with the `requests` feature, `requests:read` scope, and a recognized role
+receive a My Requests surface. Video request buttons additionally require the
+`video:request` scope and a `request`, `delete`, or `admin` role. Plinx sends
+`POST /external-api/v1/requests/videos` with the video's YouTube ID, the
+numeric Youtarr channel database ID from the enclosing channel response, and a
+fresh UUID idempotency key. It updates catalog state only after Youtarr returns
+`created`, `duplicate`, or `already_downloaded`.
+
+My Requests reads the paginated `GET /external-api/v1/requests` contract and
+uses text plus system icons for every lifecycle state. While the screen is
+visible, it polls at a 15-second interval only if a request is pending,
+approved, or processing. Polling stops when all visible requests are terminal
+or the view disappears. Paging is capped at 100 server pages.
 
 `YoutarrConfigurationStore` stores only the normalized server address in
 `UserDefaults`. Its API key is held by Plinx's own Keychain wrapper. Both are

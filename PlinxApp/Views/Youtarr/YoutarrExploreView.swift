@@ -147,31 +147,39 @@ final class YoutarrChannelViewModel: ObservableObject {
     @Published private(set) var videos: [YoutarrVideo] = []
     @Published private(set) var isLoadingNextPage = false
     @Published private(set) var isFullyIndexed = true
+    @Published private(set) var requestStates: [String: YoutarrVideoActionState] = [:]
     @Published var searchText = ""
 
     let configuration: YoutarrConfiguration
     private let channel: YoutarrChannel
     private let client: YoutarrClient
+    private let requestService: any YoutarrRequestServing
     private let safetyPolicy: YoutarrExploreSafetyPolicy
+    private let canRequestVideos: Bool
     private var nextPage = 1
     private var totalPages = 1
     private var activeSearch = ""
     private var generation = 0
+    private var requestGenerations: [String: UUID] = [:]
 
     init(
         channel: YoutarrChannel,
         configuration: YoutarrConfiguration,
         capabilities: YoutarrCapabilities,
         localSafetyPolicy: SafetyPolicy,
-        client: YoutarrClient? = nil
+        client: YoutarrClient? = nil,
+        requestService: (any YoutarrRequestServing)? = nil
     ) {
+        let resolvedClient = client ?? YoutarrClient(configuration: configuration)
         self.channel = channel
         self.configuration = configuration
-        self.client = client ?? YoutarrClient(configuration: configuration)
+        self.client = resolvedClient
+        self.requestService = requestService ?? resolvedClient
         self.safetyPolicy = YoutarrExploreSafetyPolicy(
             serverPolicy: capabilities.policy,
             localPolicy: localSafetyPolicy
         )
+        self.canRequestVideos = YoutarrRequestCapabilityPolicy.canRequestVideos(capabilities)
     }
 
     func load() async {
@@ -185,6 +193,8 @@ final class YoutarrChannelViewModel: ObservableObject {
         let requestedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         phase = .loading
         videos = []
+        requestStates = [:]
+        requestGenerations = [:]
         isLoadingNextPage = false
         nextPage = 1
         totalPages = 1
@@ -238,6 +248,71 @@ final class YoutarrChannelViewModel: ObservableObject {
         }
     }
 
+    func requestState(for video: YoutarrVideo) -> YoutarrVideoActionState {
+        requestStates[video.youtubeId] ?? serverState(for: video)
+    }
+
+    func requestVideo(_ video: YoutarrVideo) async {
+        let currentState = requestState(for: video)
+        guard !currentState.preventsSubmission,
+              canRequestVideos,
+              !video.isDownloaded else {
+            return
+        }
+
+        let operationGeneration = generation
+        let requestGeneration = UUID()
+        requestGenerations[video.youtubeId] = requestGeneration
+        requestStates[video.youtubeId] = .submitting
+
+        do {
+            let response = try await requestService.requestVideo(
+                youtubeID: video.youtubeId,
+                channelID: channel.id,
+                idempotencyKey: UUID()
+            )
+            try Task.checkCancellation()
+            guard operationGeneration == generation,
+                  requestGenerations[video.youtubeId] == requestGeneration else {
+                return
+            }
+
+            switch response.outcome {
+            case .created, .duplicate:
+                let status = response.request?.status
+                requestStates[video.youtubeId] = actionState(for: status)
+                updateVideo(
+                    video.youtubeId,
+                    isDownloaded: false,
+                    isRequested: true,
+                    requestStatus: status?.rawValue
+                )
+            case .alreadyDownloaded:
+                requestStates[video.youtubeId] = .downloaded
+                updateVideo(
+                    video.youtubeId,
+                    isDownloaded: true,
+                    isRequested: false,
+                    requestStatus: nil
+                )
+            }
+        } catch is CancellationError {
+            guard operationGeneration == generation,
+                  requestGenerations[video.youtubeId] == requestGeneration else {
+                return
+            }
+            requestStates[video.youtubeId] = serverState(for: video)
+        } catch {
+            guard operationGeneration == generation,
+                  requestGenerations[video.youtubeId] == requestGeneration else {
+                return
+            }
+            requestStates[video.youtubeId] = .failed(
+                YoutarrExploreViewModel.message(for: error)
+            )
+        }
+    }
+
     private func loadUntilVisibleOrFinished(
         startingAt page: Int,
         search: String,
@@ -258,11 +333,63 @@ final class YoutarrChannelViewModel: ObservableObject {
             totalPages = max(1, response.pagination.totalPages)
             let visible = response.data.filter(safetyPolicy.allows)
             let existing = Set(videos.map(\.id))
-            videos.append(contentsOf: visible.filter { !existing.contains($0.id) })
+            let newVideos = visible.filter { !existing.contains($0.id) }
+            videos.append(contentsOf: newVideos)
+            for video in newVideos where requestStates[video.youtubeId] == nil {
+                requestStates[video.youtubeId] = serverState(for: video)
+            }
             foundVisibleVideo = !visible.isEmpty
             requestedPage += 1
             nextPage = requestedPage
         } while !foundVisibleVideo && requestedPage <= totalPages
+    }
+
+    private func serverState(for video: YoutarrVideo) -> YoutarrVideoActionState {
+        if video.isDownloaded {
+            return .downloaded
+        }
+        if video.isRequested {
+            return actionState(
+                for: video.requestStatus.flatMap(YoutarrRequestStatus.init(rawValue:))
+            )
+        }
+        return canRequestVideos ? .eligible : .unavailable
+    }
+
+    private func actionState(
+        for status: YoutarrRequestStatus?
+    ) -> YoutarrVideoActionState {
+        if status == .failed {
+            return .failed(YoutarrStrings.value("youtarr.request.failed"))
+        }
+        return .requested(status)
+    }
+
+    private func updateVideo(
+        _ youtubeID: String,
+        isDownloaded: Bool,
+        isRequested: Bool,
+        requestStatus: String?
+    ) {
+        guard let index = videos.firstIndex(where: { $0.youtubeId == youtubeID }) else {
+            return
+        }
+        let video = videos[index]
+        videos[index] = YoutarrVideo(
+            youtubeId: video.youtubeId,
+            title: video.title,
+            thumbnailUrl: video.thumbnailUrl,
+            publishedAt: video.publishedAt,
+            duration: video.duration,
+            description: video.description,
+            isDownloaded: isDownloaded,
+            isRequested: isRequested,
+            requestStatus: requestStatus,
+            rating: video.rating,
+            channelId: video.channelId,
+            channelTitle: video.channelTitle,
+            mediaType: video.mediaType
+        )
     }
 }
 
@@ -308,6 +435,22 @@ struct YoutarrExploreView: View {
         .navigationTitle(Text("youtarr.explore.title", tableName: "Plinx"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            if let capabilities = viewModel.capabilities,
+               YoutarrRequestCapabilityPolicy.canRead(capabilities) {
+                ToolbarItem(placement: .topBarLeading) {
+                    NavigationLink {
+                        YoutarrRequestsView(
+                            configuration: viewModel.configuration
+                        )
+                    } label: {
+                        Label(
+                            YoutarrStrings.value("youtarr.requests.title"),
+                            systemImage: "tray.full"
+                        )
+                    }
+                    .accessibilityIdentifier("youtarr.explore.myRequests")
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     dismiss()
@@ -402,6 +545,7 @@ private struct YoutarrChannelView: View {
     let channel: YoutarrChannel
     @StateObject private var viewModel: YoutarrChannelViewModel
     @State private var actionTask: Task<Void, Never>?
+    @State private var requestTasks: [String: Task<Void, Never>] = [:]
 
     init(
         channel: YoutarrChannel,
@@ -455,6 +599,8 @@ private struct YoutarrChannelView: View {
         .onDisappear {
             actionTask?.cancel()
             actionTask = nil
+            requestTasks.values.forEach { $0.cancel() }
+            requestTasks = [:]
         }
         .accessibilityIdentifier("youtarr.explore.channelDetail")
     }
@@ -491,7 +637,11 @@ private struct YoutarrChannelView: View {
                         ForEach(viewModel.videos) { video in
                             YoutarrVideoCard(
                                 video: video,
-                                configuration: viewModel.configuration
+                                configuration: viewModel.configuration,
+                                requestState: viewModel.requestState(for: video),
+                                requestAction: {
+                                    startRequest(video)
+                                }
                             )
                             .task {
                                 await viewModel.loadNextPageIfNeeded(after: video)
@@ -518,6 +668,14 @@ private struct YoutarrChannelView: View {
         actionTask?.cancel()
         actionTask = Task { @MainActor in
             await viewModel.submitSearch()
+        }
+    }
+
+    private func startRequest(_ video: YoutarrVideo) {
+        guard requestTasks[video.youtubeId] == nil else { return }
+        requestTasks[video.youtubeId] = Task { @MainActor in
+            await viewModel.requestVideo(video)
+            requestTasks[video.youtubeId] = nil
         }
     }
 }
@@ -575,6 +733,8 @@ private struct YoutarrChannelCard: View {
 private struct YoutarrVideoCard: View {
     let video: YoutarrVideo
     let configuration: YoutarrConfiguration
+    let requestState: YoutarrVideoActionState
+    let requestAction: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
@@ -619,6 +779,11 @@ private struct YoutarrVideoCard: View {
                         text: YoutarrStrings.value("youtarr.explore.downloaded"),
                         systemImage: "arrow.down.circle.fill"
                     )
+                } else if case .failed = requestState {
+                    YoutarrMetadataBadge(
+                        text: YoutarrStrings.value("youtarr.requests.status.failed"),
+                        systemImage: "exclamationmark.triangle.fill"
+                    )
                 } else if video.isRequested {
                     YoutarrMetadataBadge(
                         text: YoutarrStrings.value("youtarr.explore.requested"),
@@ -626,25 +791,75 @@ private struct YoutarrVideoCard: View {
                     )
                 }
             }
+
+            requestControl
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(accessibilitySummary)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("youtarr.explore.video.\(video.youtubeId)")
     }
 
-    private var accessibilitySummary: String {
-        var values = [video.title, video.channelTitle]
-        if let rating = video.rating?.displayValue {
-            values.append(rating)
+    @ViewBuilder
+    private var requestControl: some View {
+        switch requestState {
+        case .eligible:
+            Button(action: requestAction) {
+                Label(
+                    YoutarrStrings.value("youtarr.request.action"),
+                    systemImage: "plus.circle.fill"
+                )
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .accessibilityIdentifier("youtarr.request.video.\(video.youtubeId)")
+
+        case .submitting:
+            HStack {
+                ProgressView()
+                Text("youtarr.request.submitting", tableName: "Plinx")
+            }
+            .frame(maxWidth: .infinity)
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("youtarr.request.submitting.\(video.youtubeId)")
+
+        case .requested(let status):
+            Label(
+                status.map { YoutarrRequestPresentation.label(for: $0) }
+                    ?? YoutarrStrings.value("youtarr.explore.requested"),
+                systemImage: status.map { YoutarrRequestPresentation.systemImage(for: $0) }
+                    ?? "clock.fill"
+            )
+            .font(.callout.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .accessibilityIdentifier("youtarr.request.status.\(video.youtubeId)")
+
+        case .downloaded:
+            Label(
+                YoutarrStrings.value("youtarr.explore.downloaded"),
+                systemImage: "arrow.down.circle.fill"
+            )
+            .font(.callout.weight(.semibold))
+            .foregroundStyle(.secondary)
+
+        case .failed(let message):
+            VStack(alignment: .leading, spacing: 6) {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button(action: requestAction) {
+                    Label(
+                        YoutarrStrings.value("youtarr.request.retry"),
+                        systemImage: "arrow.clockwise"
+                    )
+                }
+                .buttonStyle(.bordered)
+            }
+
+        case .unavailable:
+            EmptyView()
         }
-        if video.isDownloaded {
-            values.append(YoutarrStrings.value("youtarr.explore.downloaded"))
-        } else if video.isRequested {
-            values.append(YoutarrStrings.value("youtarr.explore.requested"))
-        }
-        return values.joined(separator: ", ")
     }
+
 }
 
 private struct YoutarrMetadataBadge: View {
@@ -721,7 +936,7 @@ private struct YoutarrAuthenticatedImageView: View {
     }
 }
 
-private struct YoutarrExploreStateView: View {
+struct YoutarrExploreStateView: View {
     let systemImage: String
     let titleKey: String
     var messageKey: String?

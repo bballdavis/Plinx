@@ -228,6 +228,63 @@ struct YoutarrVideosResponse: Codable, Equatable, Sendable {
     let indexingHint: String?
 }
 
+enum YoutarrRequestStatus: String, Codable, CaseIterable, Equatable, Sendable {
+    case pending
+    case approved
+    case processing
+    case completed
+    case rejected
+    case failed
+    case cancelled
+
+    var isActive: Bool {
+        switch self {
+        case .pending, .approved, .processing:
+            return true
+        case .completed, .rejected, .failed, .cancelled:
+            return false
+        }
+    }
+}
+
+struct YoutarrRequestTarget: Codable, Equatable, Sendable {
+    let youtubeId: String
+    /// Youtarr's numeric channel database identifier, not YouTube's channel ID.
+    let channelId: Int
+}
+
+enum YoutarrRequestType: String, Codable, Equatable, Sendable {
+    case video
+}
+
+struct YoutarrRequest: Codable, Equatable, Identifiable, Sendable {
+    let id: String
+    let type: YoutarrRequestType
+    let status: YoutarrRequestStatus
+    let target: YoutarrRequestTarget
+    let createdAt: String
+    let updatedAt: String
+    let decidedAt: String?
+    let completedAt: String?
+    let message: String?
+}
+
+struct YoutarrRequestsResponse: Codable, Equatable, Sendable {
+    let data: [YoutarrRequest]
+    let pagination: YoutarrPagination
+}
+
+enum YoutarrVideoRequestOutcome: String, Codable, Equatable, Sendable {
+    case created
+    case duplicate
+    case alreadyDownloaded = "already_downloaded"
+}
+
+struct YoutarrVideoRequestResponse: Codable, Equatable, Sendable {
+    let outcome: YoutarrVideoRequestOutcome
+    let request: YoutarrRequest?
+}
+
 protocol YoutarrHTTPSession {
     func data(for request: URLRequest) async throws -> (Data, URLResponse)
 }
@@ -300,15 +357,18 @@ struct YoutarrClient {
     private let configuration: YoutarrConfiguration
     private let session: any YoutarrHTTPSession
     private let decoder: JSONDecoder
+    private let encoder: JSONEncoder
 
     init(
         configuration: YoutarrConfiguration,
         session: any YoutarrHTTPSession = YoutarrHTTPSessions.noRedirects,
-        decoder: JSONDecoder = JSONDecoder()
+        decoder: JSONDecoder = JSONDecoder(),
+        encoder: JSONEncoder = JSONEncoder()
     ) {
         self.configuration = configuration
         self.session = session
         self.decoder = decoder
+        self.encoder = encoder
     }
 
     func capabilities() async throws -> YoutarrCapabilities {
@@ -342,9 +402,60 @@ struct YoutarrClient {
         )
     }
 
+    func requests(
+        page: Int = 1,
+        pageSize: Int = 30,
+        status: YoutarrRequestStatus? = nil
+    ) async throws -> YoutarrRequestsResponse {
+        var queryItems = paginationQuery(page: page, pageSize: pageSize, search: nil)
+        if let status {
+            queryItems.append(URLQueryItem(name: "status", value: status.rawValue))
+        }
+        return try await get(path: "requests", queryItems: queryItems)
+    }
+
+    func request(id: String) async throws -> YoutarrRequest {
+        try await get(path: "requests/\(id)")
+    }
+
+    func requestVideo(
+        youtubeID: String,
+        channelID: Int,
+        idempotencyKey: UUID = UUID()
+    ) async throws -> YoutarrVideoRequestResponse {
+        struct Body: Encodable {
+            let youtubeId: String
+            let channelId: Int
+            let idempotencyKey: String
+        }
+        return try await send(
+            path: "requests/videos",
+            method: "POST",
+            body: Body(
+                youtubeId: youtubeID,
+                channelId: channelID,
+                idempotencyKey: idempotencyKey.uuidString.lowercased()
+            )
+        )
+    }
+
     private func get<Response: Decodable>(
         path: String,
         queryItems: [URLQueryItem] = []
+    ) async throws -> Response {
+        try await send(
+            path: path,
+            method: "GET",
+            queryItems: queryItems,
+            body: Optional<String>.none
+        )
+    }
+
+    private func send<Response: Decodable, Body: Encodable>(
+        path: String,
+        method: String,
+        queryItems: [URLQueryItem] = [],
+        body: Body?
     ) async throws -> Response {
         guard var components = URLComponents(
             url: configuration.endpointURL(path: path),
@@ -357,9 +468,17 @@ struct YoutarrClient {
             throw YoutarrClientError.invalidResponse
         }
         var request = URLRequest(url: url)
-        request.httpMethod = "GET"
+        request.httpMethod = method
         request.setValue(configuration.apiKey, forHTTPHeaderField: "x-api-key")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let body {
+            do {
+                request.httpBody = try encoder.encode(body)
+                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            } catch {
+                throw YoutarrClientError.invalidResponse
+            }
+        }
 
         let data: Data
         let response: URLResponse

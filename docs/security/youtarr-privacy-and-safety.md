@@ -32,3 +32,10 @@ is restricted to the local-network address classes documented in
 local-network purpose string before granting access.
 
 No telemetry or new third-party dependencies are added.
+
+Video requests use a new random idempotency UUID for each deliberate tap.
+Duplicate taps are disabled while a request is in flight, and only a confirmed
+server response changes a video's requested/downloaded state. Request response
+bodies and server-provided messages are not shown or logged. My Requests
+performs no background refresh: polling is cancelled on navigation and runs
+only while the page is visible and an active request needs a status update.
