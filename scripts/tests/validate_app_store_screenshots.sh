@@ -30,4 +30,3 @@ while IFS= read -r -d '' screenshot; do
 done < <(find "$SCREENSHOT_DIR" -type f -iname '*.png' -print0)
 
 [[ "$found" -eq 1 ]] || fail "no PNG screenshots found"
-
