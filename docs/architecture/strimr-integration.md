@@ -22,7 +22,7 @@ Stable branch pairing:
 - Plinx `dev` <-> Strimr `dev-plinx`
 
 Plinx `dev` currently pins Strimr `dev-plinx` at
-`c925d449c724c2e0ed8cbad2c4c6c83ec3ae2149`, based on upstream `main` at
+`7cbc32a52faa8b7f21123296c2c9eefca364bd93`, based on upstream `main` at
 `e0a8cbc`. CI and release builds use that exact commit rather than resolving a
 moving branch head.
 
