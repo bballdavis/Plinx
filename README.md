@@ -12,7 +12,7 @@ A playful, parent-managed Plex client for family media. Browse, search, and watc
 ## What Makes Plinx Different
 
 **Safety First**
-- Content is automatically filtered by age-appropriate ratings (G through PG for movies, TV-Y through TV-PG for shows)
+- Content defaults to G for movies and TV-Y for shows; parents can raise either ceiling to any supported rating
 - Parents control settings access via a math challenge or PIN
 - No external links, no social features, no data collection
 

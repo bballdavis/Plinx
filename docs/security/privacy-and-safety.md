@@ -39,7 +39,7 @@ SharePlay initiation controls are hidden through an environment policy.
 
 Safety behavior should fail closed whenever possible. If filtering metadata is missing or uncertain, the default should not broaden kid-facing visibility by accident.
 
-All libraries are visible by default, but visibility is independent from content authorization. Default ceilings are PG and TV-PG, and unrated/unknown media—including clips and home videos—is excluded unless a parent opts in.
+All libraries are visible by default, but visibility is independent from content authorization. Default ceilings are G and TV-Y; parents can raise either ceiling in protected settings. Unrated/unknown media—including clips and home videos—is excluded unless a parent opts in.
 
 ## External Link Policy
 

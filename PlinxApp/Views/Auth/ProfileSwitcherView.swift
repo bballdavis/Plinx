@@ -53,8 +53,10 @@ struct ProfileSwitcherView: View {
         #endif
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                PlinxChromeButton(systemImage: "rectangle.portrait.and.arrow.right") {
+                Button(role: .destructive) {
                     isShowingLogoutConfirmation = true
+                } label: {
+                    Image(systemName: "rectangle.portrait.and.arrow.right")
                 }
                 .accessibilityLabel("common.actions.logOut")
             }

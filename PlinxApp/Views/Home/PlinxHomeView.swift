@@ -190,6 +190,7 @@ struct PlinxHomeView: View {
 
     private var homeRows: [HomeRow] {
         var rows: [HomeRow] = []
+        let groups = displayedGroups
 
         for sectionId in orderedHomeSections {
             switch sectionId {
@@ -203,19 +204,19 @@ struct PlinxHomeView: View {
                     )
                 })
             case "moviesAndTV":
-                rows.append(contentsOf: moviesTVGroups.filter { $0.hub.hasItems }.map {
+                rows.append(contentsOf: groups.filter { $0.sectionKey == "moviesAndTV" && $0.hub.hasItems }.map {
                     HomeRow(id: $0.id, hub: $0.hub, layout: $0.layout, sectionKey: "moviesAndTV")
                 })
             case "recentMovies":
-                rows.append(contentsOf: recentMoviesGroups.filter { $0.hub.hasItems }.map {
+                rows.append(contentsOf: groups.filter { $0.sectionKey == "recentMovies" && $0.hub.hasItems }.map {
                     HomeRow(id: $0.id, hub: $0.hub, layout: $0.layout, sectionKey: "recentMovies")
                 })
             case "recentTV":
-                rows.append(contentsOf: recentTVGroups.filter { $0.hub.hasItems }.map {
+                rows.append(contentsOf: groups.filter { $0.sectionKey == "recentTV" && $0.hub.hasItems }.map {
                     HomeRow(id: $0.id, hub: $0.hub, layout: $0.layout, sectionKey: "recentTV")
                 })
             case "otherVideos":
-                rows.append(contentsOf: otherVideoGroups.filter { $0.hub.hasItems }.map {
+                rows.append(contentsOf: groups.filter { $0.sectionKey == "otherVideos" && $0.hub.hasItems }.map {
                     HomeRow(id: $0.id, hub: $0.hub, layout: $0.layout, sectionKey: "otherVideos")
                 })
             default:
@@ -264,6 +265,7 @@ struct PlinxHomeView: View {
         let id: String
         let hub: Hub
         let layout: CardLayout
+        let sectionKey: String
     }
 
     private struct HomeRow: Identifiable {
@@ -286,187 +288,28 @@ struct PlinxHomeView: View {
         let order = decodeStringArray(homeOrderJson)
         let libraries = libraryStore.libraries
         let recentlyAddedPrefix = NSLocalizedString("home.recentlyAdded.prefix", tableName: "Plinx", comment: "")
-
-        struct HubEntry {
-            let hub: Hub
-            let library: Library?
-        }
-
-        let entries: [HubEntry] = viewModel.recentlyAdded.map { hub in
-            HubEntry(hub: hub, library: matchedLibrary(for: hub, in: libraries, recentlyAddedPrefix: recentlyAddedPrefix))
-        }
-
-        // Use HomeLibraryGrouping helpers so none-agent libraries (e.g. YouTube)
-        // with type=.movie are correctly excluded from the movies/TV row.
-        let movieEntries = entries.filter { entry in
-            guard let lib = entry.library else { return false }
-            return HomeLibraryGrouping.isMoviesOrTV(lib) && lib.type == .movie
-        }
-        let showEntries = entries.filter { entry in
-            guard let lib = entry.library else { return false }
-            return HomeLibraryGrouping.isMoviesOrTV(lib) && lib.type == .show
-        }
-        let otherEntries = entries.filter { entry in
-            HomeLibraryGrouping.isOtherVideo(entry.library)
-        }
-
-        let unmatchedEntries = entries.filter { $0.library == nil }
-        if !unmatchedEntries.isEmpty {
-            Self.logger.debug(
-                "Unmatched recently-added hubs classified as otherVideos count=\(unmatchedEntries.count, privacy: .public) total=\(entries.count, privacy: .public)"
-            )
-        }
-
-        Self.logger.debug(
-            "Recently-added grouping total=\(entries.count, privacy: .public) movie=\(movieEntries.count, privacy: .public) show=\(showEntries.count, privacy: .public) other=\(otherEntries.count, privacy: .public)"
+        let rows = HomeRecentlyAddedProjection.rows(
+            from: viewModel.recentlyAdded,
+            libraries: libraries,
+            hiddenLibraryIDs: Set(hiddenIds),
+            libraryOrder: order,
+            combineMoviesTV: combineMoviesTV,
+            recentlyAddedPrefix: recentlyAddedPrefix
         )
 
-        let visibleMovieEntries = movieEntries.filter { entry in
-            guard let id = entry.library?.id else { return true }
-            return !hiddenIds.contains(id)
+        Self.logger.debug(
+            "Recently-added rows=\(rows.count, privacy: .public) items=\(rows.reduce(0) { $0 + $1.items.count }, privacy: .public)"
+        )
+
+        return rows.map { row in
+            let hub = Hub(id: row.id, title: row.title, items: row.items)
+            return HubGroup(
+                id: row.id,
+                hub: hub,
+                layout: row.layout == .landscape ? .landscape : .portrait,
+                sectionKey: row.sectionKey
+            )
         }
-        let visibleShowEntries = showEntries.filter { entry in
-            guard let id = entry.library?.id else { return true }
-            return !hiddenIds.contains(id)
-        }
-
-        let movieVisible = !visibleMovieEntries.isEmpty
-        let showVisible = !visibleShowEntries.isEmpty
-        let movieEnabled = libraries.contains {
-            $0.type == .movie && !HomeLibraryGrouping.isOtherVideo($0) && !hiddenIds.contains($0.id)
-        }
-        let showEnabled = libraries.contains {
-            $0.type == .show && !HomeLibraryGrouping.isOtherVideo($0) && !hiddenIds.contains($0.id)
-        }
-
-        var groups: [HubGroup] = []
-
-        if movieVisible || showVisible {
-            if combineMoviesTV {
-                // Combined: interleave movies and TV into a single row.
-                var combined: [MediaDisplayItem] = []
-                let m = StrimrAdapter.filteredItems(visibleMovieEntries.flatMap(\.hub.items), policy: safetyPolicy)
-                let s = StrimrAdapter.filteredItems(visibleShowEntries.flatMap(\.hub.items), policy: safetyPolicy)
-                let maxCount = max(m.count, s.count)
-                for i in 0..<maxCount {
-                    if i < m.count { combined.append(m[i]) }
-                    if i < s.count { combined.append(s[i]) }
-                }
-                if !combined.isEmpty {
-                    let title: String
-                    if movieEnabled && showEnabled {
-                        title = NSLocalizedString("home.recentlyAdded.tvAndMovies", tableName: "Plinx", comment: "")
-                    } else if showVisible {
-                        title = NSLocalizedString("home.recentlyAdded.tv", tableName: "Plinx", comment: "")
-                    } else {
-                        title = NSLocalizedString("home.recentlyAdded.movies", tableName: "Plinx", comment: "")
-                    }
-                    let combinedId = "combined.recentlyadded.movies+shows"
-                    groups.append(HubGroup(
-                        id: combinedId,
-                        hub: Hub(id: combinedId, title: title, items: combined),
-                        layout: .portrait
-                    ))
-                }
-            } else {
-                // Split: separate rows for movies and TV.
-                let movieItems = StrimrAdapter.filteredItems(visibleMovieEntries.flatMap(\.hub.items), policy: safetyPolicy)
-                if !movieItems.isEmpty {
-                    let title = NSLocalizedString("home.recentlyAdded.movies", tableName: "Plinx", comment: "")
-                    groups.append(HubGroup(
-                        id: "recentlyadded.movies",
-                        hub: Hub(id: "recentlyadded.movies", title: title, items: movieItems),
-                        layout: .portrait
-                    ))
-                }
-                let tvItems = StrimrAdapter.filteredItems(visibleShowEntries.flatMap(\.hub.items), policy: safetyPolicy)
-                if !tvItems.isEmpty {
-                    let title = NSLocalizedString("home.recentlyAdded.tv", tableName: "Plinx", comment: "")
-                    groups.append(HubGroup(
-                        id: "recentlyadded.tv",
-                        hub: Hub(id: "recentlyadded.tv", title: title, items: tvItems),
-                        layout: .portrait
-                    ))
-                }
-            }
-        }
-
-        // Other-type hubs use letterbox (landscape) layout.
-        for entry in otherEntries {
-            let hub = entry.hub
-            if let libId = entry.library?.id, hiddenIds.contains(libId) {
-                continue
-            }
-            groups.append(HubGroup(id: hub.id, hub: hub, layout: .landscape))
-        }
-
-        if !entries.isEmpty && otherEntries.isEmpty && libraries.contains(where: { $0.type == .clip }) {
-            Self.logger.debug("No other-video recently-added hubs matched from \(entries.count, privacy: .public) recently-added hubs")
-        }
-
-        guard !order.isEmpty else { return groups }
-        return groups.sorted { a, b in
-            orderIndexForGroup(a, order: order, libraries: libraries)
-            < orderIndexForGroup(b, order: order, libraries: libraries)
-        }
-    }
-
-    // MARK: - Recently added grouping
-
-    /// Combined movie+TV recently-added groups (for "moviesAndTV" section).
-    private var moviesTVGroups: [HubGroup] {
-        displayedGroups.filter { $0.id == "combined.recentlyadded.movies+shows" }
-    }
-
-    /// Movies-only recently-added groups (for "recentMovies" section in split mode).
-    private var recentMoviesGroups: [HubGroup] {
-        displayedGroups.filter { $0.id == "recentlyadded.movies" }
-    }
-
-    /// TV-only recently-added groups (for "recentTV" section in split mode).
-    private var recentTVGroups: [HubGroup] {
-        displayedGroups.filter { $0.id == "recentlyadded.tv" }
-    }
-
-    /// Other-video recently-added groups (for "otherVideos" section).
-    private var otherVideoGroups: [HubGroup] {
-        let knownIds: Set<String> = ["combined.recentlyadded.movies+shows", "recentlyadded.movies", "recentlyadded.tv"]
-        return displayedGroups.filter { !knownIds.contains($0.id) }
-    }
-
-    private func matchedLibrary(for hub: Hub, in libraries: [Library], recentlyAddedPrefix: String) -> Library? {
-        HomeLibraryGrouping.matchLibrary(for: hub, in: libraries, recentlyAddedPrefix: recentlyAddedPrefix)
-    }
-
-    private func orderIndexForGroup(_ group: HubGroup, order: [String], libraries: [Library]) -> Int {
-        if group.id == "combined.recentlyadded.movies+shows" {
-            let indices = order.enumerated().compactMap { (i, libId) -> Int? in
-                guard let lib = libraries.first(where: { $0.id == libId }),
-                      lib.type == .movie || lib.type == .show else { return nil }
-                return i
-            }
-            return indices.min() ?? Int.max
-        }
-        if group.id == "recentlyadded.movies" {
-            let indices = order.enumerated().compactMap { (i, libId) -> Int? in
-                guard let lib = libraries.first(where: { $0.id == libId }),
-                      lib.type == .movie else { return nil }
-                return i
-            }
-            return indices.min() ?? Int.max
-        }
-        if group.id == "recentlyadded.tv" {
-            let indices = order.enumerated().compactMap { (i, libId) -> Int? in
-                guard let lib = libraries.first(where: { $0.id == libId }),
-                      lib.type == .show else { return nil }
-                return i
-            }
-            return indices.min() ?? Int.max
-        }
-        let recentlyAddedPrefix = NSLocalizedString("home.recentlyAdded.prefix", tableName: "Plinx", comment: "")
-        guard let libId = matchedLibrary(for: group.hub, in: libraries, recentlyAddedPrefix: recentlyAddedPrefix)?.id,
-              let idx = order.firstIndex(of: libId) else { return Int.max }
-        return idx
     }
 
     // MARK: - Hub row
@@ -1078,7 +921,7 @@ private struct TvHeroMetadataPanel: View {
         }
 
         for rating in item.ratings ?? [] {
-            guard let value = rating.value else { continue }
+            let value = rating.value
             guard let provider = providerName(from: rating.image) ?? providerName(from: rating.type) else { continue }
             let isAudience = isAudienceRatingSource(rating.image) || isAudienceRatingSource(rating.type)
             addRating(provider: provider, value: value, isAudience: isAudience)

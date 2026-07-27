@@ -10,7 +10,8 @@ also used for account, server, and optional service configuration.
 ## Content controls
 
 Parents can set separate movie and television rating ceilings. The default
-limits are PG and TV-PG. Plinx filters browsing, search, playlists, and
+limits are G and TV-Y, and parents can raise either limit to any supported
+rating. Plinx filters browsing, search, playlists, and
 playback; it checks content again immediately before playback starts.
 
 Unrated or unknown media, including clips and home videos, stays hidden unless

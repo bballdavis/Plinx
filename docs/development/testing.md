@@ -37,6 +37,23 @@ xcodebuild test \
   CODE_SIGNING_ALLOWED=NO
 ```
 
+The home-screen regression gate is deterministic and does not require live
+Plex credentials. It covers the full safety-filter-to-row-projection path,
+including rated YouTube content, parental rating ceilings, the global unrated
+toggle, and the Other Videos landscape row:
+
+```bash
+cd PlinxApp
+xcodebuild test \
+  -project Plinx.xcodeproj \
+  -scheme Plinx-iOS \
+  -destination "platform=iOS Simulator,name=iPhone 17,OS=26.5" \
+  -only-testing:Plinx-iOS-UnitTests/HomeRecentlyAddedProjectionTests \
+  -only-testing:Plinx-iOS-UnitTests/RecentlyAddedHubClassifierTests \
+  -only-testing:Plinx-iOS-UnitTests/SafeHomeViewModelTests \
+  CODE_SIGNING_ALLOWED=NO
+```
+
 ### Strimr integration contract
 
 ```bash
@@ -102,6 +119,7 @@ App integration logic such as:
 
 - settings behavior
 - home/library grouping
+- recently-added hub classification and complete movie/TV/Other Videos row projection
 - layout policies
 - safety adapters
 - navigation coordination

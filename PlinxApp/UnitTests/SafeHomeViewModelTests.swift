@@ -110,6 +110,40 @@ final class SafeHomeViewModelTests: XCTestCase {
             "Other-video hubs must reject explicitly disallowed ratings"
         )
     }
+
+    func test_recentlyAdded_otherVideoHub_preservesUnratedWhenParentAllowsIt() {
+        let context = PlexAPIContext()
+        let settings = SettingsManager()
+        let libraryStore = LibraryStore(context: context)
+        libraryStore.libraries = [
+            Library(
+                id: "6",
+                title: "Youtube Videos",
+                type: .movie,
+                sectionId: 6,
+                agent: "tv.plex.agents.none"
+            )
+        ]
+
+        let inner = HomeViewModel(context: context, settingsManager: settings, libraryStore: libraryStore)
+        inner.recentlyAdded = [
+            Hub(
+                id: "hub.home.recentlyadded.6",
+                title: "Recently Added Youtube Videos",
+                items: [.playable(MediaItem.fixture(type: .movie, contentRating: nil))]
+            )
+        ]
+
+        let safe = SafeHomeViewModel(
+            inner: inner,
+            policy: permissivePolicy,
+            libraryStore: libraryStore
+        )
+        safe.updatePolicy(SafetyPolicy.ratingOnly(maxMovie: .pg, maxTV: .tvPg, allowUnrated: true))
+
+        XCTAssertEqual(safe.recentlyAdded.count, 1)
+        XCTAssertEqual(safe.recentlyAdded.first?.items.count, 1)
+    }
 }
 
 private extension MediaItem {

@@ -117,20 +117,27 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
         await inner.load()
 
         let recentlyAddedPrefix = NSLocalizedString("home.recentlyAdded.prefix", tableName: "Plinx", comment: "")
-        let rawOtherHubIDs = Set(inner.recentlyAdded.compactMap { hub -> String? in
+        let rawOtherHubs = inner.recentlyAdded.filter { hub in
             let matched = HomeLibraryGrouping.matchLibrary(
                 for: hub,
                 in: libraryStore.libraries,
                 recentlyAddedPrefix: recentlyAddedPrefix
             )
-            return HomeLibraryGrouping.isOtherVideo(matched) ? hub.id : nil
-        })
+            return HomeLibraryGrouping.isOtherVideo(matched)
+        }
 
-        guard !rawOtherHubIDs.isEmpty else {
+        guard !rawOtherHubs.isEmpty else {
             throw XCTSkip("Plex server did not return any raw Other Videos recently-added hubs for this account at this time.")
         }
 
-        let permissivePolicy = SafetyPolicy.ratingOnly(maxMovie: .pg, maxTV: .tvPg, allowUnrated: true)
+        let expectedOtherHubIDs = Set(rawOtherHubs.compactMap { hub in
+            StrimrAdapter.filtered(hub, policy: policy) == nil ? nil : hub.id
+        })
+        guard !expectedOtherHubIDs.isEmpty else {
+            throw XCTSkip("Current Other Videos hubs contain no items eligible under the configured rating policy.")
+        }
+
+        let permissivePolicy = SafetyPolicy.ratingOnly(maxMovie: .g, maxTV: .tvY, allowUnrated: true)
         let safe = SafeHomeViewModel(inner: inner, policy: permissivePolicy, libraryStore: libraryStore)
         safe.updatePolicy(policy)
 
@@ -145,11 +152,12 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
 
         XCTAssertFalse(
             safeOtherHubIDs.isEmpty,
-            "SafeHomeViewModel should preserve at least one Other Videos recently-added hub under strict policy."
+            "SafeHomeViewModel should preserve eligible Other Videos recently-added hubs under the configured policy."
         )
-        XCTAssertFalse(
-            rawOtherHubIDs.intersection(safeOtherHubIDs).isEmpty,
-            "At least one raw Other Videos hub should survive safety filtering."
+        XCTAssertEqual(
+            safeOtherHubIDs,
+            expectedOtherHubIDs,
+            "Home safety filtering must preserve exactly the eligible Other Videos hubs."
         )
     }
 

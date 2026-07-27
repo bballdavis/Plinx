@@ -52,7 +52,8 @@ final class SafeHomeViewModel {
     /// Mutable so the owning view can push environment updates via `updatePolicy(_:)`.
     private(set) var policy: SafetyPolicy
 
-    /// Library metadata used to classify home hubs (movies/TV vs other-video).
+    /// Library metadata is loaded before Home data so the downstream row
+    /// projection can reliably classify Plex section hubs.
     private let libraryStore: LibraryStore?
 
     // MARK: - Init
@@ -60,7 +61,7 @@ final class SafeHomeViewModel {
     /// - Parameters:
     ///   - inner: The Strimr `HomeViewModel` to decorate.
     ///   - policy: Safety policy. Defaults to `.ratingOnly()` (no label gate,
-    ///     max rating = G).
+    ///     max movie rating = G, max TV rating = TV-Y).
     init(
         inner: HomeViewModel,
         policy: SafetyPolicy = .ratingOnly(),
@@ -125,32 +126,9 @@ final class SafeHomeViewModel {
     }
 
     private func filterRecentlyAddedHub(_ hub: Hub) -> Hub? {
-        let recentlyAddedPrefix = NSLocalizedString(
-            "home.recentlyAdded.prefix",
-            tableName: "Plinx",
-            comment: ""
-        )
-
-        let libraries = libraryStore?.libraries ?? []
-        let matchedLibrary = libraries.isEmpty ? nil : HomeLibraryGrouping.matchLibrary(
-            for: hub,
-            in: libraries,
-            recentlyAddedPrefix: recentlyAddedPrefix
-        )
-        let isOtherVideoHub: Bool
-        if let matchedLibrary {
-            isOtherVideoHub = HomeLibraryGrouping.isOtherVideo(matchedLibrary)
-        } else {
-            isOtherVideoHub = HomeLibraryGrouping.isLikelyOtherVideoHub(
-                hub,
-                recentlyAddedPrefix: recentlyAddedPrefix
-            )
-        }
-
-        guard isOtherVideoHub else {
-            return StrimrAdapter.filtered(hub, policy: policy)
-        }
-
+        // Movies, TV, clips, and none-agent libraries all use the same parent
+        // policy. Classification belongs to the row projection, not to a
+        // safety exception that could silently drop or bypass a category.
         return StrimrAdapter.filtered(hub, policy: policy)
     }
 }

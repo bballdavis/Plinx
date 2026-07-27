@@ -241,8 +241,7 @@ struct PlinxLibraryDetailView: View {
                 viewModel: makeRecommendedViewModel(),
                 heroMedia: $tvHeroMedia,
                 usesLandscapeCards: LibraryCardLayoutPolicy.usesLandscapeDetailCards(for: library, surface: .recommended),
-                onSelectMedia: onSelectMedia,
-                onLongPressMedia: onLongPressMedia
+                onSelectMedia: onSelectMedia
             )
             .padding(.horizontal, 12)
             .padding(.bottom, 28)
@@ -252,7 +251,6 @@ struct PlinxLibraryDetailView: View {
                 heroMedia: $tvHeroMedia,
                 usesLandscapeCards: LibraryCardLayoutPolicy.usesLandscapeDetailCards(for: library, surface: .browse),
                 onSelectMedia: onSelectMedia,
-                onLongPressMedia: onLongPressMedia,
                 onJumpToIndex: { index in
                     withAnimation(.easeInOut(duration: 0.2)) {
                         scrollProxy.scrollTo(index, anchor: .top)
@@ -267,7 +265,6 @@ struct PlinxLibraryDetailView: View {
                 heroMedia: $tvHeroMedia,
                 usesLandscapeCards: LibraryCardLayoutPolicy.usesLandscapeDetailCards(for: library, surface: .collections),
                 onSelectMedia: onSelectMedia,
-                onLongPressMedia: onLongPressMedia,
                 onJumpToIndex: { index in
                     withAnimation(.easeInOut(duration: 0.2)) {
                         scrollProxy.scrollTo(index, anchor: .top)
@@ -747,7 +744,6 @@ private struct PlinxLibraryRecommendedRowsView: View {
     @Binding var heroMedia: MediaItem?
     let usesLandscapeCards: Bool
     let onSelectMedia: (MediaDisplayItem) -> Void
-    let onLongPressMedia: (MediaDisplayItem) -> Void
 
     private let landscapeHubIdentifiers: [String] = ["inprogress"]
 
@@ -796,16 +792,14 @@ private struct PlinxLibraryRecommendedRowsView: View {
                 layout: .landscape,
                 items: hub.items,
                 showsLabels: true,
-                onSelectMedia: onSelectMedia,
-                onLongPressMedia: onLongPressMedia
+                onSelectMedia: onSelectMedia
             )
         } else {
             MediaCarousel(
                 layout: .portrait,
                 items: hub.items,
                 showsLabels: true,
-                onSelectMedia: onSelectMedia,
-                onLongPressMedia: onLongPressMedia
+                onSelectMedia: onSelectMedia
             )
         }
     }
@@ -856,7 +850,6 @@ private struct PlinxLibraryBrowseRowsView: View {
     @Binding var heroMedia: MediaItem?
     let usesLandscapeCards: Bool
     let onSelectMedia: (MediaDisplayItem) -> Void
-    let onLongPressMedia: (MediaDisplayItem) -> Void
     let onJumpToIndex: (Int) -> Void
 
     private var cardWidth: CGFloat {
@@ -893,14 +886,10 @@ private struct PlinxLibraryBrowseRowsView: View {
                                     if usesLandscapeCards {
                                         LandscapeMediaCard(media: media, width: cardWidth, showsLabels: true) {
                                             onSelectMedia(media)
-                                        } onLongPress: {
-                                            onLongPressMedia(media)
                                         }
                                     } else {
                                         PortraitMediaCard(media: media, width: cardWidth, showsLabels: true) {
                                             onSelectMedia(media)
-                                        } onLongPress: {
-                                            onLongPressMedia(media)
                                         }
                                     }
                                 case let .folder(folder):
@@ -1039,7 +1028,6 @@ private struct PlinxLibraryCollectionsRowsView: View {
     @Binding var heroMedia: MediaItem?
     let usesLandscapeCards: Bool
     let onSelectMedia: (MediaDisplayItem) -> Void
-    let onLongPressMedia: (MediaDisplayItem) -> Void
     let onJumpToIndex: (Int) -> Void
 
     private var cardWidth: CGFloat {
@@ -1060,14 +1048,10 @@ private struct PlinxLibraryCollectionsRowsView: View {
                                 if usesLandscapeCards {
                                     LandscapeMediaCard(media: media, width: cardWidth, showsLabels: true) {
                                         onSelectMedia(media)
-                                    } onLongPress: {
-                                        onLongPressMedia(media)
                                     }
                                 } else {
                                     PortraitMediaCard(media: media, width: cardWidth, showsLabels: true) {
                                         onSelectMedia(media)
-                                    } onLongPress: {
-                                        onLongPressMedia(media)
                                     }
                                 }
                             } else {

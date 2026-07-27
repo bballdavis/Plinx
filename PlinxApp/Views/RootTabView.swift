@@ -515,8 +515,8 @@ struct RootTabView: View {
                     viewModel: viewModel,
                     topContent: scrollingHeaderContent(
                         title: "tabs.home",
-                        showsSettingsButton: false,
-                        showsSearchButton: false,
+                        showsSettingsButton: true,
+                        showsSearchButton: !showSearchInMainNavigation,
                         showsLogo: true,
                         showsExploreButton: showsYoutarrExplore
                     ),

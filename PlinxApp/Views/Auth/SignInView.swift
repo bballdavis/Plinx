@@ -210,12 +210,25 @@ struct SignInView: View {
             .accessibilityValue(PlinxBrandingSemantics.signInPrimaryButtonStyleValue)
             .dynamicTypeSize(...DynamicTypeSize.accessibility1)
             .padding(.horizontal, expandedLayout ? 64 : 16)
-            .padding(.bottom, expandedLayout ? 48 : 56)
+            .padding(.bottom, viewModel.isAuthenticating ? 0 : (expandedLayout ? 48 : 56))
+
+            if viewModel.isAuthenticating {
+                Button("signIn.button.cancel") {
+                    viewModel.cancelSignIn()
+                }
+                .foregroundStyle(Color.white.opacity(0.86))
+                .padding(.top, 16)
+                .padding(.bottom, expandedLayout ? 48 : 56)
+                .accessibilityIdentifier("signIn.cancelButton")
+            }
         }
         .background {
             portalBackground(expandedLayout: expandedLayout)
         }
         .accessibilityElement(children: .contain)
+        .onDisappear {
+            viewModel.cancelSignIn()
+        }
     }
 
     @ViewBuilder

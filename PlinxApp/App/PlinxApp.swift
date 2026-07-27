@@ -62,15 +62,15 @@ struct PlinxApp: App {
     @State private var downloadOwnershipStore: DownloadOwnershipStore
 
     // ── Plinx Safety Layer ──────────────────────────────────────────────
-    @AppStorage("plinx.maxMovieRating") private var maxMovieRatingRaw = PlinxRating.pg.rawValue
-    @AppStorage("plinx.maxTVRating") private var maxTVRatingRaw = PlinxRating.tvPg.rawValue
+    @AppStorage("plinx.maxMovieRating") private var maxMovieRatingRaw = PlinxRating.g.rawValue
+    @AppStorage("plinx.maxTVRating") private var maxTVRatingRaw = PlinxRating.tvY.rawValue
     /// Default is `true` for kid safety: unrated items are hidden unless a
     /// parent explicitly turns this off.
     @AppStorage("plinx.excludeUnrated") private var excludeUnrated = true
 
     private var safetyPolicy: SafetyPolicy {
-        let movieRating = PlinxRating.from(contentRating: maxMovieRatingRaw) ?? .pg
-        let tvRating = PlinxRating.from(contentRating: maxTVRatingRaw) ?? .tvPg
+        let movieRating = PlinxRating.from(contentRating: maxMovieRatingRaw) ?? .g
+        let tvRating = PlinxRating.from(contentRating: maxTVRatingRaw) ?? .tvY
         return SafetyPolicy.ratingOnly(maxMovie: movieRating, maxTV: tvRating, allowUnrated: !excludeUnrated)
     }
 

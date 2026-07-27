@@ -46,10 +46,21 @@ public struct SafetyPolicy: Sendable, Equatable {
         self.allowUnrated = allowUnrated
     }
 
-    /// Convenience: rating-only, no label requirement.
-    /// Uses a single rating for both movie and TV (backward-compatible).
+    /// Convenience: the default parent-managed rating policy.
+    /// Movies default to G and television defaults to TV-Y.
+    public static func ratingOnly(allowUnrated: Bool = true) -> SafetyPolicy {
+        SafetyPolicy(
+            labelMatchMode: .none,
+            maxMovieRating: .g,
+            maxTVRating: .tvY,
+            allowUnrated: allowUnrated
+        )
+    }
+
+    /// Convenience: rating-only, no label requirement, with one ceiling for
+    /// both movie and TV content.
     public static func ratingOnly(
-        max: PlinxRating = .g,
+        max: PlinxRating,
         allowUnrated: Bool = true
     ) -> SafetyPolicy {
         SafetyPolicy(

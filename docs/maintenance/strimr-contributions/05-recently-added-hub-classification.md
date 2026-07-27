@@ -5,6 +5,12 @@
 Open a bug issue with sanitized Plex response examples before submitting code.
 The contribution should be a pure identifier classifier.
 
+Plinx now carries the minimal paired-source implementation locally as
+`RecentlyAddedHubClassifier`. It recognizes the verified recently-added
+identifier families without using localized hub titles. Keep this seam aligned
+with the sibling Strimr checkout until the upstream contribution is accepted;
+do not advance the Plinx dependency pin automatically.
+
 ## Gap and Evidence
 
 Current Strimr identifies recently-added hubs only when the identifier contains
@@ -34,6 +40,9 @@ logging that should not be upstreamed.
 - Positive tests for each documented identifier variant.
 - Negative tests for unrelated “recent” hubs and empty hubs.
 - Home tests for movie, show, and Other Videos libraries.
+
+The Plinx app unit target covers the positive and negative identifier cases plus
+deterministic combined/split home-row completeness for movies, TV, and YouTube.
 
 ## Upstream Shape
 

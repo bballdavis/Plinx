@@ -656,13 +656,13 @@ Current profile-switcher language:
 - fixed-height profile tiles for every account state
 - green outline and soft glow for the active profile
 - subtle glass or charcoal tile fill, never a full bright selection box
-- branded chrome logout control instead of a raw destructive toolbar icon
+- compact native destructive logout icon in the authentication toolbar
 
 Rules:
 
 - Keep every profile tile the same height, even when a profile has no username or email.
 - Use the active-state border and glow to indicate selection, not tile scaling or oversized fill.
-- Keep the logout action in the same branded chrome language used elsewhere in the app shell.
+- Keep logout compact and clearly destructive; it should not inherit the oversized home-shell chrome treatment.
 
 ## Content Cards And Media Tiles
 

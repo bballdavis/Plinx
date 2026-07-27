@@ -33,8 +33,8 @@ private struct SettingsBody: View {
     @Environment(PlexAPIContext.self) private var plexApiContext
 
     @AppStorage("plinx.babyLockEnabled") private var babyLockEnabled = false
-    @AppStorage("plinx.maxMovieRating") private var maxMovieRatingRaw = PlinxRating.pg.rawValue
-    @AppStorage("plinx.maxTVRating")    private var maxTVRatingRaw    = PlinxRating.tvPg.rawValue
+    @AppStorage("plinx.maxMovieRating") private var maxMovieRatingRaw = PlinxRating.g.rawValue
+    @AppStorage("plinx.maxTVRating")    private var maxTVRatingRaw    = PlinxRating.tvY.rawValue
     @AppStorage("plinx.excludeUnrated") private var excludeUnrated    = true
     @AppStorage(PlinxNavigationPreference.showSearchInMainNavigationStorageKey)
     private var showSearchInMainNavigation = PlinxNavigationPreference.defaultShowSearchInMainNavigation
