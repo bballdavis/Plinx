@@ -131,7 +131,7 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         PlinxBuildConfiguration: $(CONFIGURATION)
-        NSLocalNetworkUsageDescription: Plinx connects to Plex Media Servers on your local network when you choose a local server connection.
+        NSLocalNetworkUsageDescription: Plinx connects to Plex Media Servers and a parent-configured Youtarr server on your local network.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
         UILaunchStoryboardName: LaunchScreen

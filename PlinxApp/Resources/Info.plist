@@ -26,7 +26,7 @@
 		<true/>
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Plinx connects to Plex Media Servers on your local network when you choose a local server connection.</string>
+	<string>Plinx connects to Plex Media Servers and a parent-configured Youtarr server on your local network.</string>
 	<key>PlinxBuildConfiguration</key>
 	<string>$(CONFIGURATION)</string>
 	<key>UILaunchStoryboardName</key>

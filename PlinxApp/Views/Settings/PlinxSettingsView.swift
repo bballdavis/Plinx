@@ -73,6 +73,13 @@ private struct SettingsBody: View {
                         Image(systemName: "rectangle.3.group.fill")
                     }
                 }
+                NavigationLink(destination: YoutarrSettingsView()) {
+                    Label {
+                        Text("youtarr.settings.title", tableName: "Plinx")
+                    } icon: {
+                        Image(systemName: "sparkles.tv")
+                    }
+                }
                 NavigationLink(
                     destination: DefaultServerSettingsView(
                         viewModel: ServerSelectionViewModel(
