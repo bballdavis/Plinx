@@ -100,6 +100,134 @@ struct YoutarrCapabilities: Codable, Equatable {
     }
 }
 
+struct YoutarrPagination: Codable, Equatable, Sendable {
+    let page: Int
+    let pageSize: Int
+    let total: Int
+    let totalPages: Int
+}
+
+struct YoutarrChannel: Codable, Equatable, Identifiable, Sendable {
+    let id: Int
+    let channelId: String
+    let title: String
+    let descriptionSummary: String?
+    let thumbnailUrl: String?
+    let subfolder: String?
+    let videoCount: Int
+    let downloadedCount: Int
+    let lastFetchedAt: String?
+}
+
+struct YoutarrChannelsResponse: Codable, Equatable, Sendable {
+    let data: [YoutarrChannel]
+    let pagination: YoutarrPagination
+    let dataSource: String
+}
+
+enum YoutarrVideoRating: Codable, Equatable, Sendable {
+    case level(Int)
+    case label(String)
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let level = try? container.decode(Int.self) {
+            self = .level(level)
+        } else if let label = try? container.decode(String.self) {
+            self = .label(label)
+        } else {
+            throw DecodingError.typeMismatch(
+                YoutarrVideoRating.self,
+                .init(codingPath: decoder.codingPath, debugDescription: "Expected an integer level or text rating")
+            )
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .level(let level): try container.encode(level)
+        case .label(let label): try container.encode(label)
+        }
+    }
+
+    var displayValue: String {
+        switch self {
+        case .level(let level): return YoutarrStrings.value("youtarr.explore.rating.level") + " \(level)"
+        case .label(let label): return label
+        }
+    }
+}
+
+enum YoutarrVideoDuration: Codable, Equatable, Sendable {
+    case seconds(Int)
+    case text(String)
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let seconds = try? container.decode(Int.self) {
+            self = .seconds(seconds)
+        } else if let text = try? container.decode(String.self) {
+            self = .text(text)
+        } else {
+            throw DecodingError.typeMismatch(
+                YoutarrVideoDuration.self,
+                .init(codingPath: decoder.codingPath, debugDescription: "Expected seconds or duration text")
+            )
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .seconds(let seconds): try container.encode(seconds)
+        case .text(let text): try container.encode(text)
+        }
+    }
+
+    var displayValue: String {
+        switch self {
+        case .seconds(let value):
+            let clamped = max(0, value)
+            let hours = clamped / 3_600
+            let minutes = (clamped % 3_600) / 60
+            let seconds = clamped % 60
+            return hours > 0
+                ? String(format: "%d:%02d:%02d", hours, minutes, seconds)
+                : String(format: "%d:%02d", minutes, seconds)
+        case .text(let text):
+            return text
+        }
+    }
+}
+
+struct YoutarrVideo: Codable, Equatable, Identifiable, Sendable {
+    var id: String { youtubeId }
+
+    let youtubeId: String
+    let title: String
+    let thumbnailUrl: String?
+    let publishedAt: String?
+    let duration: YoutarrVideoDuration?
+    let description: String?
+    let isDownloaded: Bool
+    let isRequested: Bool
+    let requestStatus: String?
+    let rating: YoutarrVideoRating?
+    let channelId: String
+    let channelTitle: String
+    let mediaType: String
+}
+
+struct YoutarrVideosResponse: Codable, Equatable, Sendable {
+    let data: [YoutarrVideo]
+    let pagination: YoutarrPagination
+    let dataSource: String
+    let isFullyIndexed: Bool
+    let lastIndexedAt: String?
+    let indexingHint: String?
+}
+
 protocol YoutarrHTTPSession {
     func data(for request: URLRequest) async throws -> (Data, URLResponse)
 }
@@ -121,7 +249,7 @@ final class YoutarrRedirectBlocker: NSObject, URLSessionTaskDelegate {
     }
 }
 
-private enum YoutarrHTTPSessions {
+enum YoutarrHTTPSessions {
     static let noRedirects: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.httpCookieAcceptPolicy = .never
@@ -184,7 +312,51 @@ struct YoutarrClient {
     }
 
     func capabilities() async throws -> YoutarrCapabilities {
-        var request = URLRequest(url: configuration.endpointURL(path: "capabilities"))
+        let capabilities: YoutarrCapabilities = try await get(path: "capabilities")
+        guard apiMajorVersion(capabilities.apiVersion) == Self.supportedAPIMajorVersion else {
+            throw YoutarrClientError.unsupportedAPIVersion
+        }
+        return capabilities
+    }
+
+    func channels(
+        page: Int = 1,
+        pageSize: Int = 30,
+        search: String? = nil
+    ) async throws -> YoutarrChannelsResponse {
+        try await get(
+            path: "channels",
+            queryItems: paginationQuery(page: page, pageSize: pageSize, search: search)
+        )
+    }
+
+    func videos(
+        channelID: Int,
+        page: Int = 1,
+        pageSize: Int = 30,
+        search: String? = nil
+    ) async throws -> YoutarrVideosResponse {
+        try await get(
+            path: "channels/\(channelID)/videos",
+            queryItems: paginationQuery(page: page, pageSize: pageSize, search: search)
+        )
+    }
+
+    private func get<Response: Decodable>(
+        path: String,
+        queryItems: [URLQueryItem] = []
+    ) async throws -> Response {
+        guard var components = URLComponents(
+            url: configuration.endpointURL(path: path),
+            resolvingAgainstBaseURL: false
+        ) else {
+            throw YoutarrClientError.invalidResponse
+        }
+        components.queryItems = queryItems.isEmpty ? nil : queryItems
+        guard let url = components.url else {
+            throw YoutarrClientError.invalidResponse
+        }
+        var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue(configuration.apiKey, forHTTPHeaderField: "x-api-key")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -212,17 +384,23 @@ struct YoutarrClient {
         default: throw YoutarrClientError.invalidResponse
         }
 
-        let capabilities: YoutarrCapabilities
         do {
-            capabilities = try decoder.decode(YoutarrCapabilities.self, from: data)
+            return try decoder.decode(Response.self, from: data)
         } catch {
             // Deliberately do not include a response body in diagnostics or UI.
             throw YoutarrClientError.invalidResponse
         }
-        guard apiMajorVersion(capabilities.apiVersion) == Self.supportedAPIMajorVersion else {
-            throw YoutarrClientError.unsupportedAPIVersion
+    }
+
+    private func paginationQuery(page: Int, pageSize: Int, search: String?) -> [URLQueryItem] {
+        var result = [
+            URLQueryItem(name: "page", value: String(max(1, page))),
+            URLQueryItem(name: "pageSize", value: String(min(max(1, pageSize), 100))),
+        ]
+        if let search = search?.trimmingCharacters(in: .whitespacesAndNewlines), !search.isEmpty {
+            result.append(URLQueryItem(name: "search", value: search))
         }
-        return capabilities
+        return result
     }
 
     private func apiMajorVersion(_ version: String) -> Int? {

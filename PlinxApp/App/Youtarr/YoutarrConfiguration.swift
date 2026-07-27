@@ -180,7 +180,7 @@ struct YoutarrKeychainCredentialStore: YoutarrCredentialStoring {
 }
 
 struct YoutarrConfigurationStore {
-    private static let baseURLKey = "plinx.youtarr.baseURL"
+    static let baseURLKey = "plinx.youtarr.baseURL"
     private static let apiKeyKey = "plinx.youtarr.apiKey"
 
     private let defaults: UserDefaults
@@ -195,6 +195,11 @@ struct YoutarrConfigurationStore {
     }
 
     var storedBaseURL: String? { defaults.string(forKey: Self.baseURLKey) }
+
+    func isConfigured() -> Bool {
+        guard storedBaseURL?.isEmpty == false else { return false }
+        return (try? credentials.string(forKey: Self.apiKeyKey))?.isEmpty == false
+    }
 
     func load() throws -> YoutarrConfiguration? {
         guard let storedBaseURL, !storedBaseURL.isEmpty,
@@ -235,5 +240,16 @@ struct YoutarrConfigurationStore {
     func clear() throws {
         try credentials.deleteValue(forKey: Self.apiKeyKey)
         defaults.removeObject(forKey: Self.baseURLKey)
+    }
+}
+
+enum YoutarrExplorePreference {
+    static let storageKey = "plinx.youtarr.exploreEnabled"
+    static let defaultEnabled = false
+}
+
+enum YoutarrExploreVisibility {
+    static func shouldShow(isEnabled: Bool, isConfigured: Bool) -> Bool {
+        isEnabled && isConfigured
     }
 }

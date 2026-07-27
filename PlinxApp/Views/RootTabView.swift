@@ -21,6 +21,9 @@ struct RootTabView: View {
     @Environment(\.openURL) private var openURL
 
     @State private var showSettings = false
+    @State private var showYoutarrExplore = false
+    @State private var youtarrExploreConfiguration: YoutarrConfiguration?
+    @State private var isYoutarrConfigured = false
     @State private var selectedQuickActionMedia: MediaDisplayItem?
     @State private var quickActionErrorMessage: String?
     @State private var homeViewModel: SafeHomeViewModel?
@@ -31,9 +34,20 @@ struct RootTabView: View {
     private var chromeButtonSizeRaw = PlinxChromeButtonSizePreference.defaultValue.rawValue
     @AppStorage(PlinxNavigationPreference.showSearchInMainNavigationStorageKey)
     private var showSearchInMainNavigation = PlinxNavigationPreference.defaultShowSearchInMainNavigation
+    @AppStorage(YoutarrExplorePreference.storageKey)
+    private var isYoutarrExploreEnabled = YoutarrExplorePreference.defaultEnabled
+    @AppStorage(YoutarrConfigurationStore.baseURLKey)
+    private var youtarrStoredBaseURL = ""
 
     private var chromeButtonSize: PlinxChromeButtonSizePreference {
         PlinxChromeButtonSizePreference(rawValue: chromeButtonSizeRaw) ?? .medium
+    }
+
+    private var showsYoutarrExplore: Bool {
+        YoutarrExploreVisibility.shouldShow(
+            isEnabled: isYoutarrExploreEnabled,
+            isConfigured: isYoutarrConfigured
+        )
     }
 
     private var launcher: PlaybackLauncher {
@@ -95,6 +109,17 @@ struct RootTabView: View {
                 guard !isVisible, activeRootTab == .search else { return }
                 mainCoordinator.resetToRoot(for: .home)
                 mainCoordinator.tab = .home
+            }
+            .onChange(of: youtarrStoredBaseURL) { _, _ in
+                refreshYoutarrConfigurationState()
+            }
+            .onChange(of: showSettings) { _, isPresented in
+                if !isPresented {
+                    refreshYoutarrConfigurationState()
+                }
+            }
+            .task {
+                refreshYoutarrConfigurationState()
             }
             .overlay(alignment: .bottom) {
                 if let item = selectedQuickActionMedia {
@@ -228,6 +253,19 @@ struct RootTabView: View {
             }
             .presentationDetents([.large])
         }
+        .sheet(isPresented: $showYoutarrExplore, onDismiss: {
+            youtarrExploreConfiguration = nil
+        }) {
+            if let configuration = youtarrExploreConfiguration {
+                NavigationStack {
+                    YoutarrExploreView(
+                        configuration: configuration,
+                        safetyPolicy: safetyPolicy
+                    )
+                }
+                .presentationDetents([.large])
+            }
+        }
     }
 
     @ViewBuilder
@@ -252,7 +290,8 @@ struct RootTabView: View {
                             title: "tabs.home",
                             showsSettingsButton: true,
                             showsSearchButton: !showSearchInMainNavigation,
-                            showsLogo: true
+                            showsLogo: true,
+                            showsExploreButton: showsYoutarrExplore
                         )
                     ),
                     onSelectMedia: { displayItem in
@@ -384,7 +423,8 @@ struct RootTabView: View {
         title: String,
         showsSettingsButton: Bool,
         showsSearchButton: Bool = false,
-        showsLogo: Bool = false
+        showsLogo: Bool = false,
+        showsExploreButton: Bool = false
     ) -> some View {
         HStack(spacing: 12) {
             if showsLogo {
@@ -403,6 +443,25 @@ struct RootTabView: View {
                     .foregroundStyle(.white.opacity(0.95))
             }
             Spacer()
+            if showsExploreButton {
+                Button(action: presentYoutarrExplore) {
+                    Label {
+                        Text("youtarr.explore.title", tableName: "Plinx")
+                    } icon: {
+                        Image(systemName: "sparkles")
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.95))
+                    .padding(.horizontal, 12)
+                    .frame(minHeight: chromeButtonSize.sideLength)
+                    .background(
+                        Capsule()
+                            .fill(Color.accentColor.opacity(0.24))
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("home.header.youtarrExplore")
+            }
             if showsSearchButton {
                 PlinxChromeButton(systemImage: "magnifyingglass") {
                     handleTabSelection(.search)
@@ -422,6 +481,27 @@ struct RootTabView: View {
         .padding(.horizontal, 20)
         .padding(.top, 8)
         .padding(.bottom, 10)
+    }
+
+    private func refreshYoutarrConfigurationState() {
+        isYoutarrConfigured = YoutarrConfigurationStore().isConfigured()
+        if !YoutarrExploreVisibility.shouldShow(
+            isEnabled: isYoutarrExploreEnabled,
+            isConfigured: isYoutarrConfigured
+        ) {
+            showYoutarrExplore = false
+            youtarrExploreConfiguration = nil
+        }
+    }
+
+    private func presentYoutarrExplore() {
+        guard showsYoutarrExplore,
+              let configuration = try? YoutarrConfigurationStore().load() else {
+            refreshYoutarrConfigurationState()
+            return
+        }
+        youtarrExploreConfiguration = configuration
+        showYoutarrExplore = true
     }
 
     @ViewBuilder

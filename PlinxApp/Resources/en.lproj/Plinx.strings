@@ -106,6 +106,30 @@
 "youtarr.role.unknown" = "Custom";
 "youtarr.availability.available" = "Available";
 "youtarr.availability.unavailable" = "Unavailable";
+"youtarr.settings.explore.section" = "Explore";
+"youtarr.settings.explore.enabled" = "Show Explore";
+"youtarr.settings.explore.help" = "Shows Explore on the Home screen. Plinx still checks Youtarr permissions and content ratings before showing anything.";
+"youtarr.settings.explore.configureFirst" = "Save a Youtarr connection before enabling Explore.";
+"youtarr.explore.title" = "Explore";
+"youtarr.explore.close" = "Close Explore";
+"youtarr.explore.loading" = "Loading Explore";
+"youtarr.explore.loadingVideos" = "Loading Videos";
+"youtarr.explore.loadingMore" = "Loading more";
+"youtarr.explore.searchChannels" = "Search channels";
+"youtarr.explore.searchVideos" = "Search videos";
+"youtarr.explore.unavailable" = "Explore Isn’t Available";
+"youtarr.explore.unavailable.help" = "This Youtarr key does not have catalog access. A parent can review the connection settings.";
+"youtarr.explore.error" = "Explore Couldn’t Load";
+"youtarr.explore.retry" = "Try Again";
+"youtarr.explore.emptyChannels" = "No Channels Found";
+"youtarr.explore.emptyChannels.help" = "Try another search or ask a parent to approve channels in Youtarr.";
+"youtarr.explore.emptyVideos" = "No Videos Found";
+"youtarr.explore.emptyVideos.help" = "No videos in this view pass the current access and rating rules.";
+"youtarr.explore.partialCatalog" = "Youtarr is still indexing this channel. More videos may appear later.";
+"youtarr.explore.videos" = "videos";
+"youtarr.explore.downloaded" = "Downloaded";
+"youtarr.explore.requested" = "Requested";
+"youtarr.explore.rating.level" = "Rating level";
 
 /* Settings — Home Screen */
 "settings.homescreen.title" = "Home Screen";

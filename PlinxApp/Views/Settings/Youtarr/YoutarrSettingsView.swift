@@ -12,6 +12,9 @@ struct YoutarrSettingsView: View {
     @State private var statusMessage: String?
     @State private var capabilities: YoutarrCapabilities?
     @State private var connectionTask: Task<Void, Never>?
+    @State private var isConfigured = false
+    @AppStorage(YoutarrExplorePreference.storageKey)
+    private var isExploreEnabled = YoutarrExplorePreference.defaultEnabled
 
     init(
         configurationStore: YoutarrConfigurationStore = YoutarrConfigurationStore(),
@@ -76,6 +79,29 @@ struct YoutarrSettingsView: View {
                 }
             }
 
+            Section {
+                Toggle(isOn: $isExploreEnabled) {
+                    Label {
+                        Text("youtarr.settings.explore.enabled", tableName: "Plinx")
+                    } icon: {
+                        Image(systemName: "sparkles")
+                    }
+                }
+                .disabled(!isConfigured)
+                .accessibilityIdentifier("youtarr.settings.explore.enabled")
+            } header: {
+                Text("youtarr.settings.explore.section", tableName: "Plinx")
+            } footer: {
+                Text(
+                    isConfigured
+                        ? "youtarr.settings.explore.help"
+                        : "youtarr.settings.explore.configureFirst",
+                    tableName: "Plinx"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+
             if let capabilities {
                 Section {
                     if let serverVersion = capabilities.serverVersion, !serverVersion.isEmpty {
@@ -107,6 +133,7 @@ struct YoutarrSettingsView: View {
         .navigationTitle(Text("youtarr.settings.title", tableName: "Plinx"))
         .task {
             baseURL = configurationStore.storedBaseURL ?? ""
+            isConfigured = configurationStore.isConfigured()
         }
         .onDisappear {
             cancelConnectionTest()
@@ -117,6 +144,7 @@ struct YoutarrSettingsView: View {
         do {
             _ = try configurationStore.save(baseURL: baseURL, apiKey: apiKey)
             baseURL = configurationStore.storedBaseURL ?? baseURL
+            isConfigured = configurationStore.isConfigured()
             apiKey = "" // Never redisplay or retain a saved credential in view state.
             capabilities = nil
             statusMessage = YoutarrStrings.value("youtarr.status.saved")
@@ -162,6 +190,8 @@ struct YoutarrSettingsView: View {
     private func removeConfiguration() {
         do {
             try configurationStore.clear()
+            isExploreEnabled = false
+            isConfigured = false
             baseURL = ""
             apiKey = ""
             capabilities = nil
