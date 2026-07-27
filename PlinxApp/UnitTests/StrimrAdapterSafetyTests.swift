@@ -179,6 +179,7 @@ private extension MediaItem {
             duration: nil,
             videoResolution: nil,
             rating: nil,
+            ratings: [],
             contentRating: contentRating,
             studio: nil,
             tagline: nil,

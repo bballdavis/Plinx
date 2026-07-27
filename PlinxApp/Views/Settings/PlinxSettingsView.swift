@@ -126,22 +126,6 @@ private struct SettingsBody: View {
             }
             #endif
 
-            // MARK: Playback
-            Section {
-                Toggle(isOn: Binding(
-                    get: { settingsManager.playback.pauseWhenScreenTurnsOff },
-                    set: { settingsManager.setPauseWhenScreenTurnsOff($0) }
-                )) {
-                    Label {
-                        Text("settings.playback.pauseWhenScreenTurnsOff.title", tableName: "Plinx")
-                    } icon: {
-                        Image(systemName: "pause.circle.fill")
-                    }
-                }
-            } header: {
-                Text("settings.playback.section", tableName: "Plinx")
-            }
-
             // MARK: Content rating — movie
             Section {
                 Picker(selection: $maxMovieRatingRaw) {

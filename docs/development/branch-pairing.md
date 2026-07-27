@@ -5,13 +5,17 @@
 - Plinx `main` pairs with Strimr `plinx-patches`
 - Plinx `dev` pairs with Strimr `dev-plinx`
 
+Active migration pairing:
+
+- Plinx `feat/strimr-aether-upgrade`
+- Strimr `feat/plinx-upstream-seams`
+
 ## Expected Local Layout
 
 ```text
 Repos/
   Plinx/
   strimr/
-  MPVKit/
 ```
 
 Plinx runtime builds expect the sibling checkout at `../strimr`.
@@ -28,6 +32,8 @@ git -C <local path>/Repos/strimr rev-parse --abbrev-ref HEAD
 1. Verify Plinx and Strimr are on the intended paired branches.
 2. Check `git status` in both repos.
 3. Decide whether the change belongs in Plinx or Strimr before editing.
+4. For the migration pair, verify the Strimr branch descends from upstream
+   `e0a8cbc` and includes only the documented compatibility seams.
 
 ## Rule Of Thumb
 

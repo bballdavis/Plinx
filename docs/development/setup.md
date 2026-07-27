@@ -23,11 +23,12 @@ This guide covers local development, project generation, and the sibling depende
    cd ..
    git clone https://github.com/bballdavis/strimr.git
    git -C strimr checkout plinx-patches
-   git clone https://github.com/wunax/MPVKit.git
    cd Plinx
    ```
 
-   If you are working on Plinx `dev`, switch the sibling Strimr checkout to `dev-plinx` instead. See `docs/development/branch-pairing.md`.
+   If you are working on Plinx `dev`, switch the sibling Strimr checkout to
+   `dev-plinx` instead. The Strimr/Aether migration feature branch pairs with
+   `feat/plinx-upstream-seams`. See `docs/development/branch-pairing.md`.
 
 3. Install XcodeGen:
 
@@ -90,7 +91,8 @@ Use `docs/development/testing.md` as the canonical test index and `docs/developm
 
 ### Missing package or source errors
 
-- Verify sibling `../strimr` and `../MPVKit` directories exist.
+- Verify the sibling `../strimr` directory exists and is on the expected paired branch.
+- Resolve packages after changing the pinned AetherEngine revision.
 - Verify the Strimr checkout is on the expected paired branch.
 - Regenerate the Xcode project after dependency or target changes.
 

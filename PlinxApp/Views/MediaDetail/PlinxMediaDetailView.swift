@@ -3,7 +3,9 @@ import SwiftUI
 struct PlinxMediaDetailView: View {
     @State var viewModel: SafeMediaDetailViewModel
     var onPlay: (String, PlexItemType) -> Void
+    var onShuffle: (String, PlexItemType) -> Void
     var onSelectRelated: (MediaDisplayItem) -> Void
+    var onSelectParentSeries: (PlayableMediaItem) -> Void = { _ in }
 
     @Environment(\.dismiss) private var dismiss
 
@@ -22,7 +24,7 @@ struct PlinxMediaDetailView: View {
                         onPlay(ratingKey, type)
                     },
                     onShuffle: { ratingKey, type in
-                        onPlay(ratingKey, type)
+                        onShuffle(ratingKey, type)
                     },
                     onSelectMedia: onSelectRelated
                 )
@@ -34,9 +36,10 @@ struct PlinxMediaDetailView: View {
                         onPlay(ratingKey, type)
                     },
                     onShuffle: { ratingKey, type in
-                        onPlay(ratingKey, type)
+                        onShuffle(ratingKey, type)
                     },
-                    onSelectMedia: onSelectRelated
+                    onSelectMedia: onSelectRelated,
+                    onSelectParentSeries: onSelectParentSeries
                 )
                 #endif
             }

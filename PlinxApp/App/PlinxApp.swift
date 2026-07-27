@@ -49,11 +49,9 @@ struct PlinxApp: App {
     @State private var libraryStore: LibraryStore
     @StateObject private var mainCoordinator = MainCoordinator()
 
-    //── Strimr Watch-Together (inactive in Plinx; required by PlayerView's @Environment) ──
-    // PlayerView reads @Environment(WatchTogetherViewModel.self). If the value
-    // is absent the app crashes the first time a video is opened on iPad.
-    // We inject a default idle instance so the feature is present but dormant.
-    @State private var watchTogetherViewModel: WatchTogetherViewModel
+    // SharePlay remains available to the playback stack for dependency
+    // compatibility, while its initiation controls are hidden in kid-facing UI.
+    @State private var sharePlayCoordinator: SharePlayCoordinator
 
     //── Strimr DownloadManager (required by MediaDetailHeaderSection's @Environment) ──
     // MediaDetailHeaderSection reads @Environment(DownloadManager.self). Without this
@@ -99,18 +97,15 @@ struct PlinxApp: App {
         let context = PlexAPIContext()
         let store = LibraryStore(context: context)
         let settings = SettingsManager()
-        PlinxSettingsSanitizer.enforceSupportedPlaybackPlayer(settings)
         let session = SessionManager(context: context, libraryStore: store)
         _plexApiContext = State(initialValue: context)
         _sessionManager = State(initialValue: session)
         _settingsManager = State(initialValue: settings)
         _libraryStore = State(initialValue: store)
 
-        // WatchTogether: inject an idle instance so PlayerView's @Environment lookup
-        // succeeds on iPad. Plinx does not actively use Watch Together.
-        _watchTogetherViewModel = State(initialValue: WatchTogetherViewModel(
+        _sharePlayCoordinator = State(initialValue: SharePlayCoordinator(
             sessionManager: session,
-            context: context
+            context: context,
         ))
 
         // DownloadManager: inject so MediaDetailHeaderSection's @Environment(DownloadManager.self)
@@ -141,8 +136,9 @@ struct PlinxApp: App {
                 .environment(settingsManager)
                 .environment(libraryStore)
                 .environmentObject(mainCoordinator)
-                .environment(watchTogetherViewModel)
+                .environment(sharePlayCoordinator)
                 .environment(downloadManager)
+                .environment(\.sharePlayPresentationPolicy, .hidden)
                 // ── Plinx layer injection ───────────────────────────
                 .environment(\.plinxTheme, theme)
                 .environment(\.safetyPolicy, safetyPolicy)

@@ -59,9 +59,9 @@ struct RootTabView: View {
     @Environment(SettingsManager.self) private var settingsManager
     @Environment(LibraryStore.self) private var libraryStore
     @Environment(DownloadManager.self) private var downloadManager
+    @Environment(SharePlayCoordinator.self) private var sharePlayCoordinator
     @EnvironmentObject private var mainCoordinator: MainCoordinator
     @Environment(\.safetyPolicy) private var safetyPolicy
-    @Environment(\.openURL) private var openURL
 
     @State private var showSettings = false
     @State private var selectedQuickActionMedia: MediaDisplayItem?
@@ -128,8 +128,7 @@ struct RootTabView: View {
         PlaybackLauncher(
             context: plexApiContext,
             coordinator: mainCoordinator,
-            settingsManager: settingsManager,
-            openURL: { url in openURL(url) }
+            safetyPolicy: safetyPolicy
         )
     }
 
@@ -189,6 +188,9 @@ struct RootTabView: View {
 
     var body: some View {
         mainTabView
+            .onAppear {
+                sharePlayCoordinator.configurePlaybackLauncher(launcher)
+            }
             #if os(tvOS)
             .allowsHitTesting(selectedQuickActionMedia == nil)
             #endif
@@ -721,8 +723,14 @@ struct RootTabView: View {
                 onPlay: { ratingKey, type in
                     Task { await launcher.play(ratingKey: ratingKey, type: type) }
                 },
+                onShuffle: { ratingKey, type in
+                    Task { await launcher.play(ratingKey: ratingKey, type: type, shuffle: true) }
+                },
                 onSelectRelated: { displayItem in
                     mainCoordinator.showMediaDetail(displayItem)
+                },
+                onSelectParentSeries: { series in
+                    mainCoordinator.returnToSeries(series)
                 }
             )
         case let .collectionDetail(collection):
@@ -744,10 +752,7 @@ struct RootTabView: View {
         case let .playlistDetail(playlist):
             #if os(tvOS)
             PlaylistDetailTVView(
-                viewModel: PlaylistDetailViewModel(
-                    playlist: playlist,
-                    context: plexApiContext
-                ),
+                viewModel: makePlaylistDetailViewModel(playlist: playlist),
                 onSelectMedia: { displayItem in
                     mainCoordinator.showMediaDetail(displayItem)
                 },
@@ -755,15 +760,12 @@ struct RootTabView: View {
                     Task { await launcher.play(ratingKey: ratingKey, type: playlist.type) }
                 },
                 onShuffle: { ratingKey in
-                    Task { await launcher.play(ratingKey: ratingKey, type: playlist.type) }
+                    Task { await launcher.play(ratingKey: ratingKey, type: playlist.type, shuffle: true) }
                 }
             )
             #else
             PlaylistDetailView(
-                viewModel: PlaylistDetailViewModel(
-                    playlist: playlist,
-                    context: plexApiContext
-                ),
+                viewModel: makePlaylistDetailViewModel(playlist: playlist),
                 onSelectMedia: { displayItem in
                     mainCoordinator.showMediaDetail(displayItem)
                 },
@@ -771,11 +773,41 @@ struct RootTabView: View {
                     Task { await launcher.play(ratingKey: ratingKey, type: playlist.type) }
                 },
                 onShuffle: { ratingKey in
-                    Task { await launcher.play(ratingKey: ratingKey, type: playlist.type) }
+                    Task { await launcher.play(ratingKey: ratingKey, type: playlist.type, shuffle: true) }
                 }
             )
             #endif
+        case let .hubDetail(hub):
+            HubDetailView(
+                viewModel: makeHubDetailViewModel(hub: hub),
+                onSelectMedia: { displayItem in
+                    mainCoordinator.showMediaDetail(displayItem)
+                }
+            )
         }
+    }
+
+    private func makeHubDetailViewModel(hub: Hub) -> HubDetailViewModel {
+        let viewModel = HubDetailViewModel(hub: hub, context: plexApiContext)
+        let policy = safetyPolicy
+        viewModel.itemFilter = {
+            StrimrAdapter.isAllowed($0, policy: policy)
+        }
+        return viewModel
+    }
+
+    private func makePlaylistDetailViewModel(
+        playlist: PlaylistMediaItem
+    ) -> PlaylistDetailViewModel {
+        let viewModel = PlaylistDetailViewModel(
+            playlist: playlist,
+            context: plexApiContext
+        )
+        let policy = safetyPolicy
+        viewModel.itemFilter = {
+            StrimrAdapter.isAllowed($0, policy: policy)
+        }
+        return viewModel
     }
 
     private func handlePrimarySelection(_ displayItem: MediaDisplayItem) {

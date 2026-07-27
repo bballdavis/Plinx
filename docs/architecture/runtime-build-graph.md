@@ -11,7 +11,7 @@ The `Plinx-iOS` target compiles:
 - Plinx app code from `App`, `Views`, `Decorators`, `Adapters`, and `ViewModels`
 - sibling Strimr shared source from `../../strimr/Shared`
 - sibling Strimr iOS feature source from `../../strimr/Strimr-iOS/Features`
-- Swift packages `PlinxCore`, `PlinxUI`, and `MPVKit`
+- Swift packages `PlinxCore`, `PlinxUI`, and `AetherEngine`
 
 This is a same-module integration strategy, not a clean framework boundary. Plinx can therefore reach Strimr `internal` symbols without broadening upstream access control.
 
@@ -19,11 +19,16 @@ This is a same-module integration strategy, not a clean framework boundary. Plin
 
 `project.yml` excludes a small set of Strimr files and swaps in Plinx-owned replacements when Plinx needs different behavior or a safer implementation. Current replacement categories include:
 
-- playback launcher fixes for actor-isolation issues
-- player factory fixes for main-actor initialization
+- a fail-closed playback launcher that re-authorizes fresh metadata immediately
+  before queue presentation
 - media backdrop rendering adjustments for current SDK behavior
+- a rating-label adapter for Plinx-owned rating artwork
 - no-op error reporting to preserve zero-collection requirements
 - branded auth/root views so no Strimr assets leak into the Plinx binary
+
+The AetherEngine dependency is pinned to an exact revision in `project.yml`.
+`Packages/PlinxCore` deliberately has no player-engine dependency, avoiding
+duplicate FFmpeg product graphs.
 
 When adding another exclusion, document:
 

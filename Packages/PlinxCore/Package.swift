@@ -31,16 +31,11 @@ let package = Package(
     products: [
         .library(name: "PlinxCore", targets: ["PlinxCore"])
     ],
-    dependencies: [
-        // MPVKit — linked transitively for PlaybackEngine protocol implementations.
-        .package(url: "https://github.com/wunax/MPVKit", exact: "0.41.2"),
-    ],
+    dependencies: [],
     targets: [
         .target(
             name: "PlinxCore",
-            dependencies: [
-                .product(name: "MPVKit-GPL", package: "MPVKit"),
-            ]
+            dependencies: []
         ),
         .testTarget(
             name: "PlinxCoreTests",

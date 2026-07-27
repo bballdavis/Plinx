@@ -15,6 +15,8 @@ Current implementation anchors:
 - `PlinxApp/Resources/PrivacyInfo.xcprivacy` declares no tracking, no collected data types, and no accessed API types
 - `PlinxApp/App/ErrorReporter.swift` is a no-op reporter so no crash or analytics SDK is active
 - `PlinxApp/project.yml` excludes Strimr's reporting implementation and wires in the no-op replacement
+- the resolved Plinx package graph excludes Sentry even though upstream Strimr
+  can use it in its own standalone targets
 
 Do not add analytics, crash reporting, telemetry, or usage tracking without explicitly changing product policy and documentation first.
 
@@ -25,6 +27,12 @@ Safety-critical behavior lives primarily in:
 - `Packages/PlinxCore/Sources/PlinxCore/Safety/`
 - parental gate flows in `PlinxApp/Views/ParentalGateView.swift` and related settings flows
 - Plinx adapters/decorators that filter or reshape upstream content before display
+- `PlinxPlaybackLauncher`, which refetches metadata and fails closed immediately
+  before local or SharePlay-initiated playback is presented
+
+Strimr view models expose item/hub filters, but Plinx supplies the policies.
+Incoming SharePlay activity uses the same launcher boundary, and kid-facing
+SharePlay initiation controls are hidden through an environment policy.
 
 Safety behavior should fail closed whenever possible. If filtering metadata is missing or uncertain, the default should not broaden kid-facing visibility by accident.
 

@@ -2,15 +2,6 @@
   "originHash" : "2fcb4ce26fb36c67b69c7727b54c361899156a95635d73a55610c0cbd098dee7",
   "pins" : [
     {
-      "identity" : "mpvkit",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/wunax/MPVKit",
-      "state" : {
-        "revision" : "5e10c5a69e0fd94043087ef28fa24addf603f41e",
-        "version" : "0.41.2"
-      }
-    },
-    {
       "identity" : "swift-custom-dump",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/swift-custom-dump",

@@ -8,10 +8,11 @@ Sibling checkouts should look like:
 Repos/
   Plinx/
   strimr/
-  MPVKit/
 ```
 
 Plinx runtime builds currently expect the Strimr checkout at `../strimr` relative to the repo root and `../../strimr` relative to `PlinxApp/project.yml`.
+AetherEngine is resolved by Swift Package Manager at the exact revision pinned
+in `project.yml`; it is no longer a sibling checkout.
 
 ## Branch Pairing
 
@@ -19,6 +20,14 @@ Stable branch pairing:
 
 - Plinx `main` <-> Strimr `plinx-patches`
 - Plinx `dev` <-> Strimr `dev-plinx`
+
+The current upstream migration is developed as an explicit feature pair:
+
+- Plinx `feat/strimr-aether-upgrade`
+- Strimr `feat/plinx-upstream-seams`, based on upstream `main` at `e0a8cbc`
+
+The Plinx feature branch must not be merged until its paired Strimr changes are
+available from the shared fork branch or have landed upstream.
 
 See `docs/development/branch-pairing.md` for commands and day-to-day verification steps.
 
@@ -48,6 +57,12 @@ Patch the Strimr fork when the fix is generic and would still matter without the
 - download engine behavior
 - shared models and stores
 - engine-level concurrency or lifecycle bugs
+
+The migration keeps Plinx-only presentation, maximum-volume policy, and
+fail-closed playback authorization out of generic upstream PRs. Reusable
+filtering injection points, strict Plex boolean decoding, clip support, and the
+SharePlay presentation policy are maintained as independently reviewable
+upstream candidates.
 
 ## Upstream PR Candidate Criteria
 

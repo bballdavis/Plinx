@@ -21,6 +21,9 @@ Build and test scripts build from local files only. It's your responsibility to 
   git pull origin dev-plinx
   ```
 
+- Working on **Plinx `feat/strimr-aether-upgrade`**? Use
+  **`feat/plinx-upstream-seams`** in strimr.
+
 **Before building:**
 ```bash
 git status                     # Verify clean working tree
@@ -279,23 +282,21 @@ Or just run a script with an invalid name—it will show the available options.
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen) installed (used by build scripts)
 - iOS Simulator runtime
 
-## Local Dependency Mirrors
+## Local Source And Package Dependencies
 
-For local stability, Plinx references sibling clones of forked package repositories directly from [PlinxApp/project.yml](PlinxApp/project.yml):
+Plinx compiles the paired sibling Strimr checkout directly and resolves its
+player engine through Swift Package Manager:
 
 ```bash
 <local path>/Repos/
   Plinx/
   strimr/
-  MPVKit/
-  sentry-cocoa/
-
-The live app target currently compiles directly from sibling `strimr/Shared` and `strimr/Strimr-iOS/Features` paths.
 ```
 
-These are referenced via `../../MPVKit` and `../../sentry-cocoa` from the `PlinxApp` directory, which means GUI archive/distribute flows in Xcode use the same local package sources as the shell scripts once the project has been generated.
-
-This removes dependency on cloning the package source from upstream during project generation and package resolution. It does not, by itself, eliminate all remote binary artifact downloads if the package manifests still point to release ZIPs.
+The live app target compiles sibling `strimr/Shared` and platform feature paths.
+`AetherEngine` is pinned to an exact revision in `PlinxApp/project.yml`.
+Plinx excludes Strimr's Sentry-backed reporter and does not declare Sentry as a
+package dependency.
 
 ## Troubleshooting
 

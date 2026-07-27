@@ -118,6 +118,7 @@ final class ArtworkSelectionPolicyTests: XCTestCase {
                 duration: nil,
                 videoResolution: nil,
                 rating: nil,
+                ratings: [],
                 contentRating: nil,
                 studio: nil,
                 tagline: nil,

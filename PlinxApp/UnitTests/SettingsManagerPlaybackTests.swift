@@ -33,7 +33,6 @@ final class SettingsManagerPlaybackTests: XCTestCase {
             "autoPlayNextEpisode": true,
             "seekBackwardSeconds": 10,
             "seekForwardSeconds": 10,
-            "player": "mpv",
             "subtitleScale": 100
           },
           "interface": {},
@@ -56,45 +55,6 @@ final class SettingsManagerPlaybackTests: XCTestCase {
 
         let reloaded = SettingsManager(userDefaults: defaults)
         XCTAssertEqual(reloaded.playback.maxVolumePercent, 100)
-    }
-
-    func test_enforceSupportedPlaybackPlayer_convertsLegacyVLCToMPV() {
-        let stored = """
-        {
-          "playback": {
-            "autoPlayNextEpisode": true,
-            "seekBackwardSeconds": 10,
-            "seekForwardSeconds": 10,
-            "player": "vlc",
-            "subtitleScale": 100,
-            "maxVolumePercent": 65,
-            "pauseWhenScreenTurnsOff": true
-          },
-          "interface": {},
-          "downloads": {}
-        }
-        """
-        defaults.set(Data(stored.utf8), forKey: "strimr.settings")
-        let settings = SettingsManager(userDefaults: defaults)
-
-        XCTAssertEqual(settings.playback.player, .vlc)
-
-        PlinxSettingsSanitizer.enforceSupportedPlaybackPlayer(settings)
-
-        XCTAssertEqual(settings.playback.player, .mpv)
-
-        let reloaded = SettingsManager(userDefaults: defaults)
-        XCTAssertEqual(reloaded.playback.player, .mpv)
-    }
-
-    func test_enforceSupportedPlaybackPlayer_keepsMPVUnchanged() {
-        let settings = SettingsManager(userDefaults: defaults)
-
-        XCTAssertEqual(settings.playback.player, .mpv)
-
-        PlinxSettingsSanitizer.enforceSupportedPlaybackPlayer(settings)
-
-        XCTAssertEqual(settings.playback.player, .mpv)
     }
 
     func test_searchVisibleSectionIDs_omitHiddenLibraries() {
@@ -152,9 +112,9 @@ private func makePlexSearchItem(ratingKey: String, librarySectionID: Int?) -> Pl
         directors: nil,
         writers: nil,
         roles: nil,
+        ratings: nil,
         media: nil,
         markers: nil,
-        ratings: nil,
         slug: nil,
         studio: nil,
         rating: nil,

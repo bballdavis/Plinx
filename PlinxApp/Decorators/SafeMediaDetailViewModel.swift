@@ -49,6 +49,12 @@ final class SafeMediaDetailViewModel {
     init(inner: MediaDetailViewModel, policy: SafetyPolicy = .ratingOnly()) {
         self.inner = inner
         self.policy = policy
+        inner.itemFilter = {
+            StrimrAdapter.isAllowed($0, policy: policy)
+        }
+        inner.hubFilter = {
+            StrimrAdapter.filtered($0, policy: policy)
+        }
         // Belt-and-suspenders: block immediately if the media itself is unsafe.
         self.isBlocked = !StrimrAdapter.isAllowed(inner.media, policy: policy)
     }
@@ -58,6 +64,13 @@ final class SafeMediaDetailViewModel {
     func loadDetails() async {
         guard !isBlocked else { return }
         await inner.loadDetails()
+        isBlocked = !StrimrAdapter.isAllowed(inner.media, policy: policy)
+        guard !isBlocked else {
+            seasons = []
+            episodes = []
+            relatedHubs = []
+            return
+        }
         applyFilters()
     }
 
