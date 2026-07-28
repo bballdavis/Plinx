@@ -1,0 +1,51 @@
+{
+  "name": "Plinx",
+  "identity": "Plink Loop",
+  "sourceReference": "references/plinx-loop-selected.png",
+  "sourceMark": "source/plinx-loop.png",
+  "sourceWordmark": "source/plinx-wordmark.png",
+  "palette": {
+    "lime": "#9EEE73",
+    "teal": "#399E91",
+    "shell": "#0B120E",
+    "surface": "#18211D",
+    "charcoal": "#10201A",
+    "white": "#FFFFFF"
+  },
+  "gradient": {
+    "start": "#9EEE73",
+    "end": "#399E91",
+    "direction": "top-to-bottom"
+  },
+  "ambient": {
+    "base": "#0B120E",
+    "limeOpacity": 0.06,
+    "tealOpacity": 0.08,
+    "usage": [
+      "sign-in",
+      "parental-gate",
+      "launch",
+      "hero-loading",
+      "empty-state"
+    ]
+  },
+  "clearSpace": {
+    "mark": "25% of mark width",
+    "lockup": "height of the lowercase i dot"
+  },
+  "minimumSize": {
+    "markPoints": 20,
+    "horizontalLockupPoints": 96
+  },
+  "appIcon": {
+    "safeScale": 0.58,
+    "cornerMask": "system-owned",
+    "colorSpace": "sRGB"
+  },
+  "tvOSIcon": {
+    "foregroundTreatment": "horizontal-lockup",
+    "foregroundWidthScale": 0.72,
+    "foregroundAlpha": true,
+    "backgroundAlpha": false
+  }
+}
