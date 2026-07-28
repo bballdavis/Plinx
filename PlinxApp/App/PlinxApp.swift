@@ -100,6 +100,7 @@ struct PlinxApp: App {
         let context = PlexAPIContext()
         let store = LibraryStore(context: context)
         let settings = SettingsManager()
+        PlinxSettingsSanitizer.applyPlinxDefaults(settings)
         PlinxSettingsSanitizer.disableUnsupportedExternalDiscovery(settings)
         let session = SessionManager(context: context, libraryStore: store)
         _plexApiContext = State(initialValue: context)
@@ -155,6 +156,7 @@ struct PlinxApp: App {
                 // ── Global configuration ────────────────────────────
                 .preferredColorScheme(.dark)
                 .tint(accentColor)
+                .progressViewStyle(PlinxProgressViewStyle())
                 .onAppear {
                     AppearanceSetup.apply(theme, accentColor: UIColor(accentColor))
                 }

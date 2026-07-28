@@ -17,8 +17,6 @@ extension LinearGradient {
 }
 
 struct PlinxBrandedLoadingView: View {
-    @Environment(\.plinxTheme) private var theme
-
     var titleKey: LocalizedStringKey?
     var preferredLogoAssetName: String
     var logoAccessibilityIdentifier: String
@@ -50,9 +48,11 @@ struct PlinxBrandedLoadingView: View {
             )
 
             if showsProgressView {
-                ProgressView()
-                    .controlSize(.regular)
-                    .tint(theme.palette.primary)
+                PlinxLoadingIndicator(
+                    size: .regular,
+                    surface: .glass,
+                    accessibilityIdentifier: "plinx.loading.branded"
+                )
             }
 
             if let titleKey {

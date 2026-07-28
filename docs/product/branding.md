@@ -539,6 +539,42 @@ Required traits:
 
 These are the highest-intensity brand surfaces in the product.
 
+## Loading system
+
+Plinx loading states use one visual language at three intentional scales:
+
+- **Compact** is the app-wide default for individual controls, cards, rows,
+  pagination, and other local waits. It is a 20-point rounded-square gradient
+  perimeter on iPhone and iPad, 30 points on tvOS, with no logo and no
+  background plate.
+- **Regular** is for video-level buffering and deliberate local waits that need
+  more presence. It uses a thicker high-contrast perimeter, a translucent
+  center, and a restrained Plinx mark so the underlying video remains legible.
+- **Hero** is reserved for full-page branded loading. It uses the approved large
+  square beacon: smoked glass, canonical chevron, and a high-contrast
+  lime-to-cyan perimeter.
+
+Do not place the Plinx logo in compact indicators; the mark becomes noise at
+inline sizes. Do not use the hero beacon inside video tiles, buttons, cards,
+rows, or navigation chrome. Do not show a visible buffering caption over video;
+keep that status available to assistive technology. Labels are optional in
+other compact and regular states and recommended when a hero wait may last long
+enough to need context.
+
+`PlinxProgressViewStyle` is installed at the app root. Indeterminate
+`ProgressView` instances therefore use the compact logo-free treatment by
+default, while an explicit large control maps to regular. Determinate download
+and watch progress remains linear and must keep its numeric semantic value.
+Pull-to-refresh keeps the native gesture but replaces its activity presentation
+with a scaled regular Plinx square and hides the native spinner.
+Reduce Motion replaces the perimeter-chasing highlight with a static complete
+gradient perimeter; it does not hide the loading state. The square itself never
+rotates.
+
+The static OS launch storyboard remains unchanged because launch screens cannot
+animate. The first active app loading state transitions into the appropriate
+Plinx indicator.
+
 ## 2. Dark-shell browsing screens
 
 Examples:

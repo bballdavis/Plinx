@@ -1,5 +1,6 @@
 import SwiftUI
 import PlinxCore
+import PlinxUI
 
 @MainActor
 final class YoutarrExploreViewModel: ObservableObject {
@@ -527,7 +528,7 @@ struct YoutarrExploreView: View {
                 }
             }
         }
-        .refreshable {
+        .plinxRefreshable {
             await viewModel.reload()
         }
     }
@@ -658,7 +659,7 @@ private struct YoutarrChannelView: View {
             }
             .padding(.vertical, 16)
         }
-        .refreshable {
+        .plinxRefreshable {
             await viewModel.reload()
         }
     }

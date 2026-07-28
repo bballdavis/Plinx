@@ -92,4 +92,41 @@ struct PlinxErrorViewTests {
         #expect(view.onRetry != nil)
     }
 }
+
+// MARK: - Plinx loading system
+
+@MainActor
+struct PlinxLoadingIndicatorTests {
+
+    @Test func defaultsToCompactTransparentIndicator() {
+        let indicator = PlinxLoadingIndicator()
+        #expect(indicator.size == .compact)
+        #expect(indicator.surface == .transparent)
+        #expect(indicator.accessibilityIdentifier == "plinx.loading.indicator")
+    }
+
+    @Test func supportsCompactRegularAndHeroGeometry() {
+        #expect(PlinxLoadingSize.compact.dimension < PlinxLoadingSize.regular.dimension)
+        #expect(PlinxLoadingSize.regular.dimension < PlinxLoadingSize.hero.dimension)
+        #expect(PlinxLoadingSize.compact.cornerRadius > 0)
+        #expect(PlinxLoadingSize.regular.cornerRadius > 0)
+        #expect(PlinxLoadingSize.hero.cornerRadius > 0)
+    }
+
+    @Test func videoVariantKeepsSelectedPublicConfiguration() {
+        let indicator = PlinxLoadingIndicator(
+            size: .hero,
+            surface: .video,
+            label: "Buffering…",
+            accessibilityIdentifier: "player.buffering.plinx"
+        )
+        #expect(indicator.size == .hero)
+        #expect(indicator.surface == .video)
+        #expect(indicator.accessibilityIdentifier == "player.buffering.plinx")
+    }
+
+    @Test func progressStyleCanBeInstalledAtTheAppRoot() {
+        _ = PlinxProgressViewStyle()
+    }
+}
 #endif

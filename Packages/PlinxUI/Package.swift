@@ -39,6 +39,9 @@ let package = Package(
             name: "PlinxUI",
             dependencies: [
                 .product(name: "PlinxCore", package: "PlinxCore")
+            ],
+            resources: [
+                .process("Resources")
             ]
         ),
         .testTarget(

@@ -70,7 +70,7 @@ struct ProfileSwitcherView: View {
             Text("more.logout.message")
         }
         .task { await viewModel.loadUsers() }
-        .refreshable { await viewModel.loadUsers() }
+        .plinxRefreshable { await viewModel.loadUsers() }
         .sheet(item: $pinPromptUser, onDismiss: resetPinPrompt) { user in
             NavigationStack {
                 pinPromptContent(for: user)

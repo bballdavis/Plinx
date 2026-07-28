@@ -1,4 +1,5 @@
 import SwiftUI
+import PlinxUI
 
 enum YoutarrRequestPresentation {
     static func label(for status: YoutarrRequestStatus) -> String {
@@ -258,7 +259,7 @@ struct YoutarrRequestsView: View {
                 .listStyle(.plain)
             }
         }
-        .refreshable {
+        .plinxRefreshable {
             await viewModel.reload()
         }
     }
