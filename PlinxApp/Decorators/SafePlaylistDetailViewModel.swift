@@ -7,7 +7,7 @@ enum SafePlaylistPlaybackSelection {
         from items: [MediaDisplayItem],
         policy: SafetyPolicy
     ) -> [MediaItem] {
-        StrimrAdapter.filteredItems(items, policy: policy).compactMap(\.playableItem)
+        PlinxContentAuthorization.filteredItems(items, policy: policy).compactMap(\.playableItem)
     }
 
     static func item(
@@ -36,7 +36,7 @@ final class SafePlaylistDetailViewModel {
         self.inner = inner
         self.policy = policy
         inner.itemFilter = {
-            StrimrAdapter.isAllowed($0, policy: policy)
+            PlinxContentAuthorization.isAllowed($0, policy: policy)
         }
     }
 
@@ -61,7 +61,7 @@ final class SafePlaylistDetailViewModel {
 
     private func applyFilters() {
         inner.itemFilter = {
-            StrimrAdapter.isAllowed($0, policy: self.policy)
+            PlinxContentAuthorization.isAllowed($0, policy: self.policy)
         }
     }
 }

@@ -151,7 +151,7 @@ private struct LibraryViewSectionsConfigurationView: View {
             let response = try await hubRepository.getSectionHubs(sectionId: sectionId)
             let filteredHubs = (response.mediaContainer.hub ?? [])
                 .map(Hub.init)
-                .compactMap { StrimrAdapter.filtered($0, policy: safetyPolicy) }
+                .compactMap { PlinxContentAuthorization.filtered($0, policy: safetyPolicy) }
 
             var seen = Set<String>()
             let availableSections = filteredHubs.compactMap { hub -> RecommendSection? in

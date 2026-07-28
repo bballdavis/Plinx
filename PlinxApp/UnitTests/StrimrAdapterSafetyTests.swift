@@ -108,6 +108,27 @@ final class StrimrAdapterSafetyTests: XCTestCase {
         )
     }
 
+    func test_globalTVRatingCeiling_appliesToYouTubeLikeClips() {
+        let tvY = MediaItem.fixture(id: "tv-y", type: .clip, contentRating: "TV-Y")
+        let tvPG = MediaItem.fixture(id: "tv-pg", type: .clip, contentRating: "TV-PG")
+        let raisedPolicy = SafetyPolicy.ratingOnly(
+            maxMovie: .g,
+            maxTV: .tvPg,
+            allowUnrated: false
+        )
+
+        XCTAssertTrue(PlinxContentAuthorization.isAllowed(tvY, policy: strictPolicy))
+        XCTAssertFalse(PlinxContentAuthorization.isAllowed(tvPG, policy: strictPolicy))
+        XCTAssertTrue(PlinxContentAuthorization.isAllowed(tvPG, policy: raisedPolicy))
+    }
+
+    func test_globalUnratedToggle_appliesToYouTubeLikeClips() {
+        let unrated = MediaItem.fixture(id: "unrated-youtube", type: .clip, contentRating: nil)
+
+        XCTAssertFalse(PlinxContentAuthorization.isAllowed(unrated, policy: strictPolicy))
+        XCTAssertTrue(PlinxContentAuthorization.isAllowed(unrated, policy: permissivePolicy))
+    }
+
     // MARK: - Containers may display only after their children are filtered
 
     func test_collection_alwaysAllowed() {

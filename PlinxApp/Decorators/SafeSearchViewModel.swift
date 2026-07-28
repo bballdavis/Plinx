@@ -113,7 +113,7 @@ final class SafeSearchViewModel {
 
     private func applyFilters() {
         // Apply Strimr's type filters first, then Plinx safety filter on top.
-        items = inner.filteredItems.filter { StrimrAdapter.isAllowed($0, policy: policy) }
+        items = inner.filteredItems.filter { PlinxContentAuthorization.isAllowed($0, policy: policy) }
         isLoading = inner.isLoading
         errorMessage = inner.errorMessage
     }

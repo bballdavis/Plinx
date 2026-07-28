@@ -377,7 +377,7 @@ struct PlinxLibraryDetailView: View {
 
     private func makeRecommendedViewModel() -> LibraryRecommendedViewModel {
         let vm = LibraryRecommendedViewModel(library: library, context: plexApiContext)
-        let policy = effectivePolicyForLibrary
+        let policy = safetyPolicy
         vm.hubFilter = { hub in filterRecommendedHub(hub, policy: policy) }
         return vm
     }
@@ -388,13 +388,13 @@ struct PlinxLibraryDetailView: View {
             context: plexApiContext,
             settingsManager: settingsManager
         )
-        let policy = effectivePolicyForLibrary
+        let policy = safetyPolicy
         let libType = library.type
         vm.itemFilter = { item in
             if (libType == .movie || libType == .show), case .collection = item {
                 return false
             }
-            return StrimrAdapter.isAllowed(item, policy: policy)
+            return PlinxContentAuthorization.isAllowed(item, policy: policy)
         }
         return vm
     }
@@ -406,35 +406,22 @@ struct PlinxLibraryDetailView: View {
             context: plexApiContext,
             settingsManager: settingsManager
         )
-        let policy = effectivePolicyForLibrary
+        let policy = safetyPolicy
         vm.itemFilter = { item in
-            StrimrAdapter.isAllowed(item, policy: policy)
+            PlinxContentAuthorization.isAllowed(item, policy: policy)
         }
         #else
         let vm = LibraryCollectionsViewModel(library: library, context: plexApiContext)
-        let policy = effectivePolicyForLibrary
+        let policy = safetyPolicy
         vm.itemFilter = { item in
-            StrimrAdapter.isAllowed(item, policy: policy)
+            PlinxContentAuthorization.isAllowed(item, policy: policy)
         }
         #endif
         return vm
     }
 
-    /// None-agent libraries (YouTube Videos, Home Videos, etc.) are personally
-    /// curated and typically lack MPAA/TV ratings. Allow unrated items through
-    /// while still blocking any explicit over-limit rating.
-    private var effectivePolicyForLibrary: SafetyPolicy {
-        library.isNoneAgentLibrary
-            ? SafetyPolicy.ratingOnly(
-                maxMovie: safetyPolicy.maxMovieRating,
-                maxTV: safetyPolicy.maxTVRating,
-                allowUnrated: true
-            )
-            : safetyPolicy
-    }
-
     private func filterRecommendedHub(_ hub: Hub, policy: SafetyPolicy) -> Hub? {
-        guard let safetyFiltered = StrimrAdapter.filtered(hub, policy: policy) else {
+        guard let safetyFiltered = PlinxContentAuthorization.filtered(hub, policy: policy) else {
             Self.logger.debug(
                 "Drop hub id=\(hub.id, privacy: .public) title=\(hub.title, privacy: .public) reason=safety_filter_empty"
             )

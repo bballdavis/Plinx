@@ -112,6 +112,27 @@ final class SettingsManagerPlaybackTests: XCTestCase {
 
         XCTAssertFalse(settings.interface.displaySeerrDiscoverTab)
     }
+
+    func test_plinxDefaults_disableCollectionsWhenSettingIsMissing() {
+        let settings = SettingsManager(userDefaults: defaults)
+
+        PlinxSettingsSanitizer.applyPlinxDefaults(settings, userDefaults: defaults)
+
+        XCTAssertFalse(settings.interface.displayCollections)
+    }
+
+    func test_plinxDefaults_preservePersistedCollectionsPreference() {
+        var settings = SettingsManager(userDefaults: defaults)
+        settings.setDisplayCollections(true)
+
+        PlinxSettingsSanitizer.applyPlinxDefaults(settings, userDefaults: defaults)
+        XCTAssertTrue(settings.interface.displayCollections)
+
+        settings.setDisplayCollections(false)
+        settings = SettingsManager(userDefaults: defaults)
+        PlinxSettingsSanitizer.applyPlinxDefaults(settings, userDefaults: defaults)
+        XCTAssertFalse(settings.interface.displayCollections)
+    }
     func test_searchVisibleSectionIDs_omitHiddenLibraries() {
         let libraries = [
             Library(id: "1", title: "Movies", type: .movie, sectionId: 1),

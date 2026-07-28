@@ -94,7 +94,7 @@ final class SafeLibraryViewModel {
 
             let safeItems = (itemContainer.mediaContainer.metadata ?? []).compactMap { item -> PlexItem? in
                 let displayItem = MediaDisplayItem.playable(MediaItem(plexItem: item))
-                guard StrimrAdapter.isAllowed(displayItem, policy: policy) else { return nil }
+                guard PlinxContentAuthorization.isAllowed(displayItem, policy: policy) else { return nil }
                 guard item.art != nil || item.thumb != nil else { return nil }
                 return item
             }

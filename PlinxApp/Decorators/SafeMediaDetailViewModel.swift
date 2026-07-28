@@ -50,13 +50,13 @@ final class SafeMediaDetailViewModel {
         self.inner = inner
         self.policy = policy
         inner.itemFilter = {
-            StrimrAdapter.isAllowed($0, policy: policy)
+            PlinxContentAuthorization.isAllowed($0, policy: policy)
         }
         inner.hubFilter = {
-            StrimrAdapter.filtered($0, policy: policy)
+            PlinxContentAuthorization.filtered($0, policy: policy)
         }
         // Belt-and-suspenders: block immediately if the media itself is unsafe.
-        self.isBlocked = !StrimrAdapter.isAllowed(inner.media, policy: policy)
+        self.isBlocked = !PlinxContentAuthorization.isAllowed(inner.media, policy: policy)
     }
 
     // MARK: - Actions
@@ -64,7 +64,7 @@ final class SafeMediaDetailViewModel {
     func loadDetails() async {
         guard !isBlocked else { return }
         await inner.loadDetails()
-        isBlocked = !StrimrAdapter.isAllowed(inner.media, policy: policy)
+        isBlocked = !PlinxContentAuthorization.isAllowed(inner.media, policy: policy)
         guard !isBlocked else {
             seasons = []
             episodes = []
@@ -95,12 +95,12 @@ final class SafeMediaDetailViewModel {
         guard newPolicy != policy else { return }
         policy = newPolicy
         inner.itemFilter = {
-            StrimrAdapter.isAllowed($0, policy: newPolicy)
+            PlinxContentAuthorization.isAllowed($0, policy: newPolicy)
         }
         inner.hubFilter = {
-            StrimrAdapter.filtered($0, policy: newPolicy)
+            PlinxContentAuthorization.filtered($0, policy: newPolicy)
         }
-        isBlocked = !StrimrAdapter.isAllowed(inner.media, policy: newPolicy)
+        isBlocked = !PlinxContentAuthorization.isAllowed(inner.media, policy: newPolicy)
         applyFilters()
     }
 
@@ -110,13 +110,13 @@ final class SafeMediaDetailViewModel {
         seasons = inner.seasons
         filterEpisodes()
         relatedHubs = inner.relatedHubs.compactMap {
-            StrimrAdapter.filtered($0, policy: policy)
+            PlinxContentAuthorization.filtered($0, policy: policy)
         }
     }
 
     private func filterEpisodes() {
         episodes = inner.episodes.filter {
-            StrimrAdapter.isAllowed($0, policy: policy)
+            PlinxContentAuthorization.isAllowed($0, policy: policy)
         }
     }
 }

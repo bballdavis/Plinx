@@ -80,7 +80,7 @@ struct PlaybackLauncher {
         guard let item = response.mediaContainer.metadata?.first else {
             return false
         }
-        return StrimrAdapter.isAllowed(
+        return PlinxContentAuthorization.isAllowed(
             MediaItem(plexItem: item),
             policy: safetyPolicy,
         )

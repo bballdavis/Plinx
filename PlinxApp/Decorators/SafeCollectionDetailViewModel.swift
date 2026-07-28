@@ -39,6 +39,6 @@ final class SafeCollectionDetailViewModel {
     // MARK: - Filtering
 
     private func applyFilters() {
-        items = inner.items.filter { StrimrAdapter.isAllowed($0, policy: policy) }
+        items = inner.items.filter { PlinxContentAuthorization.isAllowed($0, policy: policy) }
     }
 }

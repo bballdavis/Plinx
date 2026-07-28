@@ -82,7 +82,7 @@ struct DownloadAccessPolicy {
     }
 
     func decision(for item: DownloadItem) -> DownloadAccessDecision {
-        guard StrimrAdapter.isAllowed(item.metadata.localMediaItem, policy: safetyPolicy) else {
+        guard PlinxContentAuthorization.isAllowed(item.metadata.localMediaItem, policy: safetyPolicy) else {
             return .blockedByContentPolicy
         }
 
