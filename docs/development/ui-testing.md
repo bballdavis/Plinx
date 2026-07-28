@@ -71,6 +71,7 @@ the app also receives `--ui-testing`:
 - `playerSettings`
 - `downloadsGrid`
 - `loadingGallery`
+- `homeLoading`
 - `playerBuffering`
 - `refreshLoading`
 
@@ -87,8 +88,11 @@ variants together. `playerBuffering` renders the actual Plinx-owned video
 overlay against a deterministic colorful frame. Branding UI tests assert that
 these fixtures contain the expected Plinx accessibility identifiers and no
 native activity indicator.
-`refreshLoading` provides a deterministic pull-to-refresh surface so tests can
-assert the branded refresh indicator and the absence of a native spinner.
+`homeLoading` renders the production full-screen hero identity: the existing
+animated rounded-square beacon at hero scale, with the full-color loop centered
+inside, the outlined white wordmark beneath it, and no visible loading caption.
+`refreshLoading` provides a deterministic pull-to-refresh surface for visual
+inspection of the branded refresh indicator and hidden native spinner.
 
 ### tvOS focus rules
 

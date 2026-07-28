@@ -125,12 +125,25 @@ content = insert_before_marker(
 phase_entries = resources_phase(IOS_RESOURCES_PHASE, IOS_BUILD_FILES) + resources_phase(
     TVOS_RESOURCES_PHASE, TVOS_BUILD_FILES
 )
-content = insert_before_marker(
-    content,
-    "/* End PBXResourcesBuildPhase section */",
-    phase_entries,
-    IOS_RESOURCES_PHASE,
-)
+resources_end_marker = "/* End PBXResourcesBuildPhase section */"
+if resources_end_marker in content:
+    content = insert_before_marker(
+        content,
+        resources_end_marker,
+        phase_entries,
+        IOS_RESOURCES_PHASE,
+    )
+else:
+    content = insert_before_marker(
+        content,
+        "/* Begin PBXSourcesBuildPhase section */",
+        (
+            "/* Begin PBXResourcesBuildPhase section */\n"
+            f"{phase_entries}"
+            "/* End PBXResourcesBuildPhase section */\n\n"
+        ),
+        IOS_RESOURCES_PHASE,
+    )
 
 content = add_phase_to_target(content, "Plinx-iOS", IOS_RESOURCES_PHASE)
 content = add_phase_to_target(content, "Plinx-tvOS", TVOS_RESOURCES_PHASE)

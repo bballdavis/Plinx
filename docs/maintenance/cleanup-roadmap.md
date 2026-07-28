@@ -4,7 +4,7 @@ This backlog is intentionally separate from the current documentation reorg so r
 
 ## Priority 1
 
-- Audit generated-artifact hygiene across `PlinxApp/build/`, `Packages/*/.build/`, `Packages/*/build/`, and any checked-in local outputs that should be ignored or cleaned more aggressively.
+- [x] Consolidate generated-artifact hygiene across `PlinxApp/build/`, `Packages/*/.build/`, `Packages/*/build/`, and local cache cleanup behind the shared build environment and `scripts/clean.sh`.
 - Review whether `PlinxApp/README.md` should remain as a short local note or be folded fully into `docs/development/setup.md`.
 - Consolidate any duplicated test-helper or fixture locations that are causing ambiguity between app tests and package tests.
 

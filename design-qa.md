@@ -2,10 +2,10 @@
 
 **Comparison target**
 
-- Source visual truth: `<local path>/.codex/visualizations/2026/07/26/019f9c70-3e12-77f3-9373-4e94cac0da90/plinx-visual-audit/concepts/option-3-guided-portal.png`
-- Rendered implementation: `<local path>/.codex/visualizations/2026/07/26/019f9c70-3e12-77f3-9373-4e94cac0da90/plinx-option3-build/implementation-iphone-17e-final.png`
-- Normalized implementation: `<local path>/.codex/visualizations/2026/07/26/019f9c70-3e12-77f3-9373-4e94cac0da90/plinx-option3-build/implementation-iphone-17e-final-normalized.png`
-- Full-view comparison: `<local path>/.codex/visualizations/2026/07/26/019f9c70-3e12-77f3-9373-4e94cac0da90/plinx-option3-build/design-comparison-final.png`
+- Source visual truth: `<local capture path omitted>`
+- Rendered implementation: `<local capture path omitted>`
+- Normalized implementation: `<local capture path omitted>`
+- Full-view comparison: `<local capture path omitted>`
 - Viewport: compact iPhone, 390 × 844 points, portrait
 - Pixels and normalization: source 390 × 844 px; simulator capture 1170 × 2532 px at 3×; implementation downsampled to 390 × 844 px before comparison; comparison canvas 780 × 844 px
 - State: signed out, idle, default green accent, standard Dynamic Type, no customer data or credentials
@@ -66,10 +66,10 @@
 
 **Comparison target**
 
-- Platform source capture: `<local path>/.codex/visualizations/2026/07/26/019f9c70-3e12-77f3-9373-4e94cac0da90/plinx-visual-audit/captures/tvos-1080p-signIn-idle.png`
-- Option 3 style truth: `<local path>/.codex/visualizations/2026/07/26/019f9c70-3e12-77f3-9373-4e94cac0da90/plinx-visual-audit/concepts/option-3-guided-portal.png`
-- Rendered implementation: `<local path>/.codex/visualizations/2026/07/26/019f9c70-3e12-77f3-9373-4e94cac0da90/plinx-option3-build/implementation-tvos-1080p-verified.png`
-- Full-view comparison: `<local path>/.codex/visualizations/2026/07/26/019f9c70-3e12-77f3-9373-4e94cac0da90/plinx-option3-build/design-comparison-tvos-verified.png`
+- Platform source capture: `<local capture path omitted>`
+- Option 3 style truth: `<local capture path omitted>`
+- Rendered implementation: `<local capture path omitted>`
+- Full-view comparison: `<local capture path omitted>`
 - Viewport: Apple TV 1080p, 1920 × 1080 points/pixels, 1×, no density normalization
 - State: signed out, UI-test fixture, deterministic non-authentication QR payload, default green accent, Refresh Code initially focused, no credentials or customer data
 
@@ -116,10 +116,10 @@
 
 **Comparison target**
 
-- Fresh pre-change evidence: `<local path>/.codex/visualizations/2026/07/26/019f9c70-3e12-77f3-9373-4e94cac0da90/plinx-option3-build/audit-refresh-cleanup-01-current.png`
-- Final implementation: `<local path>/.codex/visualizations/2026/07/26/019f9c70-3e12-77f3-9373-4e94cac0da90/plinx-option3-build/implementation-tvos-refresh-cleanup-final.png`
-- Full-view comparison: `<local path>/.codex/visualizations/2026/07/26/019f9c70-3e12-77f3-9373-4e94cac0da90/plinx-option3-build/design-comparison-tvos-refresh-cleanup-full.png`
-- Focused comparison: `<local path>/.codex/visualizations/2026/07/26/019f9c70-3e12-77f3-9373-4e94cac0da90/plinx-option3-build/design-comparison-tvos-refresh-cleanup-focus.png`
+- Fresh pre-change evidence: `<local capture path omitted>`
+- Final implementation: `<local capture path omitted>`
+- Full-view comparison: `<local capture path omitted>`
+- Focused comparison: `<local capture path omitted>`
 - Viewport: Apple TV 1080p, 1920 × 1080 points/pixels, 1×
 - State: signed out, deterministic UI-test fixture, default green accent, Refresh Code initially focused, no credentials or customer data
 
@@ -151,3 +151,109 @@
 - The simulator capture verifies the initial focused state and containment. Physical Siri Remote activation, VoiceOver speech order, measured contrast, alternate accent colors, and Reduce Motion remain runtime checks rather than compliance claims.
 
 final result: passed
+
+# Plinx Loop Identity Refactor — Design QA
+
+**Comparison target**
+
+- Approved identity board: `/Users/philipdavis/Repos/Plinx/assets/branding/references/plinx-loop-selected.png`
+- Production source isolations: `/Users/philipdavis/Repos/Plinx/assets/branding/source/plinx-loop.png` and `/Users/philipdavis/Repos/Plinx/assets/branding/source/plinx-wordmark.png`
+- Rendered documentation site: `/Users/philipdavis/.codex/visualizations/2026/07/28/019fa6e1-9a7e-75a3-a46e-517d3e59ea47/plinx-loop-refactor/website-home-desktop-final.jpg`
+- Full-view comparison: `/Users/philipdavis/.codex/visualizations/2026/07/28/019fa6e1-9a7e-75a3-a46e-517d3e59ea47/plinx-loop-refactor/brand-reference-vs-website-final.png`
+- Mobile documentation capture: `/Users/philipdavis/.codex/visualizations/2026/07/28/019fa6e1-9a7e-75a3-a46e-517d3e59ea47/plinx-loop-refactor/website-home-mobile-viewport.jpg`
+- Desktop viewport: 1440 × 1000 CSS pixels
+- Mobile viewport: 390 × 844 CSS pixels
+- State: documentation home, local production content, no account or customer data
+
+**Findings**
+
+- The generated production mark and exact `Plinx` wordmark preserve the selected loop silhouette, friendly upright forms, lime-to-teal palette, and dark-shell contrast. No actionable P0, P1, or P2 identity-fidelity differences remain.
+- The shell stays `#0B120E` in object-dense app and website regions. Large static ambient lime and teal light is limited to branded/spacious surfaces and remains decorative.
+- The website navbar, hero, favicon, social preview, release artwork, iOS/iPadOS icons, tvOS layered icons, Top Shelf artwork, launch treatment, sign-in, parental gate, home header, and branded loaders now use the Plinx Loop system.
+- iOS/iPadOS and tvOS asset catalogs compile independently without warnings or errors. The Any, Dark, and Tinted iOS masters are opaque 1024 × 1024 sRGB images; tinted artwork is grayscale. tvOS front layers retain transparency, back layers are opaque, and Top Shelf exports match the catalog dimensions.
+- The iOS target builds successfully for the simulator. The tvOS target builds successfully for an arm64 Apple TV simulator. A generic dual-architecture tvOS simulator build continues to fail in the existing LibDovi dependency because its XCFramework has no x86_64 slice; this is outside the Plinx-owned visual patch.
+
+**Required fidelity surfaces**
+
+- Fonts and typography: the app root and Plinx semantic styles default to SF Rounded while retaining Dynamic Type. PIN and media-number call sites can continue to opt into monospaced digits.
+- Spacing and layout rhythm: the horizontal lockup remains legible at the approximately 35-point home-header slot. Mark safe areas are held across app icons, navbar placement, Top Shelf, and marketing layouts.
+- Colors and visual tokens: canonical lime `#9EEE73`, teal `#399E91`, shell `#0B120E`, white, and charcoal are shared through `PlinxBrand` and the reproducible asset manifest.
+- Image quality and asset fidelity: all visible brand art is generated from the approved ImageGen isolations. SVG silhouettes are source-traced rather than manually redrawn, and web/marketing PNGs are generated from the same masters.
+- Interaction and accessibility: compact loading remains logo-free, regular and hero tiers use the loop without rotating it, Reduce Motion remains supported, brand images expose the `Plinx` accessibility label, and navigation/content hierarchy is unchanged.
+
+**Comparison history**
+
+1. The initial website pass exposed a P2 contrast issue on the secondary “Build from source” action over the ambient hero. The border and label were raised to white while preserving the transparent secondary hierarchy.
+2. The desktop and 390 × 844 follow-up captures show no horizontal overflow, clipping, malformed wordmark text, or actionable P0/P1/P2 mismatch.
+3. Native source, asset, and compile checks pass. Fresh iPhone, iPad, and Apple TV implementation captures could not be produced because the installed iOS 26.5 and tvOS 26.5 simulator runtimes remain stuck on `Waiting on System App` during first-boot migration.
+
+**Open evidence limits**
+
+- Repeat the specified iPhone, iPad, and Apple TV runtime captures when Simulator finishes system-app migration. The app bundles cannot be installed or launched until that external runtime state clears.
+- Physical-device VoiceOver order, measured contrast, Siri Remote focus behavior, and icon parallax remain release-device checks rather than compliance claims.
+
+final result: blocked
+
+# Plinx Loop Contrast and tvOS Icon Cleanup — Design QA
+
+**Comparison target**
+
+- Reported iPhone sign-in capture: `/Users/philipdavis/.codex/visualizations/2026/07/28/019fa6e1-9a7e-75a3-a46e-517d3e59ea47/plinx-loop-cleanup/01-sign-in-before.png`
+- Corrected white-lockup contrast swatch: `/Users/philipdavis/.codex/visualizations/2026/07/28/019fa6e1-9a7e-75a3-a46e-517d3e59ea47/plinx-loop-cleanup/03-sign-in-lockup-contrast-after.png`
+- Corrected tvOS layered-icon composite: `/Users/philipdavis/.codex/visualizations/2026/07/28/019fa6e1-9a7e-75a3-a46e-517d3e59ea47/plinx-loop-cleanup/02-tvos-icon-after.png`
+- Corrected 1280 × 768 tvOS App Store composite: `/Users/philipdavis/.codex/visualizations/2026/07/28/019fa6e1-9a7e-75a3-a46e-517d3e59ea47/plinx-loop-cleanup/04-tvos-app-store-icon-after.png`
+
+**Findings and resolution**
+
+- P1 identity fidelity: traced wordmark paths previously used the default nonzero fill rule, filling the `P` counter. Generated SVG groups now use even-odd fill and clipping, and the generator samples the rasterized counter to prevent regression.
+- P1 contrast: compact sign-in previously used a gradient loop on the lime-to-teal portal. It now selects a dedicated white horizontal lockup whose loop and exact `Plinx` wordmark are both white. Generated-asset validation rejects any non-white visible pixel in that treatment.
+- P1 tvOS identity: the layered foreground previously contained only a small centered loop. Regular and App Store icon stacks now use a prominent centered horizontal loop-and-wordmark foreground spanning approximately 72% of the icon width, with transparent foreground and opaque shell/ambient background layers.
+- The tvOS composite shows an open `P` counter, clear shell contrast, balanced optical centering, and a silhouette that remains readable at icon scale.
+- iOS/iPadOS and tvOS asset catalogs compile independently after regeneration. The iOS and arm64 tvOS targets build successfully, and the iOS test bundle compiles successfully.
+
+**Evidence limits**
+
+- A fresh in-app iPhone screenshot remains unavailable because two installed iOS simulator devices stalled in `Waiting on System App`; the nominally booted alternate device would not accept an app install. No simulator was erased or reset.
+- The contrast swatch uses the production-generated `BrandLockupWhite` vector over the canonical brand gradient, but it is not a substitute for final runtime capture on a functioning simulator or device.
+
+final result: blocked
+
+# Parental Gate and Home Loading Surface-Role Correction — Design QA
+
+**Comparison target**
+
+- Reported parental-gate implementation: `/var/folders/vz/xjfy40v50nq3ct410zysfb4r0000gn/T/codex-clipboard-6bd06d57-e352-411a-9256-c42be6ba0134.png`
+- Reported home-loading implementation: `/var/folders/vz/xjfy40v50nq3ct410zysfb4r0000gn/T/codex-clipboard-3933dc72-b384-4423-8b01-26b389004212.png`
+- Parental-gate production-asset surface preview: `/Users/philipdavis/.codex/visualizations/2026/07/28/019fa6e1-9a7e-75a3-a46e-517d3e59ea47/plinx-surface-role-correction/05-parental-gate-surface-preview.png`
+- Home-loading production-asset surface preview: `/Users/philipdavis/.codex/visualizations/2026/07/28/019fa6e1-9a7e-75a3-a46e-517d3e59ea47/plinx-surface-role-correction/06-home-loading-surface-preview.png`
+- Parental-gate combined comparison: `/Users/philipdavis/.codex/visualizations/2026/07/28/019fa6e1-9a7e-75a3-a46e-517d3e59ea47/plinx-surface-role-correction/07-parental-gate-before-vs-surface-preview.png`
+- Home-loading combined comparison: `/Users/philipdavis/.codex/visualizations/2026/07/28/019fa6e1-9a7e-75a3-a46e-517d3e59ea47/plinx-surface-role-correction/08-home-loading-before-vs-surface-preview.png`
+- Viewport: 794 × 896 pixels, compact portrait modal/full-screen states
+- Density normalization: source and previews are compared at the same pixel dimensions
+- State: parental math gate with entered answer; home initial loading; no account or customer data
+
+**Findings and implemented resolution**
+
+- P1 surface-role mismatch: the parental gate had been changed from a bright branded moment into a near-black panel with a white identity. The implementation now restores the canonical lime-to-teal gradient, keeps the all-white stacked identity on that saturated surface, and returns challenge typography to shell-colored foregrounds.
+- P1 action affordance: the Unlock button previously read as a dim disabled-looking glass outline. An initial correction introduced a one-off lime capsule, which did not belong to the shared component language. The final implementation uses the reusable `LiquidGlassButton` with its canonical `.brand` treatment, retaining shared glass geometry, highlights, depth, haptics, and press motion.
+- P1 loading hierarchy: home loading previously rendered a large static white lockup, a second tiny animated mark inside a square, and redundant loading copy. An initial correction incorrectly replaced the established animation with a pulsing standalone mark. The final implementation promotes the existing animated rounded-square `PlinxLoadingIndicator` to `.hero` size, keeps the full-color loop centered inside it, places the outlined white `Plinx` wordmark beneath it, and removes visible loading text while retaining an accessibility loading label.
+- P2 system consistency: dark-shell hydration now uses the dark-surface full-color lockup instead of the white stacked gradient treatment.
+
+**Required fidelity surfaces**
+
+- Fonts and typography: the gate retains SF Rounded and Dynamic Type; the visual preview uses approximate system rendering only and is not a runtime font-fidelity claim.
+- Spacing and layout rhythm: the gate preserves its existing challenge flow and control order. The home loader is a vertically centered hero beacon/wordmark pair with a 24-point relationship.
+- Colors and visual tokens: the gate uses canonical lime `#9EEE73`, teal `#399E91`, shell `#0B120E`, and white. Dark-shell loading uses the lime-to-teal mark and white outlined wordmark.
+- Image quality and asset fidelity: previews and implementation use production-generated outlined SVG assets. No live-text logo, symbol approximation, or handcrafted replacement is used.
+- Copy and content: parental-gate copy remains unchanged. Visible “Loading home”/“Loading your shows…” copy is removed from the home hero state; loading remains exposed to assistive technology.
+
+**Comparison history and evidence limits**
+
+1. The reported screenshots establish the P1 over-dark gate and duplicate loading hierarchy.
+2. The first correction restored the gate palette but used a one-off Unlock control and replaced the established loading animation rather than enlarging it.
+3. The second correction moves Unlock into `LiquidGlassButton(treatment: .brand)` and restores the existing animated beacon at hero size with the green loop centered inside.
+4. Updated production-asset comparisons confirm the corrected palette, component treatment, beacon scale, and content hierarchy at the same pixel dimensions.
+5. iOS, arm64 tvOS, iOS test-bundle, asset-catalog, and PlinxUI package checks pass.
+6. Fresh runtime screenshots remain blocked because the installed iOS simulator runtime stalls at `Waiting on System App` and will not accept the built app. The production-asset surface previews are not represented as runtime captures.
+
+final result: blocked

@@ -83,6 +83,17 @@ Each file must be an Apple-accepted pixel size, flattened without alpha, and sho
 
 Store final captures in `screenshots/app-store/`, flatten alpha with `scripts/flatten_screenshot_alpha.sh`, and run `scripts/tests/validate_app_store_screenshots.sh` before upload. The legacy iPad captures are `2360x1640` and are not valid 13-inch submission assets.
 
+The `AppIcon` catalog is generated from the approved Plink Loop identity with
+Any, Dark, and Tinted 1024-point sources. Run
+`npm run branding:generate --prefix website` after changing a brand source and
+`npm run branding:check --prefix website` before archiving. Do not add a corner
+mask or transparency to the iOS icon sources; the system supplies the mask.
+
+The `AppIconTV` catalog uses a large horizontal Plinx lockup on the transparent
+foreground layer and the canonical ambient shell on the opaque background
+layer. Both the 400×240 regular stack and 1280×768 App Store stack are generated
+from the same manifest, along with standard and wide Top Shelf artwork.
+
 ## Release Gates
 
 - P0 parental, content, playlist, playback, and offline authorization tests pass.

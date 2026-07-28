@@ -31,6 +31,7 @@ set -o pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 PLINX_APP_DIR="$PROJECT_ROOT/PlinxApp"
+source "$PROJECT_ROOT/scripts/build_environment.sh"
 source "$PROJECT_ROOT/scripts/sim_destination.sh"
 
 # Configuration
@@ -42,7 +43,7 @@ else
     DEVICE_NAME="${1:-Apple TV}"
 fi
 SCHEME="Plinx-tvOS"
-DERIVED_DATA_PATH="${PLINX_SIM_ATV_DERIVED_DATA_PATH:-/tmp/plinx-run-atv-derived-data}"
+DERIVED_DATA_PATH="${PLINX_SIM_ATV_DERIVED_DATA_PATH:-$PLINX_XCODE_DERIVED_DATA_PATH}"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "📺 Plinx Apple TV Simulator Build & Run"
@@ -125,7 +126,6 @@ echo ""
 # Step 4: Build
 echo "🔨 Building $SCHEME..."
 BUILD_LOG="/tmp/plinx_build_atv.log"
-/bin/rm -rf "$DERIVED_DATA_PATH"
 echo "→ Streaming full xcodebuild output (log: $BUILD_LOG)"
 BUILD_SETTINGS=()
 if [ "$COMPILE_ONLY" = true ]; then

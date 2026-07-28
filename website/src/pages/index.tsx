@@ -17,9 +17,15 @@ export default function Home() {
     <Layout title="Family media, thoughtfully managed" description={siteConfig.tagline}>
       <main>
         <section className={styles.hero}>
+          <img
+            className={styles.heroBackground}
+            src={useBaseUrl('plinx-ambient-hero-2400x1200.png')}
+            alt=""
+            aria-hidden="true"
+          />
           <div className={styles.heroContent}>
-            <img className={styles.logo} src={useBaseUrl('logo_full_color.png')} alt="Plinx" />
-            <p className={styles.eyebrow}>Coming soon for iPhone and iPad</p>
+            <img className={styles.logo} src={useBaseUrl('plinx-lockup-on-dark.svg')} alt="Plinx" />
+            <p className={styles.eyebrow}>Coming soon for iPhone, iPad, and Apple TV</p>
             <h1>Family media, thoughtfully managed.</h1>
             <p className={styles.lede}>
               Plinx is a parent-managed Plex client for browsing, watching, and downloading the media your family chooses.

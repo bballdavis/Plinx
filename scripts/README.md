@@ -50,6 +50,24 @@ for candidate-update workflow and CI behavior.
 
 ## Scripts
 
+### `branding/generate-assets.mjs` — Generate Brand And Platform Assets
+
+Traces the approved Plink Loop and wordmark sources, then exports the native
+asset-catalog images, iOS appearance variants, tvOS layered icons and Top Shelf
+artwork, launch background, website graphics, and marketing files.
+
+```bash
+# Regenerate committed outputs.
+npm run branding:generate --prefix website
+
+# Verify committed outputs without modifying them.
+npm run branding:check --prefix website
+```
+
+The palette and export contract live in
+`assets/branding/brand-manifest.json`. Do not edit a generated logo or icon
+directly; update the approved source or manifest and regenerate.
+
 ### `generate_xcodeproj.sh` — Generate the App Project
 
 Applies the pinned Strimr release patch, runs XcodeGen, and adds separate iOS
@@ -216,7 +234,8 @@ reachable), and it will now avoid reporting the bogus app from
 
 ### `clean.sh` — Clean Build Artifacts
 
-Removes all generated and cached build files.
+Removes generated outputs and the shared Plinx compiler caches. Normal builds
+reuse these caches; run this only when you need a genuinely clean build.
 
 ```bash
 ./scripts/clean.sh
@@ -224,10 +243,27 @@ Removes all generated and cached build files.
 
 **What it removes:**
 - `Plinx.xcodeproj` (regenerated from project.yml on next build)
-- `DerivedData/` (local Xcode artifacts)
-- Plinx entries in `~/Library/Developer/Xcode/DerivedData`
+- repository-local build, SwiftPM, and website outputs
+- the shared Xcode DerivedData root
+- the shared SwiftPM scratch root
+
+By default, reusable caches live under:
+
+- `~/Library/Caches/Plinx/DerivedData`
+- `~/Library/Caches/Plinx/SwiftPM`
+
+Override them when an isolated cache is required:
+
+```bash
+PLINX_CACHE_ROOT=/path/to/cache ./scripts/run_iphone_sim.sh
+```
 
 **Use when:** You encounter weird build cache issues or want a fresh build.
+
+The build and test scripts intentionally use one Xcode DerivedData path and
+one stable SwiftPM scratch path per package. They do not delete those paths at
+the start of each run, so dependency checkouts and compiled modules can be
+reused across iPhone, iPad, tvOS, package, and snapshot tests.
 
 ---
 
@@ -341,7 +377,7 @@ Plinx compiles the paired sibling Strimr checkout directly and resolves its
 player engine through Swift Package Manager:
 
 ```bash
-<local path>/Repos/
+<local repositories path>/
   Plinx/
   strimr/
 ```
@@ -417,4 +453,4 @@ These scripts can be used in CI pipelines:
 For CI, consider:
 - Pre-installing the iOS Simulator runtime
 - Using `build_only.sh` (no GUI simulator needed for pure builds)
-- Caching the `DerivedData` directory between runs
+- Caching the shared `PLINX_XCODE_DERIVED_DATA_PATH` and SwiftPM scratch roots between runs

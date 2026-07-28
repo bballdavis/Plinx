@@ -24,12 +24,13 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 PLINX_APP_DIR="$PROJECT_ROOT/PlinxApp"
+source "$PROJECT_ROOT/scripts/build_environment.sh"
 source "$PROJECT_ROOT/scripts/sim_destination.sh"
 
 DEVICE_NAME="${1:-iPhone 17 Pro Max}"
 SCHEME="Plinx-iOS"
 DESTINATION=""
-DERIVED_DATA_PATH="${PLINX_SIM_DERIVED_DATA_PATH:-/tmp/plinx-build-only-derived-data}"
+DERIVED_DATA_PATH="${PLINX_SIM_DERIVED_DATA_PATH:-$PLINX_XCODE_DERIVED_DATA_PATH}"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🔨 Plinx iOS Simulator Build"
@@ -70,7 +71,6 @@ echo ""
 
 # Build
 echo "🔨 Building Plinx-iOS..."
-/bin/rm -rf "$DERIVED_DATA_PATH"
 xcodebuild build \
     -project Plinx.xcodeproj \
     -scheme "$SCHEME" \

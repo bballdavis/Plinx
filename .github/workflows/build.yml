@@ -70,10 +70,15 @@ jobs:
           xcode-version: '26.5'
 
       - name: Test PlinxCore (with coverage)
-        run: swift test --package-path Packages/PlinxCore --enable-code-coverage
+        run: swift test \
+          --package-path Packages/PlinxCore \
+          --scratch-path "$RUNNER_TEMP/plinx-swiftpm/PlinxCore" \
+          --enable-code-coverage
 
       - name: Test PlinxUI
-        run: swift test --package-path Packages/PlinxUI
+        run: swift test \
+          --package-path Packages/PlinxUI \
+          --scratch-path "$RUNNER_TEMP/plinx-swiftpm/PlinxUI"
 
       - name: Enforce safety-critical coverage threshold
         shell: bash
@@ -188,7 +193,7 @@ jobs:
             -scheme Plinx-iOS \
             -destination "platform=iOS Simulator,name=Plinx iPhone 17 Pro (26.5),OS=26.5" \
             -configuration Release \
-            -derivedDataPath build/DerivedData-iPhone \
+            -derivedDataPath "$RUNNER_TEMP/plinx-derived-data" \
             CODE_SIGNING_ALLOWED=NO \
             -quiet
           xcodebuild build-for-testing \
@@ -196,7 +201,7 @@ jobs:
             -scheme Plinx-iOS \
             -destination "platform=iOS Simulator,name=Plinx iPad Pro 13-inch (26.5),OS=26.5" \
             -configuration Release \
-            -derivedDataPath build/DerivedData-iPad \
+            -derivedDataPath "$RUNNER_TEMP/plinx-derived-data" \
             CODE_SIGNING_ALLOWED=NO \
             -quiet
 
@@ -206,11 +211,11 @@ jobs:
             -project PlinxApp/Plinx.xcodeproj \
             -scheme Plinx-iOS \
             -destination "platform=iOS Simulator,name=Plinx iPhone 17 Pro (26.5),OS=26.5" \
-            -derivedDataPath build/DerivedData-iPhone \
+            -derivedDataPath "$RUNNER_TEMP/plinx-derived-data" \
             CODE_SIGNING_ALLOWED=NO
           xcodebuild test-without-building \
             -project PlinxApp/Plinx.xcodeproj \
             -scheme Plinx-iOS \
             -destination "platform=iOS Simulator,name=Plinx iPad Pro 13-inch (26.5),OS=26.5" \
-            -derivedDataPath build/DerivedData-iPad \
+            -derivedDataPath "$RUNNER_TEMP/plinx-derived-data" \
             CODE_SIGNING_ALLOWED=NO

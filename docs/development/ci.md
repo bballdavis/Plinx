@@ -60,8 +60,13 @@ Use the same validation locally with:
 CI runs:
 
 ```bash
-swift test --package-path Packages/PlinxCore --enable-code-coverage
-swift test --package-path Packages/PlinxUI
+swift test \
+  --package-path Packages/PlinxCore \
+  --scratch-path "$RUNNER_TEMP/plinx-swiftpm/PlinxCore" \
+  --enable-code-coverage
+swift test \
+  --package-path Packages/PlinxUI \
+  --scratch-path "$RUNNER_TEMP/plinx-swiftpm/PlinxUI"
 ```
 
 Coverage enforcement is applied to safety-critical files in `Packages/PlinxCore/Sources/PlinxCore/Safety/`.
@@ -75,6 +80,10 @@ CI also:
 3. installs/verifies the pinned iOS runtime and creates iPhone/iPad devices
 4. builds `Plinx-iOS` for both simulator form factors
 5. runs the unit and UI suites on both destinations
+
+The iPhone and iPad jobs intentionally share one `$RUNNER_TEMP/plinx-derived-data`
+root. The builds run sequentially, so they can reuse package checkouts and
+compiler artifacts instead of creating one SourcePackages tree per device.
 
 The workflow creates a local `dev-plinx` branch at the configured exact commit
 only inside its disposable clone, then runs:

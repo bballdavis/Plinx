@@ -28,21 +28,15 @@
 }
 
 .navbar__logo {
-  width: 2.35rem;
-  height: 2.35rem;
-  margin-right: 0.75rem;
+  width: 7.5rem;
+  height: 2.25rem;
+  margin-right: 1rem;
 }
 
 .navbar__logo img {
-  width: 2.35rem;
-  height: 2.35rem;
-  border-radius: 0.55rem;
-}
-
-.navbar__title {
-  font-size: 1.45rem;
-  font-weight: 800;
-  letter-spacing: -0.025em;
+  width: 7.5rem;
+  height: 2.25rem;
+  object-fit: contain;
 }
 
 .button--secondary { border-color: currentColor; background: transparent; color: inherit; }
@@ -53,6 +47,5 @@ table { display: table; width: 100%; }
 
 @media screen and (max-width: 996px) {
   .navbar { --ifm-navbar-height: 4rem; }
-  .navbar__logo, .navbar__logo img { width: 2rem; height: 2rem; }
-  .navbar__title { font-size: 1.25rem; }
+  .navbar__logo, .navbar__logo img { width: 6.5rem; height: 1.95rem; }
 }

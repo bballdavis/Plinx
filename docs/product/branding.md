@@ -11,12 +11,15 @@ When screenshots, old notes, or memory conflict with code, the code-backed sourc
 ### Canonical asset sources
 
 - `assets/branding/` for reference exports, logos, app-store material, and reusable marketing assets
+- `assets/branding/brand-manifest.json` for identity colors, spacing, and export rules
+- `scripts/branding/generate-assets.mjs` for deterministic vector tracing and platform exports
 - `PlinxApp/Resources/Assets.xcassets/` for packaged runtime assets
 - `PlinxApp/Resources/LaunchScreen.storyboard` for launch-screen asset usage
 
 ### Canonical code sources
 
 - `Packages/PlinxUI/Sources/PlinxUI/LiquidGlass/PlinxTheme.swift`
+- `Packages/PlinxUI/Sources/PlinxUI/Brand/PlinxBrand.swift`
 - `Packages/PlinxUI/Sources/PlinxUI/LiquidGlass/LiquidGlassButton.swift`
 - `Packages/PlinxUI/Sources/PlinxUI/LiquidGlass/LiquidGlassModifiers.swift`
 - `PlinxApp/App/ThemeExtensions.swift`
@@ -51,7 +54,7 @@ Plinx should feel like:
 The current visual language is:
 
 - deep dark application shell for media browsing
-- bright green-teal branded full-screen surfaces for onboarding, loading, and parental gate
+- restrained lime/teal ambient light on selected branded dark-shell surfaces
 - translucent liquid-glass interaction surfaces
 - soft rounded geometry with strong corner radii
 - clear white foreground text on dark shells
@@ -85,41 +88,53 @@ The UI should not look busy. Large branded moments belong on entry, gate, and sh
 
 The most recognizable Plinx combination is:
 
-- black or near-black app shell
-- bright green-to-teal brand gradient on full-screen branded surfaces
+- deep green-black app shell
+- contextual lime/teal ambient light on entry, loading, and empty states
+- full lime-to-teal color on the parental gate and other intentionally saturated brand moments
 - white or very light text
 - green/teal accent action affordances
 - rounded translucent panels and controls
-- Plinx chevron logo used sparingly but confidently
+- Plink Loop mark and friendly rounded wordmark used sparingly but confidently
 
 If a new surface does not look like it belongs beside the home screen, parental gate, settings screen, and sign-in flow, it likely needs to be adjusted.
 
 ## Logo System
 
-### Primary logo assets
+### Primary runtime logo assets
 
-- `LogoFullColor`
-- `LogoFullWhite`
-- `LogoDark`
-- `LogoStackedFullWhite`
+- `BrandMarkColor`
+- `BrandMarkWhite`
+- `BrandMarkCharcoal`
+- `BrandWordmarkWhite`
+- `BrandLockupOnLight`
+- `BrandLockupOnDark`
+- `BrandLockupWhite`
+- `BrandLockupStackedOnGradient`
 
 ### Preferred usage
 
-Use `LogoFullColor` when:
+Use `BrandLockupOnLight` when:
 
 - the logo sits on a neutral or softened surface
 - the logo appears inside a contained hero panel
 - the background is light enough or desaturated enough for the full-color mark to read clearly
 
-Use `LogoStackedFullWhite` or another white logo variant when:
+Use `BrandLockupOnDark` when the logo sits directly on the dark shell. Use
+`BrandLockupWhite` when the logo sits on the canonical lime-to-teal gradient or
+another saturated brand-color surface. This keeps both the loop and wordmark
+clearly visible instead of layering the gradient loop over a similar gradient.
+Use `BrandWordmarkWhite` below the hero loading beacon when the animated mark
+and wordmark need to remain independent. Use
+`BrandLockupStackedOnGradient` when:
 
-- the background is the saturated Plinx brand gradient
+- the background is a dedicated saturated gradient
 - the surface is a full-screen branded moment
-- the logo is functioning as a centered splash/loading/gate emblem
+- the logo is functioning as a centered gate emblem
 
 ### Logo behavior rules
 
 - Never substitute Strimr branding or upstream app art.
+- Never reconstruct the loop or wordmark from live text, symbols, or ad hoc shapes.
 - Never recolor the logo ad hoc in SwiftUI.
 - Never stretch, crop, rotate, outline, or shadow the logo differently per screen unless the asset itself was designed for that purpose.
 - Do not use the logo as repeated decoration in content-heavy browsing screens.
@@ -138,7 +153,9 @@ Default rule:
 
 ### Clear-space rule
 
-Maintain clear space around the logo equal to at least the height of the chevron mark’s inner opening. In practice, do not let labels, controls, or cards sit tightly against the logo.
+Maintain clear space around the mark equal to at least 25% of its width. For a
+lockup, use at least the height of the lowercase `i` dot. Do not let labels,
+controls, or cards sit tightly against the identity.
 
 ## Color System
 
@@ -148,13 +165,13 @@ From `PlinxTheme.Palette.default`:
 
 | Token | Current value | Role |
 |---|---|---|
-| `primary` | `.blue` | theme primary; supporting highlight color, not the app shell accent |
-| `secondary` | `.orange` | secondary brand accent, supporting only |
-| `accent` | `.pink` | theme default interactive accent before user tint override |
-| `background` | `Color(red: 0.045, green: 0.07, blue: 0.055)` | global dark shell |
-| `surface` | `Color(white: 0.12)` | elevated dark surface |
-| `onPrimary` | `.white` | text/icons on primary interactive surfaces |
-| `success` | `.green` | positive states |
+| `primary` | `PlinxBrand.lime` / `#9EEE73` | primary identity color |
+| `secondary` | `PlinxBrand.teal` / `#399E91` | secondary identity color |
+| `accent` | `PlinxBrand.teal` | package default before the user tint override |
+| `background` | `PlinxBrand.shell` / `#0B120E` | global dark shell |
+| `surface` | `PlinxBrand.surface` / `#18211D` | elevated dark surface |
+| `onPrimary` | `PlinxBrand.shell` | text/icons on lime surfaces |
+| `success` | `PlinxBrand.teal` | positive states |
 | `warning` | `.yellow` | caution/error-supportive states |
 
 Important implementation note:
@@ -162,7 +179,7 @@ Important implementation note:
 The runtime brand expression is not driven only by `PlinxTheme.Palette.default`. The app also uses:
 
 - root `.tint()` from the selected `PlinxAccentColor`
-- explicit `LinearGradient.plinxBrandGreen`
+- `PlinxBrand.gradient` and `PlinxAmbientBackground`
 - `Color.brandPrimary`, `Color.brandSecondary`, and `Color.appBackground`
 
 That means branding decisions must consider theme tokens and app-level overrides together.
@@ -173,7 +190,7 @@ From `ThemeExtensions.swift`:
 
 | Token | Value | Usage |
 |---|---|---|
-| `Color.appBackground` | `Color(red: 0.045, green: 0.07, blue: 0.055)` | default screen background |
+| `Color.appBackground` | `PlinxBrand.shell` / `#0B120E` | default screen background |
 | `brandPrimary` | `.accentColor` | accent underline/highlight stripe |
 | `brandSecondary` | `Color(white: 0.82)` | section headers, supporting light-neutral text |
 
@@ -184,30 +201,36 @@ Rules:
 - Use `brandSecondary` for supporting titles and metadata where a neutral light-gray is needed.
 - Do not introduce purple-tinted neutrals for section titles or dark-shell chrome.
 
-## Branded green gradient
+## Identity gradient
 
-From `LinearGradient.plinxBrandGreen`:
+From `PlinxBrand.gradient`:
 
-- top color: `Color(red: 0.619, green: 0.933, blue: 0.450)`
-- bottom color: `Color(red: 0.225, green: 0.620, blue: 0.570)`
-- direction: top to roughly 70% down the screen
+- top color: lime `#9EEE73`
+- bottom color: teal `#399E91`
+- direction: top to bottom
 
-This is the canonical full-screen Plinx brand gradient and should be used for:
+This is the canonical identity gradient and should be used for:
 
-- parental gate
-- splash/loading surfaces
-- other dedicated branded full-screen states
+- the loop mark
+- default app-icon background
+- contained sign-in portal surfaces
+- the parental gate
+- selected dedicated marketing artwork
 
 Do not replace it with arbitrary green gradients.
 
-## Sign-in gradient treatment
+## Contextual ambient treatment
 
-The sign-in screen uses a more layered version of the brand gradient:
+`PlinxAmbientBackground` keeps `#0B120E` as the stable base and introduces:
 
-- top light green
-- mid mint
-- lower teal
-- white radial glow at the top trailing area
+- a large lime source near the top-leading edge at 4-6% opacity
+- a large teal source near the bottom-trailing edge at 6-8% opacity
+- no required motion or meaning
+- no placement beneath dense poster grids or controls when contrast suffers
+
+Use it for sign-in surroundings, launch/hero loading, and spacious empty
+states. The parental gate deliberately uses the full identity gradient instead.
+Pure black remains appropriate for video playback.
 - subtle dark vertical overlay for depth
 
 Use this richer treatment for:
@@ -284,7 +307,8 @@ Rules for accent behavior:
 ### Preferred combinations
 
 - dark shell + white title + accent control
-- brand gradient + dark green text for safe/gate surfaces
+- brand gradient + dark shell-colored text for the parental gate
+- ambient shell + full-color identity for hero loading
 - charcoal card + white label + muted gray secondary text
 - accent stroke + low-opacity accent fill for interactive cards or buttons
 
@@ -312,7 +336,10 @@ From `PlinxTheme.Typography.default`:
 
 Implementation note:
 
-- Typography uses system font as the rendering engine.
+- Typography uses the SF Rounded system design throughout the app.
+- The app root applies `.fontDesign(.rounded)` so upstream system text inherits
+  the same friendly treatment without modifying Strimr.
+- Timers, PINs, and other numeric information may retain monospaced digits.
 - Do not swap in random font families or novelty typefaces.
 - The personality comes from weight, spacing, surface treatment, and color, not from decorative type.
 
@@ -531,7 +558,8 @@ Examples:
 
 Required traits:
 
-- green-teal brand gradient
+- intentional surface-role pairing: white identity on saturated brand color,
+  full-color identity on the dark shell
 - centered logo moment
 - strong vertical spacing
 - minimal competing UI
@@ -550,16 +578,19 @@ Plinx loading states use one visual language at three intentional scales:
 - **Regular** is for video-level buffering and deliberate local waits that need
   more presence. It uses a thicker high-contrast perimeter, a translucent
   center, and a restrained Plinx mark so the underlying video remains legible.
-- **Hero** is reserved for full-page branded loading. It uses the approved large
-  square beacon: smoked glass, canonical chevron, and a high-contrast
-  lime-to-cyan perimeter.
+- **Hero identity** is reserved for full-page branded loading. It promotes the
+  existing animated rounded-square beacon to hero scale—approximately the size
+  of the previous static logo—with the full-color Plink Loop centered inside.
+  The outlined white `Plinx` wordmark sits directly beneath the beacon. Keep the
+  perimeter animation and Reduce Motion behavior; do not add a second static
+  logo or visible loading copy.
 
 Do not place the Plinx logo in compact indicators; the mark becomes noise at
 inline sizes. Do not use the hero beacon inside video tiles, buttons, cards,
 rows, or navigation chrome. Do not show a visible buffering caption over video;
-keep that status available to assistive technology. Labels are optional in
-other compact and regular states and recommended when a hero wait may last long
-enough to need context.
+keep that status available to assistive technology. Home hero loading also
+keeps its loading status in accessibility semantics instead of displaying
+redundant “Loading home” copy.
 
 `PlinxProgressViewStyle` is installed at the app root. Indeterminate
 `ProgressView` instances therefore use the compact logo-free treatment by
@@ -568,11 +599,11 @@ and watch progress remains linear and must keep its numeric semantic value.
 Pull-to-refresh keeps the native gesture but replaces its activity presentation
 with a scaled regular Plinx square and hides the native spinner.
 Reduce Motion replaces the perimeter-chasing highlight with a static complete
-gradient perimeter; it does not hide the loading state. The square itself never
-rotates.
+gradient perimeter for square indicators and stops the hero identity pulse. It
+does not hide the loading state. The square and loop never rotate.
 
-The static OS launch storyboard remains unchanged because launch screens cannot
-animate. The first active app loading state transitions into the appropriate
+The static OS launch storyboard uses the same shell and ambient treatment because
+launch screens cannot animate. The first active app loading state transitions into the appropriate
 Plinx indicator.
 
 ## 2. Dark-shell browsing screens
@@ -617,10 +648,10 @@ Required traits:
 
 Current sign-in language:
 
-- layered branded gradient background
-- radial glow near top trailing
-- contained dark translucent hero panel
-- full-color logo
+- dark shell with restrained ambient lime/teal light
+- contained canonical-gradient portal on compact layouts
+- white horizontal lockup on the compact colored portal
+- dark-surface full-color lockup on spacious dark-shell layouts
 - white title/subtitle
 - accent-stroked, glass-adjacent CTA
 
@@ -634,11 +665,12 @@ Rules:
 
 Current parental gate language:
 
-- full-screen Plinx brand gradient
+- full lime-to-teal brand gradient
 - centered white stacked logo
-- dark text for headings on the bright background
+- dark shell-colored text for headings and challenge content
 - oversized challenge typography
-- branded unlock button
+- `LiquidGlassButton(treatment: .brand)` for the green Unlock action, preserving
+  the shared glass geometry, highlight/shadow tokens, haptics, and press motion
 
 Rules:
 
@@ -860,6 +892,7 @@ When changing branding:
 Changes in these files usually imply a branding review:
 
 - `Packages/PlinxUI/Sources/PlinxUI/LiquidGlass/PlinxTheme.swift`
+- `Packages/PlinxUI/Sources/PlinxUI/Brand/PlinxBrand.swift`
 - `Packages/PlinxUI/Sources/PlinxUI/LiquidGlass/LiquidGlassButton.swift`
 - `Packages/PlinxUI/Sources/PlinxUI/LiquidGlass/LiquidGlassModifiers.swift`
 - `PlinxApp/App/ThemeExtensions.swift`

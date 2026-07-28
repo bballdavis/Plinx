@@ -8,6 +8,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+source "$PROJECT_ROOT/scripts/build_environment.sh"
 
 MODE="ios"
 if [[ "${1:-}" == "--appletv" || "${1:-}" == "--tvos" ]]; then
@@ -260,6 +261,7 @@ run_tests() {
       -project PlinxApp/Plinx.xcodeproj \
       -scheme "$SCHEME" \
       -destination "$DESTINATION" \
+      -derivedDataPath "$PLINX_XCODE_DERIVED_DATA_PATH" \
       -resultBundlePath "$RESULT_BUNDLE" \
       -only-testing:"$TEST_TARGET"
   ) 2>&1 | tee "$LOG_PATH"

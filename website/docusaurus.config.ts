@@ -7,7 +7,7 @@ const siteDirectory = process.cwd();
 const config: Config = {
   title: 'Plinx',
   tagline: 'A parent-managed Plex experience for family media',
-  favicon: 'icon_color.png',
+  favicon: 'favicon-512.png',
   url: 'https://bballdavis.github.io',
   baseUrl: '/Plinx/',
   organizationName: 'bballdavis',
@@ -44,12 +44,12 @@ const config: Config = {
   plugins: [path.resolve(siteDirectory, 'src/plugins/dependencyStatus.mjs')],
 
   themeConfig: {
-    image: 'logo_full_color.png',
+    image: 'plinx-social-card-1200x630.png',
     navbar: {
-      title: 'Plinx',
       logo: {
         alt: 'Plinx',
-        src: 'icon_color.png',
+        src: 'plinx-lockup-on-light.svg',
+        srcDark: 'plinx-lockup-on-dark.svg',
       },
       items: [
         {to: '/docs/user/getting-started', label: 'User Guide', position: 'left'},

@@ -16,23 +16,31 @@ Plinx uses four main test layers:
 ### PlinxCore package tests
 
 ```bash
-swift test --package-path Packages/PlinxCore
+source scripts/build_environment.sh
+swift test \
+  --package-path Packages/PlinxCore \
+  --scratch-path "$PLINX_SWIFTPM_SCRATCH_ROOT/PlinxCore"
 ```
 
 ### PlinxUI package tests
 
 ```bash
-swift test --package-path Packages/PlinxUI
+source scripts/build_environment.sh
+swift test \
+  --package-path Packages/PlinxUI \
+  --scratch-path "$PLINX_SWIFTPM_SCRATCH_ROOT/PlinxUI"
 ```
 
 ### App unit tests
 
 ```bash
+source scripts/build_environment.sh
 cd PlinxApp
 xcodebuild test \
   -project Plinx.xcodeproj \
   -scheme Plinx-iOS \
   -destination "platform=iOS Simulator,name=iPhone 16,OS=26.5" \
+  -derivedDataPath "$PLINX_XCODE_DERIVED_DATA_PATH" \
   -only-testing:Plinx-iOS-UnitTests \
   CODE_SIGNING_ALLOWED=NO
 ```
@@ -43,11 +51,13 @@ including rated YouTube content, parental rating ceilings, the global unrated
 toggle, and the Other Videos landscape row:
 
 ```bash
+source scripts/build_environment.sh
 cd PlinxApp
 xcodebuild test \
   -project Plinx.xcodeproj \
   -scheme Plinx-iOS \
   -destination "platform=iOS Simulator,name=iPhone 17,OS=26.5" \
+  -derivedDataPath "$PLINX_XCODE_DERIVED_DATA_PATH" \
   -only-testing:Plinx-iOS-UnitTests/HomeRecentlyAddedProjectionTests \
   -only-testing:Plinx-iOS-UnitTests/SafeHomeViewModelTests \
   CODE_SIGNING_ALLOWED=NO

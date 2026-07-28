@@ -1,6 +1,5 @@
 <h1>
-  <img src="assets/branding/logo_color.png" alt="Plinx logo" height="1em" style="vertical-align:middle;"/>
-  Plinx
+  <img src="assets/branding/plinx-lockup-on-light.svg" alt="Plinx" height="46"/>
 </h1>
 
 A playful, parent-managed Plex client for family media. Browse, search, and watch a parent-selected library with configurable rating ceilings, library visibility, and offline access.

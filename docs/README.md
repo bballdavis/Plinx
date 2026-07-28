@@ -56,7 +56,7 @@ Recommended reading order for most work:
 
 | Change type | Update docs | Minimum validation |
 |---|---|---|
-| App structure, target composition, package boundaries | `docs/architecture/overview.md`, `docs/architecture/runtime-build-graph.md`, `docs/architecture/source-tree.md` | `swift test --package-path Packages/PlinxCore`, `swift test --package-path Packages/PlinxUI`, app unit tests |
+| App structure, target composition, package boundaries | `docs/architecture/overview.md`, `docs/architecture/runtime-build-graph.md`, `docs/architecture/source-tree.md` | `./scripts/ui_tests.sh --core`, `./scripts/ui_tests.sh --ui`, app unit tests |
 | Plinx vs Strimr ownership change | `docs/architecture/repo-boundaries.md`, `docs/architecture/strimr-integration.md` | Tests covering the touched layer plus any affected live parity checks |
 | Branding, theme, assets, or kid-facing UI chrome | `docs/product/branding.md` | Branding/unit tests, relevant snapshot tests, targeted UI tests |
 | Safety, privacy, logging, secrets, or parental gate behavior | `docs/security/privacy-and-safety.md`, `docs/development/testing.md` | Safety/unit tests, targeted UI tests, release/archive validation when applicable |

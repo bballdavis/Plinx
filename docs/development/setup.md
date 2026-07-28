@@ -62,12 +62,18 @@ Prefer the repository-relative form below; if explicitly launched with `zsh
 ./scripts/run_iphone_sim.sh`, the script re-enters through Bash before resolving
 its repository-relative paths.
 
+The scripts share a persistent Xcode DerivedData and SwiftPM cache under
+`~/Library/Caches/Plinx` by default. They reuse those caches across destinations
+and test layers; use `./scripts/clean.sh` when a full rebuild is intentional.
+
 ```bash
 cd PlinxApp
+source ../scripts/build_environment.sh
 xcodebuild build \
   -project Plinx.xcodeproj \
   -scheme Plinx-iOS \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -derivedDataPath "$PLINX_XCODE_DERIVED_DATA_PATH"
 ```
 
 Or use the repo scripts:
