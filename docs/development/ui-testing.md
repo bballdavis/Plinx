@@ -70,6 +70,9 @@ the app also receives `--ui-testing`:
 - `selectServer`
 - `playerSettings`
 - `downloadsGrid`
+- `loadingGallery`
+- `playerBuffering`
+- `refreshLoading`
 
 Keep these routes deterministic and free of credentials or personal data.
 When a visual-audit route needs account-backed content, capture loading or
@@ -78,6 +81,14 @@ On tvOS, the `signIn` route must not request or render a live Plex link QR
 code. It renders a deterministic, credential-free preview QR payload so the
 plate, hierarchy, and initial Refresh Code focus state can be captured without
 network access.
+
+`loadingGallery` renders the compact inline, regular glass, and hero video
+variants together. `playerBuffering` renders the actual Plinx-owned video
+overlay against a deterministic colorful frame. Branding UI tests assert that
+these fixtures contain the expected Plinx accessibility identifiers and no
+native activity indicator.
+`refreshLoading` provides a deterministic pull-to-refresh surface so tests can
+assert the branded refresh indicator and the absence of a native spinner.
 
 ### tvOS focus rules
 

@@ -22,13 +22,37 @@
 }
 
 .navbar {
+  --ifm-navbar-height: 4.5rem;
   backdrop-filter: blur(16px);
   background: color-mix(in srgb, var(--ifm-background-color) 86%, transparent);
 }
 
-.navbar__logo img { border-radius: 0.55rem; }
+.navbar__logo {
+  width: 2.35rem;
+  height: 2.35rem;
+  margin-right: 0.75rem;
+}
+
+.navbar__logo img {
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 0.55rem;
+}
+
+.navbar__title {
+  font-size: 1.45rem;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+}
+
 .button--secondary { border-color: currentColor; background: transparent; color: inherit; }
 .button--secondary:hover { background: rgba(0, 0, 0, 0.08); color: inherit; }
 [data-theme='dark'] .button--secondary:hover { background: rgba(255, 255, 255, 0.12); }
 
 table { display: table; width: 100%; }
+
+@media screen and (max-width: 996px) {
+  .navbar { --ifm-navbar-height: 4rem; }
+  .navbar__logo, .navbar__logo img { width: 2rem; height: 2rem; }
+  .navbar__title { font-size: 1.25rem; }
+}

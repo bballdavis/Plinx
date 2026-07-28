@@ -49,7 +49,6 @@ xcodebuild test \
   -scheme Plinx-iOS \
   -destination "platform=iOS Simulator,name=iPhone 17,OS=26.5" \
   -only-testing:Plinx-iOS-UnitTests/HomeRecentlyAddedProjectionTests \
-  -only-testing:Plinx-iOS-UnitTests/RecentlyAddedHubClassifierTests \
   -only-testing:Plinx-iOS-UnitTests/SafeHomeViewModelTests \
   CODE_SIGNING_ALLOWED=NO
 ```
@@ -119,7 +118,7 @@ App integration logic such as:
 
 - settings behavior
 - home/library grouping
-- recently-added hub classification and complete movie/TV/Other Videos row projection
+- canonical library-catalog loading and complete movie/TV/Other Videos row projection
 - layout policies
 - safety adapters
 - navigation coordination

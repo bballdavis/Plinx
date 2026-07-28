@@ -93,7 +93,44 @@ The pinned `dev-plinx` revision contains the Strimr-side injection points that
 cannot be supplied by a Plinx decorator:
 
 - tvOS playback-gain propagation and MPV lifecycle reapplication;
-- an optional authorization callback before autoplay or next-queue playback on iOS and tvOS.
+- an optional authorization callback before autoplay or next-queue playback on iOS and tvOS;
+- a default-enabled `showsBufferingOverlay` option on the iOS and tvOS player wrappers;
 - default-allow playlist and media-detail cache authorization hooks required because those upstream views load their own models.
 
 Plinx supplies the actual content decision in `StrimrAdapter`; Strimr remains unaware of Plinx policy or product copy.
+
+## Player Buffering Ownership
+
+Strimr retains its native buffering overlay for existing consumers because
+`showsBufferingOverlay` defaults to `true`. Plinx passes `false` at its player
+boundary and renders `PlinxVideoBufferingOverlay` from
+`PlayerViewModel.isLoading || PlayerViewModel.isBuffering`. That ensures the
+compiled player presents exactly one loading indicator while keeping all Plinx
+assets, copy, and animation rules in Plinx-owned code.
+
+This is a narrow, generic upstream seam: hosts may replace presentation without
+changing transport or buffering state. Strimr must not import `PlinxUI` or
+encode Plinx branding. The literal option is part of
+`STRIMR_REQUIRED_SEAMS`, so the quick integration contract fails if a paired
+Strimr revision drops it.
+
+## Home Catalog Loading
+
+Plinx does not use Strimr's promoted Home hubs for recently-added library
+rows. `LibraryCatalogLoader` requests each visible Plex section through
+`/library/sections/{id}/all`, newest first, and applies the same
+`MediaDisplayItem` mapping and content authorization used by Library Browse.
+Results remain keyed by their source `Library`, so none-agent sections such as
+YouTube cannot disappear because of hub classification or be merged into the
+Movies row.
+
+Continue Watching remains a promoted-hub concept. Its items pass through the
+same app-internal content authorization adapter before appearing on Home.
+
+## Player Control Presentation
+
+Plinx excludes Strimr's `PlayerControlButtons.swift` from the iOS source set and
+provides a same-module replacement in `Views/Player/`. This keeps the playback
+engine and control actions upstream while Plinx owns its kid-focused control
+size, contrast, and responsive layout. The replacement must continue to define
+every button type consumed by Strimr's `PlayerControlsView`.
