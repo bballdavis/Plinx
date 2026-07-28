@@ -155,6 +155,7 @@ struct PlinxApp: App {
                 .environmentObject(playbackCoordinator)
                 // ── Global configuration ────────────────────────────
                 .preferredColorScheme(.dark)
+                .fontDesign(.rounded)
                 .tint(accentColor)
                 .progressViewStyle(PlinxProgressViewStyle())
                 .onAppear {

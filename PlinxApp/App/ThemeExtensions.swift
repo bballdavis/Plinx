@@ -1,4 +1,5 @@
 import SwiftUI
+import PlinxUI
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ThemeExtensions
@@ -31,7 +32,7 @@ extension Color {
     static var brandPrimaryForeground: Color { Color.white }
     static var brandSecondary: Color { Color(white: 0.82) }
     static var brandSecondaryForeground: Color { Color.white }
-    static var appBackground: Color { Color(red: 0.045, green: 0.07, blue: 0.055) }
+    static var appBackground: Color { PlinxBrand.shell }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

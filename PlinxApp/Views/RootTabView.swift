@@ -772,18 +772,12 @@ struct RootTabView: View {
     @ViewBuilder
     private func headerLeadingContent(title: String, showsLogo: Bool) -> some View {
         if showsLogo {
-            HStack(spacing: 10) {
-                Image("LogoColor")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(height: 35)
-                    .accessibilityHidden(true)
-
-                Text(title.plinxLocalized)
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(.white.opacity(0.95))
-                    .lineLimit(1)
-            }
+            PlinxBrandLogoView(
+                asset: .lockupOnDark,
+                accessibilityIdentifier: "home.header.logo",
+                maxWidth: 142
+            )
+            .frame(height: 35)
         } else {
             Text(title.plinxLocalized)
                 .font(.title3.weight(.bold))

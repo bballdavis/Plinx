@@ -20,12 +20,21 @@ import PlinxCore
 /// ```swift
 /// LiquidGlassButton("Play") { startPlayback() }
 /// LiquidGlassButton("Settings", style: .compact) { openSettings() }
-/// LiquidGlassButton(LocalizedStringResource("Unlock", table: "Plinx")) { ... }
+/// LiquidGlassButton(
+///     LocalizedStringResource("Unlock", table: "Plinx"),
+///     treatment: .brand
+/// ) { ... }
 /// ```
+public enum LiquidGlassButtonTreatment: Sendable {
+    case glass
+    case brand
+}
+
 public struct LiquidGlassButton: View {
     private let title: LocalizedStringResource
     private let icon: String?
     private let glassStyle: PlinxTheme.Glass
+    private let treatment: LiquidGlassButtonTreatment
     private let action: () -> Void
     private let haptics: HapticManaging
     private let theme: PlinxTheme
@@ -36,6 +45,7 @@ public struct LiquidGlassButton: View {
         _ title: LocalizedStringResource,
         icon: String? = nil,
         style: PlinxTheme.Glass? = nil,
+        treatment: LiquidGlassButtonTreatment = .glass,
         theme: PlinxTheme = PlinxTheme(),
         haptics: HapticManaging = HapticManager(),
         action: @escaping () -> Void
@@ -43,6 +53,7 @@ public struct LiquidGlassButton: View {
         self.title = title
         self.icon = icon
         self.glassStyle = style ?? theme.glass
+        self.treatment = treatment
         self.theme = theme
         self.haptics = haptics
         self.action = action
@@ -53,18 +64,65 @@ public struct LiquidGlassButton: View {
             haptics.plink()
             action()
         }) {
-            HStack(spacing: 8) {
-                if let icon {
-                    Image(systemName: icon)
-                        .font(.system(size: 16, weight: .medium))
-                }
-                Text(title)
-                    .plinxStyle(theme.typography.button)
-            }
-            .foregroundStyle(theme.palette.onPrimary)
-            .liquidGlassStyle(variant: glassStyle)
+            styledLabel
         }
         .buttonStyle(PlinkButtonStyle(springs: theme.springs))
+    }
+
+    private var label: some View {
+        HStack(spacing: 8) {
+            if let icon {
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .medium))
+            }
+            Text(title)
+                .plinxStyle(theme.typography.button)
+        }
+    }
+
+    @ViewBuilder
+    private var styledLabel: some View {
+        switch treatment {
+        case .glass:
+            label
+                .foregroundStyle(theme.palette.onPrimary)
+                .liquidGlassStyle(variant: glassStyle)
+        case .brand:
+            label
+                .foregroundStyle(theme.palette.background)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 14)
+                .background(brandSurface)
+        }
+    }
+
+    private var brandSurface: some View {
+        let shape = RoundedRectangle(
+            cornerRadius: glassStyle.cornerRadius,
+            style: .continuous
+        )
+
+        return shape
+            .fill(PlinxBrand.gradient)
+            .overlay(shape.fill(Color.white.opacity(0.08)))
+            .overlay(
+                shape.stroke(
+                    Color.white.opacity(glassStyle.highlightOpacity),
+                    lineWidth: 1
+                )
+            )
+            .shadow(
+                color: Color.white.opacity(glassStyle.highlightOpacity),
+                radius: glassStyle.highlightBlur,
+                x: glassStyle.highlightOffset.width,
+                y: glassStyle.highlightOffset.height
+            )
+            .shadow(
+                color: Color.black.opacity(glassStyle.shadowOpacity),
+                radius: glassStyle.shadowBlur,
+                x: glassStyle.shadowOffset.width,
+                y: glassStyle.shadowOffset.height
+            )
     }
 }
 

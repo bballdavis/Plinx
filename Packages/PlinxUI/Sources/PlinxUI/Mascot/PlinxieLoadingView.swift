@@ -93,7 +93,7 @@ public enum PlinxLoadingSurface: Sendable, Equatable {
 ///
 /// Compact indicators omit the logo for clarity inline. Regular indicators use
 /// a restrained Plinx mark for video and local loading states, while hero
-/// indicators use the larger canonical chevron for full-screen loading. Motion
+/// indicators use the larger canonical loop for full-screen loading. Motion
 /// stops when Reduce Motion is enabled, while the complete gradient perimeter
 /// remains visible.
 public struct PlinxLoadingIndicator: View {
@@ -107,9 +107,8 @@ public struct PlinxLoadingIndicator: View {
     @Environment(\.plinxLoadingReduceMotionOverride) private var reduceMotionOverride
     @State private var isAnimating = false
 
-    private let lime = Color(red: 0.619, green: 0.933, blue: 0.450)
-    private let teal = Color(red: 0.225, green: 0.620, blue: 0.570)
-    private let cyan = Color(red: 0.34, green: 0.93, blue: 0.94)
+    private let lime = PlinxBrand.lime
+    private let teal = PlinxBrand.teal
 
     public init(
         size: PlinxLoadingSize = .compact,
@@ -169,7 +168,7 @@ public struct PlinxLoadingIndicator: View {
                 shape
                     .stroke(
                         LinearGradient(
-                            colors: [lime, teal, cyan],
+                            colors: [lime, teal],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ),
@@ -184,7 +183,6 @@ public struct PlinxLoadingIndicator: View {
                                 .clear,
                                 lime,
                                 teal,
-                                cyan,
                                 .white,
                                 .clear,
                                 .clear,

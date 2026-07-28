@@ -120,9 +120,9 @@ struct PlinxHomeView: View {
 
     private var fullscreenLoading: some View {
         PlinxBrandedLoadingView(
-            titleKey: "home.loading",
-            preferredLogoAssetName: "LogoStackedFullWhite",
-            showsProgressView: true,
+            logoAsset: .markColor,
+            logoAccessibilityIdentifier: "home.loading.logo",
+            presentation: .heroIdentity,
             fillsBackground: true
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)

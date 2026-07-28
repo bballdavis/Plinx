@@ -38,24 +38,7 @@ struct SignInView: View {
         #else
         GeometryReader { proxy in
             ZStack {
-                if proxy.size.width >= 700 {
-                    portalBackground(expandedLayout: true)
-                        .ignoresSafeArea()
-                } else {
-                    Color.appBackground
-                        .ignoresSafeArea()
-                }
-
-                RadialGradient(
-                    colors: [
-                        Color(red: 0.13, green: 0.42, blue: 0.32).opacity(0.24),
-                        .clear
-                    ],
-                    center: .top,
-                    startRadius: 20,
-                    endRadius: 520
-                )
-                .ignoresSafeArea()
+                PlinxAmbientBackground(intensity: .hero)
 
                 ScrollView {
                     let expandedLayout = proxy.size.width >= 700
@@ -79,7 +62,7 @@ struct SignInView: View {
     private func guidedPortal(expandedLayout: Bool) -> some View {
         VStack(spacing: 0) {
             PlinxBrandLogoView(
-                preferredAssetName: PlinxBrandingSemantics.fullColorLogoAssetName,
+                asset: expandedLayout ? .lockupOnDark : .lockupWhite,
                 accessibilityIdentifier: "signIn.logo.fullColor",
                 maxWidth: expandedLayout ? 280 : 220
             )
@@ -235,25 +218,17 @@ struct SignInView: View {
     private func portalBackground(expandedLayout: Bool) -> some View {
         let gradient = LinearGradient(
             colors: [
-                Color(red: 0.69, green: 0.88, blue: 0.43),
-                Color(red: 0.15, green: 0.61, blue: 0.47),
-                Color(red: 0.02, green: 0.39, blue: 0.39),
-                Color(red: 0.02, green: 0.17, blue: 0.18)
+                PlinxBrand.lime,
+                PlinxBrand.teal,
+                PlinxBrand.teal.opacity(0.74),
+                PlinxBrand.charcoal
             ],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
 
         if expandedLayout {
-            gradient
-                .overlay(
-                    RadialGradient(
-                        colors: [Color.white.opacity(0.18), .clear],
-                        center: .topLeading,
-                        startRadius: 20,
-                        endRadius: 720
-                    )
-                )
+            PlinxAmbientBackground(intensity: .hero)
         } else {
             RoundedRectangle(cornerRadius: 42, style: .continuous)
                 .fill(gradient)
@@ -299,31 +274,11 @@ extension SignInView {
 
     private var tvOSBody: some View {
         ZStack {
-            Color.appBackground
-                .ignoresSafeArea()
-
-            RadialGradient(
-                colors: [
-                    Color(red: 0.12, green: 0.43, blue: 0.31).opacity(0.32),
-                    .clear
-                ],
-                center: .top,
-                startRadius: 80,
-                endRadius: 1_100
-            )
-            .ignoresSafeArea()
-
-            RadialGradient(
-                colors: [Color.accentColor.opacity(0.12), .clear],
-                center: .bottomLeading,
-                startRadius: 60,
-                endRadius: 900
-            )
-            .ignoresSafeArea()
+            PlinxAmbientBackground(intensity: .hero)
 
             VStack(spacing: 28) {
                 PlinxBrandLogoView(
-                    preferredAssetName: PlinxBrandingSemantics.fullColorLogoAssetName,
+                    asset: .lockupOnDark,
                     accessibilityIdentifier: "signIn.logo.fullColor",
                     maxWidth: 390
                 )
@@ -545,10 +500,10 @@ extension SignInView {
             .fill(
                 LinearGradient(
                     colors: [
-                        Color(red: 0.69, green: 0.88, blue: 0.43),
-                        Color(red: 0.15, green: 0.61, blue: 0.47),
-                        Color(red: 0.02, green: 0.39, blue: 0.39),
-                        Color(red: 0.02, green: 0.17, blue: 0.18)
+                        PlinxBrand.lime,
+                        PlinxBrand.teal,
+                        PlinxBrand.teal.opacity(0.74),
+                        PlinxBrand.charcoal
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing

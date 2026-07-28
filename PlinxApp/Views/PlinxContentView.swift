@@ -16,10 +16,10 @@ struct PlinxContentView: View {
 
     var body: some View {
         ZStack {
-            // Match the launch screen colour during hydration to eliminate the
-            // black flash between the storyboard splash and the SwiftUI tree.
+            // Match the ambient launch treatment during hydration to eliminate
+            // a visible flash between the storyboard and the SwiftUI tree.
             if sessionManager.status == .hydrating {
-                LinearGradient.plinxBrandGreen.ignoresSafeArea()
+                PlinxAmbientBackground(intensity: .hero)
             } else {
                 Color.appBackground.ignoresSafeArea()
             }
@@ -60,6 +60,8 @@ struct PlinxContentView: View {
                 playerSettingsPreview
             case "loadingGallery":
                 loadingGalleryPreview
+            case "homeLoading":
+                homeLoadingPreview
             case "playerBuffering":
                 playerBufferingPreview
             case "refreshLoading":
@@ -253,6 +255,15 @@ struct PlinxContentView: View {
         }
     }
 
+    private var homeLoadingPreview: some View {
+        PlinxBrandedLoadingView(
+            logoAsset: .markColor,
+            logoAccessibilityIdentifier: "home.loading.logo",
+            presentation: .heroIdentity,
+            fillsBackground: true
+        )
+    }
+
     private var refreshLoadingPreview: some View {
         ScrollView {
             VStack(spacing: 16) {
@@ -277,7 +288,7 @@ struct PlinxContentView: View {
         switch sessionManager.status {
         case .hydrating:
             PlinxBrandedLoadingView(
-                preferredLogoAssetName: "LogoStackedFullWhite",
+                logoAsset: .lockupOnDark,
                 showsProgressView: false,
                 fillsBackground: false
             )

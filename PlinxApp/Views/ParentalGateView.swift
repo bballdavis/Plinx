@@ -4,7 +4,6 @@ import PlinxCore
 import PlinxUI
 
 struct ParentalGateView: View {
-    @Environment(\.plinxTheme) private var theme
     @Environment(ParentalAccessCoordinator.self) private var parentalAccessCoordinator
 
     // Math gate state
@@ -32,7 +31,7 @@ struct ParentalGateView: View {
     var body: some View {
         VStack(spacing: 24) {
             PlinxBrandedLoadingView(
-                preferredLogoAssetName: "LogoStackedFullWhite",
+                logoAsset: .stackedOnGradient,
                 logoAccessibilityIdentifier: "parentalGate.logo",
                 showsProgressView: false
             )
@@ -47,7 +46,8 @@ struct ParentalGateView: View {
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {
-            LinearGradient.plinxBrandGreen.ignoresSafeArea()
+            PlinxBrand.gradient
+                .ignoresSafeArea()
         }
     }
 
@@ -57,7 +57,7 @@ struct ParentalGateView: View {
         VStack(spacing: 20) {
             Text("parental.gate.pin.title", tableName: "Plinx")
                 .font(.title2.bold())
-                .foregroundStyle(theme.palette.background)
+                .foregroundStyle(PlinxBrand.shell)
                 .accessibilityIdentifier("parentalGate.title")
 
             NumberPadEntryField(
@@ -88,9 +88,14 @@ struct ParentalGateView: View {
                     .foregroundStyle(.red)
             }
 
-            LiquidGlassButton(LocalizedStringResource("parental.gate.unlock", table: "Plinx")) {
+            LiquidGlassButton(
+                LocalizedStringResource("parental.gate.unlock", table: "Plinx"),
+                treatment: .brand
+            ) {
                 submitPin()
             }
+            .accessibilityIdentifier("parentalGate.unlock")
+            .accessibilityValue(PlinxBrandingSemantics.parentalGateUnlockStyleValue)
         }
     }
 
@@ -100,12 +105,13 @@ struct ParentalGateView: View {
         VStack(spacing: 20) {
             Text("parental.gate.title", tableName: "Plinx")
                 .font(.title2.bold())
-                .foregroundStyle(theme.palette.background)
+                .foregroundStyle(PlinxBrand.shell)
                 .accessibilityIdentifier("parentalGate.title")
                 .accessibilityValue(PlinxBrandingSemantics.parentalGateTitleColorValue)
 
             Text(challenge.prompt)
                 .font(.system(size: 48, weight: .black, design: .rounded))
+                .foregroundStyle(PlinxBrand.shell)
 
             NumberPadEntryField(
                 text: $answerText,
@@ -120,9 +126,14 @@ struct ParentalGateView: View {
                 .frame(width: entryFieldSize.width, height: entryFieldSize.height)
                 .frame(maxWidth: .infinity, minHeight: entryFieldSlotHeight, maxHeight: entryFieldSlotHeight, alignment: .center)
 
-            LiquidGlassButton(LocalizedStringResource("parental.gate.unlock", table: "Plinx")) {
+            LiquidGlassButton(
+                LocalizedStringResource("parental.gate.unlock", table: "Plinx"),
+                treatment: .brand
+            ) {
                 submitMathAnswer()
             }
+            .accessibilityIdentifier("parentalGate.unlock")
+            .accessibilityValue(PlinxBrandingSemantics.parentalGateUnlockStyleValue)
         }
     }
 }

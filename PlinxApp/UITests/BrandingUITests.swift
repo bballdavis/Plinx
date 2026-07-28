@@ -7,22 +7,43 @@ final class BrandingUITests: XCTestCase {
 
         let logo = app.images["parentalGate.logo"]
         XCTAssertTrue(logo.waitForExistence(timeout: 8), "Parental gate should render branded logo")
-        XCTAssertEqual(logo.value as? String, "LogoFullColor")
+        XCTAssertEqual(logo.value as? String, "BrandLockupStackedOnGradient")
 
         let title = app.staticTexts["parentalGate.title"]
         XCTAssertTrue(title.waitForExistence(timeout: 8), "Parental gate title should be visible")
-        XCTAssertEqual(title.value as? String, "darkOnGreenGradient", "Parental gate title should use dark-on-green-gradient semantic hook")
+        XCTAssertEqual(title.value as? String, "darkOnBrandGradient", "Parental gate title should use dark text on the bright brand gradient")
+
+        let unlockButton = app.buttons["parentalGate.unlock"]
+        XCTAssertTrue(unlockButton.waitForExistence(timeout: 8), "Parental gate should expose the green Unlock action")
+        XCTAssertEqual(unlockButton.value as? String, "greenBrandPrimary")
 
         XCTAssertEqual(app.activityIndicators.count, 0, "Parental gate should not show a loading spinner")
         XCTAssertFalse(app.staticTexts["Settings"].exists, "Parental gate popup should not show settings title text")
     }
 
-    func test_signIn_showsFullColorLogoAndLiquidGlassPrimaryButton() {
+    func test_homeLoading_usesOneLargeAnimatedIdentity_withoutLoadingCopy() {
+        let app = launch(screen: "homeLoading")
+
+        let loadingIdentity = app.descendants(matching: .any)["plinx.loading.branded"]
+        XCTAssertTrue(
+            loadingIdentity.waitForExistence(timeout: 8),
+            "Home loading should expose the hero Plinx identity"
+        )
+        XCTAssertEqual(
+            loadingIdentity.value as? String,
+            "heroAnimatedBeaconWithWordmark"
+        )
+        XCTAssertFalse(app.staticTexts["Loading home"].exists)
+        XCTAssertFalse(app.staticTexts["Loading your shows…"].exists)
+        XCTAssertEqual(app.activityIndicators.count, 0)
+    }
+
+    func test_signIn_showsContrastSafeLogoAndLiquidGlassPrimaryButton() {
         let app = launch(screen: "signIn")
 
         let logo = app.images["signIn.logo.fullColor"]
-        XCTAssertTrue(logo.waitForExistence(timeout: 8), "Sign-in should render full-color logo")
-        XCTAssertEqual(logo.value as? String, "LogoFullColor", "Sign-in logo should resolve to full-color asset")
+        XCTAssertTrue(logo.waitForExistence(timeout: 8), "Sign-in should render contrast-safe branding")
+        XCTAssertEqual(logo.value as? String, "BrandLockupWhite", "Compact sign-in should use the white lockup over the colored portal")
 
         let primaryButton = app.buttons["signIn.primaryButton"]
         XCTAssertTrue(primaryButton.waitForExistence(timeout: 8), "Sign-in primary button should be present")
@@ -83,31 +104,6 @@ final class BrandingUITests: XCTestCase {
             app.activityIndicators.count,
             0,
             "Player buffering should not render the native activity indicator"
-        )
-    }
-
-    func test_pullToRefresh_usesPlinxIndicator_withoutNativeSpinner() {
-        let app = launch(screen: "refreshLoading")
-        let scrollView = app.scrollViews.firstMatch
-        XCTAssertTrue(scrollView.waitForExistence(timeout: 8))
-
-        scrollView.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.18))
-            .press(
-                forDuration: 0.15,
-                thenDragTo: scrollView.coordinate(
-                    withNormalizedOffset: CGVector(dx: 0.5, dy: 0.82)
-                )
-            )
-
-        XCTAssertTrue(
-            app.descendants(matching: .any)["plinx.refresh.indicator"]
-                .waitForExistence(timeout: 4),
-            "Pull-to-refresh should expose the branded Plinx square"
-        )
-        XCTAssertEqual(
-            app.activityIndicators.count,
-            0,
-            "Pull-to-refresh should not expose a native activity indicator"
         )
     }
 

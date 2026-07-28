@@ -12,6 +12,9 @@
 #if canImport(Testing)
 import Testing
 import SwiftUI
+#if canImport(AppKit)
+import AppKit
+#endif
 @testable import PlinxUI
 
 // MARK: - PlinxTheme
@@ -37,6 +40,49 @@ struct PlinxThemeTests {
         let shadowMag    = abs(glass.shadowOffset.width)    + abs(glass.shadowOffset.height)
         #expect(highlightMag > 0)
         #expect(shadowMag > 0)
+    }
+
+    @Test func defaultPaletteUsesCanonicalBrandColors() {
+        let palette = PlinxTheme().palette
+        #expect(palette.primary == PlinxBrand.lime)
+        #expect(palette.secondary == PlinxBrand.teal)
+        #expect(palette.background == PlinxBrand.shell)
+        #expect(palette.surface == PlinxBrand.surface)
+    }
+
+    #if canImport(AppKit)
+    @Test func canonicalBrandColorsUseExactSRGBComponents() throws {
+        let lime = try #require(NSColor(PlinxBrand.lime).usingColorSpace(.sRGB))
+        let teal = try #require(NSColor(PlinxBrand.teal).usingColorSpace(.sRGB))
+        let shell = try #require(NSColor(PlinxBrand.shell).usingColorSpace(.sRGB))
+
+        #expect(abs(lime.redComponent - 158.0 / 255.0) < 0.0001)
+        #expect(abs(lime.greenComponent - 238.0 / 255.0) < 0.0001)
+        #expect(abs(lime.blueComponent - 115.0 / 255.0) < 0.0001)
+        #expect(abs(teal.redComponent - 57.0 / 255.0) < 0.0001)
+        #expect(abs(teal.greenComponent - 158.0 / 255.0) < 0.0001)
+        #expect(abs(teal.blueComponent - 145.0 / 255.0) < 0.0001)
+        #expect(abs(shell.redComponent - 11.0 / 255.0) < 0.0001)
+        #expect(abs(shell.greenComponent - 18.0 / 255.0) < 0.0001)
+        #expect(abs(shell.blueComponent - 14.0 / 255.0) < 0.0001)
+    }
+    #endif
+
+    @Test func defaultTypographyUsesRoundedSystemDesign() {
+        let typography = PlinxTheme().typography
+        #expect(typography.display.design == .rounded)
+        #expect(typography.title.design == .rounded)
+        #expect(typography.body.design == .rounded)
+        #expect(typography.button.design == .rounded)
+    }
+
+    @Test func ambientBrandTokensStayWithinRestrainedOpacityBudget() {
+        #expect(PlinxBrand.Ambient.restrainedLimeOpacity == 0.04)
+        #expect(PlinxBrand.Ambient.restrainedTealOpacity == 0.06)
+        #expect(PlinxBrand.Ambient.heroLimeOpacity == 0.06)
+        #expect(PlinxBrand.Ambient.heroTealOpacity == 0.08)
+        #expect(PlinxBrand.Ambient.limeCenter == UnitPoint(x: 0.08, y: 0.02))
+        #expect(PlinxBrand.Ambient.tealCenter == UnitPoint(x: 0.94, y: 0.96))
     }
 }
 

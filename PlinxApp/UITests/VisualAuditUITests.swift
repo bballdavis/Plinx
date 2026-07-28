@@ -102,6 +102,15 @@ final class VisualAuditUITests: XCTestCase {
         attachScreenshot(name: "loading-gallery")
     }
 
+    func test_captureHomeLoading() {
+        launch(screen: "homeLoading")
+        XCTAssertTrue(
+            app.descendants(matching: .any)["plinx.loading.branded"]
+                .waitForExistence(timeout: 12)
+        )
+        attachScreenshot(name: "home-loading")
+    }
+
     func test_capturePlayerBuffering() {
         launch(screen: "playerBuffering")
         XCTAssertTrue(
