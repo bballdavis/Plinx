@@ -22,30 +22,21 @@ struct PlinxPlayerView: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            // Strimr's AetherEngine-backed player surface.
-            #if os(tvOS)
-            PlayerTVWrapper(
+            PlinxPlayerPlaybackView(
                 viewModel: viewModel,
                 onExit: {
                     isPresented = false
                 },
                 isPlaybackAuthorized: { item in
-                    StrimrAdapter.isAllowed(item, policy: safetyPolicy)
+                    PlinxContentAuthorization.isAllowed(item, policy: safetyPolicy)
                 }
             )
             .ignoresSafeArea()
-            #else
-            PlayerWrapper(
-                viewModel: viewModel,
-                isPlaybackAuthorized: { item in
-                    StrimrAdapter.isAllowed(item, policy: safetyPolicy)
-                }
-            )
-                .ignoresSafeArea()
-            #endif
 
             overlayControls
         }
+        .animation(.easeInOut(duration: 0.18), value: viewModel.isLoading)
+        .animation(.easeInOut(duration: 0.18), value: viewModel.isBuffering)
         #if !os(tvOS)
         .statusBarHidden(true)
         .persistentSystemOverlays(.hidden)
@@ -107,5 +98,57 @@ struct PlinxPlayerView: View {
                     .opacity(0.85)
             }
         }
+    }
+}
+
+/// Plinx-owned presentation layer around Strimr's playback engine.
+///
+/// Strimr keeps transport and controls; Plinx owns the branded buffering
+/// presentation and disables the upstream spinner through a default-safe seam.
+struct PlinxPlayerPlaybackView: View {
+    let viewModel: PlayerViewModel
+    let onExit: () -> Void
+    let isPlaybackAuthorized: (PlexItem) -> Bool
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            #if os(tvOS)
+            PlayerTVWrapper(
+                viewModel: viewModel,
+                onExit: onExit,
+                showsBufferingOverlay: false,
+                isPlaybackAuthorized: isPlaybackAuthorized
+            )
+            #else
+            PlayerWrapper(
+                viewModel: viewModel,
+                showsBufferingOverlay: false,
+                isPlaybackAuthorized: isPlaybackAuthorized
+            )
+            .onDisappear(perform: onExit)
+            #endif
+
+            if viewModel.isLoading || viewModel.isBuffering {
+                PlinxVideoBufferingOverlay()
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.18), value: viewModel.isLoading)
+        .animation(.easeInOut(duration: 0.18), value: viewModel.isBuffering)
+    }
+}
+
+struct PlinxVideoBufferingOverlay: View {
+    var body: some View {
+        PlinxLoadingIndicator(
+            size: .regular,
+            surface: .video,
+            accessibilityLabel: "player.status.buffering",
+            accessibilityIdentifier: "player.buffering.plinx"
+        )
+        .padding(28)
+        .allowsHitTesting(false)
     }
 }

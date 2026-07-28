@@ -44,6 +44,73 @@ final class BrandingUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Speed"].exists, "Playback speed label should not appear in the player settings UI")
     }
 
+    func test_loadingGallery_usesCompactAndBrandedLoadingTiers_withoutNativeSpinner() {
+        let app = launch(screen: "loadingGallery")
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["loading.indicator.compact"]
+                .waitForExistence(timeout: 8),
+            "Inline loading should expose the compact logo-free Plinx indicator"
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["loading.indicator.regular"]
+                .waitForExistence(timeout: 8),
+            "Larger app loading should expose the regular Plinx indicator with its restrained mark"
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["loading.indicator.hero"]
+                .waitForExistence(timeout: 8),
+            "Video loading should expose the hero Plinx indicator"
+        )
+        XCTAssertEqual(
+            app.activityIndicators.count,
+            0,
+            "The gallery should not contain a native activity indicator"
+        )
+    }
+
+    func test_playerBuffering_usesExactlyOnePlinxOverlay_withoutNativeSpinner() {
+        let app = launch(screen: "playerBuffering")
+        let overlays = app.descendants(matching: .any)
+            .matching(identifier: "player.buffering.plinx")
+
+        XCTAssertTrue(
+            overlays.firstMatch.waitForExistence(timeout: 8),
+            "Player buffering should render the Plinx-owned overlay"
+        )
+        XCTAssertEqual(overlays.count, 1, "Player buffering should render one branded loader")
+        XCTAssertEqual(
+            app.activityIndicators.count,
+            0,
+            "Player buffering should not render the native activity indicator"
+        )
+    }
+
+    func test_pullToRefresh_usesPlinxIndicator_withoutNativeSpinner() {
+        let app = launch(screen: "refreshLoading")
+        let scrollView = app.scrollViews.firstMatch
+        XCTAssertTrue(scrollView.waitForExistence(timeout: 8))
+
+        scrollView.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.18))
+            .press(
+                forDuration: 0.15,
+                thenDragTo: scrollView.coordinate(
+                    withNormalizedOffset: CGVector(dx: 0.5, dy: 0.82)
+                )
+            )
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["plinx.refresh.indicator"]
+                .waitForExistence(timeout: 4),
+            "Pull-to-refresh should expose the branded Plinx square"
+        )
+        XCTAssertEqual(
+            app.activityIndicators.count,
+            0,
+            "Pull-to-refresh should not expose a native activity indicator"
+        )
+    }
+
     private func launch(screen: String) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments += ["--ui-testing", "--disable-animations"]

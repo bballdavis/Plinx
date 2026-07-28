@@ -27,8 +27,7 @@ struct PlinxContentView: View {
             rootContent
         }
         .fullScreenCover(item: $mainCoordinator.selectedPlayQueue) { playQueue in
-            #if os(tvOS)
-            PlayerTVWrapper(
+            PlinxPlayerPlaybackView(
                 viewModel: PlayerViewModel(
                     playQueue: playQueue,
                     context: plexApiContext,
@@ -38,24 +37,9 @@ struct PlinxContentView: View {
                     mainCoordinator.resetPlayer()
                 },
                 isPlaybackAuthorized: { item in
-                    StrimrAdapter.isAllowed(item, policy: safetyPolicy)
+                    PlinxContentAuthorization.isAllowed(item, policy: safetyPolicy)
                 }
             )
-            #else
-            PlayerWrapper(
-                viewModel: PlayerViewModel(
-                    playQueue: playQueue,
-                    context: plexApiContext,
-                    shouldResumeFromOffset: mainCoordinator.shouldResumeFromOffset
-                ),
-                isPlaybackAuthorized: { item in
-                    StrimrAdapter.isAllowed(item, policy: safetyPolicy)
-                }
-            )
-            .onDisappear {
-                mainCoordinator.resetPlayer()
-            }
-            #endif
         }
     }
 
@@ -74,6 +58,12 @@ struct PlinxContentView: View {
                 )
             case "playerSettings":
                 playerSettingsPreview
+            case "loadingGallery":
+                loadingGalleryPreview
+            case "playerBuffering":
+                playerBufferingPreview
+            case "refreshLoading":
+                refreshLoadingPreview
             case "settings":
                 NavigationStack {
                     PlinxSettingsView(isUnlocked: true)
@@ -211,6 +201,75 @@ struct PlinxContentView: View {
             onClose: {}
         )
         #endif
+    }
+
+    private var loadingGalleryPreview: some View {
+        ScrollView {
+            VStack(spacing: 36) {
+                Text("Plinx loading")
+                    .font(.largeTitle.bold())
+                    .foregroundStyle(.white)
+
+                HStack(alignment: .bottom, spacing: 32) {
+                    PlinxLoadingIndicator(
+                        size: .compact,
+                        surface: .transparent,
+                        label: "Compact",
+                        accessibilityIdentifier: "loading.indicator.compact"
+                    )
+
+                    PlinxLoadingIndicator(
+                        size: .regular,
+                        surface: .glass,
+                        label: "Regular",
+                        accessibilityIdentifier: "loading.indicator.regular"
+                    )
+                }
+
+                PlinxLoadingIndicator(
+                    size: .hero,
+                    surface: .video,
+                    label: "Buffering…",
+                    accessibilityIdentifier: "loading.indicator.hero"
+                )
+            }
+            .frame(maxWidth: .infinity)
+            .padding(40)
+        }
+        .background(Color.appBackground.ignoresSafeArea())
+    }
+
+    private var playerBufferingPreview: some View {
+        ZStack {
+            Image("LaunchGradient")
+                .resizable()
+                .scaledToFill()
+                .ignoresSafeArea()
+
+            Color.black.opacity(0.34)
+                .ignoresSafeArea()
+
+            PlinxVideoBufferingOverlay()
+        }
+    }
+
+    private var refreshLoadingPreview: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                Text("Pull to refresh")
+                    .font(.title.bold())
+                    .foregroundStyle(.white)
+
+                Text("Deterministic Plinx refresh-indicator test route")
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, 80)
+        }
+        .background(Color.appBackground.ignoresSafeArea())
+        .plinxRefreshable {
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+        }
     }
 
     @ViewBuilder

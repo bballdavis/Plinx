@@ -92,6 +92,25 @@ final class VisualAuditUITests: XCTestCase {
         attachScreenshot(name: "downloads-grid")
     }
 
+    func test_captureLoadingGallery() {
+        launch(screen: "loadingGallery")
+        XCTAssertTrue(
+            app.descendants(matching: .any)["loading.indicator.compact"]
+                .waitForExistence(timeout: 12)
+        )
+        XCTAssertTrue(app.descendants(matching: .any)["loading.indicator.hero"].exists)
+        attachScreenshot(name: "loading-gallery")
+    }
+
+    func test_capturePlayerBuffering() {
+        launch(screen: "playerBuffering")
+        XCTAssertTrue(
+            app.descendants(matching: .any)["player.buffering.plinx"]
+                .waitForExistence(timeout: 12)
+        )
+        attachScreenshot(name: "player-buffering")
+    }
+
     private func launch(screen: String) {
         app.launchEnvironment["PLINX_UI_TEST_SCREEN"] = screen
         app.launch()
