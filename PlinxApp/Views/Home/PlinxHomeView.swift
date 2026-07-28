@@ -99,7 +99,7 @@ struct PlinxHomeView: View {
             }
         }
         .task { await viewModel.load() }
-        .refreshable { await refreshContent() }
+        .plinxRefreshable { await refreshContent() }
         .onChange(of: safetyPolicy) { _, newPolicy in
             // When the parent updates the safety policy (max rating changed,
             // excludeUnrated toggled) re-filter cached hub data immediately
@@ -286,15 +286,11 @@ struct PlinxHomeView: View {
     private var displayedGroups: [HubGroup] {
         let hiddenIds = decodeStringArray(homeHiddenIdsJson)
         let order = decodeStringArray(homeOrderJson)
-        let libraries = libraryStore.libraries
-        let recentlyAddedPrefix = NSLocalizedString("home.recentlyAdded.prefix", tableName: "Plinx", comment: "")
         let rows = HomeRecentlyAddedProjection.rows(
-            from: viewModel.recentlyAdded,
-            libraries: libraries,
+            from: viewModel.recentCatalogs,
             hiddenLibraryIDs: Set(hiddenIds),
             libraryOrder: order,
-            combineMoviesTV: combineMoviesTV,
-            recentlyAddedPrefix: recentlyAddedPrefix
+            combineMoviesTV: combineMoviesTV
         )
 
         Self.logger.debug(

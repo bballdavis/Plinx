@@ -1,8 +1,6 @@
 import Foundation
 
-/// Pure projection of safety-filtered recently-added hubs into the rows shown
-/// by the Plinx home screen. Network loading and safety filtering stay outside
-/// this type so category preservation can be tested without a live Plex server.
+/// Pure projection from library-keyed catalog results into Home rows.
 enum HomeRecentlyAddedProjection {
     enum Layout: Equatable {
         case portrait
@@ -18,67 +16,34 @@ enum HomeRecentlyAddedProjection {
         let items: [MediaDisplayItem]
     }
 
-    private enum Category: Equatable {
-        case movies
-        case tv
-        case other
-    }
-
-    private struct Entry {
-        let hub: Hub
-        let library: Library?
-        let category: Category
-    }
-
     static func rows(
-        from hubs: [Hub],
-        libraries: [Library],
+        from catalogs: [LibraryCatalogResult],
         hiddenLibraryIDs: Set<String> = [],
         libraryOrder: [String] = [],
-        combineMoviesTV: Bool,
-        recentlyAddedPrefix: String
+        combineMoviesTV: Bool
     ) -> [Row] {
-        let entries = hubs.compactMap { hub -> Entry? in
-            let library = HomeLibraryGrouping.matchLibrary(
-                for: hub,
-                in: libraries,
-                recentlyAddedPrefix: recentlyAddedPrefix
-            )
-            if let libraryID = library?.id, hiddenLibraryIDs.contains(libraryID) {
-                return nil
-            }
-
-            return Entry(
-                hub: hub,
-                library: library,
-                category: category(for: hub, library: library, recentlyAddedPrefix: recentlyAddedPrefix)
-            )
+        let visible = catalogs.filter {
+            !hiddenLibraryIDs.contains($0.library.id) && !$0.items.isEmpty
         }
+        let movies = visible.filter {
+            HomeLibraryGrouping.isMoviesOrTV($0.library) && $0.library.type == .movie
+        }
+        let television = visible.filter {
+            HomeLibraryGrouping.isMoviesOrTV($0.library) && $0.library.type == .show
+        }
+        let other = visible.filter { HomeLibraryGrouping.isOtherVideo($0.library) }
 
-        let movieEntries = entries.filter { $0.category == .movies }
-        let tvEntries = entries.filter { $0.category == .tv }
-        let otherEntries = entries.filter { $0.category == .other }
         var rows: [Row] = []
-
         if combineMoviesTV {
-            let movieItems = movieEntries.flatMap { $0.hub.items }
-            let tvItems = tvEntries.flatMap { $0.hub.items }
-            let combined = interleave(movieItems, tvItems)
+            let combined = interleave(
+                deduplicated(movies.flatMap(\.items)),
+                deduplicated(television.flatMap(\.items))
+            )
             if !combined.isEmpty {
                 let title: String
-                let movieEnabled = libraries.contains {
-                    $0.type == .movie
-                        && HomeLibraryGrouping.isMoviesOrTV($0)
-                        && !hiddenLibraryIDs.contains($0.id)
-                }
-                let tvEnabled = libraries.contains {
-                    $0.type == .show
-                        && HomeLibraryGrouping.isMoviesOrTV($0)
-                        && !hiddenLibraryIDs.contains($0.id)
-                }
-                if movieEnabled && tvEnabled {
+                if !movies.isEmpty && !television.isEmpty {
                     title = NSLocalizedString("home.recentlyAdded.tvAndMovies", tableName: "Plinx", comment: "")
-                } else if !tvEntries.isEmpty {
+                } else if !television.isEmpty {
                     title = NSLocalizedString("home.recentlyAdded.tv", tableName: "Plinx", comment: "")
                 } else {
                     title = NSLocalizedString("home.recentlyAdded.movies", tableName: "Plinx", comment: "")
@@ -88,82 +53,73 @@ enum HomeRecentlyAddedProjection {
                     title: title,
                     sectionKey: "moviesAndTV",
                     layout: .portrait,
-                    libraryIDs: (movieEntries + tvEntries).compactMap { $0.library?.id },
+                    libraryIDs: (movies + television).map(\.library.id),
                     items: combined
                 ))
             }
         } else {
-            let movieItems = movieEntries.flatMap { $0.hub.items }
+            let movieItems = deduplicated(movies.flatMap(\.items))
             if !movieItems.isEmpty {
                 rows.append(Row(
                     id: "recentlyadded.movies",
                     title: NSLocalizedString("home.recentlyAdded.movies", tableName: "Plinx", comment: ""),
                     sectionKey: "recentMovies",
                     layout: .portrait,
-                    libraryIDs: movieEntries.compactMap { $0.library?.id },
+                    libraryIDs: movies.map(\.library.id),
                     items: movieItems
                 ))
             }
-            let tvItems = tvEntries.flatMap { $0.hub.items }
-            if !tvItems.isEmpty {
+
+            let televisionItems = deduplicated(television.flatMap(\.items))
+            if !televisionItems.isEmpty {
                 rows.append(Row(
                     id: "recentlyadded.tv",
                     title: NSLocalizedString("home.recentlyAdded.tv", tableName: "Plinx", comment: ""),
                     sectionKey: "recentTV",
                     layout: .portrait,
-                    libraryIDs: tvEntries.compactMap { $0.library?.id },
-                    items: tvItems
+                    libraryIDs: television.map(\.library.id),
+                    items: televisionItems
                 ))
             }
         }
 
-        rows.append(contentsOf: otherEntries.map { entry in
+        rows.append(contentsOf: other.map { catalog in
             Row(
-                id: entry.hub.id,
-                title: entry.hub.title,
+                id: "recentlyadded.library.\(catalog.library.id)",
+                title: catalog.library.title,
                 sectionKey: "otherVideos",
                 layout: .landscape,
-                libraryIDs: entry.library.map { [$0.id] } ?? [],
-                items: entry.hub.items
+                libraryIDs: [catalog.library.id],
+                items: deduplicated(catalog.items)
             )
         })
 
         guard !libraryOrder.isEmpty else { return rows }
         return rows.enumerated().sorted { lhs, rhs in
-            let leftIndex = orderIndex(for: lhs.element, order: libraryOrder)
-            let rightIndex = orderIndex(for: rhs.element, order: libraryOrder)
-            return leftIndex == rightIndex ? lhs.offset < rhs.offset : leftIndex < rightIndex
+            let left = orderIndex(for: lhs.element, order: libraryOrder)
+            let right = orderIndex(for: rhs.element, order: libraryOrder)
+            return left == right ? lhs.offset < rhs.offset : left < right
         }.map(\.element)
     }
 
-    private static func category(for hub: Hub, library: Library?, recentlyAddedPrefix: String) -> Category {
-        if let library {
-            if HomeLibraryGrouping.isOtherVideo(library) { return .other }
-            return library.type == .show ? .tv : .movies
-        }
-        if HomeLibraryGrouping.isLikelyOtherVideoHub(hub, recentlyAddedPrefix: recentlyAddedPrefix) {
-            return .other
-        }
-        if hub.items.contains(where: { $0.type == .episode || $0.type == .season || $0.type == .show }) {
-            return .tv
-        }
-        if hub.items.contains(where: { $0.type == .movie }) {
-            return .movies
-        }
-        return .other
+    private static func deduplicated(_ items: [MediaDisplayItem]) -> [MediaDisplayItem] {
+        var seen: Set<String> = []
+        return items.filter { seen.insert($0.id).inserted }
     }
 
-    private static func interleave(_ movies: [MediaDisplayItem], _ tv: [MediaDisplayItem]) -> [MediaDisplayItem] {
+    private static func interleave(
+        _ movies: [MediaDisplayItem],
+        _ television: [MediaDisplayItem]
+    ) -> [MediaDisplayItem] {
         var result: [MediaDisplayItem] = []
-        let count = max(movies.count, tv.count)
-        for index in 0..<count {
+        for index in 0..<max(movies.count, television.count) {
             if index < movies.count { result.append(movies[index]) }
-            if index < tv.count { result.append(tv[index]) }
+            if index < television.count { result.append(television[index]) }
         }
-        return result
+        return deduplicated(result)
     }
 
     private static func orderIndex(for row: Row, order: [String]) -> Int {
-        row.libraryIDs.compactMap { order.firstIndex(of: $0) }.min() ?? Int.max
+        row.libraryIDs.compactMap { order.firstIndex(of: $0) }.min() ?? .max
     }
 }

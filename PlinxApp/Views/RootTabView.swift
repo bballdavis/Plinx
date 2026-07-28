@@ -501,13 +501,10 @@ struct RootTabView: View {
         switch tab {
         case .home:
             let viewModel = homeViewModel ?? SafeHomeViewModel(
-                inner: HomeViewModel(
-                    context: plexApiContext,
-                    settingsManager: settingsManager,
-                    libraryStore: libraryStore
-                ),
-                policy: safetyPolicy,
-                libraryStore: libraryStore
+                context: plexApiContext,
+                settingsManager: settingsManager,
+                libraryStore: libraryStore,
+                policy: safetyPolicy
             )
             
             NavigationStack(path: mainCoordinator.pathBinding(for: .home)) {
@@ -895,7 +892,7 @@ struct RootTabView: View {
         let viewModel = HubDetailViewModel(hub: hub, context: plexApiContext)
         let policy = safetyPolicy
         viewModel.itemFilter = {
-            StrimrAdapter.isAllowed($0, policy: policy)
+            PlinxContentAuthorization.isAllowed($0, policy: policy)
         }
         return viewModel
     }
@@ -987,7 +984,7 @@ struct RootTabView: View {
                         systemImage: "arrow.down.circle",
                         role: nil,
                         action: {
-                            guard StrimrAdapter.isAllowed(media, policy: safetyPolicy) else {
+                            guard PlinxContentAuthorization.isAllowed(media, policy: safetyPolicy) else {
                                 quickActionErrorMessage = NSLocalizedString(
                                     "downloads.blockedByContentControls",
                                     tableName: "Plinx",

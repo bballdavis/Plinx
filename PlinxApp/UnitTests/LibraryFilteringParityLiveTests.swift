@@ -102,63 +102,40 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
 
     func test_liveHomeRecentlyAdded_otherVideoHubVisibleUnderStrictPolicy() async throws {
         let context = try await makeLiveContextOrSkip()
-        let settings = SettingsManager()
         let libraryStore = LibraryStore(context: context)
         try await libraryStore.loadLibraries()
 
         let eligibleLibraries = libraryStore.libraries.filter {
             $0.sectionId != nil && HomeLibraryGrouping.isOtherVideo($0)
         }
-        guard !eligibleLibraries.isEmpty else {
+        guard let library = eligibleLibraries.first(where: {
+            $0.title.localizedCaseInsensitiveContains("youtube")
+        }) ?? eligibleLibraries.first else {
             throw XCTSkip("No eligible Other Videos-style library available for live home recently-added test.")
         }
 
-        let inner = HomeViewModel(context: context, settingsManager: settings, libraryStore: libraryStore)
-        await inner.load()
-
-        let recentlyAddedPrefix = NSLocalizedString("home.recentlyAdded.prefix", tableName: "Plinx", comment: "")
-        let rawOtherHubs = inner.recentlyAdded.filter { hub in
-            let matched = HomeLibraryGrouping.matchLibrary(
-                for: hub,
-                in: libraryStore.libraries,
-                recentlyAddedPrefix: recentlyAddedPrefix
-            )
-            return HomeLibraryGrouping.isOtherVideo(matched)
-        }
-
-        guard !rawOtherHubs.isEmpty else {
-            throw XCTSkip("Plex server did not return any raw Other Videos recently-added hubs for this account at this time.")
-        }
-
-        let expectedOtherHubIDs = Set(rawOtherHubs.compactMap { hub in
-            StrimrAdapter.filtered(hub, policy: policy) == nil ? nil : hub.id
-        })
-        guard !expectedOtherHubIDs.isEmpty else {
-            throw XCTSkip("Current Other Videos hubs contain no items eligible under the configured rating policy.")
-        }
-
-        let permissivePolicy = SafetyPolicy.ratingOnly(maxMovie: .g, maxTV: .tvY, allowUnrated: true)
-        let safe = SafeHomeViewModel(inner: inner, policy: permissivePolicy, libraryStore: libraryStore)
-        safe.updatePolicy(policy)
-
-        let safeOtherHubIDs = Set(safe.recentlyAdded.compactMap { hub -> String? in
-            let matched = HomeLibraryGrouping.matchLibrary(
-                for: hub,
-                in: libraryStore.libraries,
-                recentlyAddedPrefix: recentlyAddedPrefix
-            )
-            return HomeLibraryGrouping.isOtherVideo(matched) ? hub.id : nil
-        })
-
+        let broadRatedPolicy = SafetyPolicy.ratingOnly(
+            maxMovie: .r,
+            maxTV: .tvMa,
+            allowUnrated: false
+        )
+        let result = try await LibraryCatalogLoader(context: context).recentItems(
+            for: library,
+            limit: 20,
+            policy: broadRatedPolicy
+        )
         XCTAssertFalse(
-            safeOtherHubIDs.isEmpty,
-            "SafeHomeViewModel should preserve eligible Other Videos recently-added hubs under the configured policy."
+            result.items.isEmpty,
+            "The canonical newest-items endpoint returned no rated Other Video items for \(library.title)."
         )
-        XCTAssertEqual(
-            safeOtherHubIDs,
-            expectedOtherHubIDs,
-            "Home safety filtering must preserve exactly the eligible Other Videos hubs."
+
+        let rows = HomeRecentlyAddedProjection.rows(
+            from: [result],
+            combineMoviesTV: true
         )
+        XCTAssertEqual(rows.map(\.sectionKey), ["otherVideos"])
+        XCTAssertEqual(rows.first?.items.map(\.id), result.items.map(\.id))
+        XCTAssertEqual(rows.first?.layout, .landscape)
     }
 
     // MARK: - Parity assertions

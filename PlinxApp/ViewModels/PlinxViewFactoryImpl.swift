@@ -48,12 +48,12 @@ final class PlinxViewFactoryImpl: PlinxViewFactory {
     // MARK: - Factory Methods
 
     func makeHomeView(onSelectMedia: @escaping (PlinxMediaAction) -> Void) -> AnyView {
-        let inner = HomeViewModel(
+        let safe = SafeHomeViewModel(
             context: plexApiContext,
             settingsManager: settingsManager,
-            libraryStore: libraryStore
+            libraryStore: libraryStore,
+            policy: safetyPolicy
         )
-        let safe = SafeHomeViewModel(inner: inner, policy: safetyPolicy, libraryStore: libraryStore)
         return AnyView(
             PlinxHomeView(viewModel: safe) { displayItem in
                 onSelectMedia(displayItem.toPlinxAction())

@@ -4,186 +4,146 @@ import PlinxCore
 
 @MainActor
 final class SafeHomeViewModelTests: XCTestCase {
-
-    private let strictPolicy = SafetyPolicy.ratingOnly(maxMovie: .g, maxTV: .tvY, allowUnrated: false)
-    private let permissivePolicy = SafetyPolicy.ratingOnly(maxMovie: .g, maxTV: .tvY, allowUnrated: true)
-
-    func test_recentlyAdded_otherVideoHub_isFilteredUnderStrictPolicy() {
+    func test_loadUsesLibraryKeyedCatalogResultsAndKeepsPartialSuccess() async {
         let context = PlexAPIContext()
-        let settings = SettingsManager()
-        let libraryStore = LibraryStore(context: context)
-        libraryStore.libraries = [
-            Library(
-                id: "6",
-                title: "Youtube Videos",
-                type: .movie,
-                sectionId: 6,
-                agent: "tv.plex.agents.none"
-            )
-        ]
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let settings = SettingsManager(userDefaults: defaults)
+        let store = LibraryStore(context: context)
+        let youtube = Library(id: "6", title: "YouTube", type: .movie, sectionId: 6, agent: "none")
+        let broken = Library(id: "7", title: "Broken", type: .clip, sectionId: 7)
+        store.libraries = [youtube, broken]
+        let loader = FakeCatalogLoader(results: [
+            youtube.id: LibraryCatalogResult(library: youtube, items: [item("youtube", rating: "TV-Y")])
+        ], failingIDs: [broken.id])
 
-        let inner = HomeViewModel(context: context, settingsManager: settings, libraryStore: libraryStore)
-        let unratedMovieLikeItem = MediaItem.fixture(type: .movie, contentRating: nil)
-        inner.recentlyAdded = [
-            Hub(id: "hub.home.recentlyadded.6", title: "Recently Added Youtube Videos", items: [.playable(unratedMovieLikeItem)])
-        ]
-
-        let safe = SafeHomeViewModel(inner: inner, policy: permissivePolicy, libraryStore: libraryStore)
-        safe.updatePolicy(strictPolicy)
-
-        XCTAssertTrue(
-            safe.recentlyAdded.isEmpty,
-            "Other-video hubs must follow the parent-selected unrated-content policy"
+        let viewModel = SafeHomeViewModel(
+            context: context,
+            settingsManager: settings,
+            libraryStore: store,
+            policy: .ratingOnly(maxMovie: .g, maxTV: .tvY, allowUnrated: false),
+            catalogLoader: loader
         )
+        await viewModel.load()
+
+        XCTAssertEqual(viewModel.recentCatalogs.map(\.library.id), [youtube.id])
+        XCTAssertEqual(viewModel.recentCatalogs.first?.items.map(\.id), ["youtube"])
+        XCTAssertTrue(viewModel.hasContent)
     }
 
-    func test_recentlyAdded_movieHub_stillFilteredUnderStrictPolicy() {
+    func test_globalPolicyIsPassedToEveryLibraryIncludingYouTube() async {
         let context = PlexAPIContext()
-        let settings = SettingsManager()
-        let libraryStore = LibraryStore(context: context)
-        libraryStore.libraries = [
-            Library(id: "1", title: "Movies", type: .movie, sectionId: 1, agent: "tv.plex.agents.movie")
-        ]
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let settings = SettingsManager(userDefaults: defaults)
+        let store = LibraryStore(context: context)
+        let youtube = Library(id: "6", title: "YouTube", type: .movie, sectionId: 6, agent: "none")
+        store.libraries = [youtube]
+        let loader = FakeCatalogLoader(results: [
+            youtube.id: LibraryCatalogResult(library: youtube, items: [])
+        ])
+        let policy = SafetyPolicy.ratingOnly(maxMovie: .g, maxTV: .tvY, allowUnrated: false)
 
-        let inner = HomeViewModel(context: context, settingsManager: settings, libraryStore: libraryStore)
-        let unratedMovieItem = MediaItem.fixture(type: .movie, contentRating: nil)
-        inner.recentlyAdded = [
-            Hub(id: "hub.home.recentlyadded.1", title: "Recently Added Movies", items: [.playable(unratedMovieItem)])
-        ]
+        let viewModel = SafeHomeViewModel(
+            context: context,
+            settingsManager: settings,
+            libraryStore: store,
+            policy: policy,
+            catalogLoader: loader
+        )
+        await viewModel.load()
 
-        let safe = SafeHomeViewModel(inner: inner, policy: permissivePolicy, libraryStore: libraryStore)
-        safe.updatePolicy(strictPolicy)
-
-        XCTAssertTrue(safe.recentlyAdded.isEmpty, "Movie hubs with unrated movie items must still be filtered under strict policy")
+        XCTAssertEqual(loader.policies, [policy])
+        XCTAssertNil(viewModel.errorMessage, "A successful empty catalog is not a server failure")
     }
 
-    func test_recentlyAdded_otherVideoHub_isFilteredWhenLibraryStoreUnavailable() {
+    func test_allCatalogRequestFailures_showLoadError() async {
         let context = PlexAPIContext()
-        let settings = SettingsManager()
-        let libraryStore = LibraryStore(context: context)
-        libraryStore.libraries = []
-
-        let inner = HomeViewModel(context: context, settingsManager: settings, libraryStore: libraryStore)
-        let unratedMovieLikeItem = MediaItem.fixture(type: .movie, contentRating: nil)
-        inner.recentlyAdded = [
-            Hub(
-                id: "hub.home.recentlyadded.videos",
-                title: "Recently Added Videos",
-                items: [.playable(unratedMovieLikeItem)]
-            )
-        ]
-
-        let safe = SafeHomeViewModel(inner: inner, policy: permissivePolicy, libraryStore: libraryStore)
-        safe.updatePolicy(strictPolicy)
-
-        XCTAssertTrue(
-            safe.recentlyAdded.isEmpty,
-            "Missing library metadata must not create an unrated-content bypass"
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let settings = SettingsManager(userDefaults: defaults)
+        let store = LibraryStore(context: context)
+        let library = Library(id: "6", title: "YouTube", type: .clip, sectionId: 6)
+        store.libraries = [library]
+        let loader = FakeCatalogLoader(results: [:], failingIDs: [library.id])
+        let viewModel = SafeHomeViewModel(
+            context: context,
+            settingsManager: settings,
+            libraryStore: store,
+            catalogLoader: loader
         )
+
+        await viewModel.load()
+
+        XCTAssertNotNil(viewModel.errorMessage)
     }
 
-    func test_recentlyAdded_otherVideoHub_stillRejectsExplicitlyDisallowedRating() {
+    func test_reloadKeepsExistingContentWhenAllCatalogRequestsFail() async {
         let context = PlexAPIContext()
-        let settings = SettingsManager()
-        let libraryStore = LibraryStore(context: context)
-        libraryStore.libraries = [
-            Library(
-                id: "6",
-                title: "Youtube Videos",
-                type: .movie,
-                sectionId: 6,
-                agent: "tv.plex.agents.none"
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let settings = SettingsManager(userDefaults: defaults)
+        let store = LibraryStore(context: context)
+        let library = Library(id: "6", title: "YouTube", type: .clip, sectionId: 6)
+        store.libraries = [library]
+        let loader = FakeCatalogLoader(results: [
+            library.id: LibraryCatalogResult(
+                library: library,
+                items: [item("existing", rating: "TV-Y")]
             )
-        ]
-
-        let inner = HomeViewModel(context: context, settingsManager: settings, libraryStore: libraryStore)
-        let disallowedRatedItem = MediaItem.fixture(type: .movie, contentRating: "R")
-        inner.recentlyAdded = [
-            Hub(id: "hub.home.recentlyadded.6", title: "Recently Added Videos", items: [.playable(disallowedRatedItem)])
-        ]
-
-        let safe = SafeHomeViewModel(inner: inner, policy: permissivePolicy, libraryStore: libraryStore)
-        safe.updatePolicy(strictPolicy)
-
-        XCTAssertTrue(
-            safe.recentlyAdded.isEmpty,
-            "Other-video hubs must reject explicitly disallowed ratings"
+        ])
+        let viewModel = SafeHomeViewModel(
+            context: context,
+            settingsManager: settings,
+            libraryStore: store,
+            catalogLoader: loader
         )
+        await viewModel.load()
+
+        loader.results = [:]
+        loader.failingIDs = [library.id]
+        await viewModel.reload()
+
+        XCTAssertEqual(viewModel.recentCatalogs.first?.items.map(\.id), ["existing"])
+        XCTAssertTrue(viewModel.hasContent)
+        XCTAssertFalse(viewModel.isLoading)
+        XCTAssertNil(viewModel.errorMessage)
     }
 
-    func test_recentlyAdded_otherVideoHub_preservesUnratedWhenParentAllowsIt() {
-        let context = PlexAPIContext()
-        let settings = SettingsManager()
-        let libraryStore = LibraryStore(context: context)
-        libraryStore.libraries = [
-            Library(
-                id: "6",
-                title: "Youtube Videos",
-                type: .movie,
-                sectionId: 6,
-                agent: "tv.plex.agents.none"
-            )
-        ]
+    private func item(_ id: String, rating: String?) -> MediaDisplayItem {
+        .playable(MediaItem.fixture(id: id, type: .movie, contentRating: rating))
+    }
+}
 
-        let inner = HomeViewModel(context: context, settingsManager: settings, libraryStore: libraryStore)
-        inner.recentlyAdded = [
-            Hub(
-                id: "hub.home.recentlyadded.6",
-                title: "Recently Added Youtube Videos",
-                items: [.playable(MediaItem.fixture(type: .movie, contentRating: nil))]
-            )
-        ]
+@MainActor
+private final class FakeCatalogLoader: LibraryCatalogLoading {
+    var results: [String: LibraryCatalogResult]
+    var failingIDs: Set<String>
+    private(set) var policies: [SafetyPolicy] = []
 
-        let safe = SafeHomeViewModel(
-            inner: inner,
-            policy: permissivePolicy,
-            libraryStore: libraryStore
-        )
-        safe.updatePolicy(SafetyPolicy.ratingOnly(maxMovie: .pg, maxTV: .tvPg, allowUnrated: true))
+    init(results: [String: LibraryCatalogResult], failingIDs: Set<String> = []) {
+        self.results = results
+        self.failingIDs = failingIDs
+    }
 
-        XCTAssertEqual(safe.recentlyAdded.count, 1)
-        XCTAssertEqual(safe.recentlyAdded.first?.items.count, 1)
+    func recentItems(
+        for library: Library,
+        limit: Int,
+        policy: SafetyPolicy
+    ) async throws -> LibraryCatalogResult {
+        policies.append(policy)
+        if failingIDs.contains(library.id) { throw URLError(.cannotLoadFromNetwork) }
+        return results[library.id] ?? LibraryCatalogResult(library: library, items: [])
     }
 }
 
 private extension MediaItem {
-    static func fixture(
-        id: String = "fixture-id",
-        type: PlexItemType = .movie,
-        contentRating: String? = nil
-    ) -> MediaItem {
+    static func fixture(id: String, type: PlexItemType, contentRating: String?) -> MediaItem {
         MediaItem(
-            id: id,
-            guid: "plex://\(type)/\(id)",
-            summary: nil,
-            title: "Test Item",
-            type: type,
-            parentRatingKey: nil,
-            grandparentRatingKey: nil,
-            genres: [],
-            year: nil,
-            duration: nil,
-            videoResolution: nil,
-            rating: nil,
-            ratings: [],
-            contentRating: contentRating,
-            studio: nil,
-            tagline: nil,
-            thumbPath: nil,
-            artPath: nil,
-            ultraBlurColors: nil,
-            viewOffset: nil,
-            viewCount: nil,
-            childCount: nil,
-            leafCount: nil,
-            viewedLeafCount: nil,
-            grandparentTitle: nil,
-            parentTitle: nil,
-            parentIndex: nil,
-            index: nil,
-            grandparentThumbPath: nil,
-            grandparentArtPath: nil,
-            parentThumbPath: nil
+            id: id, guid: "plex://\(id)", summary: nil, title: id, type: type,
+            parentRatingKey: nil, grandparentRatingKey: nil, genres: [], year: nil,
+            duration: nil, videoResolution: nil, rating: nil, ratings: [],
+            contentRating: contentRating, studio: nil, tagline: nil, thumbPath: nil,
+            artPath: nil, ultraBlurColors: nil, viewOffset: nil, viewCount: nil,
+            childCount: nil, leafCount: nil, viewedLeafCount: nil,
+            grandparentTitle: nil, parentTitle: nil, parentIndex: nil, index: nil,
+            grandparentThumbPath: nil, grandparentArtPath: nil, parentThumbPath: nil
         )
     }
 }
