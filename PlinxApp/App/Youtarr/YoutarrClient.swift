@@ -470,6 +470,12 @@ struct YoutarrClient {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue(configuration.apiKey, forHTTPHeaderField: "x-api-key")
+        if let additionalHeader = configuration.additionalHeader {
+            request.setValue(
+                additionalHeader.value,
+                forHTTPHeaderField: additionalHeader.name
+            )
+        }
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         if let body {
             do {

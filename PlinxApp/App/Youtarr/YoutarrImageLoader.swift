@@ -28,6 +28,12 @@ enum YoutarrAssetRequestPolicy {
             var request = URLRequest(url: url)
             request.httpMethod = "GET"
             request.setValue(configuration.apiKey, forHTTPHeaderField: "x-api-key")
+            if let additionalHeader = configuration.additionalHeader {
+                request.setValue(
+                    additionalHeader.value,
+                    forHTTPHeaderField: additionalHeader.name
+                )
+            }
             request.setValue("image/*", forHTTPHeaderField: "Accept")
             return .authenticated(request)
         }
