@@ -1,79 +1,55 @@
 import SwiftUI
 import PlinxUI
 
-enum PlinxBrandedLoadingPresentation: Sendable {
-    case standard
-    case heroIdentity
+enum PlinxBrandedLoadingContext: Sendable {
+    /// A full-screen transition between launch, session hydration, and the
+    /// first home load. Every call site intentionally shares one composition.
+    case appTransition
+    /// A contextual wait inside an already-established screen or navigation
+    /// hierarchy. These states stay branded without repeating the full logo.
+    case content
 }
 
 struct PlinxBrandedLoadingView: View {
+    var context: PlinxBrandedLoadingContext
     var titleKey: LocalizedStringKey?
-    var logoAsset: PlinxBrandAsset
-    var logoAccessibilityIdentifier: String
-    var showsProgressView: Bool
-    var presentation: PlinxBrandedLoadingPresentation
-    /// When true the view fills the screen with the ambient brand shell.
-    /// Use for full-screen splash and hero-loading contexts.
-    var fillsBackground: Bool
 
     init(
-        titleKey: LocalizedStringKey? = nil,
-        logoAsset: PlinxBrandAsset = .lockupOnDark,
-        logoAccessibilityIdentifier: String = "branding.logo",
-        showsProgressView: Bool = true,
-        presentation: PlinxBrandedLoadingPresentation = .standard,
-        fillsBackground: Bool = false
+        context: PlinxBrandedLoadingContext = .content,
+        titleKey: LocalizedStringKey? = nil
     ) {
+        self.context = context
         self.titleKey = titleKey
-        self.logoAsset = logoAsset
-        self.logoAccessibilityIdentifier = logoAccessibilityIdentifier
-        self.showsProgressView = showsProgressView
-        self.presentation = presentation
-        self.fillsBackground = fillsBackground
     }
 
     var body: some View {
-        content
-        .padding(24)
-        .frame(maxWidth: fillsBackground ? .infinity : nil,
-               maxHeight: fillsBackground ? .infinity : nil)
-        .background {
-            if fillsBackground {
-                PlinxAmbientBackground(intensity: .hero)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var content: some View {
-        switch presentation {
-        case .standard:
-            standardContent
-        case .heroIdentity:
+        switch context {
+        case .appTransition:
             heroIdentityContent
+                .padding(24)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background {
+                    PlinxAmbientBackground(intensity: .hero)
+                }
+        case .content:
+            contentLoading
+                .padding(24)
         }
     }
 
-    private var standardContent: some View {
+    private var contentLoading: some View {
         VStack(spacing: 18) {
-            PlinxBrandLogoView(
-                asset: logoAsset,
-                accessibilityIdentifier: logoAccessibilityIdentifier,
-                maxWidth: 240
+            PlinxLoadingIndicator(
+                size: .regular,
+                surface: .glass,
+                accessibilityIdentifier: "plinx.loading.content"
             )
-
-            if showsProgressView {
-                PlinxLoadingIndicator(
-                    size: .regular,
-                    surface: .glass,
-                    accessibilityIdentifier: "plinx.loading.branded"
-                )
-            }
 
             if let titleKey {
                 Text(titleKey)
                     .font(.subheadline)
-                    .foregroundStyle(fillsBackground ? Color.white.opacity(0.82) : .secondary)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
             }
         }
     }
@@ -84,7 +60,7 @@ struct PlinxBrandedLoadingView: View {
                 size: .hero,
                 surface: .glass,
                 accessibilityLabel: "Loading",
-                accessibilityIdentifier: logoAccessibilityIdentifier
+                accessibilityIdentifier: "plinx.loading.heroBeacon"
             )
 
             PlinxBrandLogoView(
@@ -107,5 +83,4 @@ struct PlinxBrandedLoadingView: View {
         180
         #endif
     }
-
 }

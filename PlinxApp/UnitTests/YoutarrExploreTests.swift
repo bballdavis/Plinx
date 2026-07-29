@@ -557,6 +557,127 @@ final class YoutarrExploreTests: XCTestCase {
     }
 
     @MainActor
+    func test_overlappingExploreReloadsOnlyCommitNewestGeneration() async throws {
+        let configuration = try YoutarrConfiguration(
+            baseURL: URL(string: "https://family.example/family")!,
+            apiKey: "top-secret"
+        )
+        let session = ExploreRaceSession()
+        let viewModel = YoutarrExploreViewModel(
+            configuration: configuration,
+            localSafetyPolicy: .ratingOnly(max: .r, allowUnrated: true),
+            client: YoutarrClient(configuration: configuration, session: session)
+        )
+
+        viewModel.searchText = "slow"
+        let slowTask = Task { @MainActor in await viewModel.activate() }
+        try await Task.sleep(nanoseconds: 25_000_000)
+        viewModel.searchText = "fast"
+        await viewModel.reload()
+        await slowTask.value
+
+        XCTAssertEqual(viewModel.channels.map(\.title), ["fast"])
+        XCTAssertEqual(viewModel.videos.map(\.title), ["fast"])
+        XCTAssertEqual(viewModel.phase, .ready)
+    }
+
+    @MainActor
+    func test_exploreFailedRefreshPreservesCommittedCatalog() async throws {
+        let configuration = try YoutarrConfiguration(
+            baseURL: URL(string: "https://family.example/family")!,
+            apiKey: "top-secret"
+        )
+        let session = ExploreRaceSession()
+        let viewModel = YoutarrExploreViewModel(
+            configuration: configuration,
+            localSafetyPolicy: .ratingOnly(max: .r, allowUnrated: true),
+            client: YoutarrClient(configuration: configuration, session: session)
+        )
+
+        viewModel.searchText = "first"
+        await viewModel.activate()
+        session.setCapabilitiesError(URLError(.timedOut))
+
+        await viewModel.reload()
+
+        XCTAssertEqual(viewModel.phase, .ready)
+        XCTAssertEqual(viewModel.videos.map(\.title), ["first"])
+        XCTAssertEqual(viewModel.channels.map(\.title), ["first"])
+        XCTAssertFalse(viewModel.isRefreshing)
+    }
+
+    @MainActor
+    func test_exploreCancelledInitialActivationReturnsToIdle() async throws {
+        let configuration = try YoutarrConfiguration(
+            baseURL: URL(string: "https://family.example/family")!,
+            apiKey: "top-secret"
+        )
+        let session = ExploreRaceSession()
+        session.setCapabilitiesError(URLError(.cancelled))
+        let viewModel = YoutarrExploreViewModel(
+            configuration: configuration,
+            localSafetyPolicy: .ratingOnly(max: .r, allowUnrated: true),
+            client: YoutarrClient(configuration: configuration, session: session)
+        )
+
+        await viewModel.activate()
+
+        XCTAssertEqual(viewModel.phase, .idle)
+        XCTAssertTrue(viewModel.videos.isEmpty)
+        XCTAssertTrue(viewModel.channels.isEmpty)
+        XCTAssertFalse(viewModel.isRefreshing)
+    }
+
+    @MainActor
+    func test_exploreCancelledRefreshPreservesCommittedCatalog() async throws {
+        let configuration = try YoutarrConfiguration(
+            baseURL: URL(string: "https://family.example/family")!,
+            apiKey: "top-secret"
+        )
+        let session = ExploreRaceSession()
+        let viewModel = YoutarrExploreViewModel(
+            configuration: configuration,
+            localSafetyPolicy: .ratingOnly(max: .r, allowUnrated: true),
+            client: YoutarrClient(configuration: configuration, session: session)
+        )
+
+        viewModel.searchText = "first"
+        await viewModel.activate()
+        session.setCapabilitiesError(URLError(.cancelled))
+
+        await viewModel.reload()
+
+        XCTAssertEqual(viewModel.phase, .ready)
+        XCTAssertEqual(viewModel.videos.map(\.title), ["first"])
+        XCTAssertEqual(viewModel.channels.map(\.title), ["first"])
+        XCTAssertFalse(viewModel.isRefreshing)
+    }
+
+    @MainActor
+    func test_exploreGenuineInitialFailureShowsRetryState() async throws {
+        let configuration = try YoutarrConfiguration(
+            baseURL: URL(string: "https://family.example/family")!,
+            apiKey: "top-secret"
+        )
+        let session = ExploreRaceSession()
+        session.setCapabilitiesError(URLError(.notConnectedToInternet))
+        let viewModel = YoutarrExploreViewModel(
+            configuration: configuration,
+            localSafetyPolicy: .ratingOnly(max: .r, allowUnrated: true),
+            client: YoutarrClient(configuration: configuration, session: session)
+        )
+
+        await viewModel.activate()
+
+        XCTAssertEqual(
+            viewModel.phase,
+            .failed(YoutarrStrings.value("youtarr.error.networkUnavailable"))
+        )
+        XCTAssertTrue(viewModel.videos.isEmpty)
+        XCTAssertTrue(viewModel.channels.isEmpty)
+    }
+
+    @MainActor
     func test_exploreDistinguishesSafetyFilteredCatalogFromEmptyCatalog() async throws {
         let configuration = try YoutarrConfiguration(
             baseURL: URL(string: "https://family.example/family")!,
@@ -738,6 +859,9 @@ private final class ExploreMockSession: YoutarrHTTPSession {
 }
 
 private final class ExploreRaceSession: YoutarrHTTPSession {
+    private let lock = NSLock()
+    private var capabilitiesError: Error?
+
     static let capabilitiesData = Data(
         """
         {
@@ -767,6 +891,10 @@ private final class ExploreRaceSession: YoutarrHTTPSession {
 
     func data(for request: URLRequest) async throws -> (Data, URLResponse) {
         let url = try XCTUnwrap(request.url)
+        if url.path.hasSuffix("/capabilities"),
+           let error = lockedCapabilitiesError() {
+            throw error
+        }
         let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?
             .queryItems?
             .first(where: { $0.name == "search" })?
@@ -792,6 +920,18 @@ private final class ExploreRaceSession: YoutarrHTTPSession {
                 headerFields: nil
             )!
         )
+    }
+
+    func setCapabilitiesError(_ error: Error?) {
+        lock.lock()
+        capabilitiesError = error
+        lock.unlock()
+    }
+
+    private func lockedCapabilitiesError() -> Error? {
+        lock.lock()
+        defer { lock.unlock() }
+        return capabilitiesError
     }
 
     private static func channelResponse(title: String) -> Data {

@@ -108,13 +108,11 @@ struct ProfileSwitcherView: View {
     @ViewBuilder
     private var loadingState: some View {
         if viewModel.isLoading {
-            HStack(spacing: 12) {
-                ProgressView().tint(theme.palette.primary)
-                Text("auth.profile.loading")
-                    .foregroundStyle(.white.opacity(0.7))
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
+            PlinxBrandedLoadingView(
+                context: .content,
+                titleKey: "auth.profile.loading"
+            )
+            .frame(maxWidth: .infinity)
         } else {
             Text("auth.profile.empty")
                 .foregroundStyle(.white.opacity(0.7))

@@ -18,6 +18,12 @@ protocol YoutarrRequestServing {
 
 extension YoutarrClient: YoutarrRequestServing {}
 
+protocol YoutarrRequestVideoDetailServing {
+    func videoDetail(youtubeID: String) async throws -> YoutarrVideoDetail
+}
+
+extension YoutarrClient: YoutarrRequestVideoDetailServing {}
+
 enum YoutarrRequestCapabilityPolicy {
     static func canRead(_ capabilities: YoutarrCapabilities) -> Bool {
         capabilities.features.requests

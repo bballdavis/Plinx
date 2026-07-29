@@ -307,6 +307,19 @@ final class YoutarrFoundationTests: XCTestCase {
         }
     }
 
+    func test_clientTreatsURLSessionCancelledAsCancellation() async throws {
+        let client = try makeClient(session: MockHTTPSession(error: URLError(.cancelled)))
+
+        do {
+            _ = try await client.capabilities()
+            XCTFail("Expected cancellation")
+        } catch is CancellationError {
+            // URLSession commonly reports task cancellation as NSURLError -999.
+        } catch {
+            XCTFail("Expected CancellationError, got \(error)")
+        }
+    }
+
     func test_clientTaskCancellationCancelsInFlightRequest() async throws {
         let started = expectation(description: "request started")
         let session = CancellationAwareHTTPSession(started: started)

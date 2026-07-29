@@ -18,12 +18,23 @@ profile's rating limit, Explore says that nothing matches the profile instead
 of describing the server catalog as empty. A parent can then review the
 channel ratings in Youtarr or the profile rating ceiling in Plinx.
 
+An API key must also be granted access to at least one channel in Youtarr.
+Changing the Plinx profile rating does not grant channel access. If Explore
+reports that no videos are available to the connection, a parent should check
+both the key's channel grants and its rating rules in Youtarr.
+
 Explore combines eligible videos from all indexed channels into one discovery
 feed. It shows newest videos in a landscape rail, provides a separate channel
 browser, and continues with a landscape video grid. The feed is specifically
 limited to videos that are not already downloaded and do not already have an
 active request. Sending a request removes that video from Explore after
 Youtarr confirms the result.
+
+My Requests shows each requested video's thumbnail and details alongside its
+status and request time. It is sorted newest first. The default Recent filter
+keeps outstanding requests and status changes from the last seven days in
+view; Outstanding and All filters plus search make older histories easy to
+find.
 
 Each video card has a small download control beside its channel and rating.
 Selecting the rest of the card opens Video Details with larger landscape
@@ -35,6 +46,10 @@ sites.
 Video artwork is loaded through the configured Youtarr service. Plinx does not
 contact a public thumbnail host directly or expose thumbnail links in the
 kid-facing interface.
+
+Explore keeps its current catalog visible while refreshing. Leaving the tab or
+starting a newer refresh cancels obsolete requests silently; only a genuine
+first-load connection failure replaces the catalog with the retry screen.
 
 The connection address is stored on-device and the API key is held in the
 system Keychain. If an authentication proxy protects Youtarr, a parent can

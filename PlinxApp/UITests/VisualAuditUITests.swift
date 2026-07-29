@@ -111,6 +111,37 @@ final class VisualAuditUITests: XCTestCase {
         attachScreenshot(name: "home-loading")
     }
 
+    func test_captureBrandAlignmentLandscape() {
+        XCUIDevice.shared.orientation = .landscapeLeft
+
+        launch(screen: "signIn")
+        XCTAssertTrue(app.images["signIn.logo.fullColor"].waitForExistence(timeout: 12))
+        XCTAssertTrue(app.buttons["signIn.primaryButton"].waitForExistence(timeout: 12))
+        attachScreenshot(name: "brand-sign-in-landscape")
+
+        launch(screen: "appHydrating")
+        XCTAssertTrue(
+            app.descendants(matching: .any)["plinx.loading.branded"]
+                .waitForExistence(timeout: 12)
+        )
+        attachScreenshot(name: "brand-app-transition-landscape")
+
+        launch(screen: "contentLoading")
+        XCTAssertTrue(
+            app.descendants(matching: .any)["plinx.loading.content"]
+                .waitForExistence(timeout: 12)
+        )
+        attachScreenshot(name: "brand-content-loading-landscape")
+
+        launch(screen: "homeHeader")
+        XCTAssertTrue(app.images["home.header.logo"].waitForExistence(timeout: 12))
+        XCTAssertTrue(
+            app.staticTexts["home.header.preview.firstSection"]
+                .waitForExistence(timeout: 12)
+        )
+        attachScreenshot(name: "brand-home-header-landscape")
+    }
+
     func test_capturePlayerBuffering() {
         launch(screen: "playerBuffering")
         XCTAssertTrue(
@@ -121,6 +152,9 @@ final class VisualAuditUITests: XCTestCase {
     }
 
     private func launch(screen: String) {
+        if app.state != .notRunning {
+            app.terminate()
+        }
         app.launchEnvironment["PLINX_UI_TEST_SCREEN"] = screen
         app.launch()
     }

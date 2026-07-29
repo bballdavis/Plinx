@@ -89,6 +89,27 @@ behavioral coverage for testable upstream seams.
 ./scripts/ui_tests.sh --live
 ```
 
+The Youtarr Explore tab also has deterministic unit and UI regression coverage
+that uses in-process catalog fixtures. It exercises tab selection, production
+view mounting, response decoding, safety filtering, transactional refresh,
+URLSession cancellation, and video-card rendering without a Youtarr or Plex
+server. A cancelled activation or refresh must never appear as a network
+failure, and a failed refresh must preserve an already-rendered catalog:
+
+```bash
+source scripts/build_environment.sh
+cd PlinxApp
+xcodebuild test \
+  -project Plinx.xcodeproj \
+  -scheme Plinx-iOS \
+  -destination "platform=iOS Simulator,name=iPhone 17,OS=26.5" \
+  -derivedDataPath "$PLINX_XCODE_DERIVED_DATA_PATH" \
+  -only-testing:Plinx-iOS-UnitTests/YoutarrFoundationTests \
+  -only-testing:Plinx-iOS-UnitTests/YoutarrExploreTests \
+  -only-testing:Plinx-iOS-UITests/YoutarrExploreOfflineUITests \
+  CODE_SIGNING_ALLOWED=NO
+```
+
 ### Live parity checks
 
 ```bash

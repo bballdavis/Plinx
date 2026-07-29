@@ -30,12 +30,12 @@ struct ParentalGateView: View {
 
     var body: some View {
         VStack(spacing: 24) {
-            PlinxBrandedLoadingView(
-                logoAsset: .stackedOnGradient,
-                logoAccessibilityIdentifier: "parentalGate.logo",
-                showsProgressView: false
+            PlinxBrandLogoView(
+                asset: .stackedOnGradient,
+                accessibilityIdentifier: "parentalGate.logo",
+                maxWidth: 176
             )
-                .frame(height: 200)
+            .frame(height: 200)
 
             if usePIN {
                 pinChallengeView

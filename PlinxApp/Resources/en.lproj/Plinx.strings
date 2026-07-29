@@ -161,7 +161,7 @@
 "youtarr.explore.emptyChannels" = "No Channels Found";
 "youtarr.explore.emptyChannels.help" = "Try another search or ask a parent to approve channels in Youtarr.";
 "youtarr.explore.emptyVideos" = "No Videos Found";
-"youtarr.explore.emptyVideos.help" = "No videos in this view pass the current access and rating rules.";
+"youtarr.explore.emptyVideos.help" = "No videos are available to this connection. A parent can check the Youtarr key’s channel access and rating rules.";
 "youtarr.explore.filteredVideos" = "Nothing Matches This Profile";
 "youtarr.explore.filteredVideos.help" = "Youtarr has videos, but their ratings are above this profile’s limit. A parent can review channel ratings or the profile’s rating settings.";
 "youtarr.explore.partialCatalog" = "Youtarr is still indexing this channel. More videos may appear later.";
@@ -195,6 +195,13 @@
 "youtarr.requests.empty" = "No Requests Yet";
 "youtarr.requests.empty.help" = "Videos you request from Explore will appear here.";
 "youtarr.requests.video" = "Video request";
+"youtarr.requests.search" = "Search requests";
+"youtarr.requests.filter.recent" = "Recent";
+"youtarr.requests.filter.outstanding" = "Outstanding";
+"youtarr.requests.filter.all" = "All";
+"youtarr.requests.noMatches" = "No Matching Requests";
+"youtarr.requests.noMatches.help" = "Try another search or request filter.";
+"youtarr.requests.requested" = "Requested";
 "youtarr.requests.status.pending" = "Waiting for approval";
 "youtarr.requests.status.approved" = "Approved";
 "youtarr.requests.status.processing" = "Preparing";

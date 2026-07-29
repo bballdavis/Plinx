@@ -149,7 +149,10 @@ public struct PlinxLoadingIndicator: View {
     }
 
     private var reduceMotion: Bool {
-        reduceMotionOverride ?? systemReduceMotion
+        if ProcessInfo.processInfo.arguments.contains("--disable-animations") {
+            return true
+        }
+        return reduceMotionOverride ?? systemReduceMotion
     }
 
     private var beacon: some View {

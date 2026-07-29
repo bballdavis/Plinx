@@ -38,12 +38,64 @@ final class BrandingUITests: XCTestCase {
         XCTAssertEqual(app.activityIndicators.count, 0)
     }
 
+    func test_appTransitionLoading_keepsHydrationAndHomeIdentityInTheSameFrame() {
+        let hydrationApp = launch(screen: "appHydrating")
+        let hydrationIdentity = hydrationApp.descendants(matching: .any)["plinx.loading.branded"]
+        XCTAssertTrue(hydrationIdentity.waitForExistence(timeout: 8))
+        let hydrationFrame = hydrationIdentity.frame
+        hydrationApp.terminate()
+
+        let homeApp = launch(screen: "homeLoading")
+        let homeIdentity = homeApp.descendants(matching: .any)["plinx.loading.branded"]
+        XCTAssertTrue(homeIdentity.waitForExistence(timeout: 8))
+        let homeFrame = homeIdentity.frame
+
+        XCTAssertEqual(hydrationFrame.midX, homeFrame.midX, accuracy: 1)
+        XCTAssertEqual(hydrationFrame.midY, homeFrame.midY, accuracy: 1)
+        XCTAssertEqual(hydrationFrame.width, homeFrame.width, accuracy: 1)
+        XCTAssertEqual(hydrationFrame.height, homeFrame.height, accuracy: 1)
+    }
+
+    func test_contentLoading_usesRegularIndicator_withoutRepeatedLogo() {
+        let app = launch(screen: "contentLoading")
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["plinx.loading.content"]
+                .waitForExistence(timeout: 8)
+        )
+        XCTAssertFalse(app.descendants(matching: .any)["plinx.loading.branded"].exists)
+        XCTAssertEqual(app.activityIndicators.count, 0)
+    }
+
+    func test_homeHeader_logoFillsExistingChromeRow_withoutMovingContentDown() {
+        let app = launch(screen: "homeHeader")
+
+        let logo = app.images["home.header.logo"]
+        let search = app.buttons["home.header.search"]
+        let firstSection = app.staticTexts["home.header.preview.firstSection"]
+
+        XCTAssertTrue(logo.waitForExistence(timeout: 8))
+        XCTAssertTrue(search.waitForExistence(timeout: 8))
+        XCTAssertTrue(firstSection.waitForExistence(timeout: 8))
+        XCTAssertEqual(logo.frame.height, search.frame.height, accuracy: 1)
+        XCTAssertLessThanOrEqual(logo.frame.maxY, search.frame.maxY + 1)
+        XCTAssertGreaterThan(firstSection.frame.minY, search.frame.maxY)
+    }
+
     func test_signIn_showsContrastSafeLogoAndLiquidGlassPrimaryButton() {
         let app = launch(screen: "signIn")
 
         let logo = app.images["signIn.logo.fullColor"]
         XCTAssertTrue(logo.waitForExistence(timeout: 8), "Sign-in should render contrast-safe branding")
         XCTAssertEqual(logo.value as? String, "BrandLockupWhite", "Compact sign-in should use the white lockup over the colored portal")
+
+        let title = app.staticTexts["signIn.portal.title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 8))
+        XCTAssertGreaterThan(
+            logo.frame.height,
+            title.frame.height,
+            "The Plinx identity should visually lead the sign-in headline"
+        )
 
         let primaryButton = app.buttons["signIn.primaryButton"]
         XCTAssertTrue(primaryButton.waitForExistence(timeout: 8), "Sign-in primary button should be present")

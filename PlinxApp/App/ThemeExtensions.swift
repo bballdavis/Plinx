@@ -258,3 +258,38 @@ struct PlinxChromeIconLabel: View {
             )
     }
 }
+
+/// A labeled companion to `PlinxChromeButton` for retry and other compact
+/// actions that need the same liquid-glass navigation treatment.
+struct PlinxChromeActionButton: View {
+    let titleKey: String
+    let systemImage: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label {
+                Text(LocalizedStringKey(titleKey), tableName: "Plinx")
+            } icon: {
+                Image(systemName: systemImage)
+            }
+            .font(.headline)
+            .foregroundStyle(Color.accentColor)
+            .padding(.horizontal, 18)
+            .frame(minHeight: 46)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(.ultraThinMaterial)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(Color.accentColor.opacity(0.45), lineWidth: 1)
+            }
+            .contentShape(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+            )
+        }
+        .buttonStyle(PlinkButtonStyle())
+        .accessibilityHint(Text("accessibility.chromeButton.hint", tableName: "Plinx"))
+    }
+}

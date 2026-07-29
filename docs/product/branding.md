@@ -143,13 +143,16 @@ and wordmark need to remain independent. Use
 ### Sizing guidance from current app usage
 
 - `PlinxBrandLogoView` defaults to `maxWidth: 240`
-- sign-in expands logo usage to about `280`
+- sign-in uses a 280-point lockup on compact layouts and a 380-point lockup
+  on spacious iPad layouts so the identity leads the connection headline
+- the home header lockup fills the existing chrome row: 195 by 52 points at
+  the default button size, capped at 56 points high
 - tvOS sign-in uses a much larger logo treatment
 
 Default rule:
 
 - 220-280 pt max width for standard hero/logo moments on iPhone and iPad
-- larger only for dedicated onboarding or tvOS hero layouts
+- larger only for dedicated onboarding, app-transition, or tvOS hero layouts
 
 ### Clear-space rule
 
@@ -585,6 +588,16 @@ Plinx loading states use one visual language at three intentional scales:
   perimeter animation and Reduce Motion behavior; do not add a second static
   logo or visible loading copy.
 
+The app exposes two semantic loading contexts rather than allowing screens to
+assemble these pieces independently:
+
+- **App transition** fills the ambient shell with the hero identity. Launch,
+  session hydration, and the initial empty home load use the same centered
+  footprint so state changes do not move or resize the brand.
+- **Content** centers the regular indicator with optional contextual copy. It
+  is used when navigation or screen identity is already visible and never adds
+  a second lockup.
+
 Do not place the Plinx logo in compact indicators; the mark becomes noise at
 inline sizes. Do not use the hero beacon inside video tiles, buttons, cards,
 rows, or navigation chrome. Do not show a visible buffering caption over video;
@@ -602,9 +615,9 @@ Reduce Motion replaces the perimeter-chasing highlight with a static complete
 gradient perimeter for square indicators and stops the hero identity pulse. It
 does not hide the loading state. The square and loop never rotate.
 
-The static OS launch storyboard uses the same shell and ambient treatment because
-launch screens cannot animate. The first active app loading state transitions into the appropriate
-Plinx indicator.
+The static OS launch storyboard uses the same shell, ambient treatment, center
+point, and approximate hero footprint because launch screens cannot animate.
+The first active app loading state adds motion without relocating the identity.
 
 ## 2. Dark-shell browsing screens
 
@@ -658,6 +671,9 @@ Current sign-in language:
 Rules:
 
 - Sign-in should feel welcoming and premium, not utilitarian.
+- The Plinx lockup is the primary landmark. Use 34-point connection-title type
+  on compact layouts and 44-point type on spacious iPad layouts so the title
+  remains clearly secondary to the logo.
 - The primary CTA should remain visually lighter and friendlier than a harsh solid fill button.
 - Subtitle copy can explain the task, but should stay short and centered.
 
@@ -692,6 +708,9 @@ Rules:
 
 - Let media art carry the color richness.
 - Brand should frame the experience, not compete with cover art.
+- The home lockup should consume the height already reserved by the search and
+  settings controls. Scale it with that chrome row, capped at 56 points high,
+  without pushing the first content section down.
 - Section titles should remain large and readable, with enough spacing to breathe.
 - On tvOS, the main header navigation should be a centered, controls-width glass capsule; do not leave empty glass spanning the hero.
 - On tvOS, hero artwork should overscan to the top-right edge and blend only on the left and bottom into the dark shell. Keep the clear-logo layer above those fades with no dark rectangular backing.

@@ -18,10 +18,10 @@
                                 <rect key="frame" x="0.0" y="0.0" width="834" height="1194"/>
                             </imageView>
                             <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="BrandLockupStackedOnGradient" translatesAutoresizingMaskIntoConstraints="NO" id="K2f-xA-uXZ">
-                                <rect key="frame" x="347" y="517" width="140" height="160"/>
+                                <rect key="frame" x="265" y="424" width="304" height="346"/>
                                 <constraints>
-                                    <constraint firstAttribute="width" constant="140" id="GQ6-96-qIh"/>
-                                    <constraint firstAttribute="height" constant="160" id="rnF-rd-kKL"/>
+                                    <constraint firstAttribute="width" constant="304" id="GQ6-96-qIh"/>
+                                    <constraint firstAttribute="height" constant="346" id="rnF-rd-kKL"/>
                                 </constraints>
                             </imageView>
                         </subviews>

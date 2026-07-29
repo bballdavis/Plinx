@@ -78,11 +78,17 @@ numeric Youtarr channel database ID from the video response, and a
 fresh UUID idempotency key. It updates catalog state only after Youtarr returns
 `created`, `duplicate`, or `already_downloaded`.
 
-My Requests reads the paginated `GET /external-api/v1/requests` contract and
-uses text plus system icons for every lifecycle state. While the screen is
-visible, it polls at a 15-second interval only if a request is pending,
-approved, or processing. Polling stops when all visible requests are terminal
-or the view disappears. Paging is capped at 100 server pages.
+My Requests reads the paginated `GET /external-api/v1/requests` contract,
+sorts requests by creation time from newest to oldest, and enriches visible
+video rows through the existing curated `GET /external-api/v1/videos/:youtubeId`
+detail route. Rows show same-origin authenticated artwork, video and channel
+details, request time, and a right-aligned lifecycle chip. Search and Recent,
+Outstanding, and All filters keep a long request history manageable. Recent
+is the default and includes every active request plus terminal requests updated
+within the last seven days. While the screen is visible, it polls at a
+15-second interval only if a request is pending, approved, or processing.
+Polling stops when all visible requests are terminal or the view disappears.
+Paging is capped at 100 server pages.
 
 `YoutarrConfigurationStore` stores only the normalized server address in
 `UserDefaults`. Its API key is held by Plinx's own Keychain wrapper. An

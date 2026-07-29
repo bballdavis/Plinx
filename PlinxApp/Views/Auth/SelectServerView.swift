@@ -56,9 +56,11 @@ struct SelectServerView: View {
     @ViewBuilder
     private var content: some View {
         if viewModel.isLoading, viewModel.servers.isEmpty {
-            ProgressView("serverSelection.loading")
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .tint(.accentColor)
+            PlinxBrandedLoadingView(
+                context: .content,
+                titleKey: "serverSelection.loading"
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if viewModel.servers.isEmpty {
             emptyState
         } else {

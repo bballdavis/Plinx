@@ -313,6 +313,106 @@ final class YoutarrRequestTests: XCTestCase {
         )
     }
 
+    func test_requestPresentationIsNewestFirstAndRecentKeepsOutstandingItems() throws {
+        let now = try XCTUnwrap(
+            ISO8601DateFormatter().date(from: "2026-07-29T12:00:00Z")
+        )
+        let oldOutstanding = request(
+            id: "old-outstanding",
+            youtubeID: "pending00001",
+            status: .pending,
+            createdAt: "2026-06-01T09:00:00Z",
+            updatedAt: "2026-06-01T09:00:00Z"
+        )
+        let recentRejected = request(
+            id: "recent-rejected",
+            youtubeID: "rejected001",
+            status: .rejected,
+            createdAt: "2026-07-28T11:00:00Z",
+            updatedAt: "2026-07-28T12:00:00Z"
+        )
+        let oldRejected = request(
+            id: "old-rejected",
+            youtubeID: "rejected002",
+            status: .rejected,
+            createdAt: "2026-06-02T11:00:00Z",
+            updatedAt: "2026-06-02T12:00:00Z"
+        )
+
+        let presented = YoutarrRequestListPolicy.presented(
+            [oldRejected, oldOutstanding, recentRejected],
+            details: [:],
+            filter: .recent,
+            searchText: "",
+            now: now
+        )
+
+        XCTAssertEqual(presented.map(\.id), ["recent-rejected", "old-outstanding"])
+    }
+
+    func test_outstandingFilterIncludesEveryActiveLifecycleStatus() {
+        let requests = [
+            request(id: "pending", youtubeID: "pending00001", status: .pending),
+            request(id: "approved", youtubeID: "approved001", status: .approved),
+            request(id: "processing", youtubeID: "process0001", status: .processing),
+            request(id: "completed", youtubeID: "complete001", status: .completed)
+        ]
+
+        let presented = YoutarrRequestListPolicy.presented(
+            requests,
+            details: [:],
+            filter: .outstanding,
+            searchText: ""
+        )
+
+        XCTAssertEqual(Set(presented.map(\.id)), Set(["pending", "approved", "processing"]))
+    }
+
+    func test_requestSearchMatchesEnrichedVideoTitleAndChannel() throws {
+        let science = request(
+            id: "science",
+            youtubeID: "science00001",
+            status: .completed
+        )
+        let stories = request(
+            id: "stories",
+            youtubeID: "stories00001",
+            status: .completed
+        )
+        let detail = try JSONDecoder().decode(
+            YoutarrVideoDetail.self,
+            from: Data(
+                """
+                {
+                  "youtubeId": "science00001",
+                  "title": "A Safe Science Experiment",
+                  "isDownloaded": true,
+                  "isRequested": false,
+                  "channelId": "UC-safe",
+                  "channelTitle": "Learning Lab",
+                  "mediaType": "video"
+                }
+                """.utf8
+            )
+        )
+
+        let byTitle = YoutarrRequestListPolicy.presented(
+            [stories, science],
+            details: ["science00001": detail],
+            filter: .all,
+            searchText: "science"
+        )
+        let byChannel = YoutarrRequestListPolicy.presented(
+            [stories, science],
+            details: ["science00001": detail],
+            filter: .all,
+            searchText: "learning"
+        )
+
+        XCTAssertEqual(byTitle.map(\.id), ["science"])
+        XCTAssertEqual(byChannel.map(\.id), ["science"])
+    }
+
     private func makeClient(session: any YoutarrHTTPSession) throws -> YoutarrClient {
         try YoutarrClient(
             configuration: YoutarrConfiguration(
@@ -583,4 +683,24 @@ private func requestJSON(
 
 private func requestIdentifier(_ value: Int) -> String {
     String(format: "00000000-0000-4000-8000-%012d", value)
+}
+
+private func request(
+    id: String,
+    youtubeID: String,
+    status: YoutarrRequestStatus,
+    createdAt: String = "2026-07-26T10:00:00Z",
+    updatedAt: String = "2026-07-26T10:01:00Z"
+) -> YoutarrRequest {
+    YoutarrRequest(
+        id: id,
+        type: .video,
+        status: status,
+        target: .init(youtubeId: youtubeID, channelId: 42),
+        createdAt: createdAt,
+        updatedAt: updatedAt,
+        decidedAt: status.isActive ? nil : updatedAt,
+        completedAt: status == .completed ? updatedAt : nil,
+        message: nil
+    )
 }

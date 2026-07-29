@@ -625,9 +625,11 @@ struct YoutarrClient {
         let response: URLResponse
         do {
             (data, response) = try await session.data(for: request)
-        } catch is CancellationError {
-            throw CancellationError()
         } catch {
+            if error is CancellationError
+                || (error as? URLError)?.code == .cancelled {
+                throw CancellationError()
+            }
             throw YoutarrClientError.networkUnavailable
         }
 

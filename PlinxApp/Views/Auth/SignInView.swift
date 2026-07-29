@@ -64,12 +64,14 @@ struct SignInView: View {
             PlinxBrandLogoView(
                 asset: expandedLayout ? .lockupOnDark : .lockupWhite,
                 accessibilityIdentifier: "signIn.logo.fullColor",
-                maxWidth: expandedLayout ? 280 : 220
+                maxWidth: expandedLayout
+                    ? PlinxBrandLayoutMetrics.signInExpandedLogoWidth
+                    : PlinxBrandLayoutMetrics.signInCompactLogoWidth
             )
-            .padding(.top, expandedLayout ? 64 : 96)
+            .padding(.top, expandedLayout ? 48 : 80)
 
             Spacer()
-                .frame(height: expandedLayout ? 52 : 108)
+                .frame(height: expandedLayout ? 44 : 92)
 
             VStack(spacing: 18) {
                 Label {
@@ -95,7 +97,15 @@ struct SignInView: View {
                 .lineLimit(1)
 
                 Text("signIn.portal.title", tableName: "Plinx")
-                    .font(.system(size: expandedLayout ? 52 : 39, weight: .bold, design: .rounded))
+                    .font(
+                        .system(
+                            size: expandedLayout
+                                ? PlinxBrandLayoutMetrics.signInExpandedTitleSize
+                                : PlinxBrandLayoutMetrics.signInCompactTitleSize,
+                            weight: .bold,
+                            design: .rounded
+                        )
+                    )
                     .minimumScaleFactor(0.82)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(Color.white)

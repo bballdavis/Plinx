@@ -62,6 +62,12 @@ struct PlinxContentView: View {
                 loadingGalleryPreview
             case "homeLoading":
                 homeLoadingPreview
+            case "appHydrating":
+                appHydratingPreview
+            case "contentLoading":
+                contentLoadingPreview
+            case "homeHeader":
+                homeHeaderPreview
             case "playerBuffering":
                 playerBufferingPreview
             case "refreshLoading":
@@ -117,6 +123,20 @@ struct PlinxContentView: View {
                 } else {
                     ContentUnavailableView(
                         "Live test configuration missing",
+                        systemImage: "wrench.and.screwdriver"
+                    )
+                }
+            case YoutarrExploreUITestBootstrap.screenName:
+                if let configuration = YoutarrExploreUITestBootstrap.configuration() {
+                    YoutarrExploreUITestHarness(
+                        configuration: configuration,
+                        client: YoutarrExploreUITestBootstrap.client(
+                            configuration: configuration
+                        )
+                    )
+                } else {
+                    ContentUnavailableView(
+                        "Offline Explore fixture unavailable",
                         systemImage: "wrench.and.screwdriver"
                     )
                 }
@@ -270,12 +290,50 @@ struct PlinxContentView: View {
     }
 
     private var homeLoadingPreview: some View {
+        PlinxBrandedLoadingView(context: .appTransition)
+    }
+
+    private var appHydratingPreview: some View {
+        PlinxBrandedLoadingView(context: .appTransition)
+    }
+
+    private var contentLoadingPreview: some View {
         PlinxBrandedLoadingView(
-            logoAsset: .markColor,
-            logoAccessibilityIdentifier: "home.loading.logo",
-            presentation: .heroIdentity,
-            fillsBackground: true
+            context: .content,
+            titleKey: "library.loading.plinx"
         )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.appBackground.ignoresSafeArea())
+    }
+
+    private var homeHeaderPreview: some View {
+        #if os(tvOS)
+        return AnyView(Color.appBackground.ignoresSafeArea())
+        #else
+        return AnyView(
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 14) {
+                    PlinxScrollingHeaderRow(
+                        title: "tabs.home",
+                        showsSettingsButton: true,
+                        showsSearchButton: true,
+                        showsLogo: true,
+                        chromeButtonSize: .medium,
+                        onSearch: {},
+                        onSettings: {}
+                    )
+
+                    Text("Continue Watching")
+                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 20)
+                        .accessibilityIdentifier("home.header.preview.firstSection")
+                }
+                .padding(.top, 8)
+            }
+            .background(Color.appBackground.ignoresSafeArea())
+        )
+        #endif
     }
 
     private var refreshLoadingPreview: some View {
@@ -301,11 +359,7 @@ struct PlinxContentView: View {
     private var sessionContent: some View {
         switch sessionManager.status {
         case .hydrating:
-            PlinxBrandedLoadingView(
-                logoAsset: .lockupOnDark,
-                showsProgressView: false,
-                fillsBackground: false
-            )
+            PlinxBrandedLoadingView(context: .appTransition)
         case .signedOut:
             SignInView(
                 viewModel: PlinxSignInViewModel(

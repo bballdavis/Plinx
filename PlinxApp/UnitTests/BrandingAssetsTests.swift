@@ -35,4 +35,26 @@ final class BrandingAssetsTests: XCTestCase {
     func test_signInPrimaryButtonStyleSemantic_isLiquidGlassPrimary() {
         XCTAssertEqual(PlinxBrandingSemantics.signInPrimaryButtonStyleValue, "liquidGlassPrimary")
     }
+
+    func test_brandHierarchyMetrics_keepSignInAndHomeIdentityProminent() {
+        XCTAssertEqual(PlinxBrandLayoutMetrics.signInCompactLogoWidth, 280)
+        XCTAssertEqual(PlinxBrandLayoutMetrics.signInExpandedLogoWidth, 380)
+        XCTAssertLessThan(
+            PlinxBrandLayoutMetrics.signInExpandedTitleSize,
+            PlinxBrandLayoutMetrics.signInExpandedLogoWidth
+        )
+
+        XCTAssertEqual(
+            PlinxBrandLayoutMetrics.homeHeaderLogoHeight(chromeButtonSideLength: 52),
+            52
+        )
+        XCTAssertEqual(
+            PlinxBrandLayoutMetrics.homeHeaderLogoWidth(chromeButtonSideLength: 52),
+            195
+        )
+        XCTAssertEqual(
+            PlinxBrandLayoutMetrics.homeHeaderLogoHeight(chromeButtonSideLength: 78),
+            56
+        )
+    }
 }

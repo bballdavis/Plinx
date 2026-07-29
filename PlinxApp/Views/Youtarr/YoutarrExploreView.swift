@@ -20,6 +20,7 @@ final class YoutarrExploreViewModel: ObservableObject {
     @Published private(set) var phase: Phase = .idle
     @Published private(set) var channels: [YoutarrChannel] = []
     @Published private(set) var videos: [YoutarrVideo] = []
+    @Published private(set) var isRefreshing = false
     @Published private(set) var isLoadingMoreVideos = false
     @Published private(set) var requestStates: [String: YoutarrVideoActionState] = [:]
     @Published private(set) var emptyReason: EmptyReason = .catalog
@@ -64,6 +65,7 @@ final class YoutarrExploreViewModel: ObservableObject {
 
     func deactivate() {
         generation &+= 1
+        isRefreshing = false
         isLoadingMoreVideos = false
         if phase == .loading {
             phase = .idle
@@ -74,28 +76,37 @@ final class YoutarrExploreViewModel: ObservableObject {
         generation &+= 1
         let operationGeneration = generation
         let requestedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        phase = .loading
-        channels = []
-        videos = []
-        requestStates = [:]
-        emptyReason = .catalog
-        requestGenerations = [:]
+        let hadReadyCatalog = phase == .ready
+        if hadReadyCatalog {
+            isRefreshing = true
+        } else {
+            phase = .loading
+        }
         isLoadingMoreVideos = false
-        nextVideoCursor = nil
-        activeSearch = requestedSearch
+        defer {
+            if operationGeneration == generation {
+                isRefreshing = false
+            }
+        }
 
         do {
-            let capabilities = try await client.capabilities()
+            let loadedCapabilities = try await client.capabilities()
             try Task.checkCancellation()
             guard operationGeneration == generation else { return }
-            guard YoutarrCatalogCapabilityPolicy.canBrowse(capabilities) else {
-                self.capabilities = capabilities
+            guard YoutarrCatalogCapabilityPolicy.canBrowse(loadedCapabilities) else {
+                capabilities = loadedCapabilities
+                channels = []
+                videos = []
+                requestStates = [:]
+                emptyReason = .catalog
+                requestGenerations = [:]
+                nextVideoCursor = nil
+                activeSearch = requestedSearch
                 phase = .unavailable
                 return
             }
-            self.capabilities = capabilities
             let safetyPolicy = YoutarrExploreSafetyPolicy(
-                serverPolicy: capabilities.policy,
+                serverPolicy: loadedCapabilities.policy,
                 localPolicy: localSafetyPolicy
             )
             async let channelsResponse = client.channels(
@@ -112,21 +123,30 @@ final class YoutarrExploreViewModel: ObservableObject {
             let loadedChannels = try await channelsResponse
             try Task.checkCancellation()
             guard operationGeneration == generation else { return }
-            channels = loadedChannels.data
-            videos = YoutarrCatalogPresentation.diversified(
+            let presentedVideos = YoutarrCatalogPresentation.diversified(
                 loadedCatalog.videos
             )
+            capabilities = loadedCapabilities
+            channels = loadedChannels.data
+            videos = presentedVideos
             emptyReason = loadedCatalog.hadSafetyFilteredVideos ? .safetyPolicy : .catalog
             nextVideoCursor = loadedCatalog.nextCursor
+            activeSearch = requestedSearch
+            requestStates = [:]
+            requestGenerations = [:]
             seedRequestStates(for: videos)
             phase = .ready
         } catch is CancellationError {
             // Switching away from Explore must not flash an error.
             guard operationGeneration == generation else { return }
-            phase = .idle
+            phase = hadReadyCatalog ? .ready : .idle
         } catch {
             guard operationGeneration == generation else { return }
-            phase = .failed(Self.message(for: error))
+            if hadReadyCatalog {
+                phase = .ready
+            } else {
+                phase = .failed(Self.message(for: error))
+            }
         }
     }
 
@@ -173,7 +193,9 @@ final class YoutarrExploreViewModel: ObservableObject {
             // Scrolling away cancels pagination without replacing visible data.
         } catch {
             guard operationGeneration == generation else { return }
-            phase = .failed(Self.message(for: error))
+            // Pagination is supplemental. Keep the committed catalog visible
+            // when loading a later page fails.
+            phase = .ready
         }
     }
 
@@ -588,21 +610,20 @@ struct YoutarrExploreView: View {
     @AppStorage(PlinxChromeButtonSizePreference.storageKey)
     private var chromeButtonSizeRaw = PlinxChromeButtonSizePreference.defaultValue.rawValue
     private let safetyPolicy: SafetyPolicy
-    private let isActive: Bool
 
     init(
         configuration: YoutarrConfiguration,
         safetyPolicy: SafetyPolicy,
-        isActive: Bool = true
+        client: YoutarrClient? = nil
     ) {
         _viewModel = StateObject(
             wrappedValue: YoutarrExploreViewModel(
                 configuration: configuration,
-                localSafetyPolicy: safetyPolicy
+                localSafetyPolicy: safetyPolicy,
+                client: client
             )
         )
         self.safetyPolicy = safetyPolicy
-        self.isActive = isActive
     }
 
     var body: some View {
@@ -656,12 +677,8 @@ struct YoutarrExploreView: View {
             .presentationDragIndicator(.visible)
             #endif
         }
-        .task(id: isActive) {
-            if isActive {
-                await viewModel.activate()
-            } else {
-                viewModel.deactivate()
-            }
+        .task {
+            await viewModel.activate()
         }
         .onDisappear {
             viewModel.deactivate()
@@ -893,6 +910,32 @@ struct YoutarrExploreView: View {
         requestTasks[video.youtubeId] = Task { @MainActor in
             await viewModel.requestVideo(video)
             requestTasks[video.youtubeId] = nil
+        }
+    }
+}
+
+/// Owns the root-tab mounting boundary for Explore.
+///
+/// Keeping an inactive Explore view alive behind `opacity(0)` makes SwiftUI's
+/// task cancellation and the app's tab activation lifecycle compete. Mounting
+/// the screen only while its tab is active gives every selection one
+/// deterministic load task and tears it down when the user leaves.
+struct YoutarrExploreTabContent: View {
+    let configuration: YoutarrConfiguration
+    let safetyPolicy: SafetyPolicy
+    let isActive: Bool
+    var client: YoutarrClient?
+
+    @ViewBuilder
+    var body: some View {
+        if isActive {
+            YoutarrExploreView(
+                configuration: configuration,
+                safetyPolicy: safetyPolicy,
+                client: client
+            )
+        } else {
+            Color.clear
         }
     }
 }
@@ -1811,22 +1854,11 @@ struct YoutarrExploreStateView: View {
                     .accessibilityLabel(Text(LocalizedStringKey(titleKey), tableName: "Plinx"))
             }
             if let retry {
-                Button(action: retry) {
-                    Text("youtarr.explore.retry", tableName: "Plinx")
-                        .font(.headline)
-                        .foregroundStyle(Color.appBackground)
-                        .padding(.horizontal, 22)
-                        .frame(minHeight: 46)
-                        .background(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(PlinxBrand.gradient)
-                        )
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(.white.opacity(0.22), lineWidth: 1)
-                        }
-                }
-                .buttonStyle(PlinkButtonStyle())
+                PlinxChromeActionButton(
+                    titleKey: "youtarr.explore.retry",
+                    systemImage: "arrow.clockwise",
+                    action: retry
+                )
                 .accessibilityIdentifier("youtarr.explore.retry")
             }
         }
