@@ -185,6 +185,7 @@ final class YoutarrRequestsViewModel: ObservableObject {
 }
 
 struct YoutarrRequestsView: View {
+    @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel: YoutarrRequestsViewModel
 
     init(configuration: YoutarrConfiguration) {
@@ -194,36 +195,61 @@ struct YoutarrRequestsView: View {
     }
 
     var body: some View {
-        Group {
-            switch viewModel.phase {
-            case .idle, .loading:
-                YoutarrExploreStateView(
-                    systemImage: "tray.full",
-                    titleKey: "youtarr.requests.loading",
-                    showsProgress: true
-                )
-            case .failed(let message):
-                YoutarrExploreStateView(
-                    systemImage: "wifi.exclamationmark",
-                    titleKey: "youtarr.requests.error",
-                    message: message,
-                    retry: {
-                        Task { await viewModel.reload() }
+        ZStack {
+            PlinxAmbientBackground()
+                .accessibilityIdentifier("youtarr.requests.screen")
+
+            VStack(spacing: 0) {
+                requestHeader
+
+                Group {
+                    switch viewModel.phase {
+                    case .idle, .loading:
+                        YoutarrExploreStateView(
+                            systemImage: "tray.full",
+                            titleKey: "youtarr.requests.loading",
+                            showsProgress: true
+                        )
+                    case .failed(let message):
+                        YoutarrExploreStateView(
+                            systemImage: "wifi.exclamationmark",
+                            titleKey: "youtarr.requests.error",
+                            message: message,
+                            retry: {
+                                Task { await viewModel.reload() }
+                            }
+                        )
+                    case .ready:
+                        requestList
                     }
-                )
-            case .ready:
-                requestList
+                }
             }
         }
-        .navigationTitle(Text("youtarr.requests.title", tableName: "Plinx"))
-        .youtarrRequestsInlineNavigationTitle()
+        .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
         .task {
             await viewModel.appear()
         }
         .onDisappear {
             viewModel.disappear()
         }
-        .accessibilityIdentifier("youtarr.requests.screen")
+    }
+
+    private var requestHeader: some View {
+        HStack(spacing: 12) {
+            PlinxChromeButton(systemImage: "chevron.left") {
+                dismiss()
+            }
+            .accessibilityIdentifier("youtarr.requests.back")
+
+            Text("youtarr.requests.title", tableName: "Plinx")
+                .font(.title2.bold())
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 12)
     }
 
     private var requestList: some View {
@@ -238,41 +264,33 @@ struct YoutarrRequestsView: View {
                     }
                 )
             } else {
-                List {
-                    ForEach(viewModel.requests) { request in
-                        YoutarrRequestRow(request: request)
-                            .task {
-                                await viewModel.loadNextPageIfNeeded(after: request)
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        ForEach(viewModel.requests) { request in
+                            YoutarrRequestRow(request: request)
+                                .task {
+                                    await viewModel.loadNextPageIfNeeded(after: request)
+                                }
+                        }
+                        if viewModel.isLoadingNextPage {
+                            HStack {
+                                Spacer()
+                                ProgressView()
+                                    .accessibilityLabel(
+                                        Text("youtarr.explore.loadingMore", tableName: "Plinx")
+                                    )
+                                Spacer()
                             }
-                    }
-                    if viewModel.isLoadingNextPage {
-                        HStack {
-                            Spacer()
-                            ProgressView()
-                                .accessibilityLabel(
-                                    Text("youtarr.explore.loadingMore", tableName: "Plinx")
-                                )
-                            Spacer()
                         }
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
                 }
-                .listStyle(.plain)
             }
         }
         .plinxRefreshable {
             await viewModel.reload()
         }
-    }
-}
-
-private extension View {
-    @ViewBuilder
-    func youtarrRequestsInlineNavigationTitle() -> some View {
-#if os(iOS)
-        navigationBarTitleDisplayMode(.inline)
-#else
-        self
-#endif
     }
 }
 
@@ -297,7 +315,16 @@ private struct YoutarrRequestRow: View {
                     .lineLimit(1)
             }
         }
-        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(.ultraThinMaterial)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.accentColor.opacity(0.18), lineWidth: 1)
+        }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             "\(YoutarrStrings.value("youtarr.requests.video")), "

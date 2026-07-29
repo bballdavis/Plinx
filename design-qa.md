@@ -194,6 +194,38 @@ final result: passed
 
 final result: blocked
 
+# Youtarr Explore Cards and Video Detail — Design QA
+
+**Comparison target**
+
+- User-provided Explore reference: `/var/folders/vz/xjfy40v50nq3ct410zysfb4r0000gn/T/codex-clipboard-3cfa83de-0f98-4fea-9390-8442598bef2a.png`
+- Live Explore implementation: `/Users/philipdavis/.codex/visualizations/2026/07/29/019fabd5-16c2-74f2-8e91-cc6888ef583b/youtarr-explore-qa/explore-implementation.png`
+- Same-state side-by-side comparison: `/Users/philipdavis/.codex/visualizations/2026/07/29/019fabd5-16c2-74f2-8e91-cc6888ef583b/youtarr-explore-qa/explore-comparison.png`
+- Live video-detail modal: `/Users/philipdavis/.codex/visualizations/2026/07/29/019fabd5-16c2-74f2-8e91-cc6888ef583b/youtarr-explore-qa/video-detail-implementation.png`
+- Live My Requests page: `/Users/philipdavis/.codex/visualizations/2026/07/29/019fabd5-16c2-74f2-8e91-cc6888ef583b/youtarr-explore-qa/requests-implementation.png`
+- Runtime viewport: iPad Pro 13-inch simulator, landscape, 1376 × 1032 points / 2752 × 2064 pixels
+- State: parent-configured live Youtarr catalog with requestable videos; no API key or response body captured
+
+**Findings and implemented resolution**
+
+- P1 row rhythm: variable title wrapping and full-width request bars made the first rail appear uneven. Title regions now reserve a consistent two-line height, metadata reserves 44 points, and each request control lands on the same baseline.
+- P1 action density: repeated gradient Request bars competed with the artwork and titles. Eligible cards now use one right-aligned 44 × 44 download control, matching the app's material-and-accent chrome language and the combined height of channel plus rating.
+- P1 detail affordance: the original cards had no richer selection path. Tapping a card now opens a large sheet with 16:9 Youtarr-proxied artwork, one modal-width request action, title, channel, rating, duration, publication date, views, likes, description, technical metadata, and tags.
+- P1 navigation reliability: the Explore root accessibility identifier was propagating into descendant controls in the isolated live fixture, which made the My Requests control ambiguous to UI automation. Screen identifiers now live on background siblings, and My Requests is a direct themed `NavigationLink`.
+- P2 request-page consistency: My Requests uses the same accent-stroked material back control as the rest of Plinx, and its request rows retain the shell/material hierarchy.
+- Kid-safety boundary: the modal does not expose Youtarr's external webpage URL. Thumbnail loading remains authenticated and same-origin through Youtarr.
+
+**Verification**
+
+- Side-by-side inspection confirms aligned first-row metadata/actions, consistent landscape crops, readable two-line titles, and a materially calmer grid.
+- The modal screenshot confirms artwork → request action → rich metadata order without clipping at the initial scroll position; description and technical sections continue below in the scroll view.
+- The opt-in live suite passed against the configured Youtarr instance: two UI tests passed, two read-only live API tests passed, and the destructive request-write test was intentionally skipped.
+- The focused Explore suite passed 17 tests, including the live-shaped video-detail decoder and validated `/external-api/v1/videos/:youtubeId` request path.
+- The arm64 tvOS simulator target builds successfully with the shared Explore and detail implementation.
+- `git diff --check` passed.
+
+final result: passed
+
 # Plinx Loop Contrast and tvOS Icon Cleanup — Design QA
 
 **Comparison target**
@@ -257,3 +289,12 @@ final result: blocked
 6. Fresh runtime screenshots remain blocked because the installed iOS simulator runtime stalls at `Waiting on System App` and will not accept the built app. The production-asset surface previews are not represented as runtime captures.
 
 final result: blocked
+
+# Current Design QA Result
+
+The most recent completed review is **Youtarr Explore Cards and Video Detail —
+Design QA** above. Its live reference comparison, modal capture, request-page
+capture, and verification suite passed. Earlier blocked entries remain as
+historical records for unrelated work.
+
+final result: passed

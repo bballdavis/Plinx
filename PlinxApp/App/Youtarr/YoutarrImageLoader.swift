@@ -4,7 +4,6 @@ import UIKit
 
 enum YoutarrAssetRoute {
     case authenticated(URLRequest)
-    case publicURL(URL)
     case unavailable
 }
 
@@ -38,12 +37,6 @@ enum YoutarrAssetRequestPolicy {
             return .authenticated(request)
         }
 
-        // Public imagery never receives the Youtarr API key and is limited to
-        // the explicit YouTube image hosts emitted by the server contract.
-        if components.scheme?.lowercased() == "https",
-           isAllowedPublicImageHost(components.host) {
-            return .publicURL(url)
-        }
         return .unavailable
     }
 
@@ -92,16 +85,6 @@ enum YoutarrAssetRequestPolicy {
         var apiRoot = configuration.endpointURL(path: "").path
         while apiRoot.hasSuffix("/") { apiRoot.removeLast() }
         return url.path.hasPrefix(apiRoot + "/assets/")
-    }
-
-    private static func isAllowedPublicImageHost(_ host: String?) -> Bool {
-        guard let host = host?.lowercased() else { return false }
-        return [
-            "i.ytimg.com",
-            "img.youtube.com",
-            "yt3.ggpht.com",
-            "yt3.googleusercontent.com",
-        ].contains(host)
     }
 }
 

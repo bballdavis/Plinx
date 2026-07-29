@@ -105,6 +105,21 @@ struct YoutarrPagination: Codable, Equatable, Sendable {
     let pageSize: Int
     let total: Int
     let totalPages: Int
+    let nextCursor: String?
+
+    init(
+        page: Int,
+        pageSize: Int,
+        total: Int,
+        totalPages: Int,
+        nextCursor: String? = nil
+    ) {
+        self.page = page
+        self.pageSize = pageSize
+        self.total = total
+        self.totalPages = totalPages
+        self.nextCursor = nextCursor
+    }
 }
 
 struct YoutarrChannel: Codable, Equatable, Identifiable, Sendable {
@@ -214,9 +229,58 @@ struct YoutarrVideo: Codable, Equatable, Identifiable, Sendable {
     let isRequested: Bool
     let requestStatus: String?
     let rating: YoutarrVideoRating?
+    /// Youtarr's numeric channel database identifier. Cross-channel catalog
+    /// rows include it so requests do not need an enclosing channel screen.
+    let channelDatabaseId: Int?
     let channelId: String
     let channelTitle: String
     let mediaType: String
+}
+
+struct YoutarrVideoDetail: Codable, Equatable, Sendable {
+    struct Metadata: Codable, Equatable, Sendable {
+        let ageLimit: Int?
+        let aspectRatio: Double?
+        let availability: String?
+        let availableResolutions: [Int]?
+        let categories: [String]?
+        let channelFollowerCount: Int?
+        let commentCount: Int?
+        let description: String?
+        let fps: Double?
+        let height: Int?
+        let isLive: Bool?
+        let language: String?
+        let likeCount: Int?
+        let resolution: String?
+        let tags: [String]?
+        let uploadDate: String?
+        let viewCount: Int?
+        let wasLive: Bool?
+        let width: Int?
+    }
+
+    let youtubeId: String
+    let title: String
+    let thumbnailUrl: String?
+    let publishedAt: String?
+    let duration: YoutarrVideoDuration?
+    let isDownloaded: Bool
+    let isRequested: Bool
+    let requestStatus: String?
+    let rating: YoutarrVideoRating?
+    let ratingSource: String?
+    let channelDatabaseId: Int?
+    let channelId: String
+    let channelTitle: String
+    let mediaType: String
+    let availability: String?
+    let downloadedAt: String?
+    let fileSize: Int64?
+    let audioFileSize: Int64?
+    let isProtected: Bool?
+    let videoResolution: String?
+    let metadata: Metadata?
 }
 
 struct YoutarrVideosResponse: Codable, Equatable, Sendable {
@@ -226,6 +290,31 @@ struct YoutarrVideosResponse: Codable, Equatable, Sendable {
     let isFullyIndexed: Bool
     let lastIndexedAt: String?
     let indexingHint: String?
+}
+
+enum YoutarrVideoCatalogStatus: String, Sendable {
+    case all
+    case requestable
+    case available
+    case downloaded
+    case requested
+}
+
+enum YoutarrVideoCatalogTab: String, Sendable {
+    case videos
+    case shorts
+    case streams
+}
+
+enum YoutarrVideoCatalogSort: String, Sendable {
+    case date
+    case title
+    case duration
+}
+
+enum YoutarrSortOrder: String, Sendable {
+    case ascending = "asc"
+    case descending = "desc"
 }
 
 enum YoutarrRequestStatus: String, Codable, CaseIterable, Equatable, Sendable {
@@ -392,14 +481,60 @@ struct YoutarrClient {
 
     func videos(
         channelID: Int,
-        page: Int = 1,
+        cursor: String? = nil,
         pageSize: Int = 30,
-        search: String? = nil
+        search: String? = nil,
+        status: YoutarrVideoCatalogStatus = .requestable,
+        tab: YoutarrVideoCatalogTab = .videos,
+        sortBy: YoutarrVideoCatalogSort = .date,
+        sortOrder: YoutarrSortOrder = .descending
     ) async throws -> YoutarrVideosResponse {
         try await get(
             path: "channels/\(channelID)/videos",
-            queryItems: paginationQuery(page: page, pageSize: pageSize, search: search)
+            queryItems: catalogQuery(
+                cursor: cursor,
+                pageSize: pageSize,
+                search: search,
+                status: status,
+                tab: tab,
+                sortBy: sortBy,
+                sortOrder: sortOrder
+            )
         )
+    }
+
+    func catalogVideos(
+        cursor: String? = nil,
+        pageSize: Int = 30,
+        search: String? = nil,
+        status: YoutarrVideoCatalogStatus = .requestable,
+        tab: YoutarrVideoCatalogTab = .videos,
+        sortBy: YoutarrVideoCatalogSort = .date,
+        sortOrder: YoutarrSortOrder = .descending
+    ) async throws -> YoutarrVideosResponse {
+        try await get(
+            path: "videos",
+            queryItems: catalogQuery(
+                cursor: cursor,
+                pageSize: pageSize,
+                search: search,
+                status: status,
+                tab: tab,
+                sortBy: sortBy,
+                sortOrder: sortOrder
+            )
+        )
+    }
+
+    func videoDetail(youtubeID: String) async throws -> YoutarrVideoDetail {
+        let allowedCharacters = CharacterSet.alphanumerics.union(
+            CharacterSet(charactersIn: "-_")
+        )
+        guard youtubeID.count == 11,
+              youtubeID.unicodeScalars.allSatisfy(allowedCharacters.contains) else {
+            throw YoutarrClientError.invalidResponse
+        }
+        return try await get(path: "videos/\(youtubeID)")
     }
 
     func requests(
@@ -522,6 +657,31 @@ struct YoutarrClient {
             URLQueryItem(name: "page", value: String(max(1, page))),
             URLQueryItem(name: "pageSize", value: String(min(max(1, pageSize), 100))),
         ]
+        if let search = search?.trimmingCharacters(in: .whitespacesAndNewlines), !search.isEmpty {
+            result.append(URLQueryItem(name: "search", value: search))
+        }
+        return result
+    }
+
+    private func catalogQuery(
+        cursor: String?,
+        pageSize: Int,
+        search: String?,
+        status: YoutarrVideoCatalogStatus,
+        tab: YoutarrVideoCatalogTab,
+        sortBy: YoutarrVideoCatalogSort,
+        sortOrder: YoutarrSortOrder
+    ) -> [URLQueryItem] {
+        var result = [
+            URLQueryItem(name: "pageSize", value: String(min(max(1, pageSize), 100))),
+            URLQueryItem(name: "status", value: status.rawValue),
+            URLQueryItem(name: "tabType", value: tab.rawValue),
+            URLQueryItem(name: "sortBy", value: sortBy.rawValue),
+            URLQueryItem(name: "sortOrder", value: sortOrder.rawValue),
+        ]
+        if let cursor, !cursor.isEmpty {
+            result.append(URLQueryItem(name: "cursor", value: cursor))
+        }
         if let search = search?.trimmingCharacters(in: .whitespacesAndNewlines), !search.isEmpty {
             result.append(URLQueryItem(name: "search", value: search))
         }

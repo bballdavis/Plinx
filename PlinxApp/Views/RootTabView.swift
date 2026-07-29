@@ -66,7 +66,6 @@ struct RootTabView: View {
     @Environment(\.safetyPolicy) private var safetyPolicy
 
     @State private var showSettings = false
-    @State private var showYoutarrExplore = false
     @State private var youtarrExploreConfiguration: YoutarrConfiguration?
     @State private var isYoutarrConfigured = false
     @State private var selectedQuickActionMedia: MediaDisplayItem?
@@ -156,7 +155,9 @@ struct RootTabView: View {
             return .library
         case .more:
             return .more
-        case .home, .seerrDiscover:
+        case .seerrDiscover:
+            return .seerrDiscover
+        case .home:
             return .home
         }
     }
@@ -188,6 +189,7 @@ struct RootTabView: View {
         return KidsMainTabPicker.TabItem.mainTabs(
             includeDownloads: includeDownloads,
             showSearchInMainNavigation: showsSearch,
+            includeExplore: showsYoutarrExplore,
             includeSettings: includesSettings
         )
     }
@@ -235,6 +237,9 @@ struct RootTabView: View {
                 }
             }
             .onChange(of: youtarrStoredBaseURL) { _, _ in
+                refreshYoutarrConfigurationState()
+            }
+            .onChange(of: isYoutarrExploreEnabled) { _, _ in
                 refreshYoutarrConfigurationState()
             }
             .task {
@@ -451,6 +456,7 @@ struct RootTabView: View {
             tabStack(for: .search)
             tabStack(for: .more)
             tabStack(for: .library)
+            tabStack(for: .seerrDiscover)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .sheet(isPresented: $showSettings) {
@@ -481,19 +487,6 @@ struct RootTabView: View {
                 refreshYoutarrConfigurationState()
             }
         }
-        .sheet(isPresented: $showYoutarrExplore, onDismiss: {
-            youtarrExploreConfiguration = nil
-        }) {
-            if let configuration = youtarrExploreConfiguration {
-                NavigationStack {
-                    YoutarrExploreView(
-                        configuration: configuration,
-                        safetyPolicy: safetyPolicy
-                    )
-                }
-                .presentationDetents([.large])
-            }
-        }
     }
 
     @ViewBuilder
@@ -514,8 +507,7 @@ struct RootTabView: View {
                         title: "tabs.home",
                         showsSettingsButton: true,
                         showsSearchButton: !showSearchInMainNavigation,
-                        showsLogo: true,
-                        showsExploreButton: showsYoutarrExplore
+                        showsLogo: true
                     ),
                     onSelectMedia: { displayItem in
                         handlePrimarySelection(displayItem)
@@ -632,7 +624,24 @@ struct RootTabView: View {
             .allowsHitTesting(activeRootTab == .more)
             .accessibilityHidden(activeRootTab != .more)
 
-        case .seerrDiscover, .libraryDetail(_):
+        case .seerrDiscover:
+            if let configuration = youtarrExploreConfiguration {
+                NavigationStack(
+                    path: mainCoordinator.pathBinding(for: .seerrDiscover)
+                ) {
+                    YoutarrExploreView(
+                        configuration: configuration,
+                        safetyPolicy: safetyPolicy,
+                        isActive: activeRootTab == .seerrDiscover
+                    )
+                }
+                .id(youtarrStoredBaseURL)
+                .opacity(activeRootTab == .seerrDiscover ? 1 : 0)
+                .allowsHitTesting(activeRootTab == .seerrDiscover)
+                .accessibilityHidden(activeRootTab != .seerrDiscover)
+            }
+
+        case .libraryDetail(_):
             EmptyView()
         }
     }
@@ -678,16 +687,14 @@ struct RootTabView: View {
         title: String,
         showsSettingsButton: Bool,
         showsSearchButton: Bool = false,
-        showsLogo: Bool = false,
-        showsExploreButton: Bool = false
+        showsLogo: Bool = false
     ) -> AnyView? {
         AnyView(
             topTitleRow(
                 title: title,
                 showsSettingsButton: showsSettingsButton,
                 showsSearchButton: showsSearchButton,
-                showsLogo: showsLogo,
-                showsExploreButton: showsExploreButton
+                showsLogo: showsLogo
             )
         )
     }
@@ -696,8 +703,7 @@ struct RootTabView: View {
         title: String,
         showsSettingsButton: Bool,
         showsSearchButton: Bool = false,
-        showsLogo: Bool = false,
-        showsExploreButton: Bool = false
+        showsLogo: Bool = false
     ) -> some View {
         #if os(tvOS)
         KidsMainTabPicker(
@@ -713,13 +719,6 @@ struct RootTabView: View {
                 .padding(.leading, tvOSHeaderOverlayLeadingPadding)
                 .allowsHitTesting(false)
         }
-        .overlay(alignment: .trailing) {
-            if showsExploreButton {
-                PlinxChromeButton(systemImage: "sparkles", action: presentYoutarrExplore)
-                    .accessibilityIdentifier("home.header.youtarrExplore")
-                    .padding(.trailing, 14)
-            }
-        }
         .padding(.horizontal, 4)
         .padding(.top, 1)
         .padding(.bottom, 4)
@@ -727,25 +726,6 @@ struct RootTabView: View {
         HStack(spacing: 12) {
             headerLeadingContent(title: title, showsLogo: showsLogo)
             Spacer()
-            if showsExploreButton {
-                Button(action: presentYoutarrExplore) {
-                    Label {
-                        Text("youtarr.explore.title", tableName: "Plinx")
-                    } icon: {
-                        Image(systemName: "sparkles")
-                    }
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.95))
-                    .padding(.horizontal, 12)
-                    .frame(minHeight: chromeButtonSize.sideLength)
-                    .background(
-                        Capsule()
-                            .fill(Color.accentColor.opacity(0.24))
-                    )
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("home.header.youtarrExplore")
-            }
             if showsSearchButton {
                 PlinxChromeButton(systemImage: "magnifyingglass") {
                     handleTabSelection(.search)
@@ -795,24 +775,19 @@ struct RootTabView: View {
     }
 
     private func refreshYoutarrConfigurationState() {
-        isYoutarrConfigured = YoutarrConfigurationStore().isConfigured()
+        let store = YoutarrConfigurationStore()
+        let configuration = try? store.load()
+        isYoutarrConfigured = configuration != nil
+        youtarrExploreConfiguration = configuration
         if !YoutarrExploreVisibility.shouldShow(
             isEnabled: isYoutarrExploreEnabled,
             isConfigured: isYoutarrConfigured
         ) {
-            showYoutarrExplore = false
-            youtarrExploreConfiguration = nil
+            if activeRootTab == .seerrDiscover {
+                mainCoordinator.resetToRoot(for: .seerrDiscover)
+                mainCoordinator.tab = .home
+            }
         }
-    }
-
-    private func presentYoutarrExplore() {
-        guard showsYoutarrExplore,
-              let configuration = try? YoutarrConfigurationStore().load() else {
-            refreshYoutarrConfigurationState()
-            return
-        }
-        youtarrExploreConfiguration = configuration
-        showYoutarrExplore = true
     }
 
     @ViewBuilder

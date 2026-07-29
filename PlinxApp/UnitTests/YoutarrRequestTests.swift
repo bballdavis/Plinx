@@ -102,7 +102,7 @@ final class YoutarrRequestTests: XCTestCase {
         )
     }
 
-    func test_capabilityRoleAndScopeMustAllAllowVideoRequests() {
+    func test_capabilityFeaturesAndScopesAreAuthoritativeForVideoRequests() {
         XCTAssertTrue(
             YoutarrRequestCapabilityPolicy.canRequestVideos(
                 capabilities(role: .request)
@@ -118,12 +118,12 @@ final class YoutarrRequestTests: XCTestCase {
                 capabilities(role: .admin)
             )
         )
-        XCTAssertFalse(
+        XCTAssertTrue(
             YoutarrRequestCapabilityPolicy.canRequestVideos(
                 capabilities(role: .view)
             )
         )
-        XCTAssertFalse(
+        XCTAssertTrue(
             YoutarrRequestCapabilityPolicy.canRequestVideos(
                 capabilities(role: .unknown("future"))
             )
@@ -495,9 +495,9 @@ private final class RequestServiceMock: YoutarrRequestServing {
     }
 }
 
+@MainActor
 private final class SuspendedRequestService: YoutarrRequestServing {
     private var continuation: CheckedContinuation<YoutarrVideoRequestResponse, Never>?
-    private var startedContinuations: [CheckedContinuation<Void, Never>] = []
     private(set) var callCount = 0
 
     func requests(
@@ -521,14 +521,13 @@ private final class SuspendedRequestService: YoutarrRequestServing {
         idempotencyKey: UUID
     ) async throws -> YoutarrVideoRequestResponse {
         callCount += 1
-        startedContinuations.forEach { $0.resume() }
-        startedContinuations = []
         return await withCheckedContinuation { continuation = $0 }
     }
 
     func waitUntilStarted() async {
-        if callCount > 0 { return }
-        await withCheckedContinuation { startedContinuations.append($0) }
+        while callCount == 0 {
+            await Task.yield()
+        }
     }
 
     func resolve(_ response: YoutarrVideoRequestResponse) {

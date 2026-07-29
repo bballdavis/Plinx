@@ -7,6 +7,47 @@ enum YoutarrCatalogCapabilityPolicy {
     }
 }
 
+enum YoutarrCatalogPresentation {
+    /// Preserves the server's recency order except when the same channel would
+    /// occupy more than `maximumConsecutive` cards and another channel is
+    /// already available later in the loaded page.
+    static func diversified(
+        _ videos: [YoutarrVideo],
+        maximumConsecutive: Int = 2
+    ) -> [YoutarrVideo] {
+        guard maximumConsecutive > 0, videos.count > maximumConsecutive else {
+            return videos
+        }
+
+        var remaining = videos
+        var result: [YoutarrVideo] = []
+        var lastChannel: String?
+        var consecutive = 0
+
+        while !remaining.isEmpty {
+            var selectedIndex = 0
+            if consecutive >= maximumConsecutive,
+               let lastChannel,
+               let alternate = remaining.firstIndex(where: {
+                   $0.channelId != lastChannel
+               }) {
+                selectedIndex = alternate
+            }
+
+            let selected = remaining.remove(at: selectedIndex)
+            if selected.channelId == lastChannel {
+                consecutive += 1
+            } else {
+                lastChannel = selected.channelId
+                consecutive = 1
+            }
+            result.append(selected)
+        }
+
+        return result
+    }
+}
+
 /// Defense-in-depth filtering applied after Youtarr has enforced its key
 /// policy. Unknown rating values and unapproved media types fail closed.
 struct YoutarrExploreSafetyPolicy {

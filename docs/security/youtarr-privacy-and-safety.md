@@ -22,12 +22,12 @@ and must also be allowed by the key. Unknown rating values and unknown media
 types are hidden. Unrated videos appear only when both policies permit them.
 This defense-in-depth filter applies even though Youtarr filters its response.
 
-Thumbnail URLs are never displayed as links. The API key and optional
-additional header are attached only to same-origin URLs under the configured
-external API prefix. Redirects are rejected for authenticated image requests,
-while public HTTPS images are loaded without any Youtarr credential and only
-from an explicit YouTube/Google image-host allowlist. Authenticated images use
-a bounded, memory-only cache.
+Thumbnail URLs are never displayed as links. Current Youtarr catalog responses
+provide same-origin proxy URLs, and Plinx does not derive or contact public
+YouTube/Google image hosts. The API key and optional additional header are
+attached only to same-origin URLs under the configured external API prefix.
+Redirects are rejected and authenticated images use a bounded, memory-only
+cache.
 
 App Transport Security permits local-network access only, so a parent can
 connect to a self-hosted HTTP Youtarr instance. Plinx does not enable arbitrary

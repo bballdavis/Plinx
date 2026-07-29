@@ -151,6 +151,9 @@
 "youtarr.explore.loadingMore" = "Loading more";
 "youtarr.explore.searchChannels" = "Search channels";
 "youtarr.explore.searchVideos" = "Search videos";
+"youtarr.explore.newToExplore" = "New to Explore";
+"youtarr.explore.browseChannels" = "Browse Channels";
+"youtarr.explore.allVideos" = "All Videos";
 "youtarr.explore.unavailable" = "Explore Isn’t Available";
 "youtarr.explore.unavailable.help" = "This Youtarr key does not have catalog access. A parent can review the connection settings.";
 "youtarr.explore.error" = "Explore Couldn’t Load";
@@ -159,8 +162,26 @@
 "youtarr.explore.emptyChannels.help" = "Try another search or ask a parent to approve channels in Youtarr.";
 "youtarr.explore.emptyVideos" = "No Videos Found";
 "youtarr.explore.emptyVideos.help" = "No videos in this view pass the current access and rating rules.";
+"youtarr.explore.filteredVideos" = "Nothing Matches This Profile";
+"youtarr.explore.filteredVideos.help" = "Youtarr has videos, but their ratings are above this profile’s limit. A parent can review channel ratings or the profile’s rating settings.";
 "youtarr.explore.partialCatalog" = "Youtarr is still indexing this channel. More videos may appear later.";
 "youtarr.explore.videos" = "videos";
+"youtarr.details.title" = "Video Details";
+"youtarr.details.loading" = "Loading complete video information…";
+"youtarr.details.error" = "Video details are unavailable";
+"youtarr.details.views" = "views";
+"youtarr.details.likes" = "likes";
+"youtarr.details.description" = "Description";
+"youtarr.details.videoInformation" = "Video Information";
+"youtarr.details.category" = "Category";
+"youtarr.details.availability" = "Availability";
+"youtarr.details.language" = "Language";
+"youtarr.details.resolution" = "Resolution";
+"youtarr.details.frameRate" = "Frame rate";
+"youtarr.details.availableResolutions" = "Available quality";
+"youtarr.details.channelFollowers" = "Channel followers";
+"youtarr.details.tags" = "Tags";
+"common.close" = "Close";
 "youtarr.explore.downloaded" = "Downloaded";
 "youtarr.explore.requested" = "Requested";
 "youtarr.explore.rating.level" = "Rating level";
@@ -260,6 +281,7 @@
 /* Accessibility */
 "accessibility.chromeButton.hint" = "Activates this control.";
 "accessibility.chromeButton.action" = "Action";
+"common.actions.clear" = "Clear";
 
 /* Media Labels */
 "media.labels.countEpisode %lld" = "%lld Episodes";

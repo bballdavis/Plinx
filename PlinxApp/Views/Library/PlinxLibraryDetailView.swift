@@ -29,6 +29,8 @@ struct PlinxLibraryDetailView: View {
     var onLongPressMedia: (MediaDisplayItem) -> Void = { _ in }
 
     @State private var selectedTab: LibraryDetailTab = .recommended
+    @AppStorage(YoutarrExplorePreference.storageKey)
+    private var isYoutarrExploreEnabled = YoutarrExplorePreference.defaultEnabled
     #if os(tvOS)
     @State private var tvHeroMedia: MediaItem?
     @FocusState private var focusedRootNavTab: MainCoordinator.Tab?
@@ -171,6 +173,13 @@ struct PlinxLibraryDetailView: View {
         !downloadManager.items.isEmpty
     }
 
+    private var showsYoutarrExplore: Bool {
+        YoutarrExploreVisibility.shouldShow(
+            isEnabled: isYoutarrExploreEnabled,
+            isConfigured: YoutarrConfigurationStore().isConfigured()
+        )
+    }
+
     private var activeRootTab: MainCoordinator.Tab {
         switch mainCoordinator.tab {
         case .search:
@@ -179,7 +188,9 @@ struct PlinxLibraryDetailView: View {
             return .library
         case .more:
             return .more
-        case .home, .seerrDiscover:
+        case .seerrDiscover:
+            return .seerrDiscover
+        case .home:
             return .home
         }
     }
@@ -197,6 +208,7 @@ struct PlinxLibraryDetailView: View {
         KidsMainTabPicker.TabItem.mainTabs(
             includeDownloads: hasDownloadActivity,
             showSearchInMainNavigation: true,
+            includeExplore: showsYoutarrExplore,
             includeSettings: false
         )
     }

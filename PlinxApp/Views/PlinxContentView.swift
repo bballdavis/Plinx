@@ -106,6 +106,20 @@ struct PlinxContentView: View {
                     )
                     #endif
                 }
+            case YoutarrLiveTestBootstrap.screenName:
+                if let configuration = YoutarrLiveTestBootstrap.configuration() {
+                    NavigationStack {
+                        YoutarrExploreView(
+                            configuration: configuration,
+                            safetyPolicy: YoutarrLiveTestBootstrap.safetyPolicy()
+                        )
+                    }
+                } else {
+                    ContentUnavailableView(
+                        "Live test configuration missing",
+                        systemImage: "wrench.and.screwdriver"
+                    )
+                }
             #if !os(tvOS)
             case DownloadUITestFixtures.screenName:
                 PlinxDownloadsGridView()

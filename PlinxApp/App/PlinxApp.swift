@@ -95,6 +95,9 @@ struct PlinxApp: App {
     init() {
         let processEnvironment = ProcessInfo.processInfo.environment
         LivePlexUITestBootstrap.primeCredentialsIfNeeded(environment: processEnvironment)
+        YoutarrLiveTestBootstrap.seedSavedConfigurationIfNeeded(
+            environment: processEnvironment
+        )
 
         // Layer 1: Strimr infrastructure (no Plinx knowledge)
         let context = PlexAPIContext()

@@ -212,6 +212,7 @@ extension KidsMainTabPicker {
         static func mainTabs(
             includeDownloads: Bool = false,
             showSearchInMainNavigation: Bool = PlinxNavigationPreference.defaultShowSearchInMainNavigation,
+            includeExplore: Bool = false,
             includeSettings: Bool = false
         ) -> [TabItem] {
             var tabs: [TabItem] = [
@@ -230,6 +231,21 @@ extension KidsMainTabPicker {
                     title: LocalizedStringResource("tabs.library", table: "Plinx")
                 ),
             ]
+
+            if includeExplore {
+                tabs.append(
+                    TabItem(
+                        id: "explore",
+                        tab: .seerrDiscover,
+                        action: nil,
+                        iconName: "sparkles",
+                        title: LocalizedStringResource(
+                            "youtarr.explore.title",
+                            table: "Plinx"
+                        )
+                    )
+                )
+            }
 
             if showSearchInMainNavigation {
                 tabs.append(

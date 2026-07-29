@@ -174,23 +174,15 @@ struct PlinxChromeButton: View {
 
     var body: some View {
         Button(action: handleTap) {
-            Image(systemName: systemImage)
-                .font(.system(size: sizePreference.iconFontSize, weight: .semibold))
-                .foregroundStyle(Color.accentColor)
-                .rotationEffect(.degrees(usesPlayfulTapAnimation && isAnimatingTap ? -16 : 0))
-                .offset(
-                    x: usesPlayfulTapAnimation && isAnimatingTap ? -7 : 0,
-                    y: usesPlayfulTapAnimation && isAnimatingTap ? -2 : 0
+            PlinxChromeIconLabel(
+                systemImage: systemImage,
+                sizePreference: sizePreference,
+                rotation: usesPlayfulTapAnimation && isAnimatingTap ? -16 : 0,
+                offset: CGSize(
+                    width: usesPlayfulTapAnimation && isAnimatingTap ? -7 : 0,
+                    height: usesPlayfulTapAnimation && isAnimatingTap ? -2 : 0
                 )
-                .frame(width: sizePreference.sideLength, height: sizePreference.sideLength)
-                .background(
-                    RoundedRectangle(cornerRadius: sizePreference.cornerRadius, style: .continuous)
-                        .fill(.ultraThinMaterial)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: sizePreference.cornerRadius, style: .continuous)
-                        .stroke(Color.accentColor.opacity(0.35), lineWidth: 1)
-                )
+            )
         }
         .scaleEffect(usesPlayfulTapAnimation && isAnimatingTap ? 0.9 : 1.0)
         .offset(y: usesPlayfulTapAnimation && isAnimatingTap ? -3 : 0)
@@ -216,6 +208,8 @@ struct PlinxChromeButton: View {
             key = "tabs.settings"
         case "magnifyingglass":
             key = "tabs.search"
+        case "tray.full":
+            key = "youtarr.requests.title"
         case "rectangle.portrait.and.arrow.right":
             key = "common.actions.logOut"
         default:
@@ -238,5 +232,29 @@ struct PlinxChromeButton: View {
             action()
             isAnimatingTap = false
         }
+    }
+}
+
+struct PlinxChromeIconLabel: View {
+    let systemImage: String
+    let sizePreference: PlinxChromeButtonSizePreference
+    var rotation: Double = 0
+    var offset: CGSize = .zero
+
+    var body: some View {
+        Image(systemName: systemImage)
+            .font(.system(size: sizePreference.iconFontSize, weight: .semibold))
+            .foregroundStyle(Color.accentColor)
+            .rotationEffect(.degrees(rotation))
+            .offset(x: offset.width, y: offset.height)
+            .frame(width: sizePreference.sideLength, height: sizePreference.sideLength)
+            .background(
+                RoundedRectangle(cornerRadius: sizePreference.cornerRadius, style: .continuous)
+                    .fill(.ultraThinMaterial)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: sizePreference.cornerRadius, style: .continuous)
+                    .stroke(Color.accentColor.opacity(0.35), lineWidth: 1)
+            )
     }
 }
