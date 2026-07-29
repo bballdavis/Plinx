@@ -32,9 +32,12 @@ approved, or processing. Polling stops when all visible requests are terminal
 or the view disappears. Paging is capped at 100 server pages.
 
 `YoutarrConfigurationStore` stores only the normalized server address in
-`UserDefaults`. Its API key is held by Plinx's own Keychain wrapper. Both are
-injected behind small protocols for unit testing. Removing configuration clears
-both stores.
+`UserDefaults`. Its API key is held by Plinx's own Keychain wrapper. An
+optional authentication-proxy header is stored as one encoded name/value
+credential in the Keychain. The store and credential layer are injected behind
+small protocols for unit testing. Disabling the optional header deletes its
+credential; removing the configuration clears all Youtarr credentials and the
+stored address.
 
 The URL policy requires HTTPS except for explicitly local addresses:
 localhost, loopback, `.local`, RFC1918 IPv4, and IPv6 unique-local/link-local.
@@ -42,12 +45,14 @@ Credentials, query strings, fragments, and non-HTTP(S) schemes are rejected.
 The configured base path is normalized so every API request appends
 `/external-api/v1/` exactly once.
 
-The settings entry is inside the existing parental-gated settings body. A saved
-key is never read into or shown by the UI; leaving the key field empty keeps an
-existing key when replacing the server address.
+The settings entry is inside the existing parental-gated settings body. Saved
+secret values are never read into view state or shown by the UI. A bullet
+placeholder indicates that a secret exists, and an empty secret field retains
+the matching credential when testing or saving other connection changes.
 
 Youtarr may return allowlisted YouTube/Google HTTPS thumbnails or same-origin
 external-API assets. Public images use the same redirect-rejecting ephemeral
 loader without credentials. Only an exact scheme/host/effective-port match
-under the configured `/external-api/v1/` path receives `x-api-key`; all images
-use a bounded memory-only cache.
+under the configured `/external-api/v1/` path receives `x-api-key` and the
+optional proxy-authentication header; all images use a bounded memory-only
+cache.
