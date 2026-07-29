@@ -8,6 +8,11 @@ struct YoutarrSettingsView: View {
 
     @State private var baseURL = ""
     @State private var apiKey = ""
+    @State private var hasSavedAPIKey = false
+    @State private var isAdditionalHeaderEnabled = false
+    @State private var additionalHeaderName = ""
+    @State private var additionalHeaderValue = ""
+    @State private var hasSavedAdditionalHeader = false
     @State private var isWorking = false
     @State private var statusMessage: String?
     @State private var capabilities: YoutarrCapabilities?
@@ -36,21 +41,63 @@ struct YoutarrSettingsView: View {
                     .autocorrectionDisabled()
                 #endif
 
-                SecureField(text: $apiKey) {
+                SecureField(
+                    text: $apiKey,
+                    prompt: Text(
+                        hasSavedAPIKey ? "••••••••" : YoutarrStrings.value("youtarr.settings.apiKey")
+                    )
+                ) {
                     Text("youtarr.settings.apiKey", tableName: "Plinx")
                 }
                 #if os(iOS)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                 #endif
-
-                Text("youtarr.settings.apiKey.help", tableName: "Plinx")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                .accessibilityLabel(Text("youtarr.settings.apiKey", tableName: "Plinx"))
             } header: {
                 Text("youtarr.settings.connection", tableName: "Plinx")
             } footer: {
                 Text("youtarr.settings.address.help", tableName: "Plinx")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Toggle(isOn: $isAdditionalHeaderEnabled) {
+                    Text("youtarr.settings.additionalHeader.enabled", tableName: "Plinx")
+                }
+
+                if isAdditionalHeaderEnabled {
+                    TextField(text: $additionalHeaderName) {
+                        Text("youtarr.settings.additionalHeader.name", tableName: "Plinx")
+                    }
+                    #if os(iOS)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    #endif
+
+                    SecureField(
+                        text: $additionalHeaderValue,
+                        prompt: Text(
+                            hasSavedAdditionalHeader
+                                ? "••••••••"
+                                : YoutarrStrings.value("youtarr.settings.additionalHeader.value")
+                        )
+                    ) {
+                        Text("youtarr.settings.additionalHeader.value", tableName: "Plinx")
+                    }
+                    #if os(iOS)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    #endif
+                    .accessibilityLabel(
+                        Text("youtarr.settings.additionalHeader.value", tableName: "Plinx")
+                    )
+                }
+            } header: {
+                Text("youtarr.settings.additionalHeader.section", tableName: "Plinx")
+            } footer: {
+                Text("youtarr.settings.additionalHeader.help", tableName: "Plinx")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -134,6 +181,10 @@ struct YoutarrSettingsView: View {
         .task {
             baseURL = configurationStore.storedBaseURL ?? ""
             isConfigured = configurationStore.isConfigured()
+            hasSavedAPIKey = configurationStore.hasStoredAPIKey()
+            hasSavedAdditionalHeader = configurationStore.hasStoredAdditionalHeader()
+            isAdditionalHeaderEnabled = hasSavedAdditionalHeader
+            additionalHeaderName = (try? configurationStore.storedAdditionalHeaderName()) ?? ""
         }
         .onDisappear {
             cancelConnectionTest()
@@ -142,10 +193,23 @@ struct YoutarrSettingsView: View {
 
     private func save() {
         do {
-            _ = try configurationStore.save(baseURL: baseURL, apiKey: apiKey)
+            _ = try configurationStore.save(
+                baseURL: baseURL,
+                apiKey: apiKey,
+                additionalHeaderEnabled: isAdditionalHeaderEnabled,
+                additionalHeaderName: additionalHeaderName,
+                additionalHeaderValue: additionalHeaderValue
+            )
             baseURL = configurationStore.storedBaseURL ?? baseURL
             isConfigured = configurationStore.isConfigured()
-            apiKey = "" // Never redisplay or retain a saved credential in view state.
+            hasSavedAPIKey = configurationStore.hasStoredAPIKey()
+            hasSavedAdditionalHeader = configurationStore.hasStoredAdditionalHeader()
+            additionalHeaderName = (try? configurationStore.storedAdditionalHeaderName()) ?? ""
+            apiKey = ""
+            additionalHeaderValue = ""
+            if !isAdditionalHeaderEnabled {
+                additionalHeaderName = ""
+            }
             capabilities = nil
             statusMessage = YoutarrStrings.value("youtarr.status.saved")
         } catch let error as LocalizedError {
@@ -166,7 +230,13 @@ struct YoutarrSettingsView: View {
                 connectionTask = nil
             }
             do {
-                let configuration = try configurationStore.draft(baseURL: baseURL, apiKey: apiKey)
+                let configuration = try configurationStore.draft(
+                    baseURL: baseURL,
+                    apiKey: apiKey,
+                    additionalHeaderEnabled: isAdditionalHeaderEnabled,
+                    additionalHeaderName: additionalHeaderName,
+                    additionalHeaderValue: additionalHeaderValue
+                )
                 let testedCapabilities = try await clientFactory(configuration).capabilities()
                 try Task.checkCancellation()
                 capabilities = testedCapabilities
@@ -194,6 +264,11 @@ struct YoutarrSettingsView: View {
             isConfigured = false
             baseURL = ""
             apiKey = ""
+            hasSavedAPIKey = false
+            isAdditionalHeaderEnabled = false
+            additionalHeaderName = ""
+            additionalHeaderValue = ""
+            hasSavedAdditionalHeader = false
             capabilities = nil
             statusMessage = YoutarrStrings.value("youtarr.status.removed")
         } catch {
