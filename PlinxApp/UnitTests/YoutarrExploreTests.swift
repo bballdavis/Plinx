@@ -204,7 +204,11 @@ final class YoutarrExploreTests: XCTestCase {
     func test_assetCredentialsAreConfinedToSameOriginExternalAPI() throws {
         let configuration = try YoutarrConfiguration(
             baseURL: URL(string: "https://family.example:8443/family")!,
-            apiKey: "asset-secret"
+            apiKey: "asset-secret",
+            additionalHeader: YoutarrAdditionalHeader(
+                name: "X-Proxy-Secret",
+                value: "proxy-secret"
+            )
         )
 
         switch YoutarrAssetRequestPolicy.route(
@@ -215,6 +219,10 @@ final class YoutarrExploreTests: XCTestCase {
             XCTAssertEqual(
                 request.value(forHTTPHeaderField: "x-api-key"),
                 "asset-secret"
+            )
+            XCTAssertEqual(
+                request.value(forHTTPHeaderField: "X-Proxy-Secret"),
+                "proxy-secret"
             )
             XCTAssertEqual(
                 request.url?.path,

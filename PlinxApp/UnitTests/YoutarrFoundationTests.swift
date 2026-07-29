@@ -71,6 +71,107 @@ final class YoutarrFoundationTests: XCTestCase {
         }
     }
 
+    func test_configurationStoreSavesRetainsDisablesAndClearsAdditionalHeader() throws {
+        let suite = "YoutarrFoundationTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let credentials = MockCredentialStore()
+        let store = YoutarrConfigurationStore(defaults: defaults, credentials: credentials)
+
+        let saved = try store.save(
+            baseURL: "https://first.example",
+            apiKey: "first-key",
+            additionalHeaderEnabled: true,
+            additionalHeaderName: "X-Proxy-Secret",
+            additionalHeaderValue: "proxy-secret"
+        )
+
+        XCTAssertEqual(
+            saved.additionalHeader,
+            try YoutarrAdditionalHeader(name: "X-Proxy-Secret", value: "proxy-secret")
+        )
+        XCTAssertTrue(store.hasStoredAdditionalHeader())
+        XCTAssertEqual(try store.storedAdditionalHeaderName(), "X-Proxy-Secret")
+        XCTAssertEqual(try store.load()?.additionalHeader?.value, "proxy-secret")
+
+        let draft = try store.draft(
+            baseURL: "https://second.example",
+            apiKey: "",
+            additionalHeaderEnabled: true,
+            additionalHeaderName: "X-Proxy-Secret",
+            additionalHeaderValue: ""
+        )
+        XCTAssertEqual(draft.additionalHeader?.value, "proxy-secret")
+
+        _ = try store.save(
+            baseURL: "https://second.example",
+            apiKey: "",
+            additionalHeaderEnabled: false
+        )
+        XCTAssertFalse(store.hasStoredAdditionalHeader())
+        XCTAssertNil(try store.load()?.additionalHeader)
+
+        _ = try store.save(
+            baseURL: "https://third.example",
+            apiKey: "",
+            additionalHeaderEnabled: true,
+            additionalHeaderName: "X-Proxy-Secret",
+            additionalHeaderValue: "replacement-secret"
+        )
+        try store.clear()
+        XCTAssertFalse(store.hasStoredAdditionalHeader())
+        XCTAssertNil(store.storedBaseURL)
+    }
+
+    func test_additionalHeaderValidationRejectsMissingMalformedAndReservedValues() {
+        XCTAssertThrowsError(try YoutarrAdditionalHeader(name: "", value: "value")) { error in
+            XCTAssertEqual(error as? YoutarrConfigurationError, .missingAdditionalHeader)
+        }
+        XCTAssertThrowsError(try YoutarrAdditionalHeader(name: "X Header", value: "value")) { error in
+            XCTAssertEqual(error as? YoutarrConfigurationError, .invalidAdditionalHeader)
+        }
+        for reservedName in ["x-api-key", "Accept", "Content-Type", "Host", "Content-Length"] {
+            XCTAssertThrowsError(
+                try YoutarrAdditionalHeader(name: reservedName, value: "value"),
+                reservedName
+            ) { error in
+                XCTAssertEqual(error as? YoutarrConfigurationError, .invalidAdditionalHeader)
+            }
+        }
+        XCTAssertThrowsError(try YoutarrAdditionalHeader(name: "Authorization", value: "line\r\nbreak")) { error in
+            XCTAssertEqual(error as? YoutarrConfigurationError, .invalidAdditionalHeader)
+        }
+    }
+
+    func test_draftRequiresNewValueWhenSavedAdditionalHeaderNameChanges() throws {
+        let suite = "YoutarrFoundationTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = YoutarrConfigurationStore(
+            defaults: defaults,
+            credentials: MockCredentialStore()
+        )
+        _ = try store.save(
+            baseURL: "https://example.test",
+            apiKey: "key",
+            additionalHeaderEnabled: true,
+            additionalHeaderName: "X-First-Secret",
+            additionalHeaderValue: "value"
+        )
+
+        XCTAssertThrowsError(
+            try store.draft(
+                baseURL: "https://example.test",
+                apiKey: "",
+                additionalHeaderEnabled: true,
+                additionalHeaderName: "X-Second-Secret",
+                additionalHeaderValue: ""
+            )
+        ) { error in
+            XCTAssertEqual(error as? YoutarrConfigurationError, .missingAdditionalHeader)
+        }
+    }
+
     func test_draftUsesUnsavedReplacementInputsWithoutPersisting() async throws {
         let suite = "YoutarrFoundationTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
@@ -119,6 +220,25 @@ final class YoutarrFoundationTests: XCTestCase {
         XCTAssertEqual(request.value(forHTTPHeaderField: "x-api-key"), "very-secret-key")
         XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
         XCTAssertEqual(request.value(forHTTPHeaderField: "Accept"), "application/json")
+    }
+
+    func test_clientAddsConfiguredAdditionalHeaderToAPIRequests() async throws {
+        let session = MockHTTPSession(statusCode: 200, data: capabilitiesJSON())
+        let configuration = try YoutarrConfiguration(
+            baseURL: URL(string: "https://youtarr.example")!,
+            apiKey: "very-secret-key",
+            additionalHeader: YoutarrAdditionalHeader(
+                name: "X-Proxy-Secret",
+                value: "proxy-secret"
+            )
+        )
+
+        _ = try await YoutarrClient(configuration: configuration, session: session)
+            .capabilities()
+
+        let request = try XCTUnwrap(session.lastRequest)
+        XCTAssertEqual(request.value(forHTTPHeaderField: "x-api-key"), "very-secret-key")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "X-Proxy-Secret"), "proxy-secret")
     }
 
     func test_clientDecodesUnknownRoleAndScopeSafely() async throws {
