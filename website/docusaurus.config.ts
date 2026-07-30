@@ -53,6 +53,7 @@ const config: Config = {
       },
       items: [
         {to: '/docs/user/getting-started', label: 'User Guide', position: 'left'},
+        {to: '/docs/user/youtarr', label: 'Youtarr', position: 'left'},
         {to: '/docs/development/setup', label: 'Developers', position: 'left'},
         {to: '/docs/architecture/overview', label: 'Architecture', position: 'left'},
         {to: '/docs/maintenance/current-dependencies', label: 'Dependencies', position: 'left'},
@@ -71,6 +72,7 @@ const config: Config = {
           items: [
             {label: 'User guide', to: '/docs/user/getting-started'},
             {label: 'Parent guide', to: '/docs/user/parent-guide'},
+            {label: 'Youtarr guide', to: '/docs/user/youtarr'},
             {label: 'Coming soon', to: '/docs/user/platform-status'},
           ],
         },

@@ -1,5 +1,5 @@
-import SwiftUI
 import PlinxUI
+import SwiftUI
 
 struct PlinxContentView: View {
     @Environment(SessionManager.self) private var sessionManager
@@ -76,6 +76,16 @@ struct PlinxContentView: View {
                 NavigationStack {
                     PlinxSettingsView(isUnlocked: true)
                 }
+            case AppStoreScreenshotPreview.splashScreen:
+                AppStoreSplashPreview()
+            case AppStoreScreenshotPreview.homeScreen:
+                AppStoreHomePreview()
+            case AppStoreScreenshotPreview.mediaDetailScreen:
+                AppStoreMediaDetailPreview()
+            case AppStoreScreenshotPreview.settingsScreen:
+                AppStoreSettingsPreview()
+            case AppStoreScreenshotPreview.youtarrScreen:
+                AppStoreYoutarrPreview()
             case "profileSwitcher":
                 NavigationStack {
                     #if os(tvOS)
