@@ -24,6 +24,41 @@ enum PlinxBrandLayoutMetrics {
     static let signInExpandedLogoWidth: CGFloat = 380
     static let signInCompactTitleSize: CGFloat = 34
     static let signInExpandedTitleSize: CGFloat = 44
+    static let homeHeaderLogoGapReductionFactor: CGFloat = 0.5
+
+    private static let homeHeaderLogoCanvasHeight: CGFloat = 320
+    private static let homeHeaderMarkX: CGFloat = 47.40579710144927
+    private static let homeHeaderMarkScale: CGFloat = 0.2898550724637681
+    private static let homeHeaderMarkWidth: CGFloat = 839 * homeHeaderMarkScale
+    private static let homeHeaderMarkHeight: CGFloat = 897 * homeHeaderMarkScale
+    private static let homeHeaderWordmarkX: CGFloat = 501.2623574144487
+    private static let homeHeaderWordmarkScale: CGFloat = 0.3193916349809886
+    private static let homeHeaderWordmarkWidth: CGFloat = 1520 * homeHeaderWordmarkScale
+    private static let homeHeaderWordmarkHeight: CGFloat = 526 * homeHeaderWordmarkScale
+
+    static func homeHeaderLogoGap(logoHeight: CGFloat) -> CGFloat {
+        let originalGap = homeHeaderWordmarkX - homeHeaderMarkX - homeHeaderMarkWidth
+        return originalGap
+            * homeHeaderLogoGapReductionFactor
+            * logoHeight
+            / homeHeaderLogoCanvasHeight
+    }
+
+    static func homeHeaderMarkSize(logoHeight: CGFloat) -> CGSize {
+        let scale = logoHeight / homeHeaderLogoCanvasHeight
+        return CGSize(
+            width: homeHeaderMarkWidth * scale,
+            height: homeHeaderMarkHeight * scale
+        )
+    }
+
+    static func homeHeaderWordmarkSize(logoHeight: CGFloat) -> CGSize {
+        let scale = logoHeight / homeHeaderLogoCanvasHeight
+        return CGSize(
+            width: homeHeaderWordmarkWidth * scale,
+            height: homeHeaderWordmarkHeight * scale
+        )
+    }
 
     static func homeHeaderLogoHeight(chromeButtonSideLength: CGFloat) -> CGFloat {
         min(chromeButtonSideLength, 56)
@@ -57,5 +92,56 @@ struct PlinxBrandLogoView: View {
             .accessibilityLabel("Plinx")
             .accessibilityIdentifier(accessibilityIdentifier)
             .accessibilityValue(asset.rawValue)
+    }
+}
+
+struct PlinxHomeHeaderLogoView: View {
+    let accessibilityIdentifier: String
+    let maxWidth: CGFloat
+    let logoHeight: CGFloat
+
+    init(
+        accessibilityIdentifier: String = "home.header.logo",
+        maxWidth: CGFloat,
+        logoHeight: CGFloat
+    ) {
+        self.accessibilityIdentifier = accessibilityIdentifier
+        self.maxWidth = maxWidth
+        self.logoHeight = logoHeight
+    }
+
+    var body: some View {
+        HStack(
+            alignment: .center,
+            spacing: PlinxBrandLayoutMetrics.homeHeaderLogoGap(logoHeight: logoHeight)
+        ) {
+            let markSize = PlinxBrandLayoutMetrics.homeHeaderMarkSize(logoHeight: logoHeight)
+            Image(PlinxBrandAsset.markColor.rawValue)
+                .resizable()
+                .scaledToFit()
+                .frame(width: markSize.width, height: markSize.height)
+
+            let wordmarkSize = PlinxBrandLayoutMetrics.homeHeaderWordmarkSize(logoHeight: logoHeight)
+            Image(PlinxBrandAsset.wordmarkWhite.rawValue)
+                .resizable()
+                .scaledToFit()
+                .frame(width: wordmarkSize.width, height: wordmarkSize.height)
+        }
+        .padding(.leading, logoHeight * 47.40579710144927 / 320)
+        .frame(
+            width: min(
+                maxWidth,
+                PlinxBrandLayoutMetrics.homeHeaderLogoWidth(
+                    chromeButtonSideLength: logoHeight
+                )
+            ),
+            height: logoHeight,
+            alignment: .leading
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Plinx")
+        .accessibilityIdentifier(accessibilityIdentifier)
+        .accessibilityValue(PlinxBrandAsset.lockupOnDark.rawValue)
+        .accessibilityAddTraits(.isImage)
     }
 }

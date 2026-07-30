@@ -24,8 +24,8 @@ reports that no videos are available to the connection, a parent should check
 both the key's channel grants and its rating rules in Youtarr.
 
 Explore combines eligible videos from all indexed channels into one discovery
-feed. It shows newest videos in a landscape rail, provides a separate channel
-browser, and continues with a landscape video grid. The feed is specifically
+feed. It shows newest videos in a landscape rail, then a separate channel
+browser, and then the remaining landscape video grid. The feed is specifically
 limited to videos that are not already downloaded and do not already have an
 active request. Sending a request removes that video from Explore after
 Youtarr confirms the result.
@@ -42,6 +42,11 @@ artwork, a full-width request control, duration and rating, and the additional
 description and technical information available from Youtarr. This detail
 view stays inside Plinx and does not provide links to YouTube or other external
 sites.
+
+Press and hold a video card to choose More Info or its available request action
+without opening the detail screen first. Explore loads more catalog pages only
+as the child reaches the end of the rendered video feed; it does not download
+the full catalog up front.
 
 Video artwork is loaded through the configured Youtarr service. Plinx does not
 contact a public thumbnail host directly or expose thumbnail links in the

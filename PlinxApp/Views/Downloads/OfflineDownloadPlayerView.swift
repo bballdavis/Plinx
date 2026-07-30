@@ -67,8 +67,7 @@ struct OfflineDownloadPlayerView: View {
         DownloadAccessPolicy(
             safetyPolicy: safetyPolicy,
             currentIdentity: sessionManager.plinxDownloadOwnerIdentity,
-            ownershipStore: downloadOwnershipStore,
-            allowsLegacyOwner: ProcessInfo.processInfo.arguments.contains("--ui-testing")
+            ownershipStore: downloadOwnershipStore
         ).decision(for: item)
     }
 

@@ -24,6 +24,8 @@ final class YoutarrExploreViewModel: ObservableObject {
     @Published private(set) var isLoadingMoreVideos = false
     @Published private(set) var requestStates: [String: YoutarrVideoActionState] = [:]
     @Published private(set) var emptyReason: EmptyReason = .catalog
+    @Published private(set) var catalogErrorMessage: String?
+    @Published private(set) var channelsErrorMessage: String?
     @Published var searchText = ""
 
     let configuration: YoutarrConfiguration
@@ -109,33 +111,54 @@ final class YoutarrExploreViewModel: ObservableObject {
                 serverPolicy: loadedCapabilities.policy,
                 localPolicy: localSafetyPolicy
             )
-            async let channelsResponse = client.channels(
-                page: 1,
-                pageSize: 100,
-                search: requestedSearch
-            )
-            let loadedCatalog = try await loadCatalogUntilVisibleOrFinished(
+            async let channelsResult = loadChannels(search: requestedSearch)
+            async let catalogResult = loadCatalog(
                 startingAt: nil,
+                pageSize: 40,
                 search: requestedSearch,
                 safetyPolicy: safetyPolicy,
                 excluding: []
             )
-            let loadedChannels = try await channelsResponse
-            try Task.checkCancellation()
+            let (loadedChannels, loadedCatalog) = await (channelsResult, catalogResult)
             guard operationGeneration == generation else { return }
-            let presentedVideos = YoutarrCatalogPresentation.diversified(
-                loadedCatalog.videos
-            )
             capabilities = loadedCapabilities
-            channels = loadedChannels.data
-            videos = presentedVideos
-            emptyReason = loadedCatalog.hadSafetyFilteredVideos ? .safetyPolicy : .catalog
-            nextVideoCursor = loadedCatalog.nextCursor
             activeSearch = requestedSearch
-            requestStates = [:]
-            requestGenerations = [:]
-            seedRequestStates(for: videos)
-            phase = .ready
+
+            let channelsSucceeded: Bool
+            switch loadedChannels {
+            case let .success(response):
+                channels = response.data
+                channelsErrorMessage = nil
+                channelsSucceeded = true
+            case let .failure(error):
+                if !hadReadyCatalog { channels = [] }
+                channelsErrorMessage = Self.message(for: error)
+                channelsSucceeded = false
+            }
+
+            let catalogSucceeded: Bool
+            switch loadedCatalog {
+            case let .success(catalog):
+                videos = YoutarrCatalogPresentation.diversified(catalog.videos)
+                emptyReason = catalog.hadSafetyFilteredVideos ? .safetyPolicy : .catalog
+                nextVideoCursor = catalog.nextCursor
+                catalogErrorMessage = nil
+                requestStates = [:]
+                requestGenerations = [:]
+                seedRequestStates(for: videos)
+                catalogSucceeded = true
+            case let .failure(error):
+                if !hadReadyCatalog {
+                    videos = []
+                    nextVideoCursor = nil
+                }
+                catalogErrorMessage = Self.message(for: error)
+                catalogSucceeded = false
+            }
+
+            phase = (catalogSucceeded || channelsSucceeded || hadReadyCatalog)
+                ? .ready
+                : .failed(catalogErrorMessage ?? channelsErrorMessage ?? Self.message(for: URLError(.cannotLoadFromNetwork)))
         } catch is CancellationError {
             // Switching away from Explore must not flash an error.
             guard operationGeneration == generation else { return }
@@ -178,6 +201,7 @@ final class YoutarrExploreViewModel: ObservableObject {
             let existing = Set(videos.map(\.id))
             let loadedCatalog = try await loadCatalogUntilVisibleOrFinished(
                 startingAt: requestedCursor,
+                pageSize: 30,
                 search: requestedSearch,
                 safetyPolicy: safetyPolicy,
                 excluding: existing
@@ -255,6 +279,7 @@ final class YoutarrExploreViewModel: ObservableObject {
 
     private func loadCatalogUntilVisibleOrFinished(
         startingAt initialCursor: String?,
+        pageSize: Int,
         search: String,
         safetyPolicy: YoutarrExploreSafetyPolicy,
         excluding existingIDs: Set<String>
@@ -268,7 +293,7 @@ final class YoutarrExploreViewModel: ObservableObject {
         repeat {
             let response = try await client.catalogVideos(
                 cursor: requestedCursor,
-                pageSize: 30,
+                pageSize: pageSize,
                 search: search
             )
             try Task.checkCancellation()
@@ -283,6 +308,36 @@ final class YoutarrExploreViewModel: ObservableObject {
                 return (visible, requestedCursor, hadSafetyFilteredVideos)
             }
         } while true
+    }
+
+    private func loadChannels(
+        search: String
+    ) async -> Result<YoutarrChannelsResponse, Error> {
+        do {
+            return .success(try await client.channels(page: 1, pageSize: 100, search: search))
+        } catch {
+            return .failure(error)
+        }
+    }
+
+    private func loadCatalog(
+        startingAt cursor: String?,
+        pageSize: Int,
+        search: String,
+        safetyPolicy: YoutarrExploreSafetyPolicy,
+        excluding existingIDs: Set<String>
+    ) async -> Result<(videos: [YoutarrVideo], nextCursor: String?, hadSafetyFilteredVideos: Bool), Error> {
+        do {
+            return .success(try await loadCatalogUntilVisibleOrFinished(
+                startingAt: cursor,
+                pageSize: pageSize,
+                search: search,
+                safetyPolicy: safetyPolicy,
+                excluding: existingIDs
+            ))
+        } catch {
+            return .failure(error)
+        }
     }
 
     private func serverState(for video: YoutarrVideo) -> YoutarrVideoActionState {
@@ -607,6 +662,7 @@ struct YoutarrExploreView: View {
     @State private var actionTask: Task<Void, Never>?
     @State private var requestTasks: [String: Task<Void, Never>] = [:]
     @State private var selectedVideo: YoutarrVideo?
+    @State private var quickActionVideo: YoutarrVideo?
     @AppStorage(PlinxChromeButtonSizePreference.storageKey)
     private var chromeButtonSizeRaw = PlinxChromeButtonSizePreference.defaultValue.rawValue
     private let safetyPolicy: SafetyPolicy
@@ -676,6 +732,25 @@ struct YoutarrExploreView: View {
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
             #endif
+        }
+        .confirmationDialog(
+            quickActionVideo?.title ?? "",
+            isPresented: Binding(
+                get: { quickActionVideo != nil },
+                set: { if !$0 { quickActionVideo = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            if let video = quickActionVideo {
+                Button("More Info") {
+                    selectedVideo = video
+                    quickActionVideo = nil
+                }
+                quickActionRequestButton(for: video)
+                Button("Cancel", role: .cancel) {
+                    quickActionVideo = nil
+                }
+            }
         }
         .task {
             await viewModel.activate()
@@ -763,50 +838,13 @@ struct YoutarrExploreView: View {
     private var exploreContent: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 28) {
-                if viewModel.videos.isEmpty {
-                    YoutarrExploreStateView(
-                        systemImage: viewModel.emptyReason == .safetyPolicy
-                            ? "checkmark.shield"
-                            : "play.slash",
-                        titleKey: viewModel.emptyReason == .safetyPolicy
-                            ? "youtarr.explore.filteredVideos"
-                            : "youtarr.explore.emptyVideos",
-                        messageKey: viewModel.emptyReason == .safetyPolicy
-                            ? "youtarr.explore.filteredVideos.help"
-                            : "youtarr.explore.emptyVideos.help",
-                        retry: startReload
-                    )
-                    .frame(minHeight: viewModel.channels.isEmpty ? 360 : 240)
-                } else {
-                    if !featuredVideos.isEmpty {
-                        sectionTitle("youtarr.explore.newToExplore")
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            LazyHStack(alignment: .top, spacing: 16) {
-                                ForEach(featuredVideos) { video in
-                                    videoCard(video, layout: .featured)
-                                        .frame(width: 300)
-                                        .task {
-                                            await viewModel.loadMoreVideosIfNeeded(after: video)
-                                        }
-                                }
-                            }
-                            .padding(.horizontal, 16)
-                        }
-                    }
-
-                    if !remainingVideos.isEmpty {
-                        sectionTitle("youtarr.explore.allVideos")
-                        LazyVGrid(
-                            columns: [
-                                GridItem(
-                                    .adaptive(minimum: 170, maximum: 360),
-                                    spacing: 16
-                                )
-                            ],
-                            spacing: 24
-                        ) {
-                            ForEach(remainingVideos) { video in
-                                videoCard(video, layout: .grid)
+                if !featuredVideos.isEmpty {
+                    sectionTitle("youtarr.explore.newToExplore")
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        LazyHStack(alignment: .top, spacing: 16) {
+                            ForEach(featuredVideos) { video in
+                                videoCard(video, layout: .featured)
+                                    .frame(width: 300)
                                     .task {
                                         await viewModel.loadMoreVideosIfNeeded(after: video)
                                     }
@@ -814,15 +852,8 @@ struct YoutarrExploreView: View {
                         }
                         .padding(.horizontal, 16)
                     }
-
-                    if viewModel.isLoadingMoreVideos {
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .accessibilityLabel(
-                                Text("youtarr.explore.loadingMore", tableName: "Plinx")
-                            )
-                    }
+                } else {
+                    catalogState
                 }
 
                 if !viewModel.channels.isEmpty {
@@ -836,6 +867,33 @@ struct YoutarrExploreView: View {
                         }
                         .padding(.horizontal, 16)
                     }
+                } else if let message = viewModel.channelsErrorMessage {
+                    sectionError(message, retry: startReload)
+                }
+
+                if !remainingVideos.isEmpty {
+                    sectionTitle("youtarr.explore.allVideos")
+                    LazyVGrid(
+                        columns: [
+                            GridItem(.adaptive(minimum: 170, maximum: 360), spacing: 16)
+                        ],
+                        spacing: 24
+                    ) {
+                        ForEach(remainingVideos) { video in
+                            videoCard(video, layout: .grid)
+                                .task {
+                                    await viewModel.loadMoreVideosIfNeeded(after: video)
+                                }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                }
+
+                if viewModel.isLoadingMoreVideos {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .accessibilityLabel(Text("youtarr.explore.loadingMore", tableName: "Plinx"))
                 }
             }
             .padding(.vertical, 16)
@@ -850,6 +908,35 @@ struct YoutarrExploreView: View {
         actionTask = Task { @MainActor in
             await viewModel.submitSearch()
         }
+    }
+
+    @ViewBuilder
+    private var catalogState: some View {
+        if let message = viewModel.catalogErrorMessage {
+            sectionError(message, retry: startReload)
+        } else {
+            YoutarrExploreStateView(
+                systemImage: viewModel.emptyReason == .safetyPolicy ? "checkmark.shield" : "play.slash",
+                titleKey: viewModel.emptyReason == .safetyPolicy
+                    ? "youtarr.explore.filteredVideos"
+                    : "youtarr.explore.emptyVideos",
+                messageKey: viewModel.emptyReason == .safetyPolicy
+                    ? "youtarr.explore.filteredVideos.help"
+                    : "youtarr.explore.emptyVideos.help",
+                retry: startReload
+            )
+            .frame(minHeight: viewModel.channels.isEmpty ? 360 : 240)
+        }
+    }
+
+    private func sectionError(_ message: String, retry: @escaping () -> Void) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(message, systemImage: "wifi.exclamationmark")
+                .foregroundStyle(.secondary)
+            Button("Try Again", action: retry)
+                .buttonStyle(.bordered)
+        }
+        .padding(.horizontal, 16)
     }
 
     private var featuredVideos: [YoutarrVideo] {
@@ -899,6 +986,9 @@ struct YoutarrExploreView: View {
             selectionAction: {
                 selectedVideo = video
             },
+            longPressAction: {
+                quickActionVideo = video
+            },
             requestAction: {
                 startRequest(video)
             }
@@ -910,6 +1000,28 @@ struct YoutarrExploreView: View {
         requestTasks[video.youtubeId] = Task { @MainActor in
             await viewModel.requestVideo(video)
             requestTasks[video.youtubeId] = nil
+        }
+    }
+
+    @ViewBuilder
+    private func quickActionRequestButton(for video: YoutarrVideo) -> some View {
+        switch viewModel.requestState(for: video) {
+        case .eligible:
+            Button("Request") { startRequest(video) }
+        case .failed:
+            Button("Retry Request") { startRequest(video) }
+        case .submitting:
+            Button("Requesting…") {}
+                .disabled(true)
+        case .requested:
+            Button("Requested") {}
+                .disabled(true)
+        case .downloaded:
+            Button("Already Downloaded") {}
+                .disabled(true)
+        case .unavailable:
+            Button("Request Unavailable") {}
+                .disabled(true)
         }
     }
 }
@@ -1057,6 +1169,9 @@ private struct YoutarrChannelView: View {
                                 selectionAction: {
                                     selectedVideo = video
                                 },
+                                longPressAction: {
+                                    selectedVideo = video
+                                },
                                 requestAction: {
                                     startRequest(video)
                                 }
@@ -1185,6 +1300,7 @@ private struct YoutarrVideoCard: View {
     let layout: Layout
     let requestState: YoutarrVideoActionState
     let selectionAction: () -> Void
+    let longPressAction: () -> Void
     let requestAction: () -> Void
 
     var body: some View {
@@ -1244,8 +1360,10 @@ private struct YoutarrVideoCard: View {
             .frame(height: 44)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
-        .onTapGesture(perform: selectionAction)
+        .plinxMediaCardInteraction(
+            onTap: selectionAction,
+            onLongPress: longPressAction
+        )
         .accessibilityAddTraits(.isButton)
         .accessibilityElement(children: .contain)
         .accessibilityAction {

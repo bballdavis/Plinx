@@ -67,18 +67,15 @@ struct DownloadAccessPolicy {
     let safetyPolicy: SafetyPolicy
     let currentIdentity: DownloadOwnerIdentity?
     let ownershipStore: DownloadOwnershipStore
-    let allowsLegacyOwner: Bool
 
     init(
         safetyPolicy: SafetyPolicy,
         currentIdentity: DownloadOwnerIdentity?,
-        ownershipStore: DownloadOwnershipStore,
-        allowsLegacyOwner: Bool = false
+        ownershipStore: DownloadOwnershipStore
     ) {
         self.safetyPolicy = safetyPolicy
         self.currentIdentity = currentIdentity
         self.ownershipStore = ownershipStore
-        self.allowsLegacyOwner = allowsLegacyOwner
     }
 
     func decision(for item: DownloadItem) -> DownloadAccessDecision {
@@ -87,7 +84,11 @@ struct DownloadAccessPolicy {
         }
 
         guard let owner = ownershipStore.identity(for: item.id) else {
-            return allowsLegacyOwner ? .allowed : .missingOwner
+            // Downloads created before Plinx began storing an owner cannot be
+            // attributed safely to a historical profile. Treat them as shared
+            // legacy media, while continuing to enforce the active rating
+            // policy above. New downloads are claimed when they are enqueued.
+            return .allowed
         }
         guard let currentIdentity, owner == currentIdentity else {
             return .wrongOwner

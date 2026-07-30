@@ -157,6 +157,17 @@ final class LiveRenderSmokeUITests: XCTestCase {
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 3),
                   "App should remain running after quick-action Go to details")
 
+        for identifier in ["media.detail.play", "media.detail.watch", "media.detail.download"] {
+            XCTAssertTrue(
+                app.buttons[identifier].waitForExistence(timeout: 8),
+                "Expected retained media-detail action \(identifier)"
+            )
+        }
+        XCTAssertFalse(app.buttons["media.detail.watchlist"].exists,
+                       "Watchlist must not appear in Plinx media details")
+        XCTAssertFalse(app.buttons["media.detail.shuffle"].exists,
+                       "Shuffle must not appear in Plinx media details")
+
         let actionFailedAlert = app.alerts["Action Failed"]
         XCTAssertFalse(actionFailedAlert.exists,
                        "Action Failed alert should not be shown when Go to details succeeds")

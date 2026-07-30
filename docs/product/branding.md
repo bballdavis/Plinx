@@ -147,6 +147,8 @@ and wordmark need to remain independent. Use
   on spacious iPad layouts so the identity leads the connection headline
 - the home header lockup fills the existing chrome row: 195 by 52 points at
   the default button size, capped at 56 points high
+- the home header uses the approved lockup mark and wordmark with the internal
+  gap reduced by 50% to keep the identity compact in the tab chrome
 - tvOS sign-in uses a much larger logo treatment
 
 Default rule:
@@ -491,6 +493,23 @@ Current canonical springs:
 - Do not promise or synthesize UI audio unless a respectful, user-controlled bundled sound is designed and tested.
 - Selected or emphasized controls may tilt, lift, or glow slightly.
 - Back buttons and tab items may have subtle playful motion when the setting allows it.
+
+## Media-detail actions
+
+Play, Watch, and Download use `PlinxMediaDetailActionStyle`: a continuous
+rounded rectangle with a translucent material base, light accent fill, and
+solid accent border. Play is the wide, 70-point primary action; Restart uses a
+matching 70-by-70-point rounded square. On iPhone and iPad, Watch and Download
+use 64-by-64-point secondary controls so they are easier for children to
+target. Apple TV uses the same treatment with a 68-by-68-point Watch control.
+The treatment uses Plinx's user-selected accent. Secondary controls use large,
+plain SF Symbols rather than circle-contained glyphs: a checkmark for Watch
+and a downward arrow for Download.
+
+Watchlist and Shuffle are intentionally hidden from Plinx media details on iOS,
+iPadOS, and tvOS. The rows are not exposed through Strimr's public view API, so
+this is a deliberately narrow paired-source exception rather than a generic
+upstream behavior change. Ratings and metadata remain upstream-owned.
 
 ## Playful animation settings
 

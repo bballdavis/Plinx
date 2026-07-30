@@ -118,7 +118,7 @@ struct PlinxCollectionDetailView: View {
         }
         .buttonStyle(.plain)
         .focused($focusedItemID, equals: item.id)
-        .onLongPressGesture {
+        .plinxQuickActionLongPress {
             onLongPressMedia(item)
         }
         #else
@@ -132,8 +132,10 @@ struct PlinxCollectionDetailView: View {
         .aspectRatio(2 / 3, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .contentShape(Rectangle())
-        .onTapGesture { onSelectMedia(item) }
-        .onLongPressGesture { onLongPressMedia(item) }
+        .plinxMediaCardInteraction(
+            onTap: { onSelectMedia(item) },
+            onLongPress: { onLongPressMedia(item) }
+        )
         #endif
     }
 }

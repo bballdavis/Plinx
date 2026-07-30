@@ -96,6 +96,11 @@ URLSession cancellation, and video-card rendering without a Youtarr or Plex
 server. A cancelled activation or refresh must never appear as a network
 failure, and a failed refresh must preserve an already-rendered catalog:
 
+The focused tests also cover the 40-video initial catalog request, independent
+catalog/channel failures, tail-triggered pagination, and long-press actions.
+Offline-download policy tests cover both profile-owned downloads and
+rating-gated shared legacy downloads created before ownership tracking.
+
 ```bash
 source scripts/build_environment.sh
 cd PlinxApp

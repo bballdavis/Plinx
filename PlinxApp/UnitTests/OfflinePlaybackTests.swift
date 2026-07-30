@@ -158,7 +158,7 @@ final class OfflinePlaybackTests: XCTestCase {
     }
 
     @MainActor
-    func test_legacyDownloadFailsClosedWithoutExplicitTestOverride() throws {
+    func test_legacyDownloadIsSharedWhenAllowedByCurrentPolicy() throws {
         let suite = "OfflinePlaybackTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -173,7 +173,22 @@ final class OfflinePlaybackTests: XCTestCase {
             ownershipStore: ownership
         )
 
-        XCTAssertEqual(policy.decision(for: item), .missingOwner)
+        XCTAssertEqual(policy.decision(for: item), .allowed)
+    }
+
+    @MainActor
+    func test_legacyDownloadStillRespectsCurrentRatingLimit() throws {
+        let suite = "OfflinePlaybackTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let item = makeDownloadItem(id: "legacy-restricted", type: .movie, contentRating: "R")
+        let policy = DownloadAccessPolicy(
+            safetyPolicy: .ratingOnly(maxMovie: .pg, maxTV: .tvPg, allowUnrated: false),
+            currentIdentity: DownloadOwnerIdentity(serverIdentifier: "server-a", profileIdentifier: "profile-a"),
+            ownershipStore: DownloadOwnershipStore(defaults: defaults)
+        )
+
+        XCTAssertEqual(policy.decision(for: item), .blockedByContentPolicy)
     }
 
     // MARK: - Helpers

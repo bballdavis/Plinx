@@ -741,12 +741,11 @@ struct RootTabView: View {
     @ViewBuilder
     private func headerLeadingContent(title: String, showsLogo: Bool) -> some View {
         if showsLogo {
-            PlinxBrandLogoView(
-                asset: .lockupOnDark,
+            PlinxHomeHeaderLogoView(
                 accessibilityIdentifier: "home.header.logo",
-                maxWidth: 142
+                maxWidth: 142,
+                logoHeight: 35
             )
-            .frame(height: 35)
         } else {
             Text(title.plinxLocalized)
                 .font(.title3.weight(.bold))
@@ -1145,14 +1144,13 @@ struct PlinxScrollingHeaderRow: View {
             let logoHeight = PlinxBrandLayoutMetrics.homeHeaderLogoHeight(
                 chromeButtonSideLength: chromeButtonSize.sideLength
             )
-            PlinxBrandLogoView(
-                asset: .lockupOnDark,
+            PlinxHomeHeaderLogoView(
                 accessibilityIdentifier: "home.header.logo",
                 maxWidth: PlinxBrandLayoutMetrics.homeHeaderLogoWidth(
                     chromeButtonSideLength: chromeButtonSize.sideLength
-                )
+                ),
+                logoHeight: logoHeight
             )
-            .frame(height: logoHeight)
         } else {
             Text(title.plinxLocalized)
                 .font(.title3.weight(.bold))

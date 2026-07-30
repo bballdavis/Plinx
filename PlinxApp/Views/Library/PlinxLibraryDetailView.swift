@@ -532,12 +532,12 @@ private struct PlinxLibraryRecommendedContentView: View {
             PortraitMediaCard(media: media, showsLabels: true) {
                 onSelectMedia(media)
             }
-            .onLongPressGesture { onLongPressMedia(media) }
+            .plinxQuickActionLongPress { onLongPressMedia(media) }
         case .landscape:
             LandscapeMediaCard(media: media, showsLabels: true) {
                 onSelectMedia(media)
             }
-            .onLongPressGesture { onLongPressMedia(media) }
+            .plinxQuickActionLongPress { onLongPressMedia(media) }
         }
     }
 
@@ -643,12 +643,12 @@ private struct PlinxLibraryBrowseContentView: View {
                 LandscapeMediaCard(media: media, width: cardWidth, showsLabels: true) {
                     onSelectMedia(media)
                 }
-                .onLongPressGesture { onLongPressMedia(media) }
+                .plinxQuickActionLongPress { onLongPressMedia(media) }
             } else {
                 PortraitMediaCard(media: media, width: cardWidth, showsLabels: true) {
                     onSelectMedia(media)
                 }
-                .onLongPressGesture { onLongPressMedia(media) }
+                .plinxQuickActionLongPress { onLongPressMedia(media) }
             }
         case let .folder(folder):
             FolderCard(
@@ -686,7 +686,7 @@ private struct PlinxLibraryCollectionsContentView: View {
                         PortraitMediaCard(media: media, width: cardWidth, showsLabels: true) {
                             onSelectMedia(media)
                         }
-                        .onLongPressGesture { onLongPressMedia(media) }
+                        .plinxQuickActionLongPress { onLongPressMedia(media) }
                         .task {
                             if media == viewModel.items.last {
                                 await viewModel.loadMore()

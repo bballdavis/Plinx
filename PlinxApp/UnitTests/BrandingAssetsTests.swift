@@ -56,5 +56,11 @@ final class BrandingAssetsTests: XCTestCase {
             PlinxBrandLayoutMetrics.homeHeaderLogoHeight(chromeButtonSideLength: 78),
             56
         )
+        XCTAssertEqual(PlinxBrandLayoutMetrics.homeHeaderLogoGapReductionFactor, 0.5)
+        XCTAssertEqual(
+            PlinxBrandLayoutMetrics.homeHeaderLogoGap(logoHeight: 52),
+            17.117,
+            accuracy: 0.01
+        )
     }
 }

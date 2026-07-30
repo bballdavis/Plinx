@@ -359,18 +359,15 @@ struct PlinxHomeView: View {
                 selectHeroMedia(playableItem)
             }
             .onTapGesture { onSelectMedia(item) }
-            .onLongPressGesture { onLongPressMedia(item) }
+            .plinxQuickActionLongPress { onLongPressMedia(item) }
             .onMoveCommand { direction in
                 handleMoveCommand(direction, fromRow: rowIndex, rowCount: rowCount)
             }
         #else
-        Button {
-            onSelectMedia(item)
-        } label: {
-            card
-        }
-        .buttonStyle(.plain)
-        .onLongPressGesture { onLongPressMedia(item) }
+        card.plinxMediaCardInteraction(
+            onTap: { onSelectMedia(item) },
+            onLongPress: { onLongPressMedia(item) }
+        )
         #endif
     }
 
@@ -472,6 +469,52 @@ struct PlinxHomeView: View {
         #else
         120
         #endif
+    }
+}
+
+/// Gives media cards one deterministic touch contract. A completed long press
+/// wins over a tap, so opening quick actions never also starts playback or
+/// navigation when the finger is released.
+private struct PlinxMediaCardInteractionModifier: ViewModifier {
+    let onTap: () -> Void
+    let onLongPress: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .contentShape(Rectangle())
+            .gesture(
+                LongPressGesture(minimumDuration: 0.5, maximumDistance: 24)
+                    .exclusively(before: TapGesture())
+                    .onEnded { value in
+                        switch value {
+                        case .first:
+                            onLongPress()
+                        case .second:
+                            onTap()
+                        }
+                    },
+                including: .gesture
+            )
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { onTap() }
+    }
+}
+
+extension View {
+    func plinxMediaCardInteraction(
+        onTap: @escaping () -> Void,
+        onLongPress: @escaping () -> Void
+    ) -> some View {
+        modifier(PlinxMediaCardInteractionModifier(onTap: onTap, onLongPress: onLongPress))
+    }
+
+    /// Use when an existing reusable card owns its normal Button action. The
+    /// high-priority recognizer prevents that Button from winning a long press.
+    func plinxQuickActionLongPress(_ action: @escaping () -> Void) -> some View {
+        highPriorityGesture(
+            LongPressGesture(minimumDuration: 0.5, maximumDistance: 24)
+                .onEnded { _ in action() }
+        )
     }
 }
 

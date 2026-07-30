@@ -152,8 +152,10 @@ struct PlinxSearchView: View {
                 .focused($focusedResultID, equals: item.id)
                 #else
                 resultRow(item)
-                    .onTapGesture { onSelectMedia(item) }
-                    .onLongPressGesture { onLongPressMedia(item) }
+                    .plinxMediaCardInteraction(
+                        onTap: { onSelectMedia(item) },
+                        onLongPress: { onLongPressMedia(item) }
+                    )
                 #endif
 
                 Divider()
@@ -270,7 +272,7 @@ private struct SearchResultButton: View {
             .animation(.easeOut(duration: 0.14), value: isFocused)
         }
         .buttonStyle(.plain)
-        .onLongPressGesture(perform: onLongPress)
+        .plinxQuickActionLongPress(onLongPress)
     }
 }
 #endif
