@@ -152,7 +152,7 @@ jobs:
             -project PlinxApp/Plinx.xcodeproj \
             -scheme Plinx-iOS \
             -destination "platform=iOS Simulator,name=Plinx iPhone 17 Pro (26.5),OS=26.5" \
-            -configuration Release \
+            -configuration Debug \
             -derivedDataPath "$RUNNER_TEMP/plinx-derived-data" \
             CODE_SIGNING_ALLOWED=NO \
             -quiet
@@ -160,7 +160,7 @@ jobs:
             -project PlinxApp/Plinx.xcodeproj \
             -scheme Plinx-iOS \
             -destination "platform=iOS Simulator,name=Plinx iPad Pro 13-inch (26.5),OS=26.5" \
-            -configuration Release \
+            -configuration Debug \
             -derivedDataPath "$RUNNER_TEMP/plinx-derived-data" \
             CODE_SIGNING_ALLOWED=NO \
             -quiet
