@@ -22,7 +22,7 @@ permissions:
 jobs:
   docs-guard:
     name: Docs Guard
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,7 +40,7 @@ jobs:
 
   swift-packages:
     name: Swift Package Tests
-    runs-on: macos-15
+    runs-on: macos-26
     needs: docs-guard
     steps:
       - name: Checkout
@@ -129,7 +129,7 @@ jobs:
 
   xcode-build-and-test:
     name: Xcode Build & Unit Tests
-    runs-on: macos-15
+    runs-on: macos-26
     needs: docs-guard
     steps:
       - name: Checkout

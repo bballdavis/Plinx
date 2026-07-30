@@ -2,7 +2,7 @@
 
 ## Pinned Release Toolchain And Dependencies
 
-CI uses macOS 15, Xcode 26.5, the exact Strimr sibling commit in
+CI uses macOS 26, Xcode 26.5, the exact Strimr sibling commit in
 `config/release-dependencies.env`, and the exact AetherEngine revision in
 `PlinxApp/project.yml`. Dependency checkout or resolution failure is fatal; do
 not restore branch-based or `|| true` dependency fetches.
