@@ -22,7 +22,7 @@ It currently enforces:
 - documentation and repository-structure guardrails
 - the full Plinx↔Strimr contract after checking out the configured branch at
   the exact pinned commit
-- `PlinxCore` package tests with coverage enforcement for safety-critical files
+- `PlinxCore` package tests, including safety behavior
 - `PlinxUI` package tests
 - Xcode project generation
 - iPhone and iPad app builds and app unit/UI tests
@@ -67,14 +67,14 @@ CI runs:
 ```bash
 swift test \
   --package-path Packages/PlinxCore \
-  --scratch-path "$RUNNER_TEMP/plinx-swiftpm/PlinxCore" \
-  --enable-code-coverage
+  --scratch-path "$RUNNER_TEMP/plinx-swiftpm/PlinxCore"
 swift test \
   --package-path Packages/PlinxUI \
   --scratch-path "$RUNNER_TEMP/plinx-swiftpm/PlinxUI"
 ```
 
-Coverage enforcement is applied to safety-critical files in `Packages/PlinxCore/Sources/PlinxCore/Safety/`.
+Safety-critical behavior remains part of the package test suite. CI does not
+parse generated coverage reports or enforce a tool-specific percentage gate.
 
 ## App Build And Unit Tests
 
