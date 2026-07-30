@@ -948,6 +948,7 @@ Changes in these files usually imply a branding review:
 
 Run these when branding, theme, assets, or branded shell behavior changes:
 
+- `npm run branding:check --prefix website`; PNG exports are compared by decoded pixels so platform-specific compression does not invalidate identical artwork
 - `PlinxApp/UnitTests/BrandingAssetsTests.swift`
 - `PlinxApp/UITests/BrandingUITests.swift`
 - relevant `Packages/PlinxUI` snapshot tests
