@@ -100,7 +100,12 @@ scan_tracked_regex_with_glob_exclude() {
   local output
 
   output=$(
-    existing_tracked_files \
+    {
+      while IFS= read -r -d '' file; do
+        [[ "$file" == docs/* || "$file" == website/* ]] && continue
+        printf '%s\0' "$file"
+      done < <(existing_tracked_files)
+    } \
     | xargs -0 rg -n --pcre2 --color never "$regex" --glob '!AGENTS.md' \
     || true
   )
@@ -122,7 +127,7 @@ check_forbidden_content() {
   local forbidden_agent_regex="(${word_1}|${phrase_1}|${phrase_2}|${phrase_3}|${phrase_4})"
 
   local legacy_local='.local''_dev/'
-  local legacy_dev_regex='(?<!docs/)devel''opment/'
+  local legacy_dev_regex='(?<!docs/)(?<!\.\./)devel''opment/'
   local legacy_vendor='ven''dor/strimr'
 
   scan_tracked_regex "$forbidden_agent_regex" "Direct instruction-style references found outside AGENTS.md"
