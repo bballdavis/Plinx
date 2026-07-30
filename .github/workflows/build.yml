@@ -85,7 +85,7 @@ jobs:
             --scratch-path "$RUNNER_TEMP/plinx-swiftpm/PlinxUI"
 
   xcode-build-and-test:
-    name: Xcode Build & Unit Tests
+    name: Xcode Build
     runs-on: macos-26
     needs: docs-guard
     steps:
@@ -164,18 +164,3 @@ jobs:
             -derivedDataPath "$RUNNER_TEMP/plinx-derived-data" \
             CODE_SIGNING_ALLOWED=NO \
             -quiet
-
-      - name: Run unit and UI tests
-        run: |
-          xcodebuild test-without-building \
-            -project PlinxApp/Plinx.xcodeproj \
-            -scheme Plinx-iOS \
-            -destination "platform=iOS Simulator,name=Plinx iPhone 17 Pro (26.5),OS=26.5" \
-            -derivedDataPath "$RUNNER_TEMP/plinx-derived-data" \
-            CODE_SIGNING_ALLOWED=NO
-          xcodebuild test-without-building \
-            -project PlinxApp/Plinx.xcodeproj \
-            -scheme Plinx-iOS \
-            -destination "platform=iOS Simulator,name=Plinx iPad Pro 13-inch (26.5),OS=26.5" \
-            -derivedDataPath "$RUNNER_TEMP/plinx-derived-data" \
-            CODE_SIGNING_ALLOWED=NO

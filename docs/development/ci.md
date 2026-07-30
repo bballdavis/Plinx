@@ -25,7 +25,7 @@ It currently enforces:
 - `PlinxCore` package tests, including safety behavior
 - `PlinxUI` package tests
 - Xcode project generation
-- iPhone and iPad app builds and app unit/UI tests
+- iPhone and iPad app builds, including compilation of app unit/UI test targets
 
 ## Documentation Workflow
 
