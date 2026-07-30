@@ -40,7 +40,7 @@ final class SafeMediaDetailViewModel {
 
     // MARK: - Private
     private let inner: MediaDetailViewModel
-    private let policy: SafetyPolicy
+    private(set) var policy: SafetyPolicy
 
     var rawViewModel: MediaDetailViewModel {
         inner
@@ -49,8 +49,14 @@ final class SafeMediaDetailViewModel {
     init(inner: MediaDetailViewModel, policy: SafetyPolicy = .ratingOnly()) {
         self.inner = inner
         self.policy = policy
+        inner.itemFilter = {
+            PlinxContentAuthorization.isAllowed($0, policy: policy)
+        }
+        inner.hubFilter = {
+            PlinxContentAuthorization.filtered($0, policy: policy)
+        }
         // Belt-and-suspenders: block immediately if the media itself is unsafe.
-        self.isBlocked = !StrimrAdapter.isAllowed(inner.media, policy: policy)
+        self.isBlocked = !PlinxContentAuthorization.isAllowed(inner.media, policy: policy)
     }
 
     // MARK: - Actions
@@ -58,6 +64,13 @@ final class SafeMediaDetailViewModel {
     func loadDetails() async {
         guard !isBlocked else { return }
         await inner.loadDetails()
+        isBlocked = !PlinxContentAuthorization.isAllowed(inner.media, policy: policy)
+        guard !isBlocked else {
+            seasons = []
+            episodes = []
+            relatedHubs = []
+            return
+        }
         applyFilters()
     }
 
@@ -78,18 +91,32 @@ final class SafeMediaDetailViewModel {
         return await inner.playbackRatingKey()
     }
 
+    func updatePolicy(_ newPolicy: SafetyPolicy) {
+        guard newPolicy != policy else { return }
+        policy = newPolicy
+        inner.itemFilter = {
+            PlinxContentAuthorization.isAllowed($0, policy: newPolicy)
+        }
+        inner.hubFilter = {
+            PlinxContentAuthorization.filtered($0, policy: newPolicy)
+        }
+        isBlocked = !PlinxContentAuthorization.isAllowed(inner.media, policy: newPolicy)
+        applyFilters()
+    }
+
     // MARK: - Filtering
 
     private func applyFilters() {
         seasons = inner.seasons
         filterEpisodes()
         relatedHubs = inner.relatedHubs.compactMap {
-            StrimrAdapter.filtered($0, policy: policy)
+            PlinxContentAuthorization.filtered($0, policy: policy)
         }
-        inner.relatedHubs = relatedHubs
     }
 
     private func filterEpisodes() {
-        episodes = inner.episodes.filter { StrimrAdapter.isAllowed($0, policy: policy) }
+        episodes = inner.episodes.filter {
+            PlinxContentAuthorization.isAllowed($0, policy: policy)
+        }
     }
 }

@@ -2,6 +2,12 @@ import Foundation
 import UIKit
 
 enum LibraryCardLayoutPolicy {
+    enum DetailSurface: CaseIterable {
+        case recommended
+        case browse
+        case collections
+    }
+
     static let bannerArtworkCountStorageKey = "plinx.libraryBannerArtworkCount"
     static let hotReloadLibraryArtworkStorageKey = "plinx.libraryBannerHotReload"
 
@@ -15,6 +21,12 @@ enum LibraryCardLayoutPolicy {
         default:
             return true
         }
+    }
+
+    static func usesLandscapeDetailCards(for library: Library, surface: DetailSurface) -> Bool {
+        // All library detail surfaces must agree. A prior regression fixed Browse
+        // but left Collections as portrait posters for Other Videos.
+        prefersLandscape(for: library)
     }
 
     static func maximumBannerArtworkDisplayCount(userInterfaceIdiom: UIUserInterfaceIdiom) -> Int {

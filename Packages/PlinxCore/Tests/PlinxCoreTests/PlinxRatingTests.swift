@@ -5,7 +5,7 @@
 // Tests for PlinxRating: parsing, ordering, isTVRating, isMovieRating.
 // All cases run without a simulator.
 //
-// References: development/UI_TESTING_STRATEGY.md — "Logic" layer
+// References: docs/development/ui-testing.md — "Logic" layer
 // ─────────────────────────────────────────────────────────────────────────────
 
 #if canImport(Testing)
@@ -62,7 +62,7 @@ struct PlinxRatingParsingTests {
 struct PlinxRatingClassificationTests {
 
     @Test func tvRatingsAreClassifiedCorrectly() {
-        let tvRatings: [PlinxRating] = [.tvY, .tvY7, .tvPg, .tv14, .tvMa]
+        let tvRatings: [PlinxRating] = [.tvY, .tvY7, .tvG, .tvPg, .tv14, .tvMa]
         for rating in tvRatings {
             #expect(rating.isTVRating, "Expected \(rating) to be a TV rating")
             #expect(!rating.isMovieRating, "Expected \(rating) not to be a movie rating")
@@ -81,6 +81,7 @@ struct PlinxRatingClassificationTests {
         let tv = Set(PlinxRating.tvRatings)
         #expect(tv.contains(.tvY))
         #expect(tv.contains(.tvY7))
+        #expect(tv.contains(.tvG))
         #expect(tv.contains(.tvPg))
         #expect(tv.contains(.tv14))
         #expect(tv.contains(.tvMa))

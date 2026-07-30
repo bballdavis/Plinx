@@ -4,17 +4,18 @@ import PlinxUI
 
 /// The Plinx settings screen, protected by a parental gate.
 struct PlinxSettingsView: View {
-    @State private var isUnlocked = false
+    @Environment(ParentalAccessCoordinator.self) private var parentalAccessCoordinator
+    private let bypassGateForTesting: Bool
+
+    init(isUnlocked: Bool = false) {
+        bypassGateForTesting = isUnlocked
+    }
 
     var body: some View {
-        if isUnlocked {
+        if bypassGateForTesting || parentalAccessCoordinator.isUnlocked {
             settingsContent
         } else {
-            ParentalGateView {
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                    isUnlocked = true
-                }
-            }
+            ParentalGateView(onAllowed: {})
         }
     }
 
@@ -32,8 +33,8 @@ private struct SettingsBody: View {
     @Environment(PlexAPIContext.self) private var plexApiContext
 
     @AppStorage("plinx.babyLockEnabled") private var babyLockEnabled = false
-    @AppStorage("plinx.maxMovieRating") private var maxMovieRatingRaw = PlinxRating.pg.rawValue
-    @AppStorage("plinx.maxTVRating")    private var maxTVRatingRaw    = PlinxRating.tvPg.rawValue
+    @AppStorage("plinx.maxMovieRating") private var maxMovieRatingRaw = PlinxRating.g.rawValue
+    @AppStorage("plinx.maxTVRating")    private var maxTVRatingRaw    = PlinxRating.tvY.rawValue
     @AppStorage("plinx.excludeUnrated") private var excludeUnrated    = true
     @AppStorage(PlinxNavigationPreference.showSearchInMainNavigationStorageKey)
     private var showSearchInMainNavigation = PlinxNavigationPreference.defaultShowSearchInMainNavigation
@@ -67,9 +68,16 @@ private struct SettingsBody: View {
                 }
                 NavigationLink(destination: LibraryViewsSettingsView()) {
                     Label {
-                        Text("Library Views")
+                        Text("settings.libraryViews.title", tableName: "Plinx")
                     } icon: {
                         Image(systemName: "rectangle.3.group.fill")
+                    }
+                }
+                NavigationLink(destination: YoutarrSettingsView()) {
+                    Label {
+                        Text("youtarr.settings.title", tableName: "Plinx")
+                    } icon: {
+                        Image(systemName: "sparkles.tv")
                     }
                 }
                 NavigationLink(
@@ -81,7 +89,7 @@ private struct SettingsBody: View {
                     )
                 ) {
                     Label {
-                        Text("Default Server")
+                        Text("settings.server.default.title", tableName: "Plinx")
                     } icon: {
                         Image(systemName: "server.rack")
                     }
@@ -111,6 +119,7 @@ private struct SettingsBody: View {
                 Text("settings.appearance.section", tableName: "Plinx")
             }
 
+            #if !os(tvOS)
             // MARK: Downloads
             Section {
                 NavigationLink(destination: SettingsDownloadsView()) {
@@ -123,22 +132,7 @@ private struct SettingsBody: View {
             } header: {
                 Text("settings.downloads.title", tableName: "Plinx")
             }
-
-            // MARK: Playback
-            Section {
-                Toggle(isOn: Binding(
-                    get: { settingsManager.playback.pauseWhenScreenTurnsOff },
-                    set: { settingsManager.setPauseWhenScreenTurnsOff($0) }
-                )) {
-                    Label {
-                        Text("settings.playback.pauseWhenScreenTurnsOff.title", tableName: "Plinx")
-                    } icon: {
-                        Image(systemName: "pause.circle.fill")
-                    }
-                }
-            } header: {
-                Text("settings.playback.section", tableName: "Plinx")
-            }
+            #endif
 
             // MARK: Content rating — movie
             Section {
@@ -191,7 +185,38 @@ private struct SettingsBody: View {
                             .foregroundStyle(.secondary)
                     }
 
+                    #if os(tvOS)
+                    HStack(spacing: 12) {
+                        Button {
+                            settingsManager.setMaxVolumePercent(max(settingsManager.playback.maxVolumePercent - 5, 0))
+                        } label: {
+                            Image(systemName: "minus.circle.fill")
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityLabel(
+                            Text("settings.safety.maxVolume.decrease", tableName: "Plinx")
+                        )
+
+                        Text("settings.safety.maxVolume.adjust", tableName: "Plinx")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        Button {
+                            settingsManager.setMaxVolumePercent(min(settingsManager.playback.maxVolumePercent + 5, 100))
+                        } label: {
+                            Image(systemName: "plus.circle.fill")
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityLabel(
+                            Text("settings.safety.maxVolume.increase", tableName: "Plinx")
+                        )
+                    }
+                    #else
                     Slider(value: maxVolumeBinding, in: 0...100, step: 5)
+                        .accessibilityLabel(
+                            Text("settings.safety.maxVolume.title", tableName: "Plinx")
+                        )
+                    #endif
                 }
                 .padding(.vertical, 4)
             } header: {
@@ -213,7 +238,7 @@ private struct SettingsBody: View {
                 }
                 NavigationLink(destination: SetPinView()) {
                     Label {
-                        Text("Set Parental PIN", tableName: "Plinx")
+                        Text("settings.parentalPIN.title", tableName: "Plinx")
                     } icon: {
                         Image(systemName: "key.fill")
                     }
@@ -260,6 +285,24 @@ private struct SettingsBody: View {
                     }
                 }
                 .foregroundStyle(.primary)
+
+                Link(destination: URL(string: "https://github.com/bballdavis/Plinx/blob/main/PRIVACY_POLICY.md")!) {
+                    Label {
+                        Text("settings.about.privacy", tableName: "Plinx")
+                    } icon: {
+                        Image(systemName: "hand.raised.fill")
+                    }
+                }
+                .foregroundStyle(.primary)
+
+                Link(destination: URL(string: "https://github.com/bballdavis/Plinx/issues")!) {
+                    Label {
+                        Text("settings.about.support", tableName: "Plinx")
+                    } icon: {
+                        Image(systemName: "questionmark.circle.fill")
+                    }
+                }
+                .foregroundStyle(.primary)
             } header: {
                 Text("settings.about.title", tableName: "Plinx")
             } footer: {
@@ -278,8 +321,12 @@ private struct SettingsBody: View {
             }
         }
         .navigationTitle(Text("tabs.settings", tableName: "Plinx"))
+        #if os(tvOS)
+        .listStyle(.plain)
+        #else
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
+        #endif
         .background(Color.appBackground.ignoresSafeArea())
         .task {
             if libraryStore.libraries.isEmpty {

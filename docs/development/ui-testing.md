@@ -1,0 +1,149 @@
+# UI Testing Strategy
+
+## Approach
+
+Plinx uses layered UI verification:
+
+| Layer | Tool | Scope |
+|---|---|---|
+| Logic | Swift Testing | Pure layout rules and content-type decisions |
+| Component rendering | SnapshotTesting | Pixel-diff rendering for reusable UI across devices |
+| Critical user paths | XCUITest | Navigation, launch, branding, and flow verification |
+| Live smoke | XCUITest with live Plex data | Real-data rendering checks |
+
+## Package Test Structure
+
+```text
+Packages/
+  PlinxCore/Tests/PlinxCoreTests/
+  PlinxUI/Tests/PlinxUITests/
+```
+
+`PlinxUI` tests are organized into:
+
+```text
+Tests/PlinxUITests/
+├── Fixtures/
+├── Logic/
+├── Snapshots/
+├── PlinxUITests.swift
+└── SnapshotHarnessTests.swift
+```
+
+## What We Verify
+
+### Logic tests
+
+- aspect ratios for portrait vs landscape content
+- card width/layout rules
+- progress-bar visibility and clamping assumptions
+- fixture integrity before snapshot runs
+
+### Snapshot tests
+
+- movie, TV, clip, and continue-watching cards
+- section-row layouts
+- placeholder states
+- truncation behavior
+- device-specific regressions on compact and regular widths
+
+### App UI tests
+
+- launch
+- branding surfaces
+- tab/navigation behavior
+- library browsing
+- quick actions
+- targeted smoke behavior
+- deterministic visual-audit surfaces through `PLINX_UI_TEST_SCREEN`
+
+### Visual-audit fixtures
+
+`VisualAuditUITests` captures real Plinx views without changing normal app
+startup. The following `PLINX_UI_TEST_SCREEN` values are available only when
+the app also receives `--ui-testing`:
+
+- `signIn`
+- `parentalGate`
+- `settings`
+- `profileSwitcher`
+- `selectServer`
+- `playerSettings`
+- `downloadsGrid`
+- `loadingGallery`
+- `homeLoading`
+- `playerBuffering`
+- `refreshLoading`
+
+Keep these routes deterministic and free of credentials or personal data.
+When a visual-audit route needs account-backed content, capture loading or
+empty states unless the test explicitly opts into the existing live-test mode.
+On tvOS, the `signIn` route must not request or render a live Plex link QR
+code. It renders a deterministic, credential-free preview QR payload so the
+plate, hierarchy, and initial Refresh Code focus state can be captured without
+network access.
+
+`loadingGallery` renders the compact inline, regular glass, and hero video
+variants together. `playerBuffering` renders the actual Plinx-owned video
+overlay against a deterministic colorful frame. Branding UI tests assert that
+these fixtures contain the expected Plinx accessibility identifiers and no
+native activity indicator.
+`homeLoading` renders the production full-screen hero identity: the existing
+animated rounded-square beacon at hero scale, with the full-color loop centered
+inside, the outlined white wordmark beneath it, and no visible loading caption.
+`refreshLoading` provides a deterministic pull-to-refresh surface for visual
+inspection of the branded refresh indicator and hidden native spinner.
+
+### tvOS focus rules
+
+- every primary tvOS action must be reachable with remote UDLR navigation
+- do not rely on touch, pointer, or click-only interactions on Apple TV
+- keep retry and refresh affordances focusable when they are part of the recovery path
+- verify the default focus path for any screen that has a single primary action
+- on Home, pressing up from the first content row must return focus to the header navigation instead of trapping focus in content
+- on Home, that header return target should land on the first visible real tab that is not the active tab, which is normally `Library` when Home is selected
+
+### Live smoke checks
+
+- live home content renders expected sections
+- Other Videos content keeps landscape geometry
+- Movies/TV content keeps portrait geometry
+- section types remain visually distinct
+
+## Device Coverage
+
+Snapshot/device coverage intentionally spans:
+
+- compact iPhone width
+- standard iPhone width
+- large iPad width
+
+This catches regressions that only appear at one size class.
+
+## Common Commands
+
+```bash
+./scripts/ui_tests.sh --core
+./scripts/ui_tests.sh --ui
+./scripts/ui_tests.sh --snapshots
+./scripts/ui_tests.sh --record
+./scripts/ui_tests.sh --live
+```
+
+## Re-Recording Snapshots
+
+Use recording mode only when a visual change is intentional:
+
+```bash
+./scripts/ui_tests.sh --record
+```
+
+Review the generated images before committing them.
+
+## What Is Intentionally Out Of Scope
+
+- generic network/server correctness beyond the mocked test boundary
+- AetherEngine internals
+- complete live-service coverage in CI
+
+Use live parity tests and manual verification when a change crosses those boundaries.

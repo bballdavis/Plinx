@@ -3,9 +3,12 @@ import SwiftUI
 struct PlinxMediaDetailView: View {
     @State var viewModel: SafeMediaDetailViewModel
     var onPlay: (String, PlexItemType) -> Void
+    var onShuffle: (String, PlexItemType) -> Void
     var onSelectRelated: (MediaDisplayItem) -> Void
+    var onSelectParentSeries: (PlayableMediaItem) -> Void = { _ in }
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.safetyPolicy) private var safetyPolicy
 
     var body: some View {
         ZStack {
@@ -14,6 +17,19 @@ struct PlinxMediaDetailView: View {
             if viewModel.isBlocked {
                 blockedView
             } else {
+                #if os(tvOS)
+                MediaDetailTVView(
+                    viewModel: viewModel.rawViewModel,
+                    onPlay: onPlay,
+                    onPlayFromStart: { ratingKey, type in
+                        onPlay(ratingKey, type)
+                    },
+                    onShuffle: { ratingKey, type in
+                        onShuffle(ratingKey, type)
+                    },
+                    onSelectMedia: onSelectRelated
+                )
+                #else
                 MediaDetailView(
                     viewModel: viewModel.rawViewModel,
                     onPlay: onPlay,
@@ -21,10 +37,12 @@ struct PlinxMediaDetailView: View {
                         onPlay(ratingKey, type)
                     },
                     onShuffle: { ratingKey, type in
-                        onPlay(ratingKey, type)
+                        onShuffle(ratingKey, type)
                     },
-                    onSelectMedia: onSelectRelated
+                    onSelectMedia: onSelectRelated,
+                    onSelectParentSeries: onSelectParentSeries
                 )
+                #endif
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
@@ -33,6 +51,9 @@ struct PlinxMediaDetailView: View {
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
         .accessibilityIdentifier("media.detail.screen")
+        .onChange(of: safetyPolicy) { _, newPolicy in
+            viewModel.updatePolicy(newPolicy)
+        }
     }
 
     // MARK: - Plinx back-button chrome

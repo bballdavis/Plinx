@@ -12,7 +12,7 @@ import Foundation
 // as part of its error handling. By providing this local implementation, we ensure
 // that no telemetry or analytics code runs, without needing to modify vendor code.
 //
-// See DATA_COLLECTION_AUDIT.md for rationale and privacy compliance details.
+// See docs/security/privacy-and-safety.md for rationale and privacy details.
 //
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -30,5 +30,14 @@ enum ErrorReporter {
         // Plinx does not collect crash data or telemetry.
         // Developers can add local logging here if needed for debugging:
         // print("Error (not reported): \(error)")
+    }
+}
+
+/// Matches Strimr's non-telemetry cancellation classification without bringing
+/// its Sentry-backed reporter into the Plinx target.
+extension Error {
+    var isCancellation: Bool {
+        self is CancellationError
+            || (self as? URLError)?.code == .cancelled
     }
 }

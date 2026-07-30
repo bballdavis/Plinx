@@ -14,7 +14,7 @@ import PackageDescription
 //   • PlinxViewFactory — protocol for view resolution (implemented in PlinxApp)
 //
 // Module Boundary:
-//   PlinxUI imports PlinxCore (for HapticManager, PlinkAudioManager, model types).
+//   PlinxUI imports PlinxCore (for HapticManager and model types).
 //   PlinxUI does not import Strimr or any Strimr types.
 //   All data arriving at PlinxUI views is pre-adapted by PlinxApp decorators.
 //
@@ -24,6 +24,7 @@ let package = Package(
     name: "PlinxUI",
     platforms: [
         .iOS(.v17),
+        .tvOS(.v17),
         .macOS(.v14)
     ],
     products: [
@@ -38,6 +39,9 @@ let package = Package(
             name: "PlinxUI",
             dependencies: [
                 .product(name: "PlinxCore", package: "PlinxCore")
+            ],
+            resources: [
+                .process("Resources")
             ]
         ),
         .testTarget(
@@ -45,6 +49,10 @@ let package = Package(
             dependencies: [
                 "PlinxUI",
                 .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
+            ],
+            exclude: [
+                "Snapshots/__Snapshots__",
+                "__Snapshots__"
             ]
         )
     ]

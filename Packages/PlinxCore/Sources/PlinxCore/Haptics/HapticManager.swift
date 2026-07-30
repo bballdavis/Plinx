@@ -14,7 +14,7 @@ public struct HapticManager: HapticManaging {
 
     @MainActor
     public func plink() {
-        #if canImport(UIKit)
+        #if canImport(UIKit) && !os(tvOS)
         let generator = UIImpactFeedbackGenerator(style: .heavy)
         generator.prepare()
         generator.impactOccurred()

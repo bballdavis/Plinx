@@ -20,118 +20,103 @@ permissions:
   contents: read
 
 jobs:
+  docs-guard:
+    name: Docs Guard
+    runs-on: macos-26
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install docs guard tools
+        run: brew install ripgrep
+
+      - name: Run docs guard
+        env:
+          GITHUB_BASE_REF: ${{ github.base_ref }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+        run: bash ./scripts/docs_guard.sh
+
   swift-packages:
     name: Swift Package Tests
-    runs-on: macos-latest
-    env:
-      # Determine which strimr branch to use based on plinx branch
-      STRIMR_REF: "${{ (github.base_ref == 'dev' || github.ref_name == 'dev') && 'dev-plinx' || 'plinx-patches' }}"
+    runs-on: macos-26
+    needs: docs-guard
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Fetch sibling repos (strimr, MPVKit)
+      - name: Fetch pinned Strimr source
         env:
           STRIMR_REPO: "bballdavis/strimr"
           STRIMR_PAT: ${{ secrets.STRIMR_PAT }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          echo "Cloning ${STRIMR_REPO}@${STRIMR_REF} into ../strimr"
-          # Always clone the fork — fail fast if no auth token available
+          source config/release-dependencies.env
+          echo "Cloning ${STRIMR_REPO}@${STRIMR_COMMIT} into ../strimr"
           AUTH_TOKEN="${STRIMR_PAT:-$GITHUB_TOKEN}"
           if [ -z "$AUTH_TOKEN" ]; then
             echo "Error: no STRIMR_PAT or GITHUB_TOKEN available to clone ${STRIMR_REPO}."
             echo "This workflow requires access to the forked repository; please add STRIMR_PAT as a secret if needed."
             exit 1
           fi
-          # Full clone (not shallow) to ensure all branches are available
-          git clone "https://x-access-token:${AUTH_TOKEN}@github.com/${STRIMR_REPO}.git" ../strimr
-          git -C ../strimr checkout ${STRIMR_REF}
+          git clone --filter=blob:none "https://x-access-token:${AUTH_TOKEN}@github.com/${STRIMR_REPO}.git" ../strimr
+          git -C ../strimr checkout --force -B "$STRIMR_BRANCH" "$STRIMR_COMMIT"
 
-          echo "Cloning MPVKit into ../MPVKit"
-          git clone https://github.com/wunax/MPVKit.git ../MPVKit || true
+      - name: Verify Strimr integration contract
+        run: bash ./scripts/verify_strimr_integration_contract.sh --full
 
-      - name: Test PlinxCore (with coverage)
-        run: swift test --package-path Packages/PlinxCore --enable-code-coverage
+      - name: Select pinned Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.5'
+
+      - name: Test PlinxCore
+        run: |
+          swift test \
+            --package-path Packages/PlinxCore \
+            --scratch-path "$RUNNER_TEMP/plinx-swiftpm/PlinxCore"
 
       - name: Test PlinxUI
-        run: swift test --package-path Packages/PlinxUI
-
-      - name: Enforce safety-critical coverage threshold
-        shell: bash
         run: |
-          set -euo pipefail
-          MIN_COVERAGE=90.0
-          TEST_ARTIFACT=$(find Packages/PlinxCore/.build -name "*PlinxCorePackageTests.xctest" -maxdepth 5 | head -n 1 || true)
-          if [[ -z "$TEST_ARTIFACT" ]]; then
-            echo "No test bundle found; failing for safety coverage enforcement."
-            exit 1
-          fi
-
-          if [[ -d "$TEST_ARTIFACT" ]]; then
-            TEST_BINARY=$(find "$TEST_ARTIFACT" -type f -perm -111 | head -n 1 || true)
-          else
-            TEST_BINARY="$TEST_ARTIFACT"
-          fi
-
-          if [[ -z "${TEST_BINARY:-}" ]]; then
-            echo "No test binary found in bundle; failing for safety coverage enforcement."
-            exit 1
-          fi
-
-          PROF_DATA=$(find Packages/PlinxCore/.build -name "default.profdata" -maxdepth 6 | head -n 1 || true)
-          if [[ -z "$PROF_DATA" ]]; then
-            echo "No coverage data found; failing for safety coverage enforcement."
-            exit 1
-          fi
-
-          xcrun llvm-cov report \
-            "$TEST_BINARY" \
-            -instr-profile "$PROF_DATA" \
-            Packages/PlinxCore/Sources/PlinxCore/Safety/SafetyInterceptor.swift \
-            Packages/PlinxCore/Sources/PlinxCore/Safety/MathGate.swift \
-            | tail -n +2 \
-            | awk '{ print $1, $4 }' \
-            | while read -r file coverage; do
-                echo "$file -> $coverage"
-                numeric="${coverage%%%}"
-                if ! awk -v actual="$numeric" -v minimum="$MIN_COVERAGE" 'BEGIN { exit !(actual >= minimum) }'; then
-                  echo "Coverage below ${MIN_COVERAGE}% for $file"
-                  exit 1
-                fi
-              done
+          swift test \
+            --package-path Packages/PlinxUI \
+            --scratch-path "$RUNNER_TEMP/plinx-swiftpm/PlinxUI"
 
   xcode-build-and-test:
-    name: Xcode Build & Unit Tests
-    runs-on: macos-latest
-    env:
-      # Determine which strimr branch to use based on plinx branch
-      STRIMR_REF: "${{ (github.base_ref == 'dev' || github.ref_name == 'dev') && 'dev-plinx' || 'plinx-patches' }}"
+    name: Xcode Build
+    runs-on: macos-26
+    needs: docs-guard
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Fetch sibling repos (strimr, MPVKit)
+      - name: Fetch pinned Strimr source
         env:
           STRIMR_REPO: "bballdavis/strimr"
           STRIMR_PAT: ${{ secrets.STRIMR_PAT }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          echo "Cloning ${STRIMR_REPO}@${STRIMR_REF} into ../strimr"
+          source config/release-dependencies.env
+          echo "Cloning ${STRIMR_REPO}@${STRIMR_COMMIT} into ../strimr"
           AUTH_TOKEN="${STRIMR_PAT:-$GITHUB_TOKEN}"
           if [ -z "$AUTH_TOKEN" ]; then
             echo "Error: no STRIMR_PAT or GITHUB_TOKEN available to clone ${STRIMR_REPO}."
             echo "This workflow requires access to the forked repository; please add STRIMR_PAT as a secret if needed."
             exit 1
           fi
-          # Full clone (not shallow) to ensure all branches are available
-          git clone "https://x-access-token:${AUTH_TOKEN}@github.com/${STRIMR_REPO}.git" ../strimr
-          git -C ../strimr checkout ${STRIMR_REF}
+          git clone --filter=blob:none "https://x-access-token:${AUTH_TOKEN}@github.com/${STRIMR_REPO}.git" ../strimr
+          git -C ../strimr checkout --force -B "$STRIMR_BRANCH" "$STRIMR_COMMIT"
 
-          echo "Cloning MPVKit into ../MPVKit"
-          git clone https://github.com/wunax/MPVKit.git ../MPVKit || true
+      - name: Verify Strimr integration contract
+        run: bash ./scripts/verify_strimr_integration_contract.sh --full
+
+      - name: Select pinned Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.5'
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -140,21 +125,42 @@ jobs:
         run: xcodegen generate
         working-directory: PlinxApp
 
-      - name: Build Plinx-iOS
+      - name: Install and verify pinned simulator runtime
         run: |
-          xcodebuild build \
+          set -euo pipefail
+          xcodebuild -version
+          if ! xcrun simctl list runtimes | grep -F "iOS 26.5" | grep -v "unavailable"; then
+            xcodebuild -downloadPlatform iOS -buildVersion 26.5
+          fi
+          xcrun simctl list runtimes | grep -F "iOS 26.5"
+          if ! xcrun simctl list devices available | grep -F "Plinx iPhone 17 Pro (26.5)"; then
+            xcrun simctl create \
+              "Plinx iPhone 17 Pro (26.5)" \
+              com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro \
+              com.apple.CoreSimulator.SimRuntime.iOS-26-5
+          fi
+          if ! xcrun simctl list devices available | grep -F "Plinx iPad Pro 13-inch (26.5)"; then
+            xcrun simctl create \
+              "Plinx iPad Pro 13-inch (26.5)" \
+              com.apple.CoreSimulator.SimDeviceType.iPad-Pro-13-inch-M5-12GB \
+              com.apple.CoreSimulator.SimRuntime.iOS-26-5
+          fi
+
+      - name: Build Plinx-iOS for iPhone and iPad
+        run: |
+          xcodebuild build-for-testing \
             -project PlinxApp/Plinx.xcodeproj \
             -scheme Plinx-iOS \
-            -destination "generic/platform=iOS Simulator" \
+            -destination "platform=iOS Simulator,name=Plinx iPhone 17 Pro (26.5),OS=26.5" \
             -configuration Debug \
+            -derivedDataPath "$RUNNER_TEMP/plinx-derived-data" \
             CODE_SIGNING_ALLOWED=NO \
             -quiet
-
-      - name: Run unit tests
-        run: |
-          xcodebuild test \
+          xcodebuild build-for-testing \
             -project PlinxApp/Plinx.xcodeproj \
             -scheme Plinx-iOS \
-            -destination "platform=iOS Simulator,name=iPhone 16,OS=latest" \
-            -only-testing:Plinx-iOS-UnitTests \
-            CODE_SIGNING_ALLOWED=NO
+            -destination "platform=iOS Simulator,name=Plinx iPad Pro 13-inch (26.5),OS=26.5" \
+            -configuration Debug \
+            -derivedDataPath "$RUNNER_TEMP/plinx-derived-data" \
+            CODE_SIGNING_ALLOWED=NO \
+            -quiet

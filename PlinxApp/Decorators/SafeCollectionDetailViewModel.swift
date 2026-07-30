@@ -16,7 +16,7 @@ final class SafeCollectionDetailViewModel {
 
     // MARK: - Private
     private let inner: CollectionDetailViewModel
-    private let policy: SafetyPolicy
+    private(set) var policy: SafetyPolicy
 
     init(inner: CollectionDetailViewModel, policy: SafetyPolicy = .ratingOnly()) {
         self.inner = inner
@@ -30,9 +30,15 @@ final class SafeCollectionDetailViewModel {
         applyFilters()
     }
 
+    func updatePolicy(_ newPolicy: SafetyPolicy) {
+        guard newPolicy != policy else { return }
+        policy = newPolicy
+        applyFilters()
+    }
+
     // MARK: - Filtering
 
     private func applyFilters() {
-        items = inner.items.filter { StrimrAdapter.isAllowed($0, policy: policy) }
+        items = inner.items.filter { PlinxContentAuthorization.isAllowed($0, policy: policy) }
     }
 }

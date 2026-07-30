@@ -7,10 +7,23 @@ struct PlinxCollectionDetailView: View {
     var onLongPressMedia: (MediaDisplayItem) -> Void = { _ in }
 
     @Environment(PlexAPIContext.self) private var plexApiContext
+    @Environment(\.safetyPolicy) private var safetyPolicy
+    @Environment(\.preferredLandscapeArtworkKind) private var preferredLandscapeArtworkKind
+    #if os(tvOS)
+    @FocusState private var focusedItemID: String?
+    #endif
 
-    private let columns = [
-        GridItem(.adaptive(minimum: 140, maximum: 180), spacing: 12)
-    ]
+    private var columns: [GridItem] {
+        #if os(tvOS)
+        if usesLandscapeCollectionGrid {
+            [GridItem(.adaptive(minimum: 320, maximum: 340), spacing: 28)]
+        } else {
+            [GridItem(.adaptive(minimum: 200, maximum: 220), spacing: 28)]
+        }
+        #else
+        [GridItem(.adaptive(minimum: 140, maximum: 180), spacing: 12)]
+        #endif
+    }
 
     var body: some View {
         Group {
@@ -40,27 +53,89 @@ struct PlinxCollectionDetailView: View {
                     }
                     LazyVGrid(columns: columns, spacing: 12) {
                         ForEach(viewModel.items, id: \.id) { item in
-                            MediaImageView(
-                                viewModel: MediaImageViewModel(
-                                    context: plexApiContext,
-                                    artworkKind: .thumb,
-                                    media: item
-                                )
-                            )
-                            .aspectRatio(2/3, contentMode: .fit)
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                            .contentShape(Rectangle())
-                            .onTapGesture { onSelectMedia(item) }
-                            .onLongPressGesture { onLongPressMedia(item) }
+                            collectionItem(item)
                         }
                     }
-                    .padding(16)
+                    .padding(collectionGridPadding)
                 }
             }
         }
         .navigationTitle(viewModel.collection.title)
+        #if os(tvOS)
+        .toolbarTitleDisplayMode(.inline)
+        #else
         .toolbarTitleDisplayMode(.inlineLarge)
+        #endif
         .toolbarBackground(.hidden, for: .navigationBar)
         .task { await viewModel.load() }
+        .onChange(of: safetyPolicy) { _, newPolicy in
+            viewModel.updatePolicy(newPolicy)
+        }
+    }
+
+    private var collectionGridPadding: CGFloat {
+        #if os(tvOS)
+        36
+        #else
+        16
+        #endif
+    }
+
+    #if os(tvOS)
+    private var usesLandscapeCollectionGrid: Bool {
+        preferredLandscapeArtworkKind != nil || viewModel.items.contains { $0.type == .clip }
+    }
+
+    private func usesLandscapeCard(for item: MediaDisplayItem) -> Bool {
+        preferredLandscapeArtworkKind != nil || item.type == .clip
+    }
+    #endif
+
+    @ViewBuilder
+    private func collectionItem(_ item: MediaDisplayItem) -> some View {
+        #if os(tvOS)
+        let isFocused = focusedItemID == item.id
+        let aspectRatio = usesLandscapeCard(for: item) ? (16.0 / 9.0) : (2.0 / 3.0)
+        Button {
+            onSelectMedia(item)
+        } label: {
+            MediaImageView(
+                viewModel: MediaImageViewModel(
+                    context: plexApiContext,
+                    artworkKind: .thumb,
+                    media: item
+                )
+            )
+            .aspectRatio(aspectRatio, contentMode: .fit)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(isFocused ? Color.accentColor.opacity(0.9) : Color.clear, lineWidth: 3)
+            )
+            .shadow(color: isFocused ? Color.accentColor.opacity(0.65) : .clear, radius: isFocused ? 22 : 0)
+            .scaleEffect(isFocused ? 1.06 : 1)
+            .animation(.easeOut(duration: 0.14), value: isFocused)
+        }
+        .buttonStyle(.plain)
+        .focused($focusedItemID, equals: item.id)
+        .plinxQuickActionLongPress {
+            onLongPressMedia(item)
+        }
+        #else
+        MediaImageView(
+            viewModel: MediaImageViewModel(
+                context: plexApiContext,
+                artworkKind: .thumb,
+                media: item
+            )
+        )
+        .aspectRatio(2 / 3, contentMode: .fit)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .contentShape(Rectangle())
+        .plinxMediaCardInteraction(
+            onTap: { onSelectMedia(item) },
+            onLongPress: { onLongPressMedia(item) }
+        )
+        #endif
     }
 }

@@ -33,7 +33,6 @@ final class SettingsManagerPlaybackTests: XCTestCase {
             "autoPlayNextEpisode": true,
             "seekBackwardSeconds": 10,
             "seekForwardSeconds": 10,
-            "player": "mpv",
             "subtitleScale": 100
           },
           "interface": {},
@@ -58,45 +57,82 @@ final class SettingsManagerPlaybackTests: XCTestCase {
         XCTAssertEqual(reloaded.playback.maxVolumePercent, 100)
     }
 
-    func test_enforceSupportedPlaybackPlayer_convertsLegacyVLCToMPV() {
+    func test_loadingOutOfRangePersistedVolumeClampsImmediately() {
         let stored = """
         {
           "playback": {
             "autoPlayNextEpisode": true,
             "seekBackwardSeconds": 10,
             "seekForwardSeconds": 10,
-            "player": "vlc",
+            "player": "mpv",
             "subtitleScale": 100,
-            "maxVolumePercent": 65,
-            "pauseWhenScreenTurnsOff": true
+            "maxVolumePercent": -20
           },
           "interface": {},
           "downloads": {}
         }
         """
         defaults.set(Data(stored.utf8), forKey: "strimr.settings")
+
+        XCTAssertEqual(SettingsManager(userDefaults: defaults).playback.maxVolumePercent, 0)
+    }
+
+    func test_disableUnsupportedExternalDiscovery_turnsOffPersistedSeerrTab() {
+        let stored = """
+        {
+          "playback": {
+            "autoPlayNextEpisode": true,
+            "seekBackwardSeconds": 10,
+            "seekForwardSeconds": 10,
+            "maxVolumePercent": 65
+          },
+          "interface": {
+            "displaySeerrDiscoverTab": true
+          },
+          "downloads": {}
+        }
+        """
+        defaults.set(Data(stored.utf8), forKey: "strimr.settings")
         let settings = SettingsManager(userDefaults: defaults)
 
-        XCTAssertEqual(settings.playback.player, .vlc)
+        XCTAssertTrue(settings.interface.displaySeerrDiscoverTab)
 
-        PlinxSettingsSanitizer.enforceSupportedPlaybackPlayer(settings)
+        PlinxSettingsSanitizer.disableUnsupportedExternalDiscovery(settings)
 
-        XCTAssertEqual(settings.playback.player, .mpv)
-
+        XCTAssertFalse(settings.interface.displaySeerrDiscoverTab)
         let reloaded = SettingsManager(userDefaults: defaults)
-        XCTAssertEqual(reloaded.playback.player, .mpv)
+        XCTAssertFalse(reloaded.interface.displaySeerrDiscoverTab)
     }
 
-    func test_enforceSupportedPlaybackPlayer_keepsMPVUnchanged() {
+    func test_disableUnsupportedExternalDiscovery_keepsDisabledSetting() {
+        let settings = SettingsManager(userDefaults: defaults)
+        settings.setDisplaySeerrDiscoverTab(false)
+
+        PlinxSettingsSanitizer.disableUnsupportedExternalDiscovery(settings)
+
+        XCTAssertFalse(settings.interface.displaySeerrDiscoverTab)
+    }
+
+    func test_plinxDefaults_disableCollectionsWhenSettingIsMissing() {
         let settings = SettingsManager(userDefaults: defaults)
 
-        XCTAssertEqual(settings.playback.player, .mpv)
+        PlinxSettingsSanitizer.applyPlinxDefaults(settings, userDefaults: defaults)
 
-        PlinxSettingsSanitizer.enforceSupportedPlaybackPlayer(settings)
-
-        XCTAssertEqual(settings.playback.player, .mpv)
+        XCTAssertFalse(settings.interface.displayCollections)
     }
 
+    func test_plinxDefaults_preservePersistedCollectionsPreference() {
+        var settings = SettingsManager(userDefaults: defaults)
+        settings.setDisplayCollections(true)
+
+        PlinxSettingsSanitizer.applyPlinxDefaults(settings, userDefaults: defaults)
+        XCTAssertTrue(settings.interface.displayCollections)
+
+        settings.setDisplayCollections(false)
+        settings = SettingsManager(userDefaults: defaults)
+        PlinxSettingsSanitizer.applyPlinxDefaults(settings, userDefaults: defaults)
+        XCTAssertFalse(settings.interface.displayCollections)
+    }
     func test_searchVisibleSectionIDs_omitHiddenLibraries() {
         let libraries = [
             Library(id: "1", title: "Movies", type: .movie, sectionId: 1),
@@ -152,9 +188,9 @@ private func makePlexSearchItem(ratingKey: String, librarySectionID: Int?) -> Pl
         directors: nil,
         writers: nil,
         roles: nil,
+        ratings: nil,
         media: nil,
         markers: nil,
-        ratings: nil,
         slug: nil,
         studio: nil,
         rating: nil,

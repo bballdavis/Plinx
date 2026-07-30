@@ -21,12 +21,15 @@ Options:
 EOF
 }
 
-cd "$(dirname "$0")/.."
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$PROJECT_ROOT"
+source "$SCRIPT_DIR/build_environment.sh"
 
 BUNDLE_ID="com.bballdavis.plinx"
 SCHEME="Plinx-iOS"
 CONFIGURATION="Release"
-ARCHIVE_PATH="./build/Plinx.xcarchive"
+ARCHIVE_PATH="$PLINX_REPO_BUILD_ROOT/Plinx.xcarchive"
 BUILD_NUMBER="${PLINX_BUILD_NUMBER:-$(date -u +%Y%m%d%H%M%S)}"
 MARKETING_VERSION_OVERRIDE="${PLINX_MARKETING_VERSION:-}"
 
@@ -69,6 +72,7 @@ echo ""
 # Generate project from XcodeGen
 echo "📋 Generating Xcode project..."
 bash ./scripts/generate_xcodeproj.sh --quiet
+bash ./scripts/verify_release_dependency_state.sh
 
 # Build archive
 echo "🏗️  Building archive..."
@@ -79,7 +83,7 @@ xcodebuild_args=(
   -configuration "$CONFIGURATION"
   -destination "generic/platform=iOS"
   -archivePath "$ARCHIVE_PATH"
-  -derivedDataPath ./build/DerivedData
+  -derivedDataPath "$PLINX_XCODE_DERIVED_DATA_PATH"
   CURRENT_PROJECT_VERSION="$BUILD_NUMBER"
   CODE_SIGN_IDENTITY="Apple Distribution"
   CODE_SIGN_STYLE="Automatic"
@@ -91,7 +95,15 @@ fi
 
 xcodebuild "${xcodebuild_args[@]}"
 
-bash ./scripts/validate_testflight_archive.sh "$ARCHIVE_PATH"
+validation_args=(
+  "$ARCHIVE_PATH"
+  --expected-build "$BUILD_NUMBER"
+  --expected-bundle-id "$BUNDLE_ID"
+)
+if [[ -n "$MARKETING_VERSION_OVERRIDE" ]]; then
+  validation_args+=(--expected-version "$MARKETING_VERSION_OVERRIDE")
+fi
+bash ./scripts/tests/validate_testflight_archive.sh "${validation_args[@]}"
 
 echo ""
 echo "✅ Archive created successfully!"

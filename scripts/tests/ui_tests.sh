@@ -1,4 +1,9 @@
 #!/bin/bash
+
+if [ -z "${BASH_VERSION:-}" ]; then
+    exec /bin/bash "$0" "$@"
+fi
+
 # ─────────────────────────────────────────────────────────────────────────────
 # ui_tests.sh — Run Plinx UI & Logic Tests
 # ─────────────────────────────────────────────────────────────────────────────
@@ -14,7 +19,7 @@
 #   ./scripts/ui_tests.sh --record     # Recording mode for snapshot baselines
 #   ./scripts/ui_tests.sh --live       # Live Plex UI smoke tests (Playwright-style)
 #
-# References: development/UI_TESTING_STRATEGY.md
+# References: docs/development/ui-testing.md
 #
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -23,6 +28,7 @@ set -o pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+source "$PROJECT_ROOT/scripts/build_environment.sh"
 
 # Ansi color codes
 GREEN='\033[0;32m'
@@ -104,7 +110,10 @@ run_core_tests() {
     echo ""
     
     cd "$PROJECT_ROOT"
-    if swift test --package-path Packages/PlinxCore 2>&1 | tee /tmp/core_test.log; then
+    if swift test \
+        --package-path Packages/PlinxCore \
+        --scratch-path "$PLINX_SWIFTPM_SCRATCH_ROOT/PlinxCore" \
+        2>&1 | tee /tmp/core_test.log; then
         CORE_RESULT="✓ PASS"
         log_success "PlinxCore tests passed"
         return 0
@@ -121,7 +130,11 @@ run_ui_tests() {
     echo ""
     
     cd "$PROJECT_ROOT"
-    if swift build --package-path Packages/PlinxUI --target PlinxUITests 2>&1 | tee /tmp/ui_test.log; then
+    if swift build \
+        --package-path Packages/PlinxUI \
+        --scratch-path "$PLINX_SWIFTPM_SCRATCH_ROOT/PlinxUI" \
+        --target PlinxUITests \
+        2>&1 | tee /tmp/ui_test.log; then
         UI_RESULT="✓ PASS"
         log_success "PlinxUI tests compiled"
         return 0
@@ -146,6 +159,7 @@ run_snapshot_tests() {
             xcodebuild test \
                 -scheme PlinxUI \
                 -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' \
+                -derivedDataPath "$PLINX_XCODE_DERIVED_DATA_PATH" \
                 -resultBundlePath "/tmp/PlinxUI_snapshots.xcresult" \
                 2>&1 | tee /tmp/snapshots.log
 
@@ -175,6 +189,7 @@ run_snapshot_tests() {
             if xcodebuild test \
                 -scheme PlinxUI \
                 -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' \
+                -derivedDataPath "$PLINX_XCODE_DERIVED_DATA_PATH" \
                 -resultBundlePath "/tmp/PlinxUI_snapshots.xcresult" \
                 2>&1 | tee /tmp/snapshots.log; then
                 grep -E "Test Suite|passed|failed" /tmp/snapshots.log || true
@@ -222,6 +237,7 @@ run_live_ui_tests() {
         -project Plinx.xcodeproj \
         -scheme Plinx-iOS \
         -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' \
+        -derivedDataPath "$PLINX_XCODE_DERIVED_DATA_PATH" \
         -resultBundlePath "/tmp/Plinx_live_ui.xcresult" \
         -only-testing:Plinx-iOS-UITests/LaunchSmokeUITests \
         -only-testing:Plinx-iOS-UITests/LiveRenderSmokeUITests \
@@ -272,7 +288,7 @@ main() {
             echo "  ./scripts/ui_tests.sh --record     # Record snapshot baselines"
             echo "  ./scripts/ui_tests.sh --live       # Live Plex UI smoke tests"
             echo ""
-            echo "See development/UI_TESTING_STRATEGY.md for details."
+            echo "See docs/development/ui-testing.md for details."
             exit 0
             ;;
         *)

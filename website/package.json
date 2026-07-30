@@ -1,0 +1,35 @@
+{
+  "name": "plinx-documentation",
+  "private": true,
+  "version": "0.1.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "prepare-content": "node scripts/prepare-content.mjs",
+    "start": "npm run prepare-content && docusaurus start",
+    "build": "npm run prepare-content && docusaurus build",
+    "serve": "docusaurus serve",
+    "clear": "docusaurus clear",
+    "branding:generate": "node ../scripts/branding/generate-assets.mjs",
+    "branding:check": "node ../scripts/branding/generate-assets.mjs --check",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test src/plugins/__tests__/*.test.mjs"
+  },
+  "dependencies": {
+    "@docusaurus/core": "3.10.2",
+    "@docusaurus/preset-classic": "3.10.2",
+    "@mdx-js/react": "3.1.1",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  },
+  "devDependencies": {
+    "@docusaurus/types": "3.10.2",
+    "@types/node": "24.10.1",
+    "@types/react": "19.2.7",
+    "@types/react-dom": "19.2.3",
+    "potrace": "^2.1.8",
+    "sharp": "^0.34.5",
+    "typescript": "5.9.3"
+  }
+}

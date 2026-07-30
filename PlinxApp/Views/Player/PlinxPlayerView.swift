@@ -16,19 +16,31 @@ struct PlinxPlayerView: View {
     let viewModel: PlayerViewModel
 
     @Environment(\.plinxTheme) private var theme
+    @Environment(\.safetyPolicy) private var safetyPolicy
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            // Strimr's proven player engine (MPVKit-backed)
-            PlayerWrapper(viewModel: viewModel)
-                .ignoresSafeArea()
+            PlinxPlayerPlaybackView(
+                viewModel: viewModel,
+                onExit: {
+                    isPresented = false
+                },
+                isPlaybackAuthorized: { item in
+                    PlinxContentAuthorization.isAllowed(item, policy: safetyPolicy)
+                }
+            )
+            .ignoresSafeArea()
 
             overlayControls
         }
+        .animation(.easeInOut(duration: 0.18), value: viewModel.isLoading)
+        .animation(.easeInOut(duration: 0.18), value: viewModel.isBuffering)
+        #if !os(tvOS)
         .statusBarHidden(true)
         .persistentSystemOverlays(.hidden)
+        #endif
     }
 
     // MARK: - Overlay controls
@@ -54,14 +66,18 @@ struct PlinxPlayerView: View {
             }
         } label: {
             ZStack {
-                Circle()
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .fill(.ultraThinMaterial)
-                    .overlay(Circle().stroke(.white.opacity(0.2), lineWidth: 1))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(Color.brandPrimary.opacity(0.42), lineWidth: 1)
+                    )
                     .frame(width: 66, height: 66)
                 Image(systemName: "xmark")
                     .font(.system(size: 20, weight: .bold))
                     .foregroundStyle(.white)
             }
+            .shadow(color: Color.brandPrimary.opacity(0.14), radius: 12, x: 0, y: 6)
         }
         .buttonStyle(.plain)
     }
@@ -82,5 +98,57 @@ struct PlinxPlayerView: View {
                     .opacity(0.85)
             }
         }
+    }
+}
+
+/// Plinx-owned presentation layer around Strimr's playback engine.
+///
+/// Strimr keeps transport and controls; Plinx owns the branded buffering
+/// presentation and disables the upstream spinner through a default-safe seam.
+struct PlinxPlayerPlaybackView: View {
+    let viewModel: PlayerViewModel
+    let onExit: () -> Void
+    let isPlaybackAuthorized: (PlexItem) -> Bool
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            #if os(tvOS)
+            PlayerTVWrapper(
+                viewModel: viewModel,
+                onExit: onExit,
+                showsBufferingOverlay: false,
+                isPlaybackAuthorized: isPlaybackAuthorized
+            )
+            #else
+            PlayerWrapper(
+                viewModel: viewModel,
+                showsBufferingOverlay: false,
+                isPlaybackAuthorized: isPlaybackAuthorized
+            )
+            .onDisappear(perform: onExit)
+            #endif
+
+            if viewModel.isLoading || viewModel.isBuffering {
+                PlinxVideoBufferingOverlay()
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.18), value: viewModel.isLoading)
+        .animation(.easeInOut(duration: 0.18), value: viewModel.isBuffering)
+    }
+}
+
+struct PlinxVideoBufferingOverlay: View {
+    var body: some View {
+        PlinxLoadingIndicator(
+            size: .regular,
+            surface: .video,
+            accessibilityLabel: "player.status.buffering",
+            accessibilityIdentifier: "player.buffering.plinx"
+        )
+        .padding(28)
+        .allowsHitTesting(false)
     }
 }

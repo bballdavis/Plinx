@@ -9,19 +9,16 @@
 //   Select the Plinx-iOS-UnitTests target in Xcode and press Cmd+U.
 //
 // Why these tests exist:
-//   A prior regression caused clip-type content (Other Videos, YouTube, personal
-//   home videos) to be hidden on the home page when the "Exclude Unrated"
-//   setting was enabled. Clip items typically carry no MPAA/TV rating, so they
-//   were caught by the unrated gate and filtered out entirely. These tests pin
-//   the behaviour: clip-type content must ALWAYS pass through, regardless of
-//   the allowUnrated flag, because personal home videos are unrated by nature
-//   — they are not "unrated adult content".
+//   Every item follows the same parent-selected rating policy. Plex clips and
+//   home videos commonly omit a rating, but that is not evidence that they are
+//   allowed. They remain hidden until the parent explicitly enables unrated
+//   content.
 //
 //   Quick-reference regression table:
 //   ┌─────────────────────────────────┬───────────────────┬────────────────┐
 //   │ Item                            │ allowUnrated=false │ allowUnrated=true│
 //   ├─────────────────────────────────┼───────────────────┼────────────────┤
-//   │ Clip, no contentRating          │ ✅ allowed (fixed) │ ✅ allowed     │
+//   │ Clip, no contentRating          │ ❌ blocked         │ ✅ allowed     │
 //   │ Movie, no contentRating         │ ❌ blocked         │ ✅ allowed     │
 //   │ Movie, contentRating="R"        │ ❌ blocked (G max)  │ ❌ blocked     │
 //   │ Movie, contentRating="G"        │ ✅ allowed         │ ✅ allowed     │
@@ -38,19 +35,19 @@ final class StrimrAdapterSafetyTests: XCTestCase {
 
     // MARK: - Policies
 
-    /// Default kid-safe policy; excludes unrated non-clip content.
+    /// Default parent-managed policy; excludes every unrated item.
     private let strictPolicy = SafetyPolicy.ratingOnly(maxMovie: .g, maxTV: .tvY, allowUnrated: false)
 
     /// Permissive policy; allows all unrated content (used for contrast).
     private let permissivePolicy = SafetyPolicy.ratingOnly(maxMovie: .g, maxTV: .tvY, allowUnrated: true)
 
-    // MARK: - Clip items: always allowed regardless of allowUnrated
+    // MARK: - Clip items follow the same unrated policy
 
-    func test_clipItem_noRating_allowedWithStrictPolicy() {
+    func test_clipItem_noRating_blockedWithStrictPolicy() {
         let item = MediaItem.fixture(type: .clip, contentRating: nil)
-        XCTAssertTrue(
+        XCTAssertFalse(
             StrimrAdapter.isAllowed(item, policy: strictPolicy),
-            "Clip items without a content rating must always pass — they are personal home videos, not unrated adult content"
+            "Missing clip metadata must fail closed when unrated content is disabled"
         )
     }
 
@@ -111,7 +108,28 @@ final class StrimrAdapterSafetyTests: XCTestCase {
         )
     }
 
-    // MARK: - Collections / playlists: always allowed
+    func test_globalTVRatingCeiling_appliesToYouTubeLikeClips() {
+        let tvY = MediaItem.fixture(id: "tv-y", type: .clip, contentRating: "TV-Y")
+        let tvPG = MediaItem.fixture(id: "tv-pg", type: .clip, contentRating: "TV-PG")
+        let raisedPolicy = SafetyPolicy.ratingOnly(
+            maxMovie: .g,
+            maxTV: .tvPg,
+            allowUnrated: false
+        )
+
+        XCTAssertTrue(PlinxContentAuthorization.isAllowed(tvY, policy: strictPolicy))
+        XCTAssertFalse(PlinxContentAuthorization.isAllowed(tvPG, policy: strictPolicy))
+        XCTAssertTrue(PlinxContentAuthorization.isAllowed(tvPG, policy: raisedPolicy))
+    }
+
+    func test_globalUnratedToggle_appliesToYouTubeLikeClips() {
+        let unrated = MediaItem.fixture(id: "unrated-youtube", type: .clip, contentRating: nil)
+
+        XCTAssertFalse(PlinxContentAuthorization.isAllowed(unrated, policy: strictPolicy))
+        XCTAssertTrue(PlinxContentAuthorization.isAllowed(unrated, policy: permissivePolicy))
+    }
+
+    // MARK: - Containers may display only after their children are filtered
 
     func test_collection_alwaysAllowed() {
         let displayItem: MediaDisplayItem = .collection(CollectionMediaItem(
@@ -132,17 +150,16 @@ final class StrimrAdapterSafetyTests: XCTestCase {
         )
     }
 
-    // MARK: - Hub-level filtering: clip hubs survive ExcludeUnrated=true
+    // MARK: - Hub-level filtering
 
-    func test_hubWithClipItems_survivesStrictFilter() throws {
+    func test_hubWithUnratedClipItems_isRemovedByStrictFilter() throws {
         let clipItem = MediaItem.fixture(type: .clip, contentRating: nil)
         let hub = Hub(id: "hub.clip.recent", title: "Other Videos", items: [.playable(clipItem)])
         let filtered = StrimrAdapter.filtered(hub, policy: strictPolicy)
-        XCTAssertNotNil(
+        XCTAssertNil(
             filtered,
-            "A hub containing only clip items must NOT be removed by the safety filter when allowUnrated=false"
+            "An unrated clip hub must be removed when the parent has not enabled unrated content"
         )
-        XCTAssertEqual(filtered?.items.count, 1, "The clip item must survive filtering")
     }
 
     func test_hubWithMovieNoRating_removedByStrictFilter() throws {
@@ -152,6 +169,32 @@ final class StrimrAdapterSafetyTests: XCTestCase {
         XCTAssertNil(
             filtered,
             "A hub containing only unrated movie items must be nil after strict safety filtering"
+        )
+    }
+
+    func test_playlistSelectionBuildsQueueOnlyFromAuthorizedEntries() {
+        let allowed = MediaItem.fixture(id: "allowed", type: .movie, contentRating: "G")
+        let blocked = MediaItem.fixture(id: "blocked", type: .movie, contentRating: "R")
+        let unrated = MediaItem.fixture(id: "unrated", type: .clip, contentRating: nil)
+        let source: [MediaDisplayItem] = [
+            .playable(blocked),
+            .playable(allowed),
+            .playable(unrated)
+        ]
+
+        let authorized = SafePlaylistPlaybackSelection.authorizedItems(
+            from: source,
+            policy: strictPolicy
+        )
+
+        XCTAssertEqual(authorized.map(\.id), ["allowed"])
+        XCTAssertEqual(
+            SafePlaylistPlaybackSelection.item(
+                from: source,
+                policy: strictPolicy,
+                shuffled: false
+            )?.id,
+            "allowed"
         )
     }
 }
@@ -179,6 +222,7 @@ private extension MediaItem {
             duration: nil,
             videoResolution: nil,
             rating: nil,
+            ratings: [],
             contentRating: contentRating,
             studio: nil,
             tagline: nil,

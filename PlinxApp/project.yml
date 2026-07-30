@@ -13,7 +13,7 @@
 #   PlinxApp (this target)
 #     ├── Strimr sources (compiled inline, internal access)
 #     ├── PlinxUI (SPM) → PlinxCore (SPM)
-#     └── MPVKit (SPM)
+#     └── AetherEngine (SPM)
 #
 # Note: Sentry (crash reporting SDK) has been removed entirely as part of the
 # zero-collection privacy commitment. Plinx provides its own no-op ErrorReporter
@@ -27,6 +27,7 @@ options:
   minimumXcodeGenVersion: 2.37.0
   deploymentTarget:
     iOS: 17.5
+    tvOS: 17.0
   postGenCommand: >-
     if [ -f ../scripts/patch_resources.py ]; then
       python3 ../scripts/patch_resources.py;
@@ -39,8 +40,9 @@ packages:
     path: ../Packages/PlinxCore
   PlinxUI:
     path: ../Packages/PlinxUI
-  MPVKit:
-    path: ../../MPVKit
+  AetherEngine:
+    url: https://github.com/wunax/AetherEngine
+    revision: d882f47811757f8ebbf44e791abf96416262b49a
 
 settings:
   base:
@@ -48,7 +50,7 @@ settings:
     # Team ID for code signing (do NOT include this in the bundle identifier)
     DEVELOPMENT_TEAM: Z8F9MLDQGX
     CURRENT_PROJECT_VERSION: 1
-    MARKETING_VERSION: 0.1.0
+    MARKETING_VERSION: 1.0
     SWIFT_OBJC_INTEROP_MODE: objcxx
     # Plinx branding — no Strimr references leak into the binary
     PRODUCT_NAME: Plinx
@@ -72,23 +74,19 @@ targets:
       - path: ../../strimr/Shared
         name: StrimrShared
         excludes:
-          # VLC player — Plinx uses MPVKit exclusively
-          - "Library/VLC/**"
-          # PlaybackLauncher has a @MainActor isolation violation that
-          # is a hard error in the Swift 6.2 compiler. Replaced by
-          # Adapters/PlinxPlaybackLauncher.swift with the fix.
-          # Upstream PR: fix `play()` actor isolation on `settingsManager.playback`
+          # Plinx replaces the generic launcher with a final fail-closed
+          # authorization boundary immediately before queue creation.
           - "Features/Player/PlaybackLauncher.swift"
-          # PlayerFactory static methods call @MainActor initializers from
-          # nonisolated context. Replaced by Adapters/PlinxPlayerFactory.swift.
-          - "Library/Player/PlayerFactory.swift"
           # MediaBackdropGradient uses Color.background which is ambiguous
           # in iOS 26 SDK (resolves to BackgroundStyle, not Color).
           # Replaced by Adapters/PlinxMediaBackdropGradient.swift.
           - "Views/Media/MediaBackdropGradient.swift"
+          # Plinx ships its own rating artwork names and renders the same
+          # upstream model through a local label adapter.
+          - "Views/Media/MediaRatingLabel.swift"
           # ErrorReporter would initialize Sentry. Plinx has zero data collection,
           # so we provide our own no-op ErrorReporter instead (App/ErrorReporter.swift).
-          # See DATA_COLLECTION_AUDIT.md for privacy rationale.
+          # See docs/security/privacy-and-safety.md for the privacy rationale.
           - "Monitoring/ErrorReporter.swift"
       - path: ../../strimr/Strimr-iOS/Features
         name: StrimrIOSFeatures
@@ -104,8 +102,14 @@ targets:
           # Strimr's MainTabView uses iOS 18+ Tab API; Plinx has its own
           # RootTabView with Liquid Glass tab bar.
           - "Tab/MainTabView.swift"
+          # Plinx owns the downloads settings surface. Keeping both files in
+          # the same module produces a duplicate Swift filename error.
+          - "Settings/SettingsDownloadsView.swift"
           # Strimr's ContentView — replaced by PlinxContentView.swift
           - "ContentView.swift"
+          # Plinx uses larger, higher-contrast primary playback controls that
+          # scale for phone, split-screen, and full-size iPad layouts.
+          - "Player/Controls/PlayerControlButtons.swift"
 
     resources:
       # Privacy manifest (required for App Store)
@@ -120,13 +124,19 @@ targets:
     dependencies:
       - package: PlinxCore
       - package: PlinxUI
-      - package: MPVKit
-        product: MPVKit-GPL
+      - package: AetherEngine
+        product: AetherEngine
 
     info:
       path: Resources/Info.plist
       properties:
         CFBundleDisplayName: Plinx
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        PlinxBuildConfiguration: $(CONFIGURATION)
+        NSLocalNetworkUsageDescription: Plinx connects to Plex Media Servers and a parent-configured Youtarr server on your local network.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
         UILaunchStoryboardName: LaunchScreen
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
@@ -217,3 +227,121 @@ targets:
         PRODUCT_NAME: PlinxUITests
         PRODUCT_BUNDLE_IDENTIFIER: com.bballdavis.plinx.uitests
         GENERATE_INFOPLIST_FILE: YES
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Apple TV target — diagnostic: surfaces what iOS-specific code needs tvOS
+# adaptation. First build may fail on Plinx-owned layers; errors are expected
+# and tracked as follow-up work.
+# ─────────────────────────────────────────────────────────────────────────────
+  Plinx-tvOS:
+    type: application
+    platform: tvOS
+
+    sources:
+      # ── Plinx application code (iOS-specific layers included for diagnostics)
+      - path: App
+        excludes:
+          - "AppDelegate.swift"
+          - "DownloadUITestFixtures.swift"
+      - path: Views
+        excludes:
+          - "Downloads/**"
+          - "Player/PlinxPlayerControlButtons.swift"
+      - path: Decorators
+      - path: Adapters
+      - path: ViewModels
+
+      # ── Strimr shared sources (same excludes as iOS target) ─────────────
+      - path: ../../strimr/Shared
+        name: StrimrShared
+        excludes:
+          - "Features/Player/PlaybackLauncher.swift"
+          - "Views/Media/MediaBackdropGradient.swift"
+          - "Views/Media/MediaRatingLabel.swift"
+          - "Monitoring/ErrorReporter.swift"
+          # tvOS ships paged focus-aware implementations with the same type
+          # names as the sequential shared iOS view models.
+          - "Features/Library/LibraryBrowseViewModel.swift"
+          - "Features/Library/LibraryCollectionsViewModel.swift"
+
+      # ── Strimr tvOS-specific UI features ────────────────────────────────
+      - path: ../../strimr/Strimr-tvOS/Features
+        name: StrimrTVOSFeatures
+        excludes:
+          # Strimr's own entry points — Plinx provides its own
+          - "../StrimrApp.swift"
+          - "../ContentView.swift"
+          # Plinx uses its own tab root; Strimr's tvOS Tab uses tvOS 18-only APIs.
+          - "Tab/**"
+          # Plinx uses its own sign-in and does not need Strimr's tvOS sign-in view.
+          - "Auth/SignInTVView.swift"
+
+      # ── Strimr tvOS shared UI components ────────────────────────────────
+      - path: ../../strimr/Strimr-tvOS/Shared
+        name: StrimrTVOSShared
+
+    resources:
+      - path: Resources/PrivacyInfo.xcprivacy
+      - path: Resources/Assets.xcassets
+      - path: ../../strimr/Localizable.xcstrings
+
+    dependencies:
+      - package: PlinxCore
+      - package: PlinxUI
+      - package: AetherEngine
+        product: AetherEngine
+
+    info:
+      path: Resources/Info-tvOS.plist
+      properties:
+        CFBundleDisplayName: Plinx
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        PlinxBuildConfiguration: $(CONFIGURATION)
+        NSLocalNetworkUsageDescription: Plinx connects to Plex Media Servers on your local network when you choose a local server connection.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+
+    settings:
+      base:
+        CODE_SIGN_STYLE: Automatic
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIconTV
+        SWIFT_VERSION: 5.0
+        SWIFT_STRICT_CONCURRENCY: minimal
+        OTHER_SWIFT_FLAGS: "-Xfrontend -strict-concurrency=minimal -Xfrontend -disable-dynamic-actor-isolation"
+
+    scheme:
+      shared: true
+      build:
+        targets:
+          Plinx-tvOS: all
+      testTargets:
+        - Plinx-tvOS-UnitTests
+      run:
+        config: Debug
+      test:
+        config: Debug
+
+  Plinx-tvOS-UnitTests:
+    type: bundle.unit-test
+    platform: tvOS
+
+    sources:
+      - path: UnitTestsTV
+
+    resources:
+      - path: UnitTestsTV/test_creds.yaml
+        optional: true
+
+    dependencies:
+      - target: Plinx-tvOS
+
+    settings:
+      base:
+        PRODUCT_NAME: PlinxTVUnitTests
+        PRODUCT_BUNDLE_IDENTIFIER: com.bballdavis.plinx.tvos.unittests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_STRICT_CONCURRENCY: minimal
+        OTHER_SWIFT_FLAGS: "-Xfrontend -strict-concurrency=minimal"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Plinx.app/Plinx"
+        BUNDLE_LOADER: "$(TEST_HOST)"

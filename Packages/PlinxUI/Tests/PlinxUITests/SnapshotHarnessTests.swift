@@ -10,7 +10,7 @@
 // FIRST RUN: set `isRecording = true` in setUp(), run once on iPhone 15
 // simulator, commit __Snapshots__/, then set back to false.
 //
-// References: development/UI_TESTING_STRATEGY.md — "Component rendering" layer
+// References: docs/development/ui-testing.md — "Component rendering" layer
 // ─────────────────────────────────────────────────────────────────────────────
 
 #if canImport(XCTest) && canImport(UIKit)
@@ -131,6 +131,74 @@ final class SnapshotHarnessTests: XCTestCase {
             of: UIHostingController(rootView: content),
             as: .image(on: .iPhoneX),
             named: "unlocked-iphone"
+        )
+    }
+
+    // MARK: - Plinx loading indicator
+
+    func test_loadingIndicator_variants_acrossDevices() {
+        let gallery = VStack(spacing: 28) {
+            HStack(alignment: .bottom, spacing: 24) {
+                PlinxLoadingIndicator(
+                    size: .compact,
+                    surface: .transparent,
+                    label: "Compact"
+                )
+                PlinxLoadingIndicator(
+                    size: .regular,
+                    surface: .glass,
+                    label: "Regular"
+                )
+            }
+
+            PlinxLoadingIndicator(
+                size: .hero,
+                surface: .video,
+                label: "Buffering…"
+            )
+        }
+        .padding(32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(red: 0.045, green: 0.07, blue: 0.055))
+        .environment(\.plinxLoadingReduceMotionOverride, true)
+
+        for device in Self.deviceMatrix {
+            assertSnapshot(
+                of: UIHostingController(rootView: gallery),
+                as: .image(on: device.config),
+                named: device.name
+            )
+        }
+    }
+
+    func test_loadingIndicator_reduceMotion_staticPerimeter() {
+        let view = PlinxLoadingIndicator(
+            size: .hero,
+            surface: .video,
+            label: "Buffering…"
+        )
+        .padding(32)
+        .background(Color.black)
+        .environment(\.plinxLoadingReduceMotionOverride, true)
+
+        assertSnapshot(
+            of: UIHostingController(rootView: view),
+            as: .image(size: CGSize(width: 390, height: 390)),
+            named: "reduce-motion"
+        )
+    }
+
+    func test_progressStyle_determinateRemainsLinear() {
+        let view = ProgressView(value: 0.45)
+            .progressViewStyle(PlinxProgressViewStyle())
+            .frame(width: 260)
+            .padding(24)
+            .background(Color.black)
+
+        assertSnapshot(
+            of: UIHostingController(rootView: view),
+            as: .image(size: CGSize(width: 320, height: 80)),
+            named: "determinate-linear"
         )
     }
 }

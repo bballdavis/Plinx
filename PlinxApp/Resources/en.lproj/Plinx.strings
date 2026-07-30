@@ -6,20 +6,34 @@
 /* App */
 "app.branding.name" = "Plinx";
 
+/* Common actions */
+"common.actions.back" = "Back";
+"common.actions.cancel" = "Cancel";
+"common.actions.close" = "Close";
+"common.actions.done" = "Done";
+"common.actions.logOut" = "Log Out";
+"common.actions.next" = "Next";
+"common.actions.ok" = "OK";
+"common.error.actionFailed" = "Action Failed";
+
 /* Parental Gate */
 "parental.gate.title" = "Parents Only";
 "parental.gate.unlock" = "Unlock";
 "parental.gate.placeholder" = "Answer";
 "parental.gate.pin.title" = "Enter PIN";
 "parental.gate.pin.wrong" = "Incorrect PIN. Try again.";
+"parental.gate.pin.lockedOut" = "Too many attempts. Try again in one minute.";
+"parental.gate.pin.accessibilityLabel" = "Parental PIN";
+"parental.gate.answer.accessibilityLabel" = "Answer to parental challenge";
 
 /* Media */
 "media.unavailable.title" = "Content Not Available";
-"media.unavailable.description" = "This title isn't available in Plinx's kid-safe mode.";
+"media.unavailable.description" = "This title is blocked by the current parent-managed content controls.";
 "media.detail.play" = "▶  Play";
 "media.detail.seasons" = "Seasons";
 "media.detail.related" = "Related";
 "media.collection.empty" = "No items are available in this collection.";
+"media.playlist.noAllowedItems" = "No playlist items are available under the current content controls.";
 
 /* Tabs */
 "tabs.home" = "Home";
@@ -37,6 +51,10 @@
 "downloads.status.queued" = "Queued";
 "downloads.status.downloading %lld" = "Downloading %lld%%";
 "downloads.status.failed" = "Download failed";
+"downloads.blockedByContentControls" = "This item is blocked by the current content controls.";
+"downloads.ownerUnavailable" = "Select a Plex profile and server before downloading.";
+"downloads.offline.unavailable.title" = "Downloaded video unavailable";
+"downloads.offline.unavailable.message" = "This download does not currently have a local file to play.";
 
 /* Home */
 "home.loading" = "Loading your shows…";
@@ -63,7 +81,134 @@
 "settings.libraries.title" = "Visible Libraries";
 "settings.libraries.description" = "Only selected libraries appear in the Plinx home and library screens.";
 "settings.libraries.noneFound" = "No libraries found.";
+"settings.libraryViews.title" = "Library Views";
+"settings.libraryViews.collectionButton" = "Collection Button";
+"settings.libraryViews.empty" = "No recommend sections available.";
+"settings.libraryViews.description" = "Toggle sections on or off and drag to reorder.";
+"settings.server.default.title" = "Default Server";
+"settings.server.loading" = "Loading Servers…";
+"settings.server.empty.title" = "No Servers Available";
+"settings.server.empty.description" = "Make sure your Plex servers are online, then try again.";
+"settings.server.choose" = "Choose Default Server";
+"settings.server.currentlyActive" = "Currently Active";
 "settings.navigation.showSearchInMainNavigation" = "Show \"Search\" in main navigation";
+
+/* Settings — Youtarr (parent-only) */
+"youtarr.settings.title" = "Youtarr";
+"youtarr.settings.connection" = "Connection";
+"youtarr.settings.baseURL" = "Server Address";
+"youtarr.settings.apiKey" = "API Key";
+"youtarr.settings.address.help" = "HTTPS is accepted anywhere. HTTP is only accepted for a local network server.";
+"youtarr.settings.additionalHeader.section" = "Additional Authentication Header";
+"youtarr.settings.additionalHeader.enabled" = "Send Additional Header";
+"youtarr.settings.additionalHeader.name" = "Header Name";
+"youtarr.settings.additionalHeader.value" = "Header Value";
+"youtarr.settings.additionalHeader.help" = "Use this only when the Youtarr server is protected by an authentication proxy.";
+"youtarr.settings.save" = "Save Connection";
+"youtarr.settings.test" = "Test Connection";
+"youtarr.settings.testing" = "Testing connection…";
+"youtarr.settings.summary" = "Connection Summary";
+"youtarr.settings.serverVersion" = "Server Version";
+"youtarr.settings.apiVersion" = "API Version";
+"youtarr.settings.role" = "Role";
+"youtarr.settings.scopes" = "Permissions";
+"youtarr.settings.catalog" = "Catalog";
+"youtarr.settings.remove" = "Remove Configuration";
+"youtarr.settings.remove.help" = "This removes the server address and securely stored API key from this device.";
+"youtarr.status.saved" = "Youtarr connection saved.";
+"youtarr.status.verified" = "Youtarr connection verified.";
+"youtarr.status.removed" = "Youtarr configuration removed.";
+"youtarr.error.invalidURL" = "Enter a valid HTTPS address or local-network HTTP address.";
+"youtarr.error.missingAPIKey" = "Enter an API key before saving this connection.";
+"youtarr.error.missingAdditionalHeader" = "Enter both the additional header name and value.";
+"youtarr.error.invalidAdditionalHeader" = "Enter a valid custom header that does not replace a header managed by Plinx.";
+"youtarr.error.credentialStore" = "Plinx could not securely save this connection.";
+"youtarr.error.unauthorized" = "Youtarr did not accept this API key.";
+"youtarr.error.notFound" = "Youtarr's external API was not found at this address.";
+"youtarr.error.rateLimited" = "Youtarr is busy. Try again in a moment.";
+"youtarr.error.serverUnavailable" = "Youtarr is temporarily unavailable.";
+"youtarr.error.networkUnavailable" = "Plinx could not reach Youtarr. Check the address and network.";
+"youtarr.error.invalidResponse" = "Youtarr sent an unexpected response.";
+"youtarr.error.unsupportedVersion" = "This Youtarr external API version is not supported by Plinx.";
+"youtarr.error.save" = "Plinx could not save this connection.";
+"youtarr.error.test" = "Plinx could not test this connection.";
+"youtarr.error.remove" = "Plinx could not remove this connection.";
+"youtarr.role.view" = "View";
+"youtarr.role.request" = "Request";
+"youtarr.role.delete" = "Delete";
+"youtarr.role.admin" = "Admin";
+"youtarr.role.unknown" = "Custom";
+"youtarr.availability.available" = "Available";
+"youtarr.availability.unavailable" = "Unavailable";
+"youtarr.settings.explore.section" = "Explore";
+"youtarr.settings.explore.enabled" = "Show Explore";
+"youtarr.settings.explore.help" = "Shows Explore on the Home screen. Plinx still checks Youtarr permissions and content ratings before showing anything.";
+"youtarr.settings.explore.configureFirst" = "Save a Youtarr connection before enabling Explore.";
+"youtarr.explore.title" = "Explore";
+"youtarr.explore.close" = "Close Explore";
+"youtarr.explore.loading" = "Loading Explore";
+"youtarr.explore.loadingVideos" = "Loading Videos";
+"youtarr.explore.loadingMore" = "Loading more";
+"youtarr.explore.searchChannels" = "Search channels";
+"youtarr.explore.searchVideos" = "Search videos";
+"youtarr.explore.newToExplore" = "New to Explore";
+"youtarr.explore.browseChannels" = "Browse Channels";
+"youtarr.explore.allVideos" = "All Videos";
+"youtarr.explore.unavailable" = "Explore Isn’t Available";
+"youtarr.explore.unavailable.help" = "This Youtarr key does not have catalog access. A parent can review the connection settings.";
+"youtarr.explore.error" = "Explore Couldn’t Load";
+"youtarr.explore.retry" = "Try Again";
+"youtarr.explore.emptyChannels" = "No Channels Found";
+"youtarr.explore.emptyChannels.help" = "Try another search or ask a parent to approve channels in Youtarr.";
+"youtarr.explore.emptyVideos" = "No Videos Found";
+"youtarr.explore.emptyVideos.help" = "No videos are available to this connection. A parent can check the Youtarr key’s channel access and rating rules.";
+"youtarr.explore.filteredVideos" = "Nothing Matches This Profile";
+"youtarr.explore.filteredVideos.help" = "Youtarr has videos, but their ratings are above this profile’s limit. A parent can review channel ratings or the profile’s rating settings.";
+"youtarr.explore.partialCatalog" = "Youtarr is still indexing this channel. More videos may appear later.";
+"youtarr.explore.videos" = "videos";
+"youtarr.details.title" = "Video Details";
+"youtarr.details.loading" = "Loading complete video information…";
+"youtarr.details.error" = "Video details are unavailable";
+"youtarr.details.views" = "views";
+"youtarr.details.likes" = "likes";
+"youtarr.details.description" = "Description";
+"youtarr.details.videoInformation" = "Video Information";
+"youtarr.details.category" = "Category";
+"youtarr.details.availability" = "Availability";
+"youtarr.details.language" = "Language";
+"youtarr.details.resolution" = "Resolution";
+"youtarr.details.frameRate" = "Frame rate";
+"youtarr.details.availableResolutions" = "Available quality";
+"youtarr.details.channelFollowers" = "Channel followers";
+"youtarr.details.tags" = "Tags";
+"common.close" = "Close";
+"youtarr.explore.downloaded" = "Downloaded";
+"youtarr.explore.requested" = "Requested";
+"youtarr.explore.rating.level" = "Rating level";
+"youtarr.request.action" = "Request";
+"youtarr.request.submitting" = "Sending request";
+"youtarr.request.retry" = "Try Request Again";
+"youtarr.request.failed" = "The request couldn’t be completed.";
+"youtarr.requests.title" = "My Requests";
+"youtarr.requests.loading" = "Loading Requests";
+"youtarr.requests.error" = "Requests Couldn’t Load";
+"youtarr.requests.empty" = "No Requests Yet";
+"youtarr.requests.empty.help" = "Videos you request from Explore will appear here.";
+"youtarr.requests.video" = "Video request";
+"youtarr.requests.search" = "Search requests";
+"youtarr.requests.filter.recent" = "Recent";
+"youtarr.requests.filter.outstanding" = "Outstanding";
+"youtarr.requests.filter.all" = "All";
+"youtarr.requests.noMatches" = "No Matching Requests";
+"youtarr.requests.noMatches.help" = "Try another search or request filter.";
+"youtarr.requests.requested" = "Requested";
+"youtarr.requests.status.pending" = "Waiting for approval";
+"youtarr.requests.status.approved" = "Approved";
+"youtarr.requests.status.processing" = "Preparing";
+"youtarr.requests.status.completed" = "Ready";
+"youtarr.requests.status.rejected" = "Not approved";
+"youtarr.requests.status.failed" = "Couldn’t complete";
+"youtarr.requests.status.cancelled" = "Cancelled";
 
 /* Settings — Home Screen */
 "settings.homescreen.title" = "Home Screen";
@@ -85,10 +230,19 @@
 "settings.appearance.buttons.small" = "Small";
 "settings.appearance.buttons.medium" = "Medium";
 "settings.appearance.buttons.large" = "Large";
+"settings.appearance.buttons.adjust" = "Adjust button size";
+"settings.appearance.banners.refresh" = "Refresh library banners on every tab visit";
+"settings.appearance.banners.thumbnails" = "Library banner thumbnails";
+"settings.appearance.banners.adjust" = "Adjust banner thumbnails";
+"settings.appearance.banners.description" = "When refresh is off, banner art loads once per app launch. iPhone supports up to 3 thumbnails; iPad supports up to 5.";
 "settings.accent.section" = "Appearance";
 "settings.accent.title" = "Accent Color";
 "settings.accent.description" = "Choose the highlight color used throughout Plinx.";
 "settings.downloads.title" = "Downloads";
+"settings.downloads.quality" = "Download Quality";
+"settings.downloads.quality.description" = "Applies to future downloads. Original keeps the source file when possible; other options request a server-side transcode before saving offline.";
+"settings.downloads.wifiOnly" = "Download on Wi-Fi Only";
+"settings.downloads.wifiOnly.footer" = "When enabled, new downloads wait for a Wi-Fi connection.";
 
 /* Settings — Playback */
 "settings.playback.section" = "Playback";
@@ -102,13 +256,39 @@
 "settings.safety.movie.rating.title" = "Max Movie Rating";
 "settings.safety.tv.rating.title" = "Max TV Rating";
 "settings.safety.audio.section" = "Audio Safety";
-"settings.safety.maxVolume.title" = "Max Volume";
-"settings.safety.maxVolume.description" = "Limits playback volume for videos started in Plinx. The default cap is 70%.";
+"settings.safety.maxVolume.title" = "Maximum Playback Level";
+"settings.safety.maxVolume.description" = "Limits Plinx player output only. It does not limit device, headphone, AirPlay, receiver, or television volume. The default is 70%.";
+"settings.safety.maxVolume.adjust" = "Adjust playback level";
+"settings.safety.maxVolume.decrease" = "Decrease maximum playback level";
+"settings.safety.maxVolume.increase" = "Increase maximum playback level";
 "settings.safety.touchlock.title" = "Baby Lock";
 "settings.safety.touchlock.section" = "Touch Protection";
 "settings.safety.touchlock.description" = "When enabled, all touches are blocked until a triple-tap is detected.";
 "settings.safety.excludeUnrated.title" = "Exclude Unrated Content";
 "settings.safety.excludeUnrated.description" = "When enabled, content without a recognized rating will be hidden.";
+
+/* Settings — Parental PIN */
+"settings.parentalPIN.title" = "Set Parental PIN";
+"settings.parentalPIN.navigationTitle" = "Set PIN";
+"settings.parentalPIN.isSet" = "PIN is set";
+"settings.parentalPIN.remove" = "Remove PIN";
+"settings.parentalPIN.current" = "Current PIN";
+"settings.parentalPIN.digits" = "4–6 digits";
+"settings.parentalPIN.save" = "Save PIN";
+"settings.parentalPIN.change" = "Change PIN";
+"settings.parentalPIN.set" = "Set a PIN";
+"settings.parentalPIN.footer" = "Enter 4–6 digits. The current PIN is required before changing or removing it.";
+"settings.parentalPIN.enterCurrent" = "Enter current PIN";
+"settings.parentalPIN.enterNew" = "Enter new PIN";
+"settings.parentalPIN.confirmNew" = "Confirm new PIN";
+"settings.parentalPIN.error.currentRequired" = "Current PIN is required.";
+"settings.parentalPIN.error.invalidFormat" = "PIN must be 4–6 digits.";
+"settings.parentalPIN.error.mismatch" = "PINs do not match or the current PIN was incorrect.";
+
+/* Accessibility */
+"accessibility.chromeButton.hint" = "Activates this control.";
+"accessibility.chromeButton.action" = "Action";
+"common.actions.clear" = "Clear";
 
 /* Media Labels */
 "media.labels.countEpisode %lld" = "%lld Episodes";
@@ -124,7 +304,20 @@
 "settings.about.title" = "Legal & Open Source";
 "settings.about.strimr" = "Strimr Main Repository (GPL-3.0)";
 "settings.about.plinx" = "Plinx Main Repository (GPL-3.0)";
+"settings.about.privacy" = "Privacy Policy";
+"settings.about.support" = "Support";
 "settings.about.description" = "Plinx and Strimr are licensed under GPL-3.0. Source code and license text are available at the links above. This software is provided without any warranty.";
 
 /* Player */
 "player.vlc.missing" = "VLC Player Engine not installed in this build.";
+"player.settings.previewUnavailable" = "Player settings preview unavailable on tvOS";
+"playback.blockedByContentControls" = "Playback was blocked by the current parent-managed content controls.";
+"playback.unavailable" = "This item could not be prepared for playback.";
+
+/* Authentication */
+"auth.signIn.qr.instructions" = "Scan this QR code with your phone to sign in to Plex.";
+"auth.signIn.waiting" = "Waiting for Plex";
+"auth.signIn.refreshCode" = "Refresh Code";
+"signIn.grownUpStep" = "Grown-up step";
+"signIn.portal.title" = "Connect your Plex library";
+"signIn.portal.subtitle" = "You’ll choose a kid profile next.";

@@ -1,8 +1,6 @@
-# Local-only (never commit)
-.local_dev/
+# Local-only
 .vscode/
 .venv/
-AGENTS.md
 
 # Xcode / Swift
 .DS_Store
@@ -31,6 +29,10 @@ test_creds.yaml
 
 # Build outputs
 build/
+website/build/
+website/.docusaurus/
+website/.generated/
+website/node_modules/
 
 # Fastlane
 fastlane/report.xml

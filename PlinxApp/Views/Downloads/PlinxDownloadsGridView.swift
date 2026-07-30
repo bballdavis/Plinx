@@ -15,11 +15,27 @@ private typealias PlatformImage = NSImage
 struct PlinxDownloadsGridView: View {
     @Environment(DownloadManager.self) private var downloadManager
     @Environment(PlexAPIContext.self) private var context
+    @Environment(SessionManager.self) private var sessionManager
+    @Environment(ParentalAccessCoordinator.self) private var parentalAccessCoordinator
+    @Environment(DownloadOwnershipStore.self) private var downloadOwnershipStore
+    @Environment(\.safetyPolicy) private var safetyPolicy
     @EnvironmentObject private var mainCoordinator: MainCoordinator
     @State private var selectedDownload: DownloadItem?
     @State private var showManage = false
     @State private var layoutMode: LayoutMode = .grid
     @State private var viewportSize: CGSize = .zero
+
+    private var accessPolicy: DownloadAccessPolicy {
+        DownloadAccessPolicy(
+            safetyPolicy: safetyPolicy,
+            currentIdentity: sessionManager.plinxDownloadOwnerIdentity,
+            ownershipStore: downloadOwnershipStore
+        )
+    }
+
+    private var visibleDownloads: [DownloadItem] {
+        accessPolicy.filter(downloadManager.sortedItems)
+    }
 
     private enum LayoutMode {
         case grid
@@ -35,7 +51,13 @@ struct PlinxDownloadsGridView: View {
         }
     }
 
-    private let gridSpacing: CGFloat = 10
+    private var gridSpacing: CGFloat {
+        #if os(tvOS)
+        18
+        #else
+        10
+        #endif
+    }
 
     private struct GridPosterLayout {
         let posterSize: CGSize
@@ -45,18 +67,43 @@ struct PlinxDownloadsGridView: View {
     }
 
     private var gridPosterHeight: CGFloat {
+        #if os(tvOS)
+        isPortraitViewport ? 295 : 270
+        #else
         isPortraitViewport ? 235 : 220
+        #endif
     }
 
-    private let gridTextHeight: CGFloat = 74
-    private let gridRowSpacing: CGFloat = 18
+    private var gridTextHeight: CGFloat {
+        #if os(tvOS)
+        92
+        #else
+        74
+        #endif
+    }
+
+    private var gridRowSpacing: CGFloat {
+        #if os(tvOS)
+        26
+        #else
+        18
+        #endif
+    }
 
     private var gridMinCardWidth: CGFloat {
+        #if os(tvOS)
+        isPortraitViewport ? 180 : 210
+        #else
         isPortraitViewport ? 132 : 148
+        #endif
     }
 
     private var gridMaxCardWidth: CGFloat {
+        #if os(tvOS)
+        isPortraitViewport ? 280 : 360
+        #else
         isPortraitViewport ? 220 : 300
+        #endif
     }
 
     private var gridCardHeight: CGFloat {
@@ -71,12 +118,12 @@ struct PlinxDownloadsGridView: View {
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
-                if downloadManager.sortedItems.isEmpty {
+                if visibleDownloads.isEmpty {
                     emptyState
                 } else {
                     if layoutMode == .grid {
                         DownloadsAdaptiveFlowLayout(itemSpacing: gridSpacing, rowSpacing: gridRowSpacing) {
-                            ForEach(downloadManager.sortedItems) { item in
+                            ForEach(visibleDownloads) { item in
                                 gridCell(item)
                             }
                         }
@@ -86,7 +133,7 @@ struct PlinxDownloadsGridView: View {
                         .padding(.bottom, 120)
                     } else {
                         LazyVStack(spacing: 8) {
-                            ForEach(downloadManager.sortedItems) { item in
+                            ForEach(visibleDownloads) { item in
                                 listRow(item)
                             }
                         }
@@ -111,19 +158,31 @@ struct PlinxDownloadsGridView: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             titleRow
         }
-        .navigationDestination(isPresented: $showManage) {
-            PlinxDownloadsManageView()
+        .sheet(isPresented: $showManage) {
+            Group {
+                if parentalAccessCoordinator.isUnlocked {
+                    PlinxDownloadsManageView()
+                } else {
+                    ParentalGateView(onAllowed: {})
+                }
+            }
+        }
+        .onChange(of: showManage) { _, isPresented in
+            if !isPresented {
+                parentalAccessCoordinator.lock()
+            }
         }
         .fullScreenCover(item: $selectedDownload) { item in
             OfflineDownloadPlayerView(item: item)
         }
         .task(id: artworkReconciliationID) {
+            downloadOwnershipStore.prune(keeping: Set(downloadManager.items.map(\.id)))
             await downloadManager.reconcileArtworkMetadataIfNeeded(context: context)
         }
     }
 
     private var artworkReconciliationID: String {
-        return downloadManager.sortedItems
+        return visibleDownloads
             .map { item in
                 "\(item.id):\(item.metadata.artworkLayoutStyle?.rawValue ?? "unknown")"
             }
@@ -150,7 +209,8 @@ struct PlinxDownloadsGridView: View {
                     }
 
                     chromeButton(systemImage: "pencil") {
-                    showManage = true
+                        parentalAccessCoordinator.lock()
+                        showManage = true
                     }
                 }
             }
@@ -211,7 +271,7 @@ struct PlinxDownloadsGridView: View {
         cardWidth: CGFloat
     ) -> some View {
         return Button {
-            guard item.isPlayable else { return }
+            guard item.isPlayable, accessPolicy.decision(for: item) == .allowed else { return }
             selectedDownload = item
         } label: {
             // Always use gridPosterHeight so text labels align across mixed portrait/landscape rows.
@@ -236,7 +296,7 @@ struct PlinxDownloadsGridView: View {
         let posterSize = isPortrait ? CGSize(width: 45, height: 68) : CGSize(width: 78, height: 44)
 
         return Button {
-            guard item.isPlayable else { return }
+            guard item.isPlayable, accessPolicy.decision(for: item) == .allowed else { return }
             selectedDownload = item
         } label: {
             HStack(alignment: .center, spacing: 12) {
@@ -496,7 +556,44 @@ struct PlinxDownloadsManageView: View {
     @Environment(DownloadManager.self) private var downloadManager
 
     var body: some View {
-        DownloadsView()
+        List {
+            if downloadManager.sortedItems.isEmpty {
+                Text("downloads.empty.message", tableName: "Plinx")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(downloadManager.sortedItems) { item in
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(item.metadata.title)
+                                .font(.headline)
+                                .lineLimit(2)
+
+                            Text(item.status.rawValue.capitalized)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer()
+
+                        if item.status == .downloading || item.status == .queued {
+                            ProgressView(value: item.progress)
+                                .frame(width: 90)
+                        }
+
+                        Button(role: .destructive) {
+                            Task { await downloadManager.delete(item) }
+                        } label: {
+                            Image(systemName: "trash")
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+        }
+        #if os(tvOS)
+        .listStyle(.plain)
+        #endif
             .safeAreaInset(edge: .top, spacing: 0) {
                 manageHeader
             }

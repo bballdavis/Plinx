@@ -1,9 +1,8 @@
 <h1>
-  <img src="assets/branding/logo_color.png" alt="Plinx logo" height="1em" style="vertical-align:middle;"/>
-  Plinx
+  <img src="assets/branding/plinx-lockup-on-light.svg" alt="Plinx" height="46"/>
 </h1>
 
-A safe, playful Plex client designed specifically for kids. Browse, search, and watch your family's media library on your own, with built-in parental controls to keep age-appropriate content front and center.
+A playful, parent-managed Plex client for family media. Browse, search, and watch a parent-selected library with configurable rating ceilings, library visibility, and offline access.
 
  <a href="https://apps.apple.com/app/idYOUR_APP_ID"><img src="assets/branding/app-store-badge.svg" alt="Download on the App Store" width="140"/></a> (coming soon)
 
@@ -12,11 +11,11 @@ A safe, playful Plex client designed specifically for kids. Browse, search, and 
 ## What Makes Plinx Different
 
 **Safety First**
-- Content is automatically filtered by age-appropriate ratings (G through PG for movies, TV-Y through TV-PG for shows)
+- Content defaults to G for movies and TV-Y for shows; parents can raise either ceiling to any supported rating
 - Parents control settings access via a math challenge or PIN
 - No external links, no social features, no data collection
 
-**Easy for Kids**
+**Simple Family Interface**
 - Large buttons and responsive touch targets
 - Clean interface with a floating tab bar
 - Continue Watching picks up where you left off
@@ -145,15 +144,21 @@ All content is filtered before display using configurable content ratings. Setti
 
 ## Built on Strimr
 
-Plinx is built on the open-source [Strimr](https://github.com/wunax/strimr) Plex client, which provides core features like playback, downloads, and library browsing. We've added a kid-safe interface with parental controls, clip/video library support, and download quality options.
+Plinx is built on the open-source [Strimr](https://github.com/wunax/strimr) Plex client, which provides core features like playback, downloads, and library browsing. Plinx adds a parent-managed interface, content controls, clip/video library support, and download quality options.
 
 ---
 
 ## For Developers
 
-Want to build, contribute, or run Plinx locally? See [development/SETUP.md](development/SETUP.md) for setup instructions.
+Want to build, contribute, or run Plinx locally? Start with [docs/development/setup.md](docs/development/setup.md) and use [docs/README.md](docs/README.md) as the engineering index.
 
 The app is open source under GPL-3.0. See [LICENSE](LICENSE) for details.
+
+## Documentation
+
+The full user, parent, contributor, architecture, and maintenance guide is
+published at [bballdavis.github.io/Plinx](https://bballdavis.github.io/Plinx/)
+whenever changes are merged to `main`.
 
 ---
 

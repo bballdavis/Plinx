@@ -1,73 +1,86 @@
 import SwiftUI
 import PlinxUI
 
-/// The green gradient matching the Icon Composer `icon.json` fill used across
-/// all full-screen branded surfaces (splash, parental gate, etc.).
-extension LinearGradient {
-    static var plinxBrandGreen: LinearGradient {
-        LinearGradient(
-            colors: [
-                Color(red: 0.619, green: 0.933, blue: 0.450),
-                Color(red: 0.225, green: 0.620, blue: 0.570)
-            ],
-            startPoint: .top,
-            endPoint: UnitPoint(x: 0.5, y: 0.7)
-        )
-    }
+enum PlinxBrandedLoadingContext: Sendable {
+    /// A full-screen transition between launch, session hydration, and the
+    /// first home load. Every call site intentionally shares one composition.
+    case appTransition
+    /// A contextual wait inside an already-established screen or navigation
+    /// hierarchy. These states stay branded without repeating the full logo.
+    case content
 }
 
 struct PlinxBrandedLoadingView: View {
-    @Environment(\.plinxTheme) private var theme
-
+    var context: PlinxBrandedLoadingContext
     var titleKey: LocalizedStringKey?
-    var preferredLogoAssetName: String
-    var logoAccessibilityIdentifier: String
-    var showsProgressView: Bool
-    /// When true the view fills the screen with the brand green gradient
-    /// background. Use for full-screen splash/loading contexts.
-    var fillsBackground: Bool
 
     init(
-        titleKey: LocalizedStringKey? = nil,
-        preferredLogoAssetName: String = "LogoFullColor",
-        logoAccessibilityIdentifier: String = "branding.logo",
-        showsProgressView: Bool = true,
-        fillsBackground: Bool = false
+        context: PlinxBrandedLoadingContext = .content,
+        titleKey: LocalizedStringKey? = nil
     ) {
+        self.context = context
         self.titleKey = titleKey
-        self.preferredLogoAssetName = preferredLogoAssetName
-        self.logoAccessibilityIdentifier = logoAccessibilityIdentifier
-        self.showsProgressView = showsProgressView
-        self.fillsBackground = fillsBackground
     }
 
     var body: some View {
-        VStack(spacing: 18) {
-            PlinxBrandLogoView(
-                preferredAssetName: preferredLogoAssetName,
-                accessibilityIdentifier: logoAccessibilityIdentifier,
-                maxWidth: 240
-            )
+        switch context {
+        case .appTransition:
+            heroIdentityContent
+                .padding(24)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background {
+                    PlinxAmbientBackground(intensity: .hero)
+                }
+        case .content:
+            contentLoading
+                .padding(24)
+        }
+    }
 
-            if showsProgressView {
-                ProgressView()
-                    .controlSize(.regular)
-                    .tint(theme.palette.primary)
-            }
+    private var contentLoading: some View {
+        VStack(spacing: 18) {
+            PlinxLoadingIndicator(
+                size: .regular,
+                surface: .glass,
+                accessibilityIdentifier: "plinx.loading.content"
+            )
 
             if let titleKey {
                 Text(titleKey)
                     .font(.subheadline)
-                    .foregroundStyle(fillsBackground ? Color(red: 0.1, green: 0.2, blue: 0.15) : .secondary)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
             }
         }
-        .padding(24)
-        .frame(maxWidth: fillsBackground ? .infinity : nil,
-               maxHeight: fillsBackground ? .infinity : nil)
-        .background {
-            if fillsBackground {
-                LinearGradient.plinxBrandGreen.ignoresSafeArea()
-            }
+    }
+
+    private var heroIdentityContent: some View {
+        VStack(spacing: 24) {
+            PlinxLoadingIndicator(
+                size: .hero,
+                surface: .glass,
+                accessibilityLabel: "Loading",
+                accessibilityIdentifier: "plinx.loading.heroBeacon"
+            )
+
+            PlinxBrandLogoView(
+                asset: .wordmarkWhite,
+                accessibilityIdentifier: "plinx.loading.wordmark",
+                maxWidth: heroWordmarkWidth
+            )
+            .accessibilityHidden(true)
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Loading")
+        .accessibilityValue(PlinxBrandingSemantics.heroLoadingStyleValue)
+        .accessibilityIdentifier("plinx.loading.branded")
+    }
+
+    private var heroWordmarkWidth: CGFloat {
+        #if os(tvOS)
+        260
+        #else
+        180
+        #endif
     }
 }

@@ -7,28 +7,36 @@ struct DefaultServerSettingsView: View {
     var body: some View {
         List {
             if viewModel.isLoading, viewModel.servers.isEmpty {
-                ProgressView("Loading Servers...")
+                ProgressView(
+                    String(localized: "settings.server.loading", table: "Plinx")
+                )
                     .frame(maxWidth: .infinity, alignment: .center)
                     .listRowBackground(Color.clear)
             } else if viewModel.servers.isEmpty {
                 ContentUnavailableView(
-                    "No Servers Available",
+                    String(localized: "settings.server.empty.title", table: "Plinx"),
                     systemImage: "server.rack",
-                    description: Text("Make sure your Plex servers are online, then try again.")
+                    description: Text("settings.server.empty.description", tableName: "Plinx")
                 )
                 .listRowBackground(Color.clear)
             } else {
-                Section("Choose Default Server") {
+                Section(
+                    String(localized: "settings.server.choose", table: "Plinx")
+                ) {
                     ForEach(viewModel.servers, id: \.clientIdentifier) { server in
                         serverOptionRow(server)
                     }
                 }
             }
         }
-        .navigationTitle("Default Server")
+        .navigationTitle(Text("settings.server.default.title", tableName: "Plinx"))
+        #if os(tvOS)
+        .listStyle(.plain)
+        #else
         .navigationBarTitleDisplayMode(.large)
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
+        #endif
         .background(Color.appBackground.ignoresSafeArea())
         .tint(.accentColor)
         .task {
@@ -54,7 +62,7 @@ struct DefaultServerSettingsView: View {
                         .foregroundStyle(.primary)
 
                     if isCurrent {
-                        Text("Currently Active")
+                        Text("settings.server.currentlyActive", tableName: "Plinx")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

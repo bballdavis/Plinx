@@ -14,10 +14,14 @@ struct LibraryViewsSettingsView: View {
                         set: { settingsManager.setDisplayCollections($0) }
                     )
                 ) {
-                    Label("Collection Button", systemImage: "rectangle.stack.fill")
+                    Label {
+                        Text("settings.libraryViews.collectionButton", tableName: "Plinx")
+                    } icon: {
+                        Image(systemName: "rectangle.stack.fill")
+                    }
                 }
             } header: {
-                Text("Library Views")
+                Text("settings.libraryViews.title", tableName: "Plinx")
             }
 
             Section("Libraries") {
@@ -30,10 +34,14 @@ struct LibraryViewsSettingsView: View {
                 }
             }
         }
-        .navigationTitle("Library Views")
+        .navigationTitle(Text("settings.libraryViews.title", tableName: "Plinx"))
+        #if os(tvOS)
+        .listStyle(.plain)
+        #else
         .navigationBarTitleDisplayMode(.large)
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
+        #endif
         .background(Color.appBackground.ignoresSafeArea())
         .task {
             if libraryStore.libraries.isEmpty {
@@ -80,7 +88,7 @@ private struct LibraryViewSectionsConfigurationView: View {
                 }
             } else if sections.isEmpty {
                 Section {
-                    Text("No recommend sections available.")
+                    Text("settings.libraryViews.empty", tableName: "Plinx")
                         .foregroundStyle(.secondary)
                 }
             } else {
@@ -99,15 +107,19 @@ private struct LibraryViewSectionsConfigurationView: View {
                     }
                     .onMove(perform: moveSections)
                 } footer: {
-                    Text("Toggle sections on/off and drag to reorder.")
+                    Text("settings.libraryViews.description", tableName: "Plinx")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
         }
         .navigationTitle(library.title)
+        #if os(tvOS)
+        .listStyle(.plain)
+        #else
         .navigationBarTitleDisplayMode(.inline)
         .listStyle(.insetGrouped)
+        #endif
         .environment(\.editMode, .constant(.active))
         .task {
             await loadSections()
@@ -139,7 +151,7 @@ private struct LibraryViewSectionsConfigurationView: View {
             let response = try await hubRepository.getSectionHubs(sectionId: sectionId)
             let filteredHubs = (response.mediaContainer.hub ?? [])
                 .map(Hub.init)
-                .compactMap { StrimrAdapter.filtered($0, policy: safetyPolicy) }
+                .compactMap { PlinxContentAuthorization.filtered($0, policy: safetyPolicy) }
 
             var seen = Set<String>()
             let availableSections = filteredHubs.compactMap { hub -> RecommendSection? in

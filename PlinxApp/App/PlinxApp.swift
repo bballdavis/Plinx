@@ -38,7 +38,10 @@ import UIKit
 
 @main
 struct PlinxApp: App {
+    @Environment(\.scenePhase) private var scenePhase
+    #if !os(tvOS)
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate: AppDelegate
+    #endif
 
     // ── Strimr Services (upstream, unmodified) ──────────────────────────
     @State private var plexApiContext: PlexAPIContext
@@ -47,27 +50,27 @@ struct PlinxApp: App {
     @State private var libraryStore: LibraryStore
     @StateObject private var mainCoordinator = MainCoordinator()
 
-    //── Strimr Watch-Together (inactive in Plinx; required by PlayerView's @Environment) ──
-    // PlayerView reads @Environment(WatchTogetherViewModel.self). If the value
-    // is absent the app crashes the first time a video is opened on iPad.
-    // We inject a default idle instance so the feature is present but dormant.
-    @State private var watchTogetherViewModel: WatchTogetherViewModel
+    // SharePlay remains available to the playback stack for dependency
+    // compatibility, while its initiation controls are hidden in kid-facing UI.
+    @State private var sharePlayCoordinator: SharePlayCoordinator
 
     //── Strimr DownloadManager (required by MediaDetailHeaderSection's @Environment) ──
     // MediaDetailHeaderSection reads @Environment(DownloadManager.self). Without this
     // injection the app crashes with an assertion failure when navigating to media detail.
     @State private var downloadManager: DownloadManager
+    @State private var parentalAccessCoordinator: ParentalAccessCoordinator
+    @State private var downloadOwnershipStore: DownloadOwnershipStore
 
     // ── Plinx Safety Layer ──────────────────────────────────────────────
-    @AppStorage("plinx.maxMovieRating") private var maxMovieRatingRaw = PlinxRating.pg.rawValue
-    @AppStorage("plinx.maxTVRating") private var maxTVRatingRaw = PlinxRating.tvPg.rawValue
+    @AppStorage("plinx.maxMovieRating") private var maxMovieRatingRaw = PlinxRating.g.rawValue
+    @AppStorage("plinx.maxTVRating") private var maxTVRatingRaw = PlinxRating.tvY.rawValue
     /// Default is `true` for kid safety: unrated items are hidden unless a
     /// parent explicitly turns this off.
     @AppStorage("plinx.excludeUnrated") private var excludeUnrated = true
 
     private var safetyPolicy: SafetyPolicy {
-        let movieRating = PlinxRating.from(contentRating: maxMovieRatingRaw) ?? .pg
-        let tvRating = PlinxRating.from(contentRating: maxTVRatingRaw) ?? .tvPg
+        let movieRating = PlinxRating.from(contentRating: maxMovieRatingRaw) ?? .g
+        let tvRating = PlinxRating.from(contentRating: maxTVRatingRaw) ?? .tvY
         return SafetyPolicy.ratingOnly(maxMovie: movieRating, maxTV: tvRating, allowUnrated: !excludeUnrated)
     }
 
@@ -92,35 +95,41 @@ struct PlinxApp: App {
     init() {
         let processEnvironment = ProcessInfo.processInfo.environment
         LivePlexUITestBootstrap.primeCredentialsIfNeeded(environment: processEnvironment)
+        YoutarrLiveTestBootstrap.seedSavedConfigurationIfNeeded(
+            environment: processEnvironment
+        )
 
         // Layer 1: Strimr infrastructure (no Plinx knowledge)
         let context = PlexAPIContext()
         let store = LibraryStore(context: context)
         let settings = SettingsManager()
-        PlinxSettingsSanitizer.enforceSupportedPlaybackPlayer(settings)
+        PlinxSettingsSanitizer.applyPlinxDefaults(settings)
+        PlinxSettingsSanitizer.disableUnsupportedExternalDiscovery(settings)
         let session = SessionManager(context: context, libraryStore: store)
         _plexApiContext = State(initialValue: context)
         _sessionManager = State(initialValue: session)
         _settingsManager = State(initialValue: settings)
         _libraryStore = State(initialValue: store)
 
-        // WatchTogether: inject an idle instance so PlayerView's @Environment lookup
-        // succeeds on iPad. Plinx does not actively use Watch Together.
-        _watchTogetherViewModel = State(initialValue: WatchTogetherViewModel(
+        _sharePlayCoordinator = State(initialValue: SharePlayCoordinator(
             sessionManager: session,
-            context: context
+            context: context,
         ))
 
         // DownloadManager: inject so MediaDetailHeaderSection's @Environment(DownloadManager.self)
         // resolves. Plinx supports downloads as a passthrough from Strimr.
-        DownloadUITestFixtures.seedIfNeeded(environment: processEnvironment)
         let downloads = DownloadManager(settingsManager: settings)
+        #if !os(tvOS)
+        DownloadUITestFixtures.seedIfNeeded(environment: processEnvironment)
+        #endif
         LivePlexUITestBootstrap.bootstrapIfNeeded(
             environment: processEnvironment,
             sessionManager: session,
             context: context
         )
         _downloadManager = State(initialValue: downloads)
+        _parentalAccessCoordinator = State(initialValue: ParentalAccessCoordinator())
+        _downloadOwnershipStore = State(initialValue: DownloadOwnershipStore())
 
         // Layer 2: Plinx safety + theming are initialized via property defaults.
         // The ViewFactory is created in `body` since it needs the live state refs.
@@ -137,8 +146,11 @@ struct PlinxApp: App {
                 .environment(settingsManager)
                 .environment(libraryStore)
                 .environmentObject(mainCoordinator)
-                .environment(watchTogetherViewModel)
+                .environment(sharePlayCoordinator)
                 .environment(downloadManager)
+                .environment(parentalAccessCoordinator)
+                .environment(downloadOwnershipStore)
+                .environment(\.sharePlayPresentationPolicy, .hidden)
                 // ── Plinx layer injection ───────────────────────────
                 .environment(\.plinxTheme, theme)
                 .environment(\.safetyPolicy, safetyPolicy)
@@ -146,19 +158,33 @@ struct PlinxApp: App {
                 .environmentObject(playbackCoordinator)
                 // ── Global configuration ────────────────────────────
                 .preferredColorScheme(.dark)
+                .fontDesign(.rounded)
                 .tint(accentColor)
+                .progressViewStyle(PlinxProgressViewStyle())
                 .onAppear {
                     AppearanceSetup.apply(theme, accentColor: UIColor(accentColor))
                 }
                 .onChange(of: accentColorName) { _, _ in
                     AppearanceSetup.apply(theme, accentColor: UIColor(accentColor))
                 }
+                .onChange(of: scenePhase) { _, newPhase in
+                    if newPhase != .active {
+                        parentalAccessCoordinator.lock()
+                    }
+                }
                 // ── Lifecycle hardening ─────────────────────────────
+                #if !os(tvOS)
                 .lifecycleHardening(
                     coordinator: playbackCoordinator,
                     mainCoordinator: mainCoordinator,
                     downloadManager: downloadManager
                 )
+                #else
+                .lifecycleHardening(
+                    coordinator: playbackCoordinator,
+                    mainCoordinator: mainCoordinator
+                )
+                #endif
                 // ── Baby lock overlay ───────────────────────────────
                 .babyLock(isEnabled: $babyLockEnabled)
         }

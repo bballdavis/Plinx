@@ -6,6 +6,7 @@ struct PlinxLibraryView: View {
     @State var viewModel: SafeLibraryViewModel
     var topContent: AnyView? = nil
     var onSelectLibrary: (Library) -> Void
+    var onRequestHomeNavigationFocus: () -> Void = {}
     @State private var artworkRefreshToken = UUID()
     @AppStorage(LibraryCardLayoutPolicy.hotReloadLibraryArtworkStorageKey)
     private var hotReloadLibraryArtwork = false
@@ -13,6 +14,10 @@ struct PlinxLibraryView: View {
     private var storedBannerArtworkCount = 0
 
     @Environment(\.safetyPolicy) private var safetyPolicy
+    @Environment(SettingsManager.self) private var settingsManager
+    #if os(tvOS)
+    @FocusState private var focusedLibraryID: String?
+    #endif
 
     var body: some View {
         Group {
@@ -33,90 +38,114 @@ struct PlinxLibraryView: View {
             if hotReloadLibraryArtwork {
                 artworkRefreshToken = UUID()
             }
+            #if os(tvOS)
+            focusedLibraryID = focusedLibraryID ?? viewModel.libraries.first?.id
+            #endif
         }
+        #if os(tvOS)
+        .onChange(of: viewModel.libraries.map(\.id)) { _, ids in
+            guard focusedLibraryID == nil else { return }
+            focusedLibraryID = ids.first
+        }
+        #endif
         .onChange(of: safetyPolicy) { _, newPolicy in
             viewModel.updatePolicy(newPolicy)
+        }
+        .onChange(of: settingsManager.interface.hiddenLibraryIds) { _, hiddenIDs in
+            viewModel.updateHiddenLibraryIDs(Set(hiddenIDs))
         }
     }
 
     private var libraryList: some View {
         ScrollView {
-            LazyVStack(spacing: 10) {
+            LazyVStack(spacing: libraryListSpacing) {
                 if let topContent {
                     topContent
                 }
 
                 ForEach(viewModel.libraries) { library in
-                    libraryTile(library)
+                    libraryTile(library, rowIndex: viewModel.libraries.firstIndex(where: { $0.id == library.id }) ?? 0)
                         .padding(.horizontal, 20)
                 }
             }
             .padding(.top, 8)
-            // Extra padding to prevent content from disappearing behind the
-            // floating KidsMainTabPicker tab bar (~88pt).
-            .padding(.bottom, 120)
+            .padding(.bottom, bottomContentPadding)
         }
     }
 
-    private func libraryTile(_ library: Library) -> some View {
-        Button { onSelectLibrary(library) } label: {
-            ZStack(alignment: .bottom) {
-                GeometryReader { proxy in
-                    Group {
-                        let bannerURLs = viewModel.bannerArtworkURLs(for: library)
-                        if !bannerURLs.isEmpty {
-                            adaptiveLibraryArtwork(
-                                artworkURLs: bannerURLs,
-                                size: proxy.size,
-                                placeholder: libraryPlaceholder(for: library)
-                            )
-                        } else {
-                            libraryPlaceholder(for: library)
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 160)
-                    .clipped()
-                }
-
-                LinearGradient(
-                    colors: [.clear, .black.opacity(0.85)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Image(systemName: library.iconName)
-                            .font(.system(size: 27, weight: .bold))
-                            .foregroundStyle(.white.opacity(0.8))
-                        Text(library.title)
-                            .font(.title3.bold())
-                            .foregroundStyle(.white)
-                            .lineLimit(2)
-                    }
-                    .padding(14)
-                    Spacer()
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 160)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(.white.opacity(0.15), lineWidth: 1)
-            )
-            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .task(id: artworkRefreshToken) {
+    @ViewBuilder
+    private func libraryTile(_ library: Library, rowIndex: Int) -> some View {
+        let tileBody = LibraryTileBody(
+            library: library,
+            bannerURLs: viewModel.bannerArtworkURLs(for: library),
+            tileHeight: libraryTileHeight,
+            artworkRefreshToken: artworkRefreshToken,
+            hotReloadLibraryArtwork: hotReloadLibraryArtwork,
+            bannerArtworkDisplayCount: bannerArtworkDisplayCount,
+            ensureArtwork: { library, bannerCount in
                 if hotReloadLibraryArtwork {
-                    await viewModel.refreshArtwork(for: library, bannerCount: bannerArtworkDisplayCount)
+                    await viewModel.refreshArtwork(for: library, bannerCount: bannerCount)
                 } else {
-                    await viewModel.ensureArtwork(for: library, bannerCount: bannerArtworkDisplayCount)
+                    await viewModel.ensureArtwork(for: library, bannerCount: bannerCount)
                 }
+            },
+            placeholder: { libraryPlaceholder(for: $0) },
+            adaptiveArtwork: { artworkURLs, size in
+                adaptiveLibraryArtwork(
+                    artworkURLs: artworkURLs,
+                    size: size,
+                    placeholder: libraryPlaceholder(for: library)
+                )
             }
+        )
+
+        #if os(tvOS)
+        tileBody
+            .focused($focusedLibraryID, equals: library.id)
+            .focusable(interactions: .activate)
+            .focusEffectDisabled()
+            .scaleEffect(focusedLibraryID == library.id ? 1.04 : 1.0)
+            .shadow(
+                color: focusedLibraryID == library.id ? Color.accentColor.opacity(0.66) : .clear,
+                radius: focusedLibraryID == library.id ? 20 : 0
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(
+                        focusedLibraryID == library.id ? Color.accentColor.opacity(0.85) : .clear,
+                        lineWidth: focusedLibraryID == library.id ? 2.2 : 0
+                    )
+            }
+            .animation(.easeOut(duration: 0.14), value: focusedLibraryID == library.id)
+            .onTapGesture { onSelectLibrary(library) }
+            .onMoveCommand { direction in
+                handleMoveCommand(direction, fromRow: rowIndex)
+            }
+        #else
+        Button { onSelectLibrary(library) } label: {
+            tileBody
         }
-        .buttonStyle(SpringyButtonStyle())
+        .buttonStyle(.plain)
+        #endif
     }
+
+    #if os(tvOS)
+    private func handleMoveCommand(_ direction: MoveCommandDirection, fromRow rowIndex: Int) {
+        switch direction {
+        case .up:
+            if rowIndex == 0 {
+                onRequestHomeNavigationFocus()
+            } else {
+                focusedLibraryID = viewModel.libraries[rowIndex - 1].id
+            }
+        case .down:
+            guard rowIndex + 1 < viewModel.libraries.count else { return }
+            focusedLibraryID = viewModel.libraries[rowIndex + 1].id
+        default:
+            break
+        }
+    }
+    #endif
 
     private func libraryPlaceholder(for library: Library) -> some View {
         ZStack {
@@ -132,6 +161,30 @@ struct PlinxLibraryView: View {
             storedCount: storedBannerArtworkCount,
             userInterfaceIdiom: UIDevice.current.userInterfaceIdiom
         )
+    }
+
+    private var libraryTileHeight: CGFloat {
+        #if os(tvOS)
+        220
+        #else
+        160
+        #endif
+    }
+
+    private var libraryListSpacing: CGFloat {
+        #if os(tvOS)
+        18
+        #else
+        10
+        #endif
+    }
+
+    private var bottomContentPadding: CGFloat {
+        #if os(tvOS)
+        36
+        #else
+        120
+        #endif
     }
 
     private func adaptiveLibraryArtwork(
@@ -278,6 +331,102 @@ struct PlinxLibraryView: View {
             startPoint: .leading,
             endPoint: .trailing
         )
+    }
+}
+
+private struct LibraryTileBody<Placeholder: View, Artwork: View>: View {
+    let library: Library
+    let bannerURLs: [URL]
+    let tileHeight: CGFloat
+    let artworkRefreshToken: UUID
+    let hotReloadLibraryArtwork: Bool
+    let bannerArtworkDisplayCount: Int
+    let ensureArtwork: (Library, Int) async -> Void
+    let placeholder: (Library) -> Placeholder
+    let adaptiveArtwork: ([URL], CGSize) -> Artwork
+
+    @Environment(\.isFocused) private var isFocused
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            GeometryReader { proxy in
+                Group {
+                    if !bannerURLs.isEmpty {
+                        adaptiveArtwork(bannerURLs, proxy.size)
+                    } else {
+                        placeholder(library)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: tileHeight)
+                .clipped()
+            }
+
+            LinearGradient(
+                colors: [.clear, .black.opacity(0.85)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+
+            HStack {
+                VStack(alignment: .leading, spacing: 6) {
+                    Image(systemName: library.iconName)
+                        .font(.system(size: iconSize, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.8))
+                    Text(library.title)
+                        .font(titleFont)
+                        .foregroundStyle(.white)
+                        .lineLimit(2)
+                }
+                .padding(labelPadding)
+                Spacer()
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: tileHeight)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .stroke(isFocused ? Color.accentColor : .clear, lineWidth: isFocused ? 3 : 0)
+        )
+        .shadow(color: isFocused ? Color.accentColor.opacity(0.65) : .clear, radius: isFocused ? 30 : 0)
+        .scaleEffect(isFocused ? 1.05 : 1.0)
+        .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .task(id: artworkRefreshToken) {
+            await ensureArtwork(library, bannerArtworkDisplayCount)
+        }
+    }
+
+    private var iconSize: CGFloat {
+        #if os(tvOS)
+        36
+        #else
+        27
+        #endif
+    }
+
+    private var titleFont: Font {
+        #if os(tvOS)
+        .title2.bold()
+        #else
+        .title3.bold()
+        #endif
+    }
+
+    private var labelPadding: CGFloat {
+        #if os(tvOS)
+        20
+        #else
+        14
+        #endif
+    }
+
+    private var cornerRadius: CGFloat {
+        #if os(tvOS)
+        22
+        #else
+        16
+        #endif
     }
 }
 

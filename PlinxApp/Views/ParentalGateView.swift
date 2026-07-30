@@ -4,8 +4,7 @@ import PlinxCore
 import PlinxUI
 
 struct ParentalGateView: View {
-    @Environment(\.plinxTheme) private var theme
-    @AppStorage("plinx.parentalPin") private var storedPin = ""
+    @Environment(ParentalAccessCoordinator.self) private var parentalAccessCoordinator
 
     // Math gate state
     @State private var challenge: MathGate.Challenge
@@ -15,6 +14,7 @@ struct ParentalGateView: View {
     // PIN gate state
     @State private var pinEntry = ""
     @State private var pinError = false
+    @State private var lockoutMessage: String?
 
     var onAllowed: () -> Void
 
@@ -24,18 +24,18 @@ struct ParentalGateView: View {
         self.onAllowed = onAllowed
     }
 
-    private var usePIN: Bool { !storedPin.isEmpty }
+    private var usePIN: Bool { parentalAccessCoordinator.hasPIN }
     private let entryFieldSize = CGSize(width: 100, height: 32)
     private let entryFieldSlotHeight: CGFloat = 72
 
     var body: some View {
         VStack(spacing: 24) {
-            PlinxBrandedLoadingView(
-                preferredLogoAssetName: "LogoStackedFullWhite",
-                logoAccessibilityIdentifier: "parentalGate.logo",
-                showsProgressView: false
+            PlinxBrandLogoView(
+                asset: .stackedOnGradient,
+                accessibilityIdentifier: "parentalGate.logo",
+                maxWidth: 176
             )
-                .frame(height: 200)
+            .frame(height: 200)
 
             if usePIN {
                 pinChallengeView
@@ -46,7 +46,8 @@ struct ParentalGateView: View {
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {
-            LinearGradient.plinxBrandGreen.ignoresSafeArea()
+            PlinxBrand.gradient
+                .ignoresSafeArea()
         }
     }
 
@@ -56,14 +57,20 @@ struct ParentalGateView: View {
         VStack(spacing: 20) {
             Text("parental.gate.pin.title", tableName: "Plinx")
                 .font(.title2.bold())
-                .foregroundStyle(theme.palette.background)
+                .foregroundStyle(PlinxBrand.shell)
                 .accessibilityIdentifier("parentalGate.title")
 
             NumberPadEntryField(
                 text: $pinEntry,
                 placeholder: "",
                 isSecure: true,
-                maximumDigits: 6
+                maximumDigits: 6,
+                accessibilityLabel: NSLocalizedString(
+                    "parental.gate.pin.accessibilityLabel",
+                    tableName: "Plinx",
+                    comment: ""
+                ),
+                onSubmit: submitPin
             )
                 .frame(width: entryFieldSize.width, height: entryFieldSize.height)
                 .frame(maxWidth: .infinity, minHeight: entryFieldSlotHeight, maxHeight: entryFieldSlotHeight, alignment: .center)
@@ -75,16 +82,20 @@ struct ParentalGateView: View {
                 Text("parental.gate.pin.wrong", tableName: "Plinx")
                     .font(.caption)
                     .foregroundStyle(.red)
+            } else if let lockoutMessage {
+                Text(lockoutMessage)
+                    .font(.caption)
+                    .foregroundStyle(.red)
             }
 
-            LiquidGlassButton(LocalizedStringResource("parental.gate.unlock", table: "Plinx")) {
-                if pinEntry == storedPin {
-                    onAllowed()
-                } else {
-                    pinError = true
-                    pinEntry = ""
-                }
+            LiquidGlassButton(
+                LocalizedStringResource("parental.gate.unlock", table: "Plinx"),
+                treatment: .brand
+            ) {
+                submitPin()
             }
+            .accessibilityIdentifier("parentalGate.unlock")
+            .accessibilityValue(PlinxBrandingSemantics.parentalGateUnlockStyleValue)
         }
     }
 
@@ -94,29 +105,75 @@ struct ParentalGateView: View {
         VStack(spacing: 20) {
             Text("parental.gate.title", tableName: "Plinx")
                 .font(.title2.bold())
-                .foregroundStyle(theme.palette.background)
+                .foregroundStyle(PlinxBrand.shell)
                 .accessibilityIdentifier("parentalGate.title")
                 .accessibilityValue(PlinxBrandingSemantics.parentalGateTitleColorValue)
 
             Text(challenge.prompt)
                 .font(.system(size: 48, weight: .black, design: .rounded))
+                .foregroundStyle(PlinxBrand.shell)
 
             NumberPadEntryField(
                 text: $answerText,
-                placeholder: NSLocalizedString("parental.gate.placeholder", tableName: "Plinx", comment: "")
+                placeholder: NSLocalizedString("parental.gate.placeholder", tableName: "Plinx", comment: ""),
+                accessibilityLabel: NSLocalizedString(
+                    "parental.gate.answer.accessibilityLabel",
+                    tableName: "Plinx",
+                    comment: ""
+                ),
+                onSubmit: submitMathAnswer
             )
                 .frame(width: entryFieldSize.width, height: entryFieldSize.height)
                 .frame(maxWidth: .infinity, minHeight: entryFieldSlotHeight, maxHeight: entryFieldSlotHeight, alignment: .center)
 
-            LiquidGlassButton(LocalizedStringResource("parental.gate.unlock", table: "Plinx")) {
-                if let answer = Int(answerText), mathGate.validate(answer: answer, for: challenge) {
-                    onAllowed()
-                } else {
-                    var rng = SystemRandomNumberGenerator()
-                    challenge = mathGate.makeChallenge(rng: &rng)
-                    answerText = ""
-                }
+            LiquidGlassButton(
+                LocalizedStringResource("parental.gate.unlock", table: "Plinx"),
+                treatment: .brand
+            ) {
+                submitMathAnswer()
             }
+            .accessibilityIdentifier("parentalGate.unlock")
+            .accessibilityValue(PlinxBrandingSemantics.parentalGateUnlockStyleValue)
+        }
+    }
+}
+
+extension ParentalGateView {
+    private func submitPin() {
+        pinError = false
+        lockoutMessage = nil
+        switch parentalAccessCoordinator.unlock(withPIN: pinEntry) {
+        case .allowed:
+            onAllowed()
+        case .denied:
+            pinError = true
+            pinEntry = ""
+            UIAccessibility.post(
+                notification: .announcement,
+                argument: NSLocalizedString("parental.gate.pin.wrong", tableName: "Plinx", comment: "")
+            )
+        case .lockedOut:
+            pinEntry = ""
+            lockoutMessage = NSLocalizedString(
+                "parental.gate.pin.lockedOut",
+                tableName: "Plinx",
+                comment: ""
+            )
+            UIAccessibility.post(notification: .announcement, argument: lockoutMessage)
+        case .unavailable:
+            pinEntry = ""
+        }
+    }
+
+    private func submitMathAnswer() {
+        if let answer = Int(answerText), mathGate.validate(answer: answer, for: challenge) {
+            if parentalAccessCoordinator.unlockWithMathChallenge() == .allowed {
+                onAllowed()
+            }
+        } else {
+            var rng = SystemRandomNumberGenerator()
+            challenge = mathGate.makeChallenge(rng: &rng)
+            answerText = ""
         }
     }
 }
@@ -126,9 +183,11 @@ private struct NumberPadEntryField: UIViewRepresentable {
     let placeholder: String
     var isSecure: Bool = false
     var maximumDigits: Int? = nil
+    var accessibilityLabel: String
+    var onSubmit: () -> Void = {}
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text, maximumDigits: maximumDigits)
+        Coordinator(text: $text, maximumDigits: maximumDigits, onSubmit: onSubmit)
     }
 
     func makeUIView(context: Context) -> UITextField {
@@ -137,12 +196,29 @@ private struct NumberPadEntryField: UIViewRepresentable {
         textField.borderStyle = .roundedRect
         textField.keyboardType = .numberPad
         textField.keyboardAppearance = .light
+        textField.returnKeyType = .done
+        textField.enablesReturnKeyAutomatically = false
         textField.font = .preferredFont(forTextStyle: .title2)
         textField.adjustsFontForContentSizeCategory = true
         textField.textAlignment = .center
         textField.placeholder = placeholder
         textField.isSecureTextEntry = isSecure
+        textField.accessibilityLabel = accessibilityLabel
         textField.addTarget(context.coordinator, action: #selector(Coordinator.textDidChange(_:)), for: .editingChanged)
+        #if !os(tvOS)
+        let toolbar = UIToolbar()
+        toolbar.sizeToFit()
+        toolbar.items = [
+            UIBarButtonItem.flexibleSpace(),
+            UIBarButtonItem(
+                title: NSLocalizedString("common.actions.done", tableName: "Plinx", comment: ""),
+                style: .done,
+                target: context.coordinator,
+                action: #selector(Coordinator.submit)
+            )
+        ]
+        textField.inputAccessoryView = toolbar
+        #endif
         return textField
     }
 
@@ -152,15 +228,18 @@ private struct NumberPadEntryField: UIViewRepresentable {
         }
         uiView.placeholder = placeholder
         uiView.isSecureTextEntry = isSecure
+        uiView.accessibilityLabel = accessibilityLabel
     }
 
     final class Coordinator: NSObject, UITextFieldDelegate {
         @Binding private var text: String
         private let maximumDigits: Int?
+        private let onSubmit: () -> Void
 
-        init(text: Binding<String>, maximumDigits: Int?) {
+        init(text: Binding<String>, maximumDigits: Int?, onSubmit: @escaping () -> Void) {
             _text = text
             self.maximumDigits = maximumDigits
+            self.onSubmit = onSubmit
         }
 
         @objc func textDidChange(_ sender: UITextField) {
@@ -188,6 +267,15 @@ private struct NumberPadEntryField: UIViewRepresentable {
             }
 
             return true
+        }
+
+        func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+            submit()
+            return false
+        }
+
+        @objc func submit() {
+            onSubmit()
         }
 
         private func filteredText(from source: String) -> String {

@@ -40,6 +40,26 @@ public struct PlinxTheme: Sendable {
         public let success: Color
         /// Warning/caution state color.
         public let warning: Color
+
+        public init(
+            primary: Color,
+            secondary: Color,
+            accent: Color,
+            background: Color,
+            surface: Color,
+            onPrimary: Color,
+            success: Color,
+            warning: Color
+        ) {
+            self.primary = primary
+            self.secondary = secondary
+            self.accent = accent
+            self.background = background
+            self.surface = surface
+            self.onPrimary = onPrimary
+            self.success = success
+            self.warning = warning
+        }
     }
 
     // MARK: - Glass Properties
@@ -100,17 +120,24 @@ public struct PlinxTheme: Sendable {
 
     // MARK: - Typography Scale
 
-    /// Typography style — neutral, geometric, highly legible (Inter-inspired).
+    /// Typography style — friendly, rounded, and highly legible (SF Rounded).
     public struct Typography: Sendable {
         /// A specific typographic style combining font, tracking, and line spacing.
         public struct Style: Sendable {
             public let font: Font
+            public let design: Font.Design
             public let tracking: CGFloat
             public let lineSpacing: CGFloat
 
-            public init(size: CGFloat, weight: Font.Weight, tracking: CGFloat, lineHeight: CGFloat) {
-                // We use system font (SF Pro) as the native "soft geometric" engine.
-                self.font = .system(size: size, weight: weight)
+            public init(
+                size: CGFloat,
+                weight: Font.Weight,
+                design: Font.Design = .rounded,
+                tracking: CGFloat,
+                lineHeight: CGFloat
+            ) {
+                self.design = design
+                self.font = .system(size: size, weight: weight, design: design)
                 self.tracking = size * tracking
                 // lineSpacing is the additional space between lines (approximate).
                 self.lineSpacing = size * (lineHeight - 1.0)
@@ -155,13 +182,13 @@ public struct PlinxTheme: Sendable {
 
 public extension PlinxTheme.Palette {
     static let `default` = PlinxTheme.Palette(
-        primary: .blue,
-        secondary: .orange,
-        accent: .pink,
-        background: Color(red: 0.045, green: 0.07, blue: 0.055),
-        surface: Color(white: 0.12),
-        onPrimary: .white,
-        success: .green,
+        primary: PlinxBrand.lime,
+        secondary: PlinxBrand.teal,
+        accent: PlinxBrand.teal,
+        background: PlinxBrand.shell,
+        surface: PlinxBrand.surface,
+        onPrimary: PlinxBrand.shell,
+        success: PlinxBrand.teal,
         warning: .yellow
     )
 }

@@ -9,7 +9,7 @@
 // Baselines live in __Snapshots__/MovieCard_SnapshotTests/
 // First-run recording: set `isRecording = true`, run on iPhone 16 sim, commit.
 //
-// References: development/UI_TESTING_STRATEGY.md — "Component rendering" layer
+// References: docs/development/ui-testing.md — "Component rendering" layer
 // ─────────────────────────────────────────────────────────────────────────────
 
 #if canImport(XCTest) && canImport(UIKit)

@@ -1,4 +1,5 @@
 import SwiftUI
+import PlinxUI
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ThemeExtensions
@@ -31,7 +32,7 @@ extension Color {
     static var brandPrimaryForeground: Color { Color.white }
     static var brandSecondary: Color { Color(white: 0.82) }
     static var brandSecondaryForeground: Color { Color.white }
-    static var appBackground: Color { Color(red: 0.045, green: 0.07, blue: 0.055) }
+    static var appBackground: Color { PlinxBrand.shell }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -173,23 +174,15 @@ struct PlinxChromeButton: View {
 
     var body: some View {
         Button(action: handleTap) {
-            Image(systemName: systemImage)
-                .font(.system(size: sizePreference.iconFontSize, weight: .semibold))
-                .foregroundStyle(Color.accentColor)
-                .rotationEffect(.degrees(usesPlayfulTapAnimation && isAnimatingTap ? -16 : 0))
-                .offset(
-                    x: usesPlayfulTapAnimation && isAnimatingTap ? -7 : 0,
-                    y: usesPlayfulTapAnimation && isAnimatingTap ? -2 : 0
+            PlinxChromeIconLabel(
+                systemImage: systemImage,
+                sizePreference: sizePreference,
+                rotation: usesPlayfulTapAnimation && isAnimatingTap ? -16 : 0,
+                offset: CGSize(
+                    width: usesPlayfulTapAnimation && isAnimatingTap ? -7 : 0,
+                    height: usesPlayfulTapAnimation && isAnimatingTap ? -2 : 0
                 )
-                .frame(width: sizePreference.sideLength, height: sizePreference.sideLength)
-                .background(
-                    RoundedRectangle(cornerRadius: sizePreference.cornerRadius, style: .continuous)
-                        .fill(.ultraThinMaterial)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: sizePreference.cornerRadius, style: .continuous)
-                        .stroke(Color.accentColor.opacity(0.35), lineWidth: 1)
-                )
+            )
         }
         .scaleEffect(usesPlayfulTapAnimation && isAnimatingTap ? 0.9 : 1.0)
         .offset(y: usesPlayfulTapAnimation && isAnimatingTap ? -3 : 0)
@@ -200,6 +193,29 @@ struct PlinxChromeButton: View {
         )
         .animation(.interpolatingSpring(stiffness: 340, damping: 18), value: isAnimatingTap)
         .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityHint(Text("accessibility.chromeButton.hint", tableName: "Plinx"))
+    }
+
+    private var accessibilityLabel: Text {
+        let key: String
+        switch systemImage {
+        case "chevron.left":
+            key = "common.actions.back"
+        case "xmark":
+            key = "common.actions.close"
+        case "gearshape.fill":
+            key = "tabs.settings"
+        case "magnifyingglass":
+            key = "tabs.search"
+        case "tray.full":
+            key = "youtarr.requests.title"
+        case "rectangle.portrait.and.arrow.right":
+            key = "common.actions.logOut"
+        default:
+            key = "accessibility.chromeButton.action"
+        }
+        return Text(LocalizedStringKey(key), tableName: "Plinx")
     }
 
     private func handleTap() {
@@ -218,3 +234,66 @@ struct PlinxChromeButton: View {
         }
     }
 }
+
+struct PlinxChromeIconLabel: View {
+    let systemImage: String
+    let sizePreference: PlinxChromeButtonSizePreference
+    var rotation: Double = 0
+    var offset: CGSize = .zero
+
+    var body: some View {
+        Image(systemName: systemImage)
+            .font(.system(size: sizePreference.iconFontSize, weight: .semibold))
+            .foregroundStyle(Color.accentColor)
+            .rotationEffect(.degrees(rotation))
+            .offset(x: offset.width, y: offset.height)
+            .frame(width: sizePreference.sideLength, height: sizePreference.sideLength)
+            .background(
+                RoundedRectangle(cornerRadius: sizePreference.cornerRadius, style: .continuous)
+                    .fill(.ultraThinMaterial)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: sizePreference.cornerRadius, style: .continuous)
+                    .stroke(Color.accentColor.opacity(0.35), lineWidth: 1)
+            )
+    }
+}
+
+/// A labeled companion to `PlinxChromeButton` for retry and other compact
+/// actions that need the same liquid-glass navigation treatment.
+struct PlinxChromeActionButton: View {
+    let titleKey: String
+    let systemImage: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label {
+                Text(LocalizedStringKey(titleKey), tableName: "Plinx")
+            } icon: {
+                Image(systemName: systemImage)
+            }
+            .font(.headline)
+            .foregroundStyle(Color.accentColor)
+            .padding(.horizontal, 18)
+            .frame(minHeight: 46)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(.ultraThinMaterial)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(Color.accentColor.opacity(0.45), lineWidth: 1)
+            }
+            .contentShape(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+            )
+        }
+        .buttonStyle(PlinkButtonStyle())
+        .accessibilityHint(Text("accessibility.chromeButton.hint", tableName: "Plinx"))
+    }
+}
+
+/// Shared Plinx chrome for the primary and secondary actions in media detail.
+/// The paired Strimr views compile into the app target, so this keeps their
+/// product-specific presentation in Plinx without forking their behavior.

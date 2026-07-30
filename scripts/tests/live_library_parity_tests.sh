@@ -1,22 +1,27 @@
 #!/bin/bash
 
+if [ -z "${BASH_VERSION:-}" ]; then
+  exec /bin/bash "$0" "$@"
+fi
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+source "$PROJECT_ROOT/scripts/build_environment.sh"
+
+MODE="ios"
+if [[ "${1:-}" == "--appletv" || "${1:-}" == "--tvos" ]]; then
+  MODE="tvos"
+  shift
+elif [[ "${1:-}" == "--ios" ]]; then
+  MODE="ios"
+  shift
+fi
 
 CREDENTIALS_FILE="$PROJECT_ROOT/test_creds.yaml"
-LOG_PATH="/tmp/plinx_live_library_parity.log"
-RESULT_BUNDLE="/tmp/Plinx_live_library_parity.xcresult"
-DEFAULT_DESTINATION='platform=iOS Simulator,id=881AC958-79D3-476D-A40E-1290AC561623'
-DESTINATION="${1:-$DEFAULT_DESTINATION}"
-# Bundle ID for simulator defaults injection. Can be overridden but should
-# match the app's PRODUCT_BUNDLE_IDENTIFIER in project.yml.
-APP_BUNDLE_ID="${PLINX_APP_BUNDLE_ID:-com.bballdavis.plinx}"
-
-TEST_TARGET="${PLINX_TEST_TARGET:-Plinx-iOS-UnitTests/LibraryFilteringParityLiveTests}"
-REQUIRED_TEST_CASE="${PLINX_REQUIRED_TEST_CASE:-test_liveHomeRecentlyAdded_otherVideoHubVisibleUnderStrictPolicy}"
-
+LOG_PATH="/tmp/plinx_live_library_parity_${MODE}.log"
+RESULT_BUNDLE="/tmp/Plinx_live_library_parity_${MODE}.xcresult"
 RED=$'\033[0;31m'
 GREEN=$'\033[0;32m'
 BLUE=$'\033[0;34m'
@@ -44,6 +49,112 @@ strip_quotes() {
   fi
   printf '%s' "$s"
 }
+
+discover_appletv_destination() {
+  python3 - <<'PY'
+import json
+import subprocess
+import sys
+
+try:
+    raw = subprocess.check_output(["xcrun", "simctl", "list", "devices", "available", "-j"], text=True)
+    data = json.loads(raw)
+except Exception:
+    sys.exit(1)
+
+candidates = []
+for runtime, devices in data.get("devices", {}).items():
+    if "tvOS" not in runtime:
+        continue
+    for device in devices:
+        if not device.get("isAvailable", True):
+            continue
+        name = device.get("name", "")
+        if "Apple TV" not in name:
+            continue
+        candidates.append((name, device.get("udid", "")))
+
+# Prefer standard Apple TV devices over 4K variants only when both exist with
+# the same runtime; either is fine for these hosted unit tests.
+for _, udid in candidates:
+    if udid:
+        print(f"platform=tvOS Simulator,id={udid}")
+        sys.exit(0)
+
+sys.exit(1)
+PY
+}
+
+discover_ios_destination() {
+  python3 - <<'PY'
+import json
+import subprocess
+import sys
+
+preferred_names = (
+    "iPhone 17 Pro Max",
+    "iPhone 17 Pro",
+    "iPhone 17",
+    "iPhone 16 Pro Max",
+    "iPhone 16 Pro",
+    "iPhone 16",
+)
+
+try:
+    raw = subprocess.check_output(["xcrun", "simctl", "list", "devices", "available", "-j"], text=True)
+    data = json.loads(raw)
+except Exception:
+    sys.exit(1)
+
+devices = []
+for runtime, runtime_devices in data.get("devices", {}).items():
+    if "iOS" not in runtime:
+        continue
+    for device in runtime_devices:
+        if not device.get("isAvailable", True):
+            continue
+        name = device.get("name", "")
+        udid = device.get("udid", "")
+        if name.startswith("iPhone") and udid:
+            devices.append((name, udid))
+
+for preferred in preferred_names:
+    for name, udid in devices:
+        if name == preferred:
+            print(f"platform=iOS Simulator,id={udid}")
+            sys.exit(0)
+
+if devices:
+    print(f"platform=iOS Simulator,id={devices[0][1]}")
+    sys.exit(0)
+
+sys.exit(1)
+PY
+}
+
+if [[ "$MODE" == "tvos" ]]; then
+  SCHEME="Plinx-tvOS"
+  DEFAULT_TVOS_DESTINATION="$(discover_appletv_destination || true)"
+  if [[ -z "$DEFAULT_TVOS_DESTINATION" ]]; then
+    DEFAULT_TVOS_DESTINATION='platform=tvOS Simulator,name=Apple TV'
+  fi
+  DESTINATION="${1:-$DEFAULT_TVOS_DESTINATION}"
+  TEST_TARGET="${PLINX_TEST_TARGET:-Plinx-tvOS-UnitTests/AppleTVLibraryParityLiveTests}"
+  REQUIRED_TEST_CASE="${PLINX_REQUIRED_TEST_CASE:-test_liveAppleTVBrowseParity_otherVideoLibrary_allowsUnratedNoneAgent}"
+else
+  SCHEME="Plinx-iOS"
+  DEFAULT_IOS_DESTINATION="$(discover_ios_destination || true)"
+  if [[ -z "$DEFAULT_IOS_DESTINATION" ]]; then
+    DEFAULT_IOS_DESTINATION='platform=iOS Simulator,name=iPhone 17'
+  fi
+  DESTINATION="${1:-$DEFAULT_IOS_DESTINATION}"
+  TEST_TARGET="${PLINX_TEST_TARGET:-Plinx-iOS-UnitTests/LibraryFilteringParityLiveTests}"
+  REQUIRED_TEST_CASE="${PLINX_REQUIRED_TEST_CASE:-test_liveHomeRecentlyAdded_otherVideoHubVisibleUnderStrictPolicy}"
+fi
+
+# Bundle ID for simulator defaults injection. Can be overridden but should
+# match the app's PRODUCT_BUNDLE_IDENTIFIER in project.yml.
+APP_BUNDLE_ID="${PLINX_APP_BUNDLE_ID:-com.bballdavis.plinx}"
 
 load_credentials() {
   if [[ ! -f "$CREDENTIALS_FILE" ]]; then
@@ -95,8 +206,16 @@ configure_simulator_defaults() {
   fi
 
   info "Booting simulator $sim_id (if needed)"
-  xcrun simctl boot "$sim_id" >/dev/null 2>&1 || true
-  xcrun simctl bootstatus "$sim_id" -b >/dev/null
+  if ! xcrun simctl boot "$sim_id" >/dev/null 2>&1; then
+    if ! xcrun simctl list devices | grep -q "$sim_id"; then
+      warn "Simulator $sim_id was not found; skipping simulator defaults injection"
+      return 0
+    fi
+  fi
+  if ! xcrun simctl bootstatus "$sim_id" -b >/dev/null; then
+    warn "Simulator $sim_id did not boot; skipping simulator defaults injection"
+    return 0
+  fi
 
   info "Writing Plex credentials to simulator defaults for $APP_BUNDLE_ID"
   xcrun simctl spawn "$sim_id" defaults write "$APP_BUNDLE_ID" PLINX_PLEX_SERVER_URL "$PLINX_PLEX_SERVER_URL"
@@ -110,23 +229,23 @@ run_tests() {
     bash "$PROJECT_ROOT/scripts/generate_xcodeproj.sh" >/tmp/plinx_xcodegen_live_parity.log 2>&1
   )
 
-  # determine the bundle identifier from the generated project so that
-  # we can write defaults and uninstall/install correctly.  this mirrors
-  # the logic used in run_iphone_sim.sh
   APP_BUNDLE_ID=$(xcodebuild -project "$PROJECT_ROOT/PlinxApp/Plinx.xcodeproj" \
-                   -scheme Plinx-iOS -showBuildSettings \
+                   -scheme "$SCHEME" -showBuildSettings \
+                   2>/dev/null \
                    | grep PRODUCT_BUNDLE_IDENTIFIER \
                    | head -1 \
                    | awk -F" = " '{print $2}' || true)
-  if [ -z "$APP_BUNDLE_ID" ]; then
+  if [[ -z "$APP_BUNDLE_ID" ]]; then
+    APP_BUNDLE_ID=$(awk -F': *' '/PRODUCT_BUNDLE_IDENTIFIER:/ { print $2; exit }' "$PROJECT_ROOT/PlinxApp/project.yml" || true)
+  fi
+  if [[ -z "$APP_BUNDLE_ID" ]]; then
     fail "unable to read PRODUCT_BUNDLE_IDENTIFIER from Xcode project"
     exit 1
   fi
   info "Bundle ID: $APP_BUNDLE_ID"
+  info "Scheme: $SCHEME"
+  info "Mode: $MODE"
 
-  # Write credentials to simulator defaults right before the test run so that
-  # hosted tests (which use the app's UserDefaults domain) can find them even
-  # when the test_creds.yaml bundle resource isn't available.
   configure_simulator_defaults
 
   rm -rf "$RESULT_BUNDLE"
@@ -140,8 +259,9 @@ run_tests() {
     cd "$PROJECT_ROOT"
     xcodebuild test \
       -project PlinxApp/Plinx.xcodeproj \
-      -scheme Plinx-iOS \
+      -scheme "$SCHEME" \
       -destination "$DESTINATION" \
+      -derivedDataPath "$PLINX_XCODE_DERIVED_DATA_PATH" \
       -resultBundlePath "$RESULT_BUNDLE" \
       -only-testing:"$TEST_TARGET"
   ) 2>&1 | tee "$LOG_PATH"
@@ -174,7 +294,7 @@ run_tests() {
   if [[ $exit_code -ne 0 ]]; then
     echo
     fail "Relevant errors:"
-    grep -E "error:|\\*\\* TEST FAILED \\*\\*" "$LOG_PATH" | tail -20 || true
+    grep -E "error:|\\*\\* TEST FAILED \\*\\*|Failing tests:" "$LOG_PATH" | tail -30 || true
     echo
     echo "Full log: $LOG_PATH"
     echo "Result bundle: $RESULT_BUNDLE"

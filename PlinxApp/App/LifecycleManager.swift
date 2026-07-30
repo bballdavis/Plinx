@@ -1,5 +1,7 @@
 import SwiftUI
+#if !os(tvOS)
 import UIKit
+#endif
 import PlinxCore
 
 /// Applies lifecycle hardening to the Plinx app:
@@ -16,7 +18,9 @@ import PlinxCore
 struct LifecycleHardeningModifier: ViewModifier {
     let coordinator: PlaybackCoordinator
     let mainCoordinator: MainCoordinator
+    #if !os(tvOS)
     let downloadManager: DownloadManager
+    #endif
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -25,7 +29,8 @@ struct LifecycleHardeningModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .onChange(of: scenePhase) { _, newPhase in
+            .onChange(of: scenePhase) {
+                let newPhase = scenePhase
                 if newPhase == .background {
                     coordinator.handleBackgrounding()
 
@@ -39,9 +44,13 @@ struct LifecycleHardeningModifier: ViewModifier {
                     // PlayerView.onDisappear → playerCoordinator.destruct().
                     mainCoordinator.resetPlayer()
 
+                    #if !os(tvOS)
                     downloadManager.stopNetworkMonitoring()
+                    #endif
                 } else if newPhase == .active {
+                    #if !os(tvOS)
                     downloadManager.startNetworkMonitoring()
+                    #endif
 
                     // Re-present the player if there was an active session before
                     // backgrounding.  The new PlayerView will load fresh metadata
@@ -56,6 +65,7 @@ struct LifecycleHardeningModifier: ViewModifier {
                     }
                 }
             }
+            #if !os(tvOS)
             .onReceive(
                 NotificationCenter.default.publisher(
                     for: UIApplication.didReceiveMemoryWarningNotification
@@ -72,10 +82,12 @@ struct LifecycleHardeningModifier: ViewModifier {
                 coordinator.handleBackgrounding()
                 mainCoordinator.resetPlayer()
             }
+            #endif
     }
 }
 
 extension View {
+    #if !os(tvOS)
     func lifecycleHardening(
         coordinator: PlaybackCoordinator,
         mainCoordinator: MainCoordinator,
@@ -87,4 +99,15 @@ extension View {
             downloadManager: downloadManager
         ))
     }
+    #else
+    func lifecycleHardening(
+        coordinator: PlaybackCoordinator,
+        mainCoordinator: MainCoordinator
+    ) -> some View {
+        modifier(LifecycleHardeningModifier(
+            coordinator: coordinator,
+            mainCoordinator: mainCoordinator
+        ))
+    }
+    #endif
 }

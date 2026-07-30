@@ -1,4 +1,9 @@
 #!/bin/bash
+
+if [ -z "${BASH_VERSION:-}" ]; then
+    exec /bin/bash "$0" "$@"
+fi
+
 # ─────────────────────────────────────────────────────────────────────────────
 # run_iphone_sim.sh — Build and run Plinx on iOS Simulator
 # ─────────────────────────────────────────────────────────────────────────────
@@ -20,6 +25,7 @@ set -e  # Exit on error
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 PLINX_APP_DIR="$PROJECT_ROOT/PlinxApp"
+source "$PROJECT_ROOT/scripts/build_environment.sh"
 source "$PROJECT_ROOT/scripts/sim_destination.sh"
 
 # Configuration
@@ -30,7 +36,7 @@ DEVICE_NAME="${1:-iPhone 17 Pro Max}"
 # after the build completes.
 # BUNDLE_ID="com.example.plinx"
 SCHEME="Plinx-iOS"
-DERIVED_DATA_PATH="${PLINX_SIM_DERIVED_DATA_PATH:-/tmp/plinx-run-iphone-derived-data}"
+DERIVED_DATA_PATH="${PLINX_SIM_DERIVED_DATA_PATH:-$PLINX_XCODE_DERIVED_DATA_PATH}"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🚀 Plinx iOS Simulator Build & Run"
@@ -103,7 +109,6 @@ echo ""
 # Step 4: Build the app
 echo "🔨 Building Plinx-iOS..."
 BUILD_LOG="/tmp/plinx_build_iphone.log"
-/bin/rm -rf "$DERIVED_DATA_PATH"
 # use the computed destination string (may be generic)
 xcodebuild build \
     -project Plinx.xcodeproj \

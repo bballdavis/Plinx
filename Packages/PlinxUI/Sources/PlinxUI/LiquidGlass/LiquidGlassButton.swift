@@ -5,31 +5,38 @@ import PlinxCore
 // LiquidGlassButton — The Plinx "Plink" Button
 // ─────────────────────────────────────────────────────────────────────────────
 //
-// Every interactive element in Plinx triggers the signature "Plink" feedback:
+// Every LiquidGlassButton triggers tactile and visual feedback:
 //   1. Heavy haptic impact (UIImpactFeedbackGenerator)
-//   2. Audio "plink" sound (PlinkAudioManager → bundled .caf file)
-//   3. Spring scale animation (press → shrink 0.92, release → bounce back)
+//   2. Spring scale animation (press → shrink 0.92, release → bounce back)
 //
 // The button uses Liquid Glass styling: frosted material background,
 // specular highlight, depth shadow, continuous-curve corners.
 //
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// A button styled with Liquid Glass that triggers haptic + audio feedback.
+/// A button styled with Liquid Glass that triggers haptic feedback.
 ///
 /// Usage:
 /// ```swift
 /// LiquidGlassButton("Play") { startPlayback() }
 /// LiquidGlassButton("Settings", style: .compact) { openSettings() }
-/// LiquidGlassButton(LocalizedStringResource("Unlock", table: "Plinx")) { ... }
+/// LiquidGlassButton(
+///     LocalizedStringResource("Unlock", table: "Plinx"),
+///     treatment: .brand
+/// ) { ... }
 /// ```
+public enum LiquidGlassButtonTreatment: Sendable {
+    case glass
+    case brand
+}
+
 public struct LiquidGlassButton: View {
     private let title: LocalizedStringResource
     private let icon: String?
     private let glassStyle: PlinxTheme.Glass
+    private let treatment: LiquidGlassButtonTreatment
     private let action: () -> Void
     private let haptics: HapticManaging
-    private let audio: PlinkAudioManaging
     private let theme: PlinxTheme
 
     @State private var isPressed = false
@@ -38,39 +45,84 @@ public struct LiquidGlassButton: View {
         _ title: LocalizedStringResource,
         icon: String? = nil,
         style: PlinxTheme.Glass? = nil,
+        treatment: LiquidGlassButtonTreatment = .glass,
         theme: PlinxTheme = PlinxTheme(),
         haptics: HapticManaging = HapticManager(),
-        audio: PlinkAudioManaging = PlinkAudioManager(),
         action: @escaping () -> Void
     ) {
         self.title = title
         self.icon = icon
         self.glassStyle = style ?? theme.glass
+        self.treatment = treatment
         self.theme = theme
         self.haptics = haptics
-        self.audio = audio
         self.action = action
     }
 
     public var body: some View {
         Button(action: {
-            // "Plink" — the signature Plinx interaction
-            audio.playPlink()
             haptics.plink()
             action()
         }) {
-            HStack(spacing: 8) {
-                if let icon {
-                    Image(systemName: icon)
-                        .font(.system(size: 16, weight: .medium))
-                }
-                Text(title)
-                    .plinxStyle(theme.typography.button)
-            }
-            .foregroundStyle(theme.palette.onPrimary)
-            .liquidGlassStyle(variant: glassStyle)
+            styledLabel
         }
         .buttonStyle(PlinkButtonStyle(springs: theme.springs))
+    }
+
+    private var label: some View {
+        HStack(spacing: 8) {
+            if let icon {
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .medium))
+            }
+            Text(title)
+                .plinxStyle(theme.typography.button)
+        }
+    }
+
+    @ViewBuilder
+    private var styledLabel: some View {
+        switch treatment {
+        case .glass:
+            label
+                .foregroundStyle(theme.palette.onPrimary)
+                .liquidGlassStyle(variant: glassStyle)
+        case .brand:
+            label
+                .foregroundStyle(theme.palette.background)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 14)
+                .background(brandSurface)
+        }
+    }
+
+    private var brandSurface: some View {
+        let shape = RoundedRectangle(
+            cornerRadius: glassStyle.cornerRadius,
+            style: .continuous
+        )
+
+        return shape
+            .fill(PlinxBrand.gradient)
+            .overlay(shape.fill(Color.white.opacity(0.08)))
+            .overlay(
+                shape.stroke(
+                    Color.white.opacity(glassStyle.highlightOpacity),
+                    lineWidth: 1
+                )
+            )
+            .shadow(
+                color: Color.white.opacity(glassStyle.highlightOpacity),
+                radius: glassStyle.highlightBlur,
+                x: glassStyle.highlightOffset.width,
+                y: glassStyle.highlightOffset.height
+            )
+            .shadow(
+                color: Color.black.opacity(glassStyle.shadowOpacity),
+                radius: glassStyle.shadowBlur,
+                x: glassStyle.shadowOffset.width,
+                y: glassStyle.shadowOffset.height
+            )
     }
 }
 
