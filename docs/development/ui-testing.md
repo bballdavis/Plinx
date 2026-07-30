@@ -74,6 +74,11 @@ the app also receives `--ui-testing`:
 - `homeLoading`
 - `playerBuffering`
 - `refreshLoading`
+- `appStoreSplash`
+- `appStoreHome`
+- `appStoreMediaDetail`
+- `appStoreSettings`
+- `appStoreYoutarr`
 
 Keep these routes deterministic and free of credentials or personal data.
 When a visual-audit route needs account-backed content, capture loading or
@@ -93,6 +98,11 @@ animated rounded-square beacon at hero scale, with the full-color loop centered
 inside, the outlined white wordmark beneath it, and no visible loading caption.
 `refreshLoading` provides a deterministic pull-to-refresh surface for visual
 inspection of the branded refresh indicator and hidden native spinner.
+
+The `appStore*` routes provide the credential-free App Store and
+documentation inventory. They use fictional media, the current Plinx identity,
+and PG/TV-PG examples. They must not gain network requests, account data, or
+copyrighted promotional artwork.
 
 ### tvOS focus rules
 

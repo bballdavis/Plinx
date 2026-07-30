@@ -24,5 +24,9 @@ release is available, contributors can build it from source.
 Plinx connects to a Plex account and a Plex Media Server you already control.
 Parents can choose visible libraries, protect settings with a parental gate,
 set movie and television rating ceilings, and manage offline downloads.
+Families can also connect an optional parent-managed Youtarr service for
+filtered video discovery and request tracking inside Plinx.
+
+Learn more in the [Youtarr guide](user/youtarr.md).
 
 Plinx does not operate a media catalog and is not affiliated with Plex.

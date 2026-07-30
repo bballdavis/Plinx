@@ -48,11 +48,27 @@
 .cards, .split { display: grid; gap: 1.25rem; grid-template-columns: repeat(3, 1fr); }
 .card { padding: 1.65rem; border: 1px solid var(--ifm-color-emphasis-300); border-radius: 1.4rem; background: var(--plinx-surface); box-shadow: 0 1rem 2.5rem rgba(3, 25, 24, 0.08); }
 .card h2, .split h2 { margin-bottom: 0.6rem; }
+.feature {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(15rem, 0.42fr);
+  gap: 4rem;
+  align-items: center;
+  padding-top: 2rem;
+}
+.feature h2 { max-width: 18ch; font-size: clamp(2rem, 4vw, 3.25rem); }
+.featureImage {
+  justify-self: center;
+  max-height: 38rem;
+  border-radius: 2rem;
+  box-shadow: 0 1.5rem 3.5rem rgba(3, 25, 24, 0.24);
+}
 .split { grid-template-columns: 1fr 1fr; gap: 4rem; padding-top: 0; }
 
 @media screen and (max-width: 760px) {
   .hero { grid-template-columns: 1fr; gap: 1.5rem; padding-top: 3.5rem; }
   .phone { max-height: 24rem; }
-  .cards, .split { grid-template-columns: 1fr; }
+  .cards, .feature, .split { grid-template-columns: 1fr; }
+  .feature { gap: 2rem; }
+  .featureImage { max-height: 30rem; }
   .split { gap: 2rem; }
 }

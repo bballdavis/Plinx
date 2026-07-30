@@ -76,12 +76,26 @@ Test the instructions from a freshly installed physical device before submission
 
 Capture after the release UI/accessibility pass using only fictional media and account information:
 
-- iPhone 6.9-inch portrait: Home, Library, media detail/playback, parental gate/settings, Downloads.
-- iPad 13-inch: the same core flow in the orientation that best represents the app.
+- iPhone 6.9-inch portrait: splash, media detail, Home, Settings, parental gate, and Youtarr Explore.
+- iPad 13-inch portrait: the same six-screen flow.
 
 Each file must be an Apple-accepted pixel size, flattened without alpha, and show current app UI. Do not submit old simulator captures, login-only screens, personal server names, or copyrighted promotional art that is not authorized for marketing.
 
-Store final captures in `screenshots/app-store/`, flatten alpha with `scripts/flatten_screenshot_alpha.sh`, and run `scripts/tests/validate_app_store_screenshots.sh` before upload. The legacy iPad captures are `2360x1640` and are not valid 13-inch submission assets.
+Apple currently accepts `1320x2868` portrait captures for the 6.9-inch
+iPhone class. For the 13-inch iPad class it accepts both `2064x2752` and
+`2048x2732` portrait captures, depending on the selected 13-inch device.
+Recheck [Apple's screenshot specifications](https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications/)
+before each submission because accepted device classes can change.
+Store final captures in `screenshots/app-store/`, flatten alpha with
+`scripts/flatten_screenshot_alpha.sh`, and run
+`scripts/tests/validate_app_store_screenshots.sh` before upload. The legacy
+iPad captures are `2360x1640` and are not valid 13-inch submission assets.
+
+The committed review inventory is generated from credential-free
+`--ui-testing` routes with fictional content. Its movie and television
+examples are capped at PG and TV-PG. This keeps the screens populated without
+exposing a personal Plex account, server name, Youtarr key, or third-party
+promotional artwork.
 
 The `AppIcon` catalog is generated from the approved Plink Loop identity with
 Any, Dark, and Tinted 1024-point sources. Run

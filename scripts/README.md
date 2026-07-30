@@ -315,7 +315,7 @@ Validates the app bundle inside an `.xcarchive` before you upload it.
 `scripts/tests/validate_app_store_screenshots.sh` accepts only the release inventory:
 
 - iPhone 6.9-inch: `1320x2868` portrait or landscape inverse;
-- iPad 13-inch: `2064x2752` portrait or landscape inverse;
+- iPad 13-inch: `2064x2752` or `2048x2732` portrait, or either landscape inverse;
 - PNG files with no alpha channel.
 
 Use `scripts/flatten_screenshot_alpha.sh INPUT.png OUTPUT.png` only after capturing fictional review content. Do not promote the legacy `screenshots/` files; they fail the current iPad-size and alpha checks.

@@ -6,7 +6,7 @@ import styles from './index.module.css';
 
 const highlights = [
   ['Parent-managed', 'Choose libraries, profiles, ratings, and settings with a parent gate.'],
-  ['Designed for families', 'A calm, playful Plex experience that keeps the focus on your media.'],
+  ['Plex and Youtarr', 'Browse your Plex libraries and optionally request parent-approved Youtarr videos.'],
   ['Private by default', 'No analytics, crash reporting, or usage tracking from Plinx.'],
 ];
 
@@ -28,14 +28,18 @@ export default function Home() {
             <p className={styles.eyebrow}>Coming soon for iPhone, iPad, and Apple TV</p>
             <h1>Family media, thoughtfully managed.</h1>
             <p className={styles.lede}>
-              Plinx is a parent-managed Plex client for browsing, watching, and downloading the media your family chooses.
+              Plinx is a parent-managed Plex client for browsing, watching, and downloading the media your family chooses, with optional Youtarr video discovery and requests.
             </p>
             <div className={styles.actions}>
               <Link className="button button--primary button--lg" to="/docs/user/getting-started">Explore the guide</Link>
               <Link className="button button--secondary button--lg" to="/docs/development/setup">Build from source</Link>
             </div>
           </div>
-          <img className={styles.phone} src={useBaseUrl('iphone_home.png')} alt="Plinx home screen on iPhone" />
+          <img
+            className={styles.phone}
+            src={useBaseUrl('app-store/iphone-6.9/03-home.png')}
+            alt="Plinx home screen on a 6.9-inch iPhone"
+          />
         </section>
 
         <section className={styles.section}>
@@ -47,6 +51,25 @@ export default function Home() {
               </article>
             ))}
           </div>
+        </section>
+
+        <section className={`${styles.section} ${styles.feature}`}>
+          <div>
+            <p className={styles.eyebrow}>Optional Youtarr integration</p>
+            <h2>Parent-approved video discovery, inside Plinx.</h2>
+            <p>
+              Connect a parent-managed Youtarr service to add an Explore tab,
+              browse eligible channels, review video details, send requests,
+              and follow request status. Plinx applies the active rating policy
+              again on-device and keeps external links out of kid-facing screens.
+            </p>
+            <Link to="/docs/user/youtarr">Explore the Youtarr guide →</Link>
+          </div>
+          <img
+            className={styles.featureImage}
+            src={useBaseUrl('app-store/iphone-6.9/06-youtarr.png')}
+            alt="Youtarr Explore showing parent-approved video channels in Plinx"
+          />
         </section>
 
         <section className={`${styles.section} ${styles.split}`}>

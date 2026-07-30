@@ -12,8 +12,17 @@ const sidebars: SidebarsConfig = {
         'user/parent-guide',
         'user/using-plinx',
         'user/downloads-and-offline',
-        'user/youtarr',
         'user/privacy-and-support',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Youtarr',
+      items: [
+        'user/youtarr',
+        'security/youtarr-privacy-and-safety',
+        'architecture/youtarr-integration',
+        'development/youtarr-live-smoke-tests',
       ],
     },
     {
@@ -37,7 +46,6 @@ const sidebars: SidebarsConfig = {
         'architecture/runtime-build-graph',
         'architecture/source-tree',
         'architecture/strimr-integration',
-        'architecture/youtarr-integration',
       ],
     },
     {
@@ -46,7 +54,6 @@ const sidebars: SidebarsConfig = {
       items: [
         'product/branding',
         'security/privacy-and-safety',
-        'security/youtarr-privacy-and-safety',
         'release/app-store',
         'release/open-source-compliance',
       ],

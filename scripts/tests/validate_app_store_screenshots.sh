@@ -18,7 +18,7 @@ while IFS= read -r -d '' screenshot; do
   has_alpha=$(sips -g hasAlpha "$screenshot" 2>/dev/null | awk '/hasAlpha/{print $2}')
 
   case "${width}x${height}" in
-    1320x2868|2868x1320|2064x2752|2752x2064)
+    1320x2868|2868x1320|2064x2752|2752x2064|2048x2732|2732x2048)
       ;;
     *)
       fail "$screenshot has unsupported dimensions ${width}x${height}"

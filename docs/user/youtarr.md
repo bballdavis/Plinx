@@ -8,6 +8,14 @@ Youtarr is an optional, parent-configured local service. It is disabled by
 default and its full-screen Explore tab only appears in the main navigation
 after a parent saves a connection and explicitly enables Explore.
 
+<img
+  src="/Plinx/app-store/iphone-6.9/06-youtarr.png"
+  alt="Plinx Youtarr Explore screen with fictional parent-approved channels and TV-G or TV-PG videos"
+  width="360"
+/>
+
+## Safety and access
+
 Plinx checks Youtarr capabilities before showing catalog or request features.
 Returned videos are filtered again on-device by both the Youtarr permissions
 and the current Plinx rating policy. Unknown media types and unknown ratings
@@ -23,6 +31,8 @@ Changing the Plinx profile rating does not grant channel access. If Explore
 reports that no videos are available to the connection, a parent should check
 both the key's channel grants and its rating rules in Youtarr.
 
+## Explore
+
 Explore combines eligible videos from all indexed channels into one discovery
 feed. It shows newest videos in a landscape rail, then a separate channel
 browser, and then the remaining landscape video grid. The feed is specifically
@@ -30,11 +40,15 @@ limited to videos that are not already downloaded and do not already have an
 active request. Sending a request removes that video from Explore after
 Youtarr confirms the result.
 
-My Requests shows each requested video's thumbnail and details alongside its
-status and request time. It is sorted newest first. The default Recent filter
-keeps outstanding requests and status changes from the last seven days in
-view; Outstanding and All filters plus search make older histories easy to
-find.
+Video artwork is loaded through the configured Youtarr service. Plinx does not
+contact a public thumbnail host directly or expose thumbnail links in the
+kid-facing interface.
+
+Explore keeps its current catalog visible while refreshing. Leaving the tab or
+starting a newer refresh cancels obsolete requests silently; only a genuine
+first-load connection failure replaces the catalog with the retry screen.
+
+## Requests and video details
 
 Each video card has a small download control beside its channel and rating.
 Selecting the rest of the card opens Video Details with larger landscape
@@ -48,13 +62,13 @@ without opening the detail screen first. Explore loads more catalog pages only
 as the child reaches the end of the rendered video feed; it does not download
 the full catalog up front.
 
-Video artwork is loaded through the configured Youtarr service. Plinx does not
-contact a public thumbnail host directly or expose thumbnail links in the
-kid-facing interface.
+My Requests shows each requested video's thumbnail and details alongside its
+status and request time. It is sorted newest first. The default Recent filter
+keeps outstanding requests and status changes from the last seven days in
+view; Outstanding and All filters plus search make older histories easy to
+find.
 
-Explore keeps its current catalog visible while refreshing. Leaving the tab or
-starting a newer refresh cancels obsolete requests silently; only a genuine
-first-load connection failure replaces the catalog with the retry screen.
+## Privacy and credentials
 
 The connection address is stored on-device and the API key is held in the
 system Keychain. If an authentication proxy protects Youtarr, a parent can

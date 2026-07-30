@@ -2,7 +2,7 @@
   <img src="assets/branding/plinx-lockup-on-light.svg" alt="Plinx" height="46"/>
 </h1>
 
-A playful, parent-managed Plex client for family media. Browse, search, and watch a parent-selected library with configurable rating ceilings, library visibility, and offline access.
+A playful, parent-managed Plex client for family media. Browse, search, and watch a parent-selected Plex library with configurable rating ceilings, library visibility, offline access, and optional Youtarr video discovery and requests.
 
  <a href="https://apps.apple.com/app/idYOUR_APP_ID"><img src="assets/branding/app-store-badge.svg" alt="Download on the App Store" width="140"/></a> (coming soon)
 
@@ -25,6 +25,7 @@ A playful, parent-managed Plex client for family media. Browse, search, and watc
 - Multiple Plex Home profile support
 - Customize which libraries are visible
 - Reorder home screen sections to suit your preferences
+- Optional Youtarr Explore and request tracking
 - 8 accent colors to personalize the interface
 - Download movies for offline viewing
 
@@ -64,25 +65,47 @@ Stream with support for 4K, HDR, Dolby Vision, and multiple audio tracks. Pick u
 
 ---
 
+## Youtarr Integration
+
+Plinx can connect to an optional, parent-configured Youtarr service. When
+enabled, Explore adds a dedicated video discovery area with:
+
+- a combined feed of eligible videos from approved channels
+- newest-video rails, channel browsing, and a full landscape video grid
+- video details, request actions, and request-status tracking
+- on-device filtering against both Youtarr permissions and the active Plinx rating policy
+- authenticated artwork routed through the configured Youtarr service
+
+The integration is disabled by default. Connection details remain behind the
+parental gate, secrets are stored in Keychain, and kid-facing screens contain
+no external YouTube links. See the [Youtarr guide](docs/user/youtarr.md) for
+setup and behavior.
+
+---
+
 ## Screenshots
 
-**iPad Experience**
+The current review captures use fictional PG and TV-PG content and the current
+Plinx identity. The complete submission inventory is under
+[`screenshots/app-store`](screenshots/app-store).
+
+**iPhone 6.9-inch**
 
 <table>
 <tr>
-<td align="center"><img src="screenshots/ipad_home.png" width="280" alt="Home screen with recently added rows"><br><sub>Home Screen</sub></td>
-<td align="center"><img src="screenshots/ipad_libraries.png" width="280" alt="Library picker"><br><sub>Library Selection</sub></td>
-<td align="center"><img src="screenshots/ipad_more_details.png" width="280" alt="More details page"><br><sub>More Details</sub></td>
+<td align="center"><img src="screenshots/app-store/iphone-6.9/01-splash.png" width="200" alt="Plinx welcome screen"><br><sub>Welcome</sub></td>
+<td align="center"><img src="screenshots/app-store/iphone-6.9/03-home.png" width="200" alt="Plinx home screen with PG and TV-PG content"><br><sub>Home</sub></td>
+<td align="center"><img src="screenshots/app-store/iphone-6.9/06-youtarr.png" width="200" alt="Youtarr Explore video library"><br><sub>Youtarr Explore</sub></td>
 </tr>
 </table>
 
-**iPhone Experience**
+**iPad 13-inch**
 
 <table>
 <tr>
-<td align="center"><img src="screenshots/iphone_home.png" width="200" alt="iPhone home screen"><br><sub>Home Screen</sub></td>
-<td align="center"><img src="screenshots/iphone_parental_gate.png" width="200" alt="Parental gate"><br><sub>Parental Gate</sub></td>
-<td align="center"><img src="screenshots/iphone_settings.png" width="200" alt="iPhone settings"><br><sub>Settings</sub></td>
+<td align="center"><img src="screenshots/app-store/ipad-13/02-more-info.png" width="280" alt="Plinx media detail screen"><br><sub>More Info</sub></td>
+<td align="center"><img src="screenshots/app-store/ipad-13/04-settings.png" width="280" alt="Plinx settings with PG and TV-PG limits"><br><sub>Parent Settings</sub></td>
+<td align="center"><img src="screenshots/app-store/ipad-13/06-youtarr.png" width="280" alt="Youtarr Explore on iPad"><br><sub>Youtarr Explore</sub></td>
 </tr>
 </table>
 
