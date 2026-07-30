@@ -73,15 +73,17 @@ jobs:
           xcode-version: '26.5'
 
       - name: Test PlinxCore (with coverage)
-        run: swift test \
-          --package-path Packages/PlinxCore \
-          --scratch-path "$RUNNER_TEMP/plinx-swiftpm/PlinxCore" \
-          --enable-code-coverage
+        run: |
+          swift test \
+            --package-path Packages/PlinxCore \
+            --scratch-path "$RUNNER_TEMP/plinx-swiftpm/PlinxCore" \
+            --enable-code-coverage
 
       - name: Test PlinxUI
-        run: swift test \
-          --package-path Packages/PlinxUI \
-          --scratch-path "$RUNNER_TEMP/plinx-swiftpm/PlinxUI"
+        run: |
+          swift test \
+            --package-path Packages/PlinxUI \
+            --scratch-path "$RUNNER_TEMP/plinx-swiftpm/PlinxUI"
 
       - name: Enforce safety-critical coverage threshold
         shell: bash
