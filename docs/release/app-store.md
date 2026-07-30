@@ -1,6 +1,6 @@
 # App Store Release Metadata And Review Runbook
 
-This is the source of truth for the first Plinx App Store submission. Version 1 targets iOS and iPadOS only; do not add the tvOS build to the first App Store version.
+This is the source of truth for the Plinx 1.5 App Store submission. Version 1.5 targets iOS and iPadOS only; do not add the tvOS build to this App Store version.
 
 ## Positioning
 
