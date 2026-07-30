@@ -90,7 +90,8 @@ jobs:
         run: |
           set -euo pipefail
           MIN_COVERAGE=90.0
-          TEST_ARTIFACT=$(find Packages/PlinxCore/.build -name "*PlinxCorePackageTests.xctest" -maxdepth 5 | head -n 1 || true)
+          CORE_SCRATCH="$RUNNER_TEMP/plinx-swiftpm/PlinxCore"
+          TEST_ARTIFACT=$(find "$CORE_SCRATCH" -maxdepth 5 -name "*PlinxCorePackageTests.xctest" | head -n 1 || true)
           if [[ -z "$TEST_ARTIFACT" ]]; then
             echo "No test bundle found; failing for safety coverage enforcement."
             exit 1
@@ -107,7 +108,7 @@ jobs:
             exit 1
           fi
 
-          PROF_DATA=$(find Packages/PlinxCore/.build -name "default.profdata" -maxdepth 6 | head -n 1 || true)
+          PROF_DATA=$(find "$CORE_SCRATCH" -maxdepth 6 -name "default.profdata" | head -n 1 || true)
           if [[ -z "$PROF_DATA" ]]; then
             echo "No coverage data found; failing for safety coverage enforcement."
             exit 1
