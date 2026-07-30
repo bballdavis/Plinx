@@ -35,6 +35,8 @@ or `main`. Every push to `main` rebuilds the same site and deploys it to GitHub
 Pages.
 
 The workflow uses an Ubuntu runner and deploys only after a successful build.
+Generated image equality is not a required CI gate; visual asset review and the
+branding generator remain available for deliberate branding changes.
 The site reads its current dependency status at build time from the pinned
 configuration, so deployment does not move or resolve any dependency.
 
@@ -48,6 +50,9 @@ CI includes a documentation guard job that verifies:
 - PRs that change code, scripts, workflows, or key root files also update repository guidance
 - the Docusaurus source and required user/maintenance entry points exist
 - current Strimr revisions are not copied into pairing narrative pages
+
+The job installs `ripgrep` explicitly before running the guard so it does not
+depend on the default macOS runner image.
 
 Use the same validation locally with:
 

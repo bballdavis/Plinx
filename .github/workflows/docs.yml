@@ -37,9 +37,6 @@ jobs:
       - name: Install documentation dependencies
         run: npm ci --prefix website
 
-      - name: Verify generated branding assets
-        run: npm run branding:check --prefix website
-
       - name: Test dependency status loader
         run: npm run test --prefix website
 

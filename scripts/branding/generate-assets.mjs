@@ -37,25 +37,10 @@ async function emit(relativePath, content) {
     } catch {
       throw new Error(`Missing generated branding asset: ${relativePath}`);
     }
-    if (existing.equals(data)) {
-      return;
-    }
-    if (relativePath.endsWith('.png')) {
-      const [existingImage, generatedImage] = await Promise.all([
-        sharp(existing).raw().toBuffer({resolveWithObject: true}),
-        sharp(data).raw().toBuffer({resolveWithObject: true}),
-      ]);
-      const sameShape =
-        existingImage.info.width === generatedImage.info.width &&
-        existingImage.info.height === generatedImage.info.height &&
-        existingImage.info.channels === generatedImage.info.channels;
-      if (sameShape && existingImage.data.equals(generatedImage.data)) {
-        return;
-      }
-    }
     if (!existing.equals(data)) {
       throw new Error(`Generated branding asset is stale: ${relativePath}`);
     }
+    return;
   }
 
   await fs.mkdir(path.dirname(destination), {recursive: true});
