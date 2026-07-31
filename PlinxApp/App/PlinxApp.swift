@@ -177,7 +177,10 @@ struct PlinxApp: App {
                 .lifecycleHardening(
                     coordinator: playbackCoordinator,
                     mainCoordinator: mainCoordinator,
-                    downloadManager: downloadManager
+                    downloadManager: downloadManager,
+                    plexApiContext: plexApiContext,
+                    sessionManager: sessionManager,
+                    downloadOwnershipStore: downloadOwnershipStore
                 )
                 #else
                 .lifecycleHardening(

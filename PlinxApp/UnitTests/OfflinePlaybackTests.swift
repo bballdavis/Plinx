@@ -158,6 +158,24 @@ final class OfflinePlaybackTests: XCTestCase {
     }
 
     @MainActor
+    func test_downloadOwnershipReturnsOnlyActiveProfileIDsForResume() throws {
+        let suite = "OfflinePlaybackTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let ownership = DownloadOwnershipStore(defaults: defaults)
+        let current = DownloadOwnerIdentity(serverIdentifier: "server-a", profileIdentifier: "profile-a")
+        let other = DownloadOwnerIdentity(serverIdentifier: "server-a", profileIdentifier: "profile-b")
+
+        ownership.claim(downloadIDs: ["current-1", "current-2"], as: current)
+        ownership.claim(downloadIDs: ["other"], as: other)
+
+        XCTAssertEqual(
+            ownership.downloadIDs(ownedBy: current),
+            Set(["current-1", "current-2"])
+        )
+    }
+
+    @MainActor
     func test_legacyDownloadIsSharedWhenAllowedByCurrentPolicy() throws {
         let suite = "OfflinePlaybackTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))

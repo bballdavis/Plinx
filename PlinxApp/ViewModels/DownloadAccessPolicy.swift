@@ -32,6 +32,12 @@ final class DownloadOwnershipStore {
         identitiesByDownloadID[downloadID]
     }
 
+    func downloadIDs(ownedBy identity: DownloadOwnerIdentity) -> Set<String> {
+        Set(identitiesByDownloadID.compactMap { downloadID, owner in
+            owner == identity ? downloadID : nil
+        })
+    }
+
     func claim(downloadIDs: [String], as identity: DownloadOwnerIdentity) {
         for downloadID in downloadIDs {
             identitiesByDownloadID[downloadID] = identity

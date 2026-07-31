@@ -958,27 +958,24 @@ struct RootTabView: View {
                                     )
                                     return
                                 }
-                                let existingDownloadIDs = Set(downloadManager.items.map(\.id))
+                                let newDownloadIDs: [String]
                                 switch media.type {
                                 case .show:
-                                    await downloadManager.enqueueShow(
+                                    newDownloadIDs = await downloadManager.enqueueShow(
                                         ratingKey: media.id,
                                         context: plexApiContext
                                     )
                                 case .season:
-                                    await downloadManager.enqueueSeason(
+                                    newDownloadIDs = await downloadManager.enqueueSeason(
                                         ratingKey: media.id,
                                         context: plexApiContext
                                     )
                                 default:
-                                    await downloadManager.enqueueItem(
+                                    newDownloadIDs = await downloadManager.enqueueItem(
                                         ratingKey: media.id,
                                         context: plexApiContext
                                     )
                                 }
-                                let newDownloadIDs = downloadManager.items
-                                    .map(\.id)
-                                    .filter { !existingDownloadIDs.contains($0) }
                                 downloadOwnershipStore.claim(
                                     downloadIDs: newDownloadIDs,
                                     as: ownerIdentity
