@@ -89,39 +89,31 @@ final class QuickActionFocusOrderTests: XCTestCase {
 
 final class HeaderFocusOrderTests: XCTestCase {
 
-    func test_nextPreferredTab_skipsCurrentHomeAndReturnsLibrary() {
+    func test_returnTarget_isAlwaysHomeWhenHomeIsVisible() {
         let tabs = KidsMainTabPicker.TabItem.mainTabs(showSearchInMainNavigation: true, includeSettings: true)
 
         XCTAssertEqual(
-            HeaderFocusOrder.nextPreferredTab(current: .home, visibleTabs: tabs),
-            .library
-        )
-    }
-
-    func test_nextPreferredTab_skipsCurrentLibraryAndReturnsHome() {
-        let tabs = KidsMainTabPicker.TabItem.mainTabs(showSearchInMainNavigation: true)
-
-        XCTAssertEqual(
-            HeaderFocusOrder.nextPreferredTab(current: .library, visibleTabs: tabs),
+            HeaderFocusOrder.returnTarget(visibleTabs: tabs),
             .home
         )
     }
 
-    func test_nextPreferredTab_ignoresActionOnlyItems() {
+    func test_returnTarget_ignoresActionOnlyItems() {
         let tabs = KidsMainTabPicker.TabItem.mainTabs(showSearchInMainNavigation: false, includeSettings: true)
 
         XCTAssertEqual(
-            HeaderFocusOrder.nextPreferredTab(current: .library, visibleTabs: tabs),
+            HeaderFocusOrder.returnTarget(visibleTabs: tabs),
             .home
         )
     }
 
-    func test_nextPreferredTab_returnsHomeFromSearch() {
+    func test_returnTarget_fallsBackToFirstRealTabWhenHomeIsMissing() {
         let tabs = KidsMainTabPicker.TabItem.mainTabs(showSearchInMainNavigation: true)
+            .filter { $0.tab != .home }
 
         XCTAssertEqual(
-            HeaderFocusOrder.nextPreferredTab(current: .search, visibleTabs: tabs),
-            .home
+            HeaderFocusOrder.returnTarget(visibleTabs: tabs),
+            .library
         )
     }
 }

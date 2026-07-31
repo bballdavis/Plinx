@@ -60,23 +60,39 @@ struct ParentalGateView: View {
                 .foregroundStyle(PlinxBrand.shell)
                 .accessibilityIdentifier("parentalGate.title")
 
-            NumberPadEntryField(
-                text: $pinEntry,
-                placeholder: "",
-                isSecure: true,
-                maximumDigits: 6,
-                accessibilityLabel: NSLocalizedString(
-                    "parental.gate.pin.accessibilityLabel",
-                    tableName: "Plinx",
-                    comment: ""
-                ),
-                onSubmit: submitPin
-            )
+            Group {
+                #if os(tvOS)
+                TvParentalNumberPad(
+                    text: $pinEntry,
+                    isSecure: true,
+                    maximumDigits: 6,
+                    accessibilityLabel: NSLocalizedString(
+                        "parental.gate.pin.accessibilityLabel",
+                        tableName: "Plinx",
+                        comment: ""
+                    ),
+                    onSubmit: submitPin
+                )
+                #else
+                NumberPadEntryField(
+                    text: $pinEntry,
+                    placeholder: "",
+                    isSecure: true,
+                    maximumDigits: 6,
+                    accessibilityLabel: NSLocalizedString(
+                        "parental.gate.pin.accessibilityLabel",
+                        tableName: "Plinx",
+                        comment: ""
+                    ),
+                    onSubmit: submitPin
+                )
                 .frame(width: entryFieldSize.width, height: entryFieldSize.height)
                 .frame(maxWidth: .infinity, minHeight: entryFieldSlotHeight, maxHeight: entryFieldSlotHeight, alignment: .center)
-                .onChange(of: pinEntry) { _, _ in
-                    pinError = false
-                }
+                #endif
+            }
+            .onChange(of: pinEntry) { _, _ in
+                pinError = false
+            }
 
             if pinError {
                 Text("parental.gate.pin.wrong", tableName: "Plinx")
@@ -88,14 +104,9 @@ struct ParentalGateView: View {
                     .foregroundStyle(.red)
             }
 
-            LiquidGlassButton(
-                LocalizedStringResource("parental.gate.unlock", table: "Plinx"),
-                treatment: .brand
-            ) {
-                submitPin()
-            }
-            .accessibilityIdentifier("parentalGate.unlock")
-            .accessibilityValue(PlinxBrandingSemantics.parentalGateUnlockStyleValue)
+            #if !os(tvOS)
+            unlockButton(action: submitPin)
+            #endif
         }
     }
 
@@ -112,7 +123,21 @@ struct ParentalGateView: View {
             Text(challenge.prompt)
                 .font(.system(size: 48, weight: .black, design: .rounded))
                 .foregroundStyle(PlinxBrand.shell)
+                .accessibilityIdentifier("parentalGate.challenge")
 
+            #if os(tvOS)
+            TvParentalNumberPad(
+                text: $answerText,
+                isSecure: false,
+                maximumDigits: 4,
+                accessibilityLabel: NSLocalizedString(
+                    "parental.gate.answer.accessibilityLabel",
+                    tableName: "Plinx",
+                    comment: ""
+                ),
+                onSubmit: submitMathAnswer
+            )
+            #else
             NumberPadEntryField(
                 text: $answerText,
                 placeholder: NSLocalizedString("parental.gate.placeholder", tableName: "Plinx", comment: ""),
@@ -125,16 +150,22 @@ struct ParentalGateView: View {
             )
                 .frame(width: entryFieldSize.width, height: entryFieldSize.height)
                 .frame(maxWidth: .infinity, minHeight: entryFieldSlotHeight, maxHeight: entryFieldSlotHeight, alignment: .center)
+            #endif
 
-            LiquidGlassButton(
-                LocalizedStringResource("parental.gate.unlock", table: "Plinx"),
-                treatment: .brand
-            ) {
-                submitMathAnswer()
-            }
-            .accessibilityIdentifier("parentalGate.unlock")
-            .accessibilityValue(PlinxBrandingSemantics.parentalGateUnlockStyleValue)
+            #if !os(tvOS)
+            unlockButton(action: submitMathAnswer)
+            #endif
         }
+    }
+
+    private func unlockButton(action: @escaping () -> Void) -> some View {
+        LiquidGlassButton(
+            LocalizedStringResource("parental.gate.unlock", table: "Plinx"),
+            treatment: .brand,
+            action: action
+        )
+        .accessibilityIdentifier("parentalGate.unlock")
+        .accessibilityValue(PlinxBrandingSemantics.parentalGateUnlockStyleValue)
     }
 }
 
@@ -177,6 +208,138 @@ extension ParentalGateView {
         }
     }
 }
+
+#if os(tvOS)
+private struct TvParentalNumberPad: View {
+    private enum Key: Hashable {
+        case digit(Int)
+        case delete
+        case unlock
+    }
+
+    @Binding var text: String
+    let isSecure: Bool
+    let maximumDigits: Int
+    let accessibilityLabel: String
+    let onSubmit: () -> Void
+
+    @FocusState private var focusedKey: Key?
+
+    private let columns = Array(repeating: GridItem(.fixed(150), spacing: 14), count: 3)
+    private let keys: [Key] = (1...9).map(Key.digit) + [.delete, .digit(0), .unlock]
+
+    var body: some View {
+        VStack(spacing: 18) {
+            Text(displayText)
+                .font(.system(size: 38, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(PlinxBrand.shell)
+                .frame(width: 478, height: 68)
+                .background(.white.opacity(0.88), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .accessibilityLabel(accessibilityLabel)
+                .accessibilityValue(text.isEmpty ? "Empty" : text)
+                .accessibilityIdentifier("parentalGate.numberEntry")
+
+            LazyVGrid(columns: columns, spacing: 14) {
+                ForEach(keys, id: \.self) { key in
+                    keyButton(key)
+                }
+            }
+        }
+        .onAppear {
+            focusedKey = .digit(1)
+        }
+    }
+
+    private var displayText: String {
+        guard !text.isEmpty else { return "—" }
+        return isSecure ? String(repeating: "●", count: text.count) : text
+    }
+
+    private func keyButton(_ key: Key) -> some View {
+        Button {
+            activate(key)
+        } label: {
+            Group {
+                switch key {
+                case let .digit(value):
+                    Text(String(value))
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                case .delete:
+                    Image(systemName: "delete.left.fill")
+                        .font(.system(size: 28, weight: .semibold))
+                case .unlock:
+                    Text("parental.gate.unlock", tableName: "Plinx")
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .minimumScaleFactor(0.75)
+                }
+            }
+            .frame(width: 150, height: 70)
+        }
+        .buttonStyle(TvParentalKeyStyle(isUnlock: key == .unlock))
+        .focused($focusedKey, equals: key)
+        .accessibilityIdentifier(accessibilityIdentifier(for: key))
+        .accessibilityValue(
+            key == .unlock ? PlinxBrandingSemantics.parentalGateUnlockStyleValue : ""
+        )
+    }
+
+    private func activate(_ key: Key) {
+        switch key {
+        case let .digit(value):
+            guard text.count < maximumDigits else { return }
+            text.append(String(value))
+        case .delete:
+            guard !text.isEmpty else { return }
+            text.removeLast()
+        case .unlock:
+            onSubmit()
+        }
+    }
+
+    private func accessibilityIdentifier(for key: Key) -> String {
+        switch key {
+        case let .digit(value):
+            return "parentalGate.key.\(value)"
+        case .delete:
+            return "parentalGate.delete"
+        case .unlock:
+            return "parentalGate.unlock"
+        }
+    }
+}
+
+private struct TvParentalKeyStyle: ButtonStyle {
+    let isUnlock: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        TvParentalKeyBody(configuration: configuration, isUnlock: isUnlock)
+    }
+}
+
+private struct TvParentalKeyBody: View {
+    let configuration: TvParentalKeyStyle.Configuration
+    let isUnlock: Bool
+
+    @Environment(\.isFocused) private var isFocused
+
+    var body: some View {
+        configuration.label
+            .foregroundStyle(isUnlock ? Color.white : PlinxBrand.shell)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(isUnlock ? Color.accentColor : Color.white.opacity(isFocused ? 0.98 : 0.78))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(isFocused ? PlinxBrand.shell : Color.clear, lineWidth: 4)
+            )
+            .shadow(color: isFocused ? PlinxBrand.shell.opacity(0.32) : .clear, radius: 14)
+            .scaleEffect(isFocused ? 1.06 : 1)
+            .animation(.easeOut(duration: 0.12), value: isFocused)
+    }
+}
+#endif
 
 private struct NumberPadEntryField: UIViewRepresentable {
     @Binding var text: String

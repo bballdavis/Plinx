@@ -13,6 +13,13 @@
 - Treat Strimr-side edits as escalations, not defaults.
 - Before editing Strimr-owned code, confirm the requirement cannot be solved in Plinx adapters, decorators, views, view models, or packages.
 - If Strimr changes are unavoidable, keep the patch minimal, document why it is needed, and identify upstream PR candidates when the fix is generic.
+- Every Strimr-side edit must be recorded in the same change in the Strimr
+  upgrade inventory at
+  `docs/maintenance/strimr-upstream-audit-2026-07-25.md`. Add or update a
+  focused plan under `docs/maintenance/strimr-contributions/` when the patch is
+  generic or expected to be replayed, and update `STRIMR_REQUIRED_SEAMS` when
+  Plinx depends on a source-level integration token. Do not leave required
+  sibling-repository work represented only by an uncommitted checkout.
 
 ## Doc Routing
 
@@ -34,6 +41,10 @@ Any PR that changes app structure, user-visible behavior, branding, safety/priva
 - Preserve the zero-collection baseline for the public documentation site: no analytics, remote search, trackers, or third-party embeds without an explicit privacy decision and documentation update.
 - The exact current Strimr pin, upstream base, AetherEngine revision, and Xcode version are owned by `config/release-dependencies.env`, `PlinxApp/project.yml`, and `.xcode-version`. Render them through the documentation dependency-status loader; do not hard-code current revisions in narrative docs.
 - Strimr upgrades are manual compatibility work. Never automatically advance the paired branch or pin; follow `docs/development/branch-pairing.md` and run the full integration contract before changing it.
+- A Strimr migration is not complete until the upgrade inventory accounts for
+  every downstream patch as adopted, dropped, kept in Plinx, or replayed; the
+  paired Strimr commit is pushed; and the exact Plinx pin passes the full
+  integration contract.
 
 ## Instruction File Policy
 

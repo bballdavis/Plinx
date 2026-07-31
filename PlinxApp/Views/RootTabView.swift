@@ -35,13 +35,13 @@ enum QuickActionFocusOrder {
 }
 
 enum HeaderFocusOrder {
-    static func nextPreferredTab(
-        current: MainCoordinator.Tab,
+    static func returnTarget(
         visibleTabs: [KidsMainTabPicker.TabItem]
     ) -> MainCoordinator.Tab? {
         visibleTabs
             .compactMap(\.tab)
-            .first(where: { $0 != current })
+            .first(where: { $0 == .home })
+            ?? visibleTabs.compactMap(\.tab).first
     }
 }
 
@@ -71,6 +71,8 @@ struct RootTabView: View {
     @State private var selectedQuickActionMedia: MediaDisplayItem?
     @State private var quickActionErrorMessage: String?
     @State private var homeViewModel: SafeHomeViewModel?
+    @State private var homeContentFocusRequest = 0
+    @State private var libraryContentFocusRequest = 0
     #if os(tvOS)
     @State private var mediaFocusModel = MediaFocusModel()
     @FocusState private var focusedHeaderTab: MainCoordinator.Tab?
@@ -479,6 +481,10 @@ struct RootTabView: View {
             }
             #if !os(tvOS)
             .presentationDetents([.large])
+            #else
+            .frame(width: 1_440, height: 900)
+            .background(Color.appBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 34, style: .continuous))
             #endif
         }
         .onChange(of: showSettings) { _, isPresented in
@@ -518,6 +524,7 @@ struct RootTabView: View {
                     onRequestHomeNavigationFocus: {
                         requestHeaderFocus(from: .home)
                     },
+                    contentFocusRequest: homeContentFocusRequest,
                     isItemWatched: { displayItem in
                         isWatchedDisplay(displayItem)
                     }
@@ -582,7 +589,8 @@ struct RootTabView: View {
                     },
                     onRequestHomeNavigationFocus: {
                         requestHeaderFocus(from: .library)
-                    }
+                    },
+                    contentFocusRequest: libraryContentFocusRequest
                 )
                 .toolbar(.hidden, for: .navigationBar)
                 .navigationDestination(for: Library.self) { library in
@@ -661,26 +669,46 @@ struct RootTabView: View {
 
     private func requestHeaderFocus(from currentTab: MainCoordinator.Tab) {
         #if os(tvOS)
-        focusedHeaderTab = HeaderFocusOrder.nextPreferredTab(
-            current: currentTab,
-            visibleTabs: visibleTabs
-        ) ?? currentTab
+        focusedHeaderTab = HeaderFocusOrder.returnTarget(visibleTabs: visibleTabs) ?? currentTab
+        #endif
+    }
+
+    private func requestFirstContentFocus() {
+        #if os(tvOS)
+        switch activeRootTab {
+        case .home:
+            homeContentFocusRequest &+= 1
+        case .library:
+            libraryContentFocusRequest &+= 1
+        default:
+            break
+        }
         #endif
     }
 
     private var settingsHeaderRow: some View {
         HStack(spacing: 12) {
             Text("tabs.settings".plinxLocalized)
+                #if os(tvOS)
+                .font(.system(size: 46, weight: .bold, design: .rounded))
+                #else
                 .font(.title3.weight(.bold))
+                #endif
                 .foregroundStyle(.white.opacity(0.95))
             Spacer()
             PlinxChromeButton(systemImage: "xmark") {
                 showSettings = false
             }
         }
+        #if os(tvOS)
+        .padding(.horizontal, 42)
+        .padding(.top, 26)
+        .padding(.bottom, 20)
+        #else
         .padding(.horizontal, 20)
         .padding(.top, 8)
         .padding(.bottom, 10)
+        #endif
     }
 
     private func scrollingHeaderContent(
@@ -711,6 +739,7 @@ struct RootTabView: View {
             selectedTab: tabBinding,
             focusedTab: $focusedHeaderTab,
             onAction: handleBottomAction,
+            onMoveDown: requestFirstContentFocus,
             placement: .header
         )
         .overlay(alignment: .leading) {
@@ -743,8 +772,8 @@ struct RootTabView: View {
         if showsLogo {
             PlinxHomeHeaderLogoView(
                 accessibilityIdentifier: "home.header.logo",
-                maxWidth: 142,
-                logoHeight: 35
+                maxWidth: 220,
+                logoHeight: 52
             )
         } else {
             Text(title.plinxLocalized)
@@ -755,7 +784,7 @@ struct RootTabView: View {
     }
 
     private var tvOSHeaderOverlayWidth: CGFloat {
-        280
+        320
     }
 
     private var tvOSHeaderOverlayLeadingPadding: CGFloat {

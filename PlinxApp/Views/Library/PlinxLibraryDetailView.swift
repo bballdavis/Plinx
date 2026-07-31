@@ -295,6 +295,9 @@ struct PlinxLibraryDetailView: View {
             tabs: visibleRootTabs,
             selectedTab: rootTabBinding,
             focusedTab: $focusedRootNavTab,
+            onMoveDown: {
+                focusedLibraryFilterTab = selectedTab
+            },
             placement: .header
         )
         .overlay(alignment: .leading) {

@@ -110,8 +110,14 @@ loading. Keep the fixture service credential-free and capped at PG/TV-PG.
 - do not rely on touch, pointer, or click-only interactions on Apple TV
 - keep retry and refresh affordances focusable when they are part of the recovery path
 - verify the default focus path for any screen that has a single primary action
-- on Home, pressing up from the first content row must return focus to the header navigation instead of trapping focus in content
-- on Home, that header return target should land on the first visible real tab that is not the active tab, which is normally `Library` when Home is selected
+- on Home and Library, pressing up from the first content row must return focus to the visible `Home` button in the header instead of trapping focus in content
+- pressing down from the header must return to the first available object below it: the first Home card, first Library tile, or the selected library-detail filter before the first media card
+- empty and loading states must leave focus in the header until a real destination exists; content arrival must not steal focus
+- the tvOS parental gate Select action enters the focused digit and never submits or dismisses the gate; only the explicit Unlock action submits
+- `AppleTVInteractionUITests` sends real Siri Remote UDLR and Select events
+  through deterministic, network-free browse fixtures. Navigation changes must
+  assert the exact focused accessibility identifier for Home, Library root,
+  empty content, and Library detail.
 
 ### Live smoke checks
 

@@ -146,6 +146,7 @@ branches, feature branches, and the uncommitted Strimr working tree.
 | Optimistic watched-status environment | Used by Plinx quick actions and UI composition | Keep in Plinx unless upstream introduces equivalent actions |
 | Kids tabs, hidden controls, Plinx product identifiers, branding, and player chrome | Plinx-owned product behavior | Never upstream |
 | Dynamic authentication polling | No Plex API evidence or regression test supports the chosen backoff | Do not upstream yet |
+| Host-app Plex product identity and encoded auth URL | Upstream hard-codes `Strimr` in Plex request headers and auth URLs | Replay the generic host-bundle identity seam until upstream accepts it; PIN creation and browser claim identity must remain identical |
 | Direct-server bootstrap and UI-test token hooks | Plinx offline/UI-test infrastructure | Keep in Plinx |
 | Library sizing, artwork selection, and focus styling | Upstream has overlapping but different tvOS changes | Reapply only after screenshots and focus tests show a remaining defect |
 | Uncommitted speed removal and player-control restyling | Product/UI preference, not a generic engine fix | Keep out of the upstream contribution queue |
@@ -260,6 +261,7 @@ The individual plans are stored in
 8. [Offline playback progress](strimr-contributions/08-offline-playback-progress.md)
 9. [Explicit default-server preference](strimr-contributions/09-explicit-default-server-preference.md)
 10. [SharePlay presentation capability](strimr-contributions/10-shareplay-presentation-capability.md)
+11. [Host-app Plex authentication identity](strimr-contributions/11-plex-authentication-product-identity.md)
 
 ## Upstream Commit Appendix
 

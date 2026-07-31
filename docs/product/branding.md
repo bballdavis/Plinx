@@ -754,7 +754,8 @@ Rules:
 - On tvOS, text metadata belongs in the leading safe area, sized to its content with continuous corners and a softly feathered dark edge. It must reserve the trailing logo area rather than overlap it.
 - On tvOS library detail screens, Recommended/Browse/Collections controls sit below the hero metadata and before the first content section, never in front of the artwork.
 - On tvOS, hero artwork should overscan slightly past the top and right edges so the shell background never peeks through there.
-- tvOS selected media tiles should scale up slightly and use a solid accent border plus a short, fully fading accent glow. Reserve enough surrounding space and disable scroll clipping so the halo never ends in a hard edge.
+- On tvOS, the hero is a bounded pinned region: artwork reaches the physical top and right edges, metadata and artwork share one bottom guide, and vertical content clips at that guide instead of painting over the hero.
+- tvOS selected media tiles should scale up slightly and use a 4-point solid accent border around the scaled outer artwork bounds plus a short, fully fading accent glow. Reserve at least 24 points around horizontal carousels for the halo; only horizontal carousel clipping may be disabled.
 
 ## Settings
 
@@ -771,6 +772,8 @@ Rules:
 - Settings should feel parent-safe and serious, but still clearly part of Plinx.
 - Use accent for the actionable part of each setting, not as page wallpaper.
 - Group panels should feel soft and elevated, never harsh or sterile.
+- On tvOS, use a near-full-screen parent modal with large grouped rows, 30-point primary labels, readable supporting copy, and a persistent close control.
+- tvOS rating choices use neutral text and a selected checkmark. Accent outlines communicate focus; never place accent-colored rating text on an accent-colored pill.
 
 ## Profile Selection
 

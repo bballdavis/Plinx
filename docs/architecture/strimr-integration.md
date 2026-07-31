@@ -92,12 +92,22 @@ When a Plinx need forces a Strimr patch, document:
 The pinned `dev-plinx` revision contains the Strimr-side injection points that
 cannot be supplied by a Plinx decorator:
 
+- host-app Plex product identity and encoded authentication-URL construction,
+  required because Plex PIN creation headers and the browser claim URL must use
+  the same product name before control returns to a Plinx-owned view;
 - tvOS playback-gain propagation and MPV lifecycle reapplication;
 - an optional authorization callback before autoplay or next-queue playback on iOS and tvOS;
 - a default-enabled `showsBufferingOverlay` option on the iOS and tvOS player wrappers;
 - default-allow playlist and media-detail cache authorization hooks required because those upstream views load their own models.
 
 Plinx supplies the actual content decision in `StrimrAdapter`; Strimr remains unaware of Plinx policy or product copy.
+
+The Plex identity seam reads the host bundle display name and falls back to
+`Strimr`, so the generic client remains correctly branded while Plinx sends
+`Plinx` consistently in both `X-Plex-Product` and the encoded browser
+authorization context. This cannot live only in a Plinx adapter because the
+paired Strimr networking clients construct those requests internally. The seam
+is expected to remain upstreamable.
 
 ## Player Buffering Ownership
 

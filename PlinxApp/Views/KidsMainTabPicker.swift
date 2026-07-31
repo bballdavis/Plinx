@@ -28,6 +28,7 @@ struct KidsMainTabPicker: View {
     @Binding var selectedTab: MainCoordinator.Tab
     var focusedTab: FocusState<MainCoordinator.Tab?>.Binding? = nil
     var onAction: (TabItem.Action) -> Void = { _ in }
+    var onMoveDown: () -> Void = {}
     var placement: Placement = .floating
 
     @Environment(\.horizontalSizeClass) private var sizeClass
@@ -147,6 +148,12 @@ struct KidsMainTabPicker: View {
                 .frame(maxWidth: isHeader ? .infinity : nil, alignment: .center)
                 .padding(.horizontal, containerHorizontalPadding)
                 .padding(.bottom, isHeader ? 0 : 1)
+                #if os(tvOS)
+                .onMoveCommand { direction in
+                    guard isHeader, direction == .down else { return }
+                    onMoveDown()
+                }
+                #endif
         }
     }
 

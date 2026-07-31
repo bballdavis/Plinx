@@ -49,6 +49,9 @@ private struct SettingsBody: View {
     }
 
     var body: some View {
+        #if os(tvOS)
+        tvSettingsContent
+        #else
         List {
             // MARK: Content subpages
             Section {
@@ -185,38 +188,10 @@ private struct SettingsBody: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    #if os(tvOS)
-                    HStack(spacing: 12) {
-                        Button {
-                            settingsManager.setMaxVolumePercent(max(settingsManager.playback.maxVolumePercent - 5, 0))
-                        } label: {
-                            Image(systemName: "minus.circle.fill")
-                        }
-                        .buttonStyle(.bordered)
-                        .accessibilityLabel(
-                            Text("settings.safety.maxVolume.decrease", tableName: "Plinx")
-                        )
-
-                        Text("settings.safety.maxVolume.adjust", tableName: "Plinx")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-
-                        Button {
-                            settingsManager.setMaxVolumePercent(min(settingsManager.playback.maxVolumePercent + 5, 100))
-                        } label: {
-                            Image(systemName: "plus.circle.fill")
-                        }
-                        .buttonStyle(.bordered)
-                        .accessibilityLabel(
-                            Text("settings.safety.maxVolume.increase", tableName: "Plinx")
-                        )
-                    }
-                    #else
                     Slider(value: maxVolumeBinding, in: 0...100, step: 5)
                         .accessibilityLabel(
                             Text("settings.safety.maxVolume.title", tableName: "Plinx")
                         )
-                    #endif
                 }
                 .padding(.vertical, 4)
             } header: {
@@ -321,12 +296,8 @@ private struct SettingsBody: View {
             }
         }
         .navigationTitle(Text("tabs.settings", tableName: "Plinx"))
-        #if os(tvOS)
-        .listStyle(.plain)
-        #else
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
-        #endif
         .background(Color.appBackground.ignoresSafeArea())
         .task {
             if libraryStore.libraries.isEmpty {
@@ -343,5 +314,467 @@ private struct SettingsBody: View {
                 )
             }
         }
+        #endif
+    }
+
+    #if os(tvOS)
+    private var tvSettingsContent: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 34) {
+                TvSettingsSection(title: LocalizedStringKey("settings.content.section")) {
+                    tvNavigationLink(
+                        title: LocalizedStringKey("settings.libraries.title"),
+                        icon: "square.grid.2x2.fill",
+                        destination: VisibleLibrariesView()
+                    )
+                    tvNavigationLink(
+                        title: LocalizedStringKey("settings.homescreen.title"),
+                        icon: "house.fill",
+                        destination: HomeScreenSettingsView()
+                    )
+                    tvNavigationLink(
+                        title: LocalizedStringKey("settings.libraryViews.title"),
+                        icon: "rectangle.3.group.fill",
+                        destination: LibraryViewsSettingsView()
+                    )
+                    tvNavigationLink(
+                        title: LocalizedStringKey("youtarr.settings.title"),
+                        icon: "sparkles.tv",
+                        destination: YoutarrSettingsView()
+                    )
+                    tvNavigationLink(
+                        title: LocalizedStringKey("settings.server.default.title"),
+                        icon: "server.rack",
+                        destination: DefaultServerSettingsView(
+                            viewModel: ServerSelectionViewModel(
+                                sessionManager: sessionManager,
+                                context: plexApiContext
+                            )
+                        )
+                    )
+                    TvSettingsToggleRow(
+                        title: LocalizedStringKey("settings.navigation.showSearchInMainNavigation"),
+                        icon: "magnifyingglass",
+                        isOn: $showSearchInMainNavigation
+                    )
+                }
+
+                TvSettingsSection(title: LocalizedStringKey("settings.appearance.section")) {
+                    tvNavigationLink(
+                        title: LocalizedStringKey("settings.appearance.title"),
+                        icon: "paintpalette.fill",
+                        destination: AppearanceSettingsView()
+                    )
+                }
+
+                TvSettingsSection(
+                    title: LocalizedStringKey("settings.safety.title"),
+                    footer: LocalizedStringKey("settings.safety.excludeUnrated.description")
+                ) {
+                    NavigationLink {
+                        TvRatingChooser(
+                            title: LocalizedStringKey("settings.safety.movie.rating.title"),
+                            ratings: PlinxRating.movieRatings.map(\.rawValue),
+                            selection: $maxMovieRatingRaw
+                        )
+                    } label: {
+                        TvSettingsRow(
+                            title: LocalizedStringKey("settings.safety.movie.rating.title"),
+                            icon: "film.fill",
+                            trailingValue: maxMovieRatingRaw,
+                            showsChevron: true
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("settings.rating.movie")
+
+                    NavigationLink {
+                        TvRatingChooser(
+                            title: LocalizedStringKey("settings.safety.tv.rating.title"),
+                            ratings: PlinxRating.tvRatings.map(\.rawValue),
+                            selection: $maxTVRatingRaw
+                        )
+                    } label: {
+                        TvSettingsRow(
+                            title: LocalizedStringKey("settings.safety.tv.rating.title"),
+                            icon: "tv.fill",
+                            trailingValue: maxTVRatingRaw,
+                            showsChevron: true
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("settings.rating.tv")
+
+                    TvSettingsToggleRow(
+                        title: LocalizedStringKey("settings.safety.excludeUnrated.title"),
+                        icon: "nosign",
+                        isOn: $excludeUnrated
+                    )
+                }
+
+                TvSettingsSection(
+                    title: LocalizedStringKey("settings.safety.audio.section"),
+                    footer: LocalizedStringKey("settings.safety.maxVolume.description")
+                ) {
+                    TvVolumeSettingsRow(
+                        value: settingsManager.playback.maxVolumePercent,
+                        onDecrease: {
+                            settingsManager.setMaxVolumePercent(
+                                max(settingsManager.playback.maxVolumePercent - 5, 0)
+                            )
+                        },
+                        onIncrease: {
+                            settingsManager.setMaxVolumePercent(
+                                min(settingsManager.playback.maxVolumePercent + 5, 100)
+                            )
+                        }
+                    )
+                }
+
+                TvSettingsSection(
+                    title: LocalizedStringKey("settings.safety.touchlock.section"),
+                    footer: LocalizedStringKey("settings.safety.touchlock.description")
+                ) {
+                    TvSettingsToggleRow(
+                        title: LocalizedStringKey("settings.safety.touchlock.title"),
+                        icon: "lock.fill",
+                        isOn: $babyLockEnabled
+                    )
+                    tvNavigationLink(
+                        title: LocalizedStringKey("settings.parentalPIN.title"),
+                        icon: "key.fill",
+                        destination: SetPinView()
+                    )
+                }
+
+                TvSettingsSection(title: LocalizedStringKey("settings.profile.section")) {
+                    Button {
+                        isPresentingProfileSwitcher = true
+                    } label: {
+                        TvSettingsRow(
+                            title: LocalizedStringKey("settings.profile.switch"),
+                            icon: "person.2.fill",
+                            showsChevron: true
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                TvSettingsSection(
+                    title: LocalizedStringKey("settings.about.title"),
+                    footer: LocalizedStringKey("settings.about.description")
+                ) {
+                    tvExternalLink(
+                        title: LocalizedStringKey("settings.about.strimr"),
+                        icon: "chevron.left.forwardslash.chevron.right",
+                        url: URL(string: "https://github.com/wunax/strimr")!
+                    )
+                    tvExternalLink(
+                        title: LocalizedStringKey("settings.about.plinx"),
+                        icon: "chevron.left.forwardslash.chevron.right",
+                        url: URL(string: "https://github.com/bballdavis/Plinx")!
+                    )
+                    tvExternalLink(
+                        title: LocalizedStringKey("settings.about.privacy"),
+                        icon: "hand.raised.fill",
+                        url: URL(string: "https://github.com/bballdavis/Plinx/blob/main/PRIVACY_POLICY.md")!
+                    )
+                    tvExternalLink(
+                        title: LocalizedStringKey("settings.about.support"),
+                        icon: "questionmark.circle.fill",
+                        url: URL(string: "https://github.com/bballdavis/Plinx/issues")!
+                    )
+                }
+
+                TvSettingsSection(title: LocalizedStringKey("common.actions.logOut")) {
+                    Button(role: .destructive) {
+                        Task { await sessionManager.signOut() }
+                    } label: {
+                        TvSettingsRow(
+                            title: LocalizedStringKey("common.actions.logOut"),
+                            icon: "rectangle.portrait.and.arrow.right",
+                            roleColor: .red
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 42)
+            .padding(.top, 10)
+            .padding(.bottom, 50)
+        }
+        .background(Color.appBackground)
+        .task {
+            if libraryStore.libraries.isEmpty {
+                try? await libraryStore.loadLibraries()
+            }
+        }
+        .sheet(isPresented: $isPresentingProfileSwitcher) {
+            NavigationStack {
+                ProfileSwitcherView(
+                    viewModel: ProfileSwitcherViewModel(
+                        context: plexApiContext,
+                        sessionManager: sessionManager
+                    )
+                )
+            }
+        }
+    }
+
+    private func tvNavigationLink<Destination: View>(
+        title: LocalizedStringKey,
+        icon: String,
+        destination: Destination
+    ) -> some View {
+        NavigationLink(destination: destination) {
+            TvSettingsRow(title: title, icon: icon, showsChevron: true)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func tvExternalLink(
+        title: LocalizedStringKey,
+        icon: String,
+        url: URL
+    ) -> some View {
+        Link(destination: url) {
+            TvSettingsRow(title: title, icon: icon, showsChevron: true)
+        }
+        .buttonStyle(.plain)
+    }
+    #endif
+}
+
+#if os(tvOS)
+private struct TvSettingsSection<Content: View>: View {
+    let title: LocalizedStringKey
+    var footer: LocalizedStringKey?
+    @ViewBuilder let content: () -> Content
+
+    init(
+        title: LocalizedStringKey,
+        footer: LocalizedStringKey? = nil,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.title = title
+        self.footer = footer
+        self.content = content
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title, tableName: "Plinx")
+                .font(.system(size: 32, weight: .bold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.92))
+                .padding(.leading, 18)
+
+            VStack(spacing: 2) {
+                content()
+            }
+            .padding(8)
+            .background(
+                RoundedRectangle(cornerRadius: 26, style: .continuous)
+                    .fill(Color.white.opacity(0.075))
+            )
+
+            if let footer {
+                Text(footer, tableName: "Plinx")
+                    .font(.system(size: 22))
+                    .foregroundStyle(.white.opacity(0.64))
+                    .padding(.horizontal, 18)
+            }
+        }
     }
 }
+
+private struct TvSettingsRow: View {
+    let title: LocalizedStringKey
+    let icon: String
+    var trailingValue: String?
+    var showsChevron = false
+    var roleColor: Color = .accentColor
+
+    @Environment(\.isFocused) private var isFocused
+
+    var body: some View {
+        HStack(spacing: 20) {
+            Image(systemName: icon)
+                .font(.system(size: 28, weight: .semibold))
+                .foregroundStyle(roleColor)
+                .frame(width: 42)
+
+            Text(title, tableName: "Plinx")
+                .font(.system(size: 30, weight: .semibold))
+                .foregroundStyle(.white)
+
+            Spacer(minLength: 20)
+
+            if let trailingValue {
+                Text(trailingValue)
+                    .font(.system(size: 26, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.78))
+            }
+
+            if showsChevron {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.6))
+            }
+        }
+        .padding(.horizontal, 22)
+        .frame(minHeight: 78)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(isFocused ? Color.white.opacity(0.13) : .clear)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(isFocused ? Color.accentColor : .clear, lineWidth: 3)
+        )
+    }
+}
+
+private struct TvSettingsToggleRow: View {
+    let title: LocalizedStringKey
+    let icon: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        Button {
+            isOn.toggle()
+        } label: {
+            TvSettingsRow(
+                title: title,
+                icon: icon,
+                trailingValue: isOn ? "On" : "Off"
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityValue(isOn ? "On" : "Off")
+        .accessibilityAddTraits(isOn ? .isSelected : [])
+    }
+}
+
+private struct TvVolumeSettingsRow: View {
+    let value: Int
+    let onDecrease: () -> Void
+    let onIncrease: () -> Void
+
+    var body: some View {
+        HStack(spacing: 22) {
+            TvSettingsRow(
+                title: LocalizedStringKey("settings.safety.maxVolume.title"),
+                icon: "speaker.wave.2.fill",
+                trailingValue: "\(value)%"
+            )
+
+            Button(action: onDecrease) {
+                Image(systemName: "minus")
+                    .font(.system(size: 28, weight: .bold))
+                    .frame(width: 72, height: 64)
+            }
+            .buttonStyle(TvSettingsAdjustmentButtonStyle())
+            .accessibilityLabel(Text("settings.safety.maxVolume.decrease", tableName: "Plinx"))
+
+            Button(action: onIncrease) {
+                Image(systemName: "plus")
+                    .font(.system(size: 28, weight: .bold))
+                    .frame(width: 72, height: 64)
+            }
+            .buttonStyle(TvSettingsAdjustmentButtonStyle())
+            .accessibilityLabel(Text("settings.safety.maxVolume.increase", tableName: "Plinx"))
+        }
+        .padding(.trailing, 14)
+    }
+}
+
+private struct TvSettingsAdjustmentButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        TvSettingsAdjustmentButtonBody(configuration: configuration)
+    }
+}
+
+private struct TvSettingsAdjustmentButtonBody: View {
+    let configuration: TvSettingsAdjustmentButtonStyle.Configuration
+    @Environment(\.isFocused) private var isFocused
+
+    var body: some View {
+        configuration.label
+            .foregroundStyle(.white)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(isFocused ? Color.white.opacity(0.16) : Color.white.opacity(0.08))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(isFocused ? Color.accentColor : .clear, lineWidth: 3)
+            )
+    }
+}
+
+private struct TvRatingChooser: View {
+    let title: LocalizedStringKey
+    let ratings: [String]
+    @Binding var selection: String
+    @FocusState private var focusedRating: String?
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(spacing: 12) {
+                Text(title, tableName: "Plinx")
+                    .font(.system(size: 44, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.bottom, 12)
+
+                ForEach(ratings, id: \.self) { rating in
+                    Button {
+                        selection = rating
+                    } label: {
+                        TvRatingChoiceRow(rating: rating, isSelected: selection == rating)
+                    }
+                    .buttonStyle(.plain)
+                    .focused($focusedRating, equals: rating)
+                    .accessibilityIdentifier("settings.rating.choice.\(rating)")
+                }
+            }
+            .padding(42)
+        }
+        .background(Color.appBackground.ignoresSafeArea())
+        .onAppear {
+            focusedRating = ratings.contains(selection) ? selection : ratings.first
+        }
+    }
+}
+
+private struct TvRatingChoiceRow: View {
+    let rating: String
+    let isSelected: Bool
+
+    @Environment(\.isFocused) private var isFocused
+
+    var body: some View {
+        HStack {
+            Text(rating)
+                .font(.system(size: 30, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white)
+            Spacer()
+            if isSelected {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 30, weight: .bold))
+                    .foregroundStyle(Color.accentColor)
+            }
+        }
+        .padding(.horizontal, 24)
+        .frame(minHeight: 76)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(isFocused ? Color.white.opacity(0.14) : Color.white.opacity(0.07))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(isFocused ? Color.accentColor : .clear, lineWidth: 3)
+        )
+    }
+}
+#endif
