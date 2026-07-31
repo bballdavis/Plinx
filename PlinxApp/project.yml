@@ -317,6 +317,7 @@ targets:
           Plinx-tvOS: all
       testTargets:
         - Plinx-tvOS-UnitTests
+        - Plinx-tvOS-UITests
       run:
         config: Debug
       test:
@@ -345,3 +346,19 @@ targets:
         OTHER_SWIFT_FLAGS: "-Xfrontend -strict-concurrency=minimal"
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Plinx.app/Plinx"
         BUNDLE_LOADER: "$(TEST_HOST)"
+
+  Plinx-tvOS-UITests:
+    type: bundle.ui-testing
+    platform: tvOS
+
+    sources:
+      - path: UITestsTV
+
+    dependencies:
+      - target: Plinx-tvOS
+
+    settings:
+      base:
+        PRODUCT_NAME: PlinxTVUITests
+        PRODUCT_BUNDLE_IDENTIFIER: com.bballdavis.plinx.tvos.uitests
+        GENERATE_INFOPLIST_FILE: YES

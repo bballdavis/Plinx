@@ -79,6 +79,28 @@ it. Treat it as the currently promoted integration release.
 The exact pin remains authoritative: the expected branch name is an audit
 constraint, never a request to resolve or build from a moving branch head.
 
+## Recording Every Strimr Edit
+
+Any change in the sibling Strimr repository must leave a durable migration
+record in Plinx in the same workstream. Before considering the change complete:
+
+1. Record the capability and disposition in
+   `docs/maintenance/strimr-upstream-audit-2026-07-25.md`.
+2. Add or update a focused file in
+   `docs/maintenance/strimr-contributions/` when the change is generic,
+   upstreamable, or must be replayed on the next Strimr baseline.
+3. Update `STRIMR_REQUIRED_SEAMS` when Plinx compilation or behavior depends on
+   a stable source token in the sibling checkout.
+4. Commit and push Strimr first, then update Plinx's exact `STRIMR_COMMIT`.
+   A dirty sibling checkout is useful for development but is not a valid
+   release pairing.
+5. Run the full integration contract and the validation named by the focused
+   contribution plan.
+
+During the next Strimr upgrade, review this inventory before resolving source
+conflicts. Mark each downstream patch as adopted upstream, dropped as obsolete,
+kept in a Plinx-owned layer, or replayed as a minimal generic seam.
+
 ## Rule Of Thumb
 
 If the change is product-specific, work in Plinx. If the change is engine-specific or generally useful, work in Strimr.

@@ -54,7 +54,11 @@ struct PlinxContentView: View {
         if let uiTestScreenOverride {
             switch uiTestScreenOverride {
             case "parentalGate":
+                #if os(tvOS)
+                ParentalGateUITestHarness()
+                #else
                 ParentalGateView(onAllowed: {})
+                #endif
             case "signIn":
                 SignInView(
                     viewModel: PlinxSignInViewModel(
@@ -82,6 +86,14 @@ struct PlinxContentView: View {
                 NavigationStack {
                     PlinxSettingsView(isUnlocked: true)
                 }
+            #if os(tvOS)
+            case "appleTVBrowseFocus":
+                AppleTVBrowseFocusUITestHarness(scenario: .root(hasContent: true))
+            case "appleTVBrowseFocusEmpty":
+                AppleTVBrowseFocusUITestHarness(scenario: .root(hasContent: false))
+            case "appleTVLibraryDetailFocus":
+                AppleTVBrowseFocusUITestHarness(scenario: .libraryDetail(hasContent: true))
+            #endif
             case AppStoreScreenshotBootstrap.mediaDetailScreen:
                 AppStoreMediaDetailScreenshotHarness()
             case "profileSwitcher":
@@ -426,3 +438,21 @@ struct PlinxContentView: View {
         return "\(server)|\(profile)"
     }
 }
+
+#if os(tvOS)
+private struct ParentalGateUITestHarness: View {
+    @State private var isAllowed = false
+
+    var body: some View {
+        if isAllowed {
+            NavigationStack {
+                PlinxSettingsView(isUnlocked: true)
+            }
+        } else {
+            ParentalGateView {
+                isAllowed = true
+            }
+        }
+    }
+}
+#endif
