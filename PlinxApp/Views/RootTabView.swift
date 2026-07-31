@@ -815,7 +815,8 @@ struct RootTabView: View {
                 viewModel: SafeMediaDetailViewModel(
                     inner: MediaDetailViewModel(
                         media: media,
-                        context: plexApiContext
+                        context: plexApiContext,
+                        resolutionMode: .selectedMedia
                     ),
                     policy: safetyPolicy
                 ),

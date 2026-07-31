@@ -127,7 +127,7 @@ private final class YoutarrExploreFixtureSession: YoutarrHTTPSession {
             "autoApproveDeleteRequests": false,
             "maxRatingLevel": 2,
             "allowUnrated": false,
-            "allowedMediaTypes": ["video"]
+            "allowedMediaTypes": ["video", "short", "livestream"]
           },
           "features": {
             "catalog": true,
@@ -185,11 +185,41 @@ private final class YoutarrExploreFixtureSession: YoutarrHTTPSession {
             "channelId": "UC-fixture",
             "channelTitle": "Fixture Science",
             "mediaType": "video"
+          }, {
+            "youtubeId": "fixturesh01",
+            "title": "The Offline Explore Short",
+            "thumbnailUrl": null,
+            "publishedAt": null,
+            "duration": "0:45",
+            "description": null,
+            "isDownloaded": false,
+            "isRequested": false,
+            "requestStatus": null,
+            "rating": 1,
+            "channelDatabaseId": 42,
+            "channelId": "UC-fixture",
+            "channelTitle": "Fixture Science",
+            "mediaType": "short"
+          }, {
+            "youtubeId": "fixturelv01",
+            "title": "The Offline Explore Livestream",
+            "thumbnailUrl": null,
+            "publishedAt": "2026-07-28T00:00:00.000Z",
+            "duration": null,
+            "description": null,
+            "isDownloaded": false,
+            "isRequested": false,
+            "requestStatus": null,
+            "rating": "TV-Y",
+            "channelDatabaseId": 42,
+            "channelId": "UC-fixture",
+            "channelTitle": "Fixture Science",
+            "mediaType": "livestream"
           }],
           "pagination": {
             "page": 1,
             "pageSize": 30,
-            "total": 1,
+            "total": 3,
             "totalPages": 1,
             "nextCursor": null
           },

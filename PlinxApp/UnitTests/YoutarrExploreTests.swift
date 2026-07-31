@@ -310,6 +310,7 @@ final class YoutarrExploreTests: XCTestCase {
         XCTAssertEqual(query["pageSize"], "100")
         XCTAssertEqual(query["status"], "requestable")
         XCTAssertEqual(query["search"], "trucks & trains")
+        XCTAssertNil(query["tabType"])
         XCTAssertNil(query["page"])
     }
 

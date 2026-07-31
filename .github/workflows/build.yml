@@ -110,6 +110,16 @@ jobs:
           git clone --filter=blob:none "https://x-access-token:${AUTH_TOKEN}@github.com/${STRIMR_REPO}.git" ../strimr
           git -C ../strimr checkout --force -B "$STRIMR_BRANCH" "$STRIMR_COMMIT"
 
+      - name: Fetch pinned Youtarr contract source
+        run: |
+          set -euo pipefail
+          source config/youtarr-contract.env
+          git clone --filter=blob:none https://github.com/bballdavis/Youtarr.git ../Youtarr
+          git -C ../Youtarr checkout --detach "$YOUTARR_CONTRACT_COMMIT"
+
+      - name: Verify Youtarr contract fixture
+        run: bash ./scripts/verify_youtarr_contract_fixture.sh --check
+
       - name: Verify Strimr integration contract
         run: bash ./scripts/verify_strimr_integration_contract.sh --full
 
@@ -162,5 +172,22 @@ jobs:
             -destination "platform=iOS Simulator,name=Plinx iPad Pro 13-inch (26.5),OS=26.5" \
             -configuration Debug \
             -derivedDataPath "$RUNNER_TEMP/plinx-derived-data" \
+            CODE_SIGNING_ALLOWED=NO \
+            -quiet
+
+      - name: Run focused app contract tests
+        run: |
+          xcodebuild test-without-building \
+            -project PlinxApp/Plinx.xcodeproj \
+            -scheme Plinx-iOS \
+            -destination "platform=iOS Simulator,name=Plinx iPhone 17 Pro (26.5),OS=26.5" \
+            -derivedDataPath "$RUNNER_TEMP/plinx-derived-data" \
+            -only-testing:Plinx-iOS-UnitTests/SeasonDownloadSelectionTests \
+            -only-testing:Plinx-iOS-UnitTests/YoutarrContractFixtureTests \
+            -only-testing:Plinx-iOS-UnitTests/YoutarrFoundationTests \
+            -only-testing:Plinx-iOS-UnitTests/YoutarrExploreTests \
+            -only-testing:Plinx-iOS-UnitTests/YoutarrRequestTests \
+            -only-testing:Plinx-iOS-UITests/YoutarrExploreOfflineUITests \
+            -only-testing:Plinx-iOS-UITests/SeasonDownloadOfflineUITests \
             CODE_SIGNING_ALLOWED=NO \
             -quiet

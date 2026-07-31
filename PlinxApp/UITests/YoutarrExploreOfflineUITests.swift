@@ -28,6 +28,14 @@ final class YoutarrExploreOfflineUITests: XCTestCase {
                 .waitForExistence(timeout: 10),
             "Selecting Explore should decode, safety-filter, and render the fixture video."
         )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["youtarr.explore.video.fixturesh01"].exists,
+            "The cross-channel feed should include an allowed short."
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["youtarr.explore.video.fixturelv01"].exists,
+            "The cross-channel feed should include an allowed livestream."
+        )
 
         app.otherElements["youtarr.explore.screen"].swipeDown()
         XCTAssertTrue(

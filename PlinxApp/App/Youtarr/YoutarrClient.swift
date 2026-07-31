@@ -122,6 +122,16 @@ struct YoutarrPagination: Codable, Equatable, Sendable {
     }
 }
 
+struct YoutarrErrorEnvelope: Codable, Equatable, Sendable {
+    struct Payload: Codable, Equatable, Sendable {
+        let code: String
+        let message: String
+        let requestId: String?
+    }
+
+    let error: Payload
+}
+
 struct YoutarrChannel: Codable, Equatable, Identifiable, Sendable {
     let id: Int
     let channelId: String
@@ -317,7 +327,7 @@ enum YoutarrSortOrder: String, Sendable {
     case descending = "desc"
 }
 
-enum YoutarrRequestStatus: String, Codable, CaseIterable, Equatable, Sendable {
+enum YoutarrRequestStatus: Equatable, Sendable {
     case pending
     case approved
     case processing
@@ -325,25 +335,91 @@ enum YoutarrRequestStatus: String, Codable, CaseIterable, Equatable, Sendable {
     case rejected
     case failed
     case cancelled
+    case unknown(String)
+
+    static let allCases: [YoutarrRequestStatus] = [
+        .pending, .approved, .processing, .completed, .rejected, .failed, .cancelled,
+    ]
+
+    init(rawValue: String) {
+        switch rawValue {
+        case "pending": self = .pending
+        case "approved": self = .approved
+        case "processing": self = .processing
+        case "completed": self = .completed
+        case "rejected": self = .rejected
+        case "failed": self = .failed
+        case "cancelled": self = .cancelled
+        default: self = .unknown(rawValue)
+        }
+    }
+
+    var rawValue: String {
+        switch self {
+        case .pending: "pending"
+        case .approved: "approved"
+        case .processing: "processing"
+        case .completed: "completed"
+        case .rejected: "rejected"
+        case .failed: "failed"
+        case .cancelled: "cancelled"
+        case .unknown(let value): value
+        }
+    }
 
     var isActive: Bool {
         switch self {
         case .pending, .approved, .processing:
             return true
-        case .completed, .rejected, .failed, .cancelled:
+        case .completed, .rejected, .failed, .cancelled, .unknown:
             return false
         }
     }
 }
 
-struct YoutarrRequestTarget: Codable, Equatable, Sendable {
-    let youtubeId: String
-    /// Youtarr's numeric channel database identifier, not YouTube's channel ID.
-    let channelId: Int
+extension YoutarrRequestStatus: Codable {
+    init(from decoder: Decoder) throws {
+        self.init(rawValue: try String(from: decoder))
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
 }
 
-enum YoutarrRequestType: String, Codable, Equatable, Sendable {
+struct YoutarrRequestTarget: Codable, Equatable, Sendable {
+    let youtubeId: String?
+    /// Youtarr's numeric channel database identifier, not YouTube's channel ID.
+    let channelId: Int?
+    let channelUrl: String?
+}
+
+enum YoutarrRequestType: Equatable, Sendable {
     case video
+    case unknown(String)
+
+    init(rawValue: String) {
+        self = rawValue == "video" ? .video : .unknown(rawValue)
+    }
+
+    var rawValue: String {
+        switch self {
+        case .video: "video"
+        case .unknown(let value): value
+        }
+    }
+}
+
+extension YoutarrRequestType: Codable {
+    init(from decoder: Decoder) throws {
+        self.init(rawValue: try String(from: decoder))
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
 }
 
 struct YoutarrRequest: Codable, Equatable, Identifiable, Sendable {
@@ -356,6 +432,13 @@ struct YoutarrRequest: Codable, Equatable, Identifiable, Sendable {
     let decidedAt: String?
     let completedAt: String?
     let message: String?
+
+    var videoYoutubeID: String? {
+        guard type == .video,
+              let youtubeId = target.youtubeId,
+              youtubeId.count == 11 else { return nil }
+        return youtubeId
+    }
 }
 
 struct YoutarrRequestsResponse: Codable, Equatable, Sendable {
@@ -363,10 +446,40 @@ struct YoutarrRequestsResponse: Codable, Equatable, Sendable {
     let pagination: YoutarrPagination
 }
 
-enum YoutarrVideoRequestOutcome: String, Codable, Equatable, Sendable {
+enum YoutarrVideoRequestOutcome: Equatable, Sendable {
     case created
     case duplicate
-    case alreadyDownloaded = "already_downloaded"
+    case alreadyDownloaded
+    case unknown(String)
+
+    init(rawValue: String) {
+        switch rawValue {
+        case "created": self = .created
+        case "duplicate": self = .duplicate
+        case "already_downloaded": self = .alreadyDownloaded
+        default: self = .unknown(rawValue)
+        }
+    }
+
+    var rawValue: String {
+        switch self {
+        case .created: "created"
+        case .duplicate: "duplicate"
+        case .alreadyDownloaded: "already_downloaded"
+        case .unknown(let value): value
+        }
+    }
+}
+
+extension YoutarrVideoRequestOutcome: Codable {
+    init(from decoder: Decoder) throws {
+        self.init(rawValue: try String(from: decoder))
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
 }
 
 struct YoutarrVideoRequestResponse: Codable, Equatable, Sendable {
@@ -508,7 +621,7 @@ struct YoutarrClient {
         pageSize: Int = 30,
         search: String? = nil,
         status: YoutarrVideoCatalogStatus = .requestable,
-        tab: YoutarrVideoCatalogTab = .videos,
+        tab: YoutarrVideoCatalogTab? = nil,
         sortBy: YoutarrVideoCatalogSort = .date,
         sortOrder: YoutarrSortOrder = .descending
     ) async throws -> YoutarrVideosResponse {
@@ -670,17 +783,19 @@ struct YoutarrClient {
         pageSize: Int,
         search: String?,
         status: YoutarrVideoCatalogStatus,
-        tab: YoutarrVideoCatalogTab,
+        tab: YoutarrVideoCatalogTab?,
         sortBy: YoutarrVideoCatalogSort,
         sortOrder: YoutarrSortOrder
     ) -> [URLQueryItem] {
         var result = [
             URLQueryItem(name: "pageSize", value: String(min(max(1, pageSize), 100))),
             URLQueryItem(name: "status", value: status.rawValue),
-            URLQueryItem(name: "tabType", value: tab.rawValue),
             URLQueryItem(name: "sortBy", value: sortBy.rawValue),
             URLQueryItem(name: "sortOrder", value: sortOrder.rawValue),
         ]
+        if let tab {
+            result.append(URLQueryItem(name: "tabType", value: tab.rawValue))
+        }
         if let cursor, !cursor.isEmpty {
             result.append(URLQueryItem(name: "cursor", value: cursor))
         }

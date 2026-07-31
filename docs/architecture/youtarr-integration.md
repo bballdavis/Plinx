@@ -14,7 +14,6 @@ Opening Explore performs a fresh capabilities check and requires both the
 ```text
 GET /external-api/v1/videos
   ?status=requestable
-  &tabType=videos
   &sortBy=date
   &sortOrder=desc
   &pageSize=50
@@ -24,7 +23,10 @@ GET /external-api/v1/videos
 
 `requestable` is the primary availability boundary: Explore is for videos that
 are not already downloaded and do not already have an active request. Plinx
-also rejects downloaded and requested records locally before presenting them.
+omits `tabType` on this cross-channel request so Youtarr returns every media
+type allowed by the key; channel-detail requests remain explicitly tab-scoped.
+Plinx also rejects downloaded and requested records locally before presenting
+them.
 The server's opaque `nextCursor` is passed back unchanged, and appended records
 are de-duplicated by video ID. Search terms are query encoded. A channel detail
 uses the equivalent cursor contract at
@@ -122,3 +124,9 @@ Opt-in live API, authenticated landscape-thumbnail, and end-to-end
 Explore/video-detail/Requests coverage is documented in
 [Youtarr live smoke tests](../development/youtarr-live-smoke-tests.md). The
 suite is intentionally separate from day-to-day and CI runs.
+
+The sanitized v1 consumer contract is owned by Youtarr and vendored byte-for-byte
+under the Plinx unit-test fixtures. `config/youtarr-contract.env` pins the
+producing commit and checksum. Run
+`scripts/verify_youtarr_contract_fixture.sh --check` to verify it or `--update`
+after intentionally advancing the pin and sibling checkout.

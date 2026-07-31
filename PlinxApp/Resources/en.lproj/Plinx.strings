@@ -211,6 +211,7 @@
 "youtarr.requests.status.rejected" = "Not approved";
 "youtarr.requests.status.failed" = "Couldn’t complete";
 "youtarr.requests.status.cancelled" = "Cancelled";
+"youtarr.requests.status.unknown" = "Status unavailable";
 
 /* Settings — Home Screen */
 "settings.homescreen.title" = "Home Screen";

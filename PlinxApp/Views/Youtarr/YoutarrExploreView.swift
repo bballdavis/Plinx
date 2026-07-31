@@ -519,6 +519,10 @@ final class YoutarrChannelViewModel: ObservableObject {
                     isRequested: false,
                     requestStatus: nil
                 )
+            case .unknown:
+                requestStates[video.youtubeId] = .failed(
+                    YoutarrStrings.value("youtarr.request.failed")
+                )
             }
         } catch is CancellationError {
             guard operationGeneration == generation,

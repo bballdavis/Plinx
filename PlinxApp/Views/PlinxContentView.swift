@@ -163,6 +163,8 @@ struct PlinxContentView: View {
             #if !os(tvOS)
             case DownloadUITestFixtures.screenName:
                 PlinxDownloadsGridView()
+            case "seasonDownloadOffline":
+                SeasonDownloadUITestHarness()
             #endif
             default:
                 sessionContent

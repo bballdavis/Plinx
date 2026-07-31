@@ -8,6 +8,11 @@ Plinx can download authorized movies and episodes for offline playback. Choose
 a download quality in protected settings to balance storage use and video
 quality.
 
+From a show's details, Download opens a season-and-episode picker. From a
+season's details, the same picker stays scoped to that season. Select All queues
+every episode that is not already downloaded, or individual episodes can be
+chosen before confirming.
+
 ## Download quality
 
 The Original option asks Plex to preserve the source quality whenever the

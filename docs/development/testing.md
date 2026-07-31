@@ -96,6 +96,14 @@ URLSession cancellation, and video-card rendering without a Youtarr or Plex
 server. A cancelled activation or refresh must never appear as a network
 failure, and a failed refresh must preserve an already-rendered catalog:
 
+The unit-test bundle also contains Youtarr's canonical sanitized external API
+fixture. Before changing the client contract, verify that the vendored fixture
+matches the pinned producer revision:
+
+```bash
+./scripts/verify_youtarr_contract_fixture.sh --check
+```
+
 The focused tests also cover the 40-video initial catalog request, independent
 catalog/channel failures, tail-triggered pagination, and long-press actions.
 Offline-download policy tests cover both profile-owned downloads and
@@ -120,9 +128,13 @@ xcodebuild test \
   -scheme Plinx-iOS \
   -destination "platform=iOS Simulator,name=iPhone 17,OS=26.5" \
   -derivedDataPath "$PLINX_XCODE_DERIVED_DATA_PATH" \
+  -only-testing:Plinx-iOS-UnitTests/SeasonDownloadSelectionTests \
+  -only-testing:Plinx-iOS-UnitTests/YoutarrContractFixtureTests \
   -only-testing:Plinx-iOS-UnitTests/YoutarrFoundationTests \
   -only-testing:Plinx-iOS-UnitTests/YoutarrExploreTests \
+  -only-testing:Plinx-iOS-UnitTests/YoutarrRequestTests \
   -only-testing:Plinx-iOS-UITests/YoutarrExploreOfflineUITests \
+  -only-testing:Plinx-iOS-UITests/SeasonDownloadOfflineUITests \
   CODE_SIGNING_ALLOWED=NO
 ```
 

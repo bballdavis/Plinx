@@ -192,6 +192,7 @@ targets:
     resources:
       - path: UnitTests/test_creds.yaml
         optional: true
+      - path: UnitTests/Fixtures/YoutarrExternalAPIV1
 
     dependencies:
       - target: Plinx-iOS
