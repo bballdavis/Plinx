@@ -177,6 +177,10 @@ struct PlinxDownloadsGridView: View {
         }
         .task(id: artworkReconciliationID) {
             downloadOwnershipStore.prune(keeping: Set(downloadManager.items.map(\.id)))
+            downloadManager.resumePendingDownloads(
+                context: context,
+                eligibleDownloadIDs: Set(visibleDownloads.map(\.id))
+            )
             await downloadManager.reconcileArtworkMetadataIfNeeded(context: context)
         }
     }
@@ -390,6 +394,13 @@ struct PlinxDownloadsGridView: View {
         switch item.status {
         case .queued:
             return NSLocalizedString("downloads.status.queued", tableName: "Plinx", comment: "")
+        case .deciding:
+            return NSLocalizedString("downloads.status.deciding", tableName: "Plinx", comment: "")
+        case .preparing:
+            return String.localizedStringWithFormat(
+                NSLocalizedString("downloads.status.preparing %lld", tableName: "Plinx", comment: ""),
+                Int64(((item.preparationProgress ?? 0) * 100).rounded())
+            )
         case .downloading:
             return String.localizedStringWithFormat(
                 NSLocalizedString("downloads.status.downloading %lld", tableName: "Plinx", comment: ""),
@@ -427,10 +438,14 @@ struct PlinxDownloadsGridView: View {
         return ZStack(alignment: .bottom) {
             posterImageView(poster)
 
-            if item.status == .downloading {
+            if item.status == .downloading || item.status == .preparing {
                 VStack {
                     Spacer()
-                    ProgressView(value: item.progress)
+                    ProgressView(
+                        value: item.status == .preparing
+                            ? item.preparationProgress
+                            : item.progress
+                    )
                         .progressViewStyle(.linear)
                         .tint(Color.accentColor)
                         .padding(.horizontal, 4)
@@ -442,7 +457,11 @@ struct PlinxDownloadsGridView: View {
         .clipped()
         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         .overlay {
-            if item.status == .downloading || item.status == .queued {
+            if item.status == .downloading
+                || item.status == .queued
+                || item.status == .deciding
+                || item.status == .preparing
+            {
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .strokeBorder(Color.accentColor, lineWidth: 2)
             }
@@ -554,14 +573,25 @@ struct PlinxDownloadsGridView: View {
 struct PlinxDownloadsManageView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(DownloadManager.self) private var downloadManager
+    @Environment(SessionManager.self) private var sessionManager
+    @Environment(DownloadOwnershipStore.self) private var downloadOwnershipStore
+    @Environment(\.safetyPolicy) private var safetyPolicy
+
+    private var visibleDownloads: [DownloadItem] {
+        DownloadAccessPolicy(
+            safetyPolicy: safetyPolicy,
+            currentIdentity: sessionManager.plinxDownloadOwnerIdentity,
+            ownershipStore: downloadOwnershipStore
+        ).filter(downloadManager.sortedItems)
+    }
 
     var body: some View {
         List {
-            if downloadManager.sortedItems.isEmpty {
+            if visibleDownloads.isEmpty {
                 Text("downloads.empty.message", tableName: "Plinx")
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(downloadManager.sortedItems) { item in
+                ForEach(visibleDownloads) { item in
                     HStack(spacing: 12) {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(item.metadata.title)
@@ -571,12 +601,23 @@ struct PlinxDownloadsManageView: View {
                             Text(item.status.rawValue.capitalized)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+
+                            if item.status == .failed, let errorMessage = item.errorMessage {
+                                Text(errorMessage)
+                                    .font(.caption2)
+                                    .foregroundStyle(.red)
+                                    .lineLimit(2)
+                            }
                         }
 
                         Spacer()
 
-                        if item.status == .downloading || item.status == .queued {
-                            ProgressView(value: item.progress)
+                        if item.status.isActive {
+                            ProgressView(
+                                value: item.status == .preparing
+                                    ? item.preparationProgress
+                                    : item.progress
+                            )
                                 .frame(width: 90)
                         }
 

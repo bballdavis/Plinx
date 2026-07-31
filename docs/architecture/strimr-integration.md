@@ -99,6 +99,31 @@ cannot be supplied by a Plinx decorator:
 
 Plinx supplies the actual content decision in `StrimrAdapter`; Strimr remains unaware of Plinx policy or product copy.
 
+## Download Queue Ownership
+
+Download transcoding lives in Strimr because queue negotiation, polling,
+background transfer, persisted recovery, and cleanup are generic Plex download
+engine behavior. Strimr talks to Plex Media Server's versioned
+`/downloadQueue` API and persists only the queue identifiers needed to resume a
+request. It does not know about Plinx profiles or kid policy.
+
+Plinx owns the safety boundary around that engine. A newly enqueued local
+download ID is claimed by the current server/profile identity, and lifecycle
+resume passes only the IDs owned by that identity back to Strimr. Consequently,
+switching Plex profiles cancels preparation polling for the prior profile and
+cannot resume, clean up, or expose another profile's queued download. An
+already-running background file transfer remains hidden and is subject to the
+same ownership check before playback. Existing unowned downloads retain the documented
+legacy visibility behavior, but only newly queued and explicitly owned items
+can have server preparation resumed.
+
+The server queue item is best-effort deleted after a validated local transfer
+or explicit user deletion. Tokens, media paths, queue error text, account
+identifiers, and server identifiers are not emitted to diagnostics or shown in
+kid-facing UI. This Strimr change is an upstream PR candidate because the queue
+transport and state machine are product-neutral; Plinx ownership filtering is
+not part of that candidate.
+
 ## Player Buffering Ownership
 
 Strimr retains its native buffering overlay for existing consumers because

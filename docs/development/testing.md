@@ -100,6 +100,17 @@ The focused tests also cover the 40-video initial catalog request, independent
 catalog/channel failures, tail-triggered pagination, and long-press actions.
 Offline-download policy tests cover both profile-owned downloads and
 rating-gated shared legacy downloads created before ownership tracking.
+`StrimrDownloadIntegrityTests` also locks the complete download-quality preset
+mapping, original-quality request behavior, and rejection of structured error
+payloads returned with a successful HTTP status.
+
+Download-queue changes require a live Plex pass before release because CI does
+not provision Plex Media Server. Run one direct-play-compatible title and one
+forced-transcode title at a reduced preset. For each, verify the
+deciding/preparing/downloading transitions, final offline playback, relaunch
+recovery during preparation, profile-switch isolation, explicit deletion, and
+server queue cleanup. Repeat the original preset to confirm no bitrate or
+resolution cap is sent.
 
 ```bash
 source scripts/build_environment.sh

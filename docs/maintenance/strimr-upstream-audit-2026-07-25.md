@@ -260,6 +260,7 @@ The individual plans are stored in
 8. [Offline playback progress](strimr-contributions/08-offline-playback-progress.md)
 9. [Explicit default-server preference](strimr-contributions/09-explicit-default-server-preference.md)
 10. [SharePlay presentation capability](strimr-contributions/10-shareplay-presentation-capability.md)
+11. [Plex Download Queue transcoding](strimr-contributions/11-download-queue-transcoding.md)
 
 ## Upstream Commit Appendix
 

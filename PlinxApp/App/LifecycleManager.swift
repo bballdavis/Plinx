@@ -20,6 +20,9 @@ struct LifecycleHardeningModifier: ViewModifier {
     let mainCoordinator: MainCoordinator
     #if !os(tvOS)
     let downloadManager: DownloadManager
+    let plexApiContext: PlexAPIContext
+    let sessionManager: SessionManager
+    let downloadOwnershipStore: DownloadOwnershipStore
     #endif
 
     @Environment(\.scenePhase) private var scenePhase
@@ -50,6 +53,7 @@ struct LifecycleHardeningModifier: ViewModifier {
                 } else if newPhase == .active {
                     #if !os(tvOS)
                     downloadManager.startNetworkMonitoring()
+                    resumeOwnedDownloads()
                     #endif
 
                     // Re-present the player if there was an active session before
@@ -83,7 +87,24 @@ struct LifecycleHardeningModifier: ViewModifier {
                 mainCoordinator.resetPlayer()
             }
             #endif
+            #if !os(tvOS)
+            .task(id: sessionManager.plinxDownloadOwnerIdentity) {
+                resumeOwnedDownloads()
+            }
+            #endif
     }
+
+    #if !os(tvOS)
+    private func resumeOwnedDownloads() {
+        let eligibleDownloadIDs = sessionManager.plinxDownloadOwnerIdentity.map {
+            downloadOwnershipStore.downloadIDs(ownedBy: $0)
+        } ?? []
+        downloadManager.resumePendingDownloads(
+            context: plexApiContext,
+            eligibleDownloadIDs: eligibleDownloadIDs
+        )
+    }
+    #endif
 }
 
 extension View {
@@ -91,12 +112,18 @@ extension View {
     func lifecycleHardening(
         coordinator: PlaybackCoordinator,
         mainCoordinator: MainCoordinator,
-        downloadManager: DownloadManager
+        downloadManager: DownloadManager,
+        plexApiContext: PlexAPIContext,
+        sessionManager: SessionManager,
+        downloadOwnershipStore: DownloadOwnershipStore
     ) -> some View {
         modifier(LifecycleHardeningModifier(
             coordinator: coordinator,
             mainCoordinator: mainCoordinator,
-            downloadManager: downloadManager
+            downloadManager: downloadManager,
+            plexApiContext: plexApiContext,
+            sessionManager: sessionManager,
+            downloadOwnershipStore: downloadOwnershipStore
         ))
     }
     #else

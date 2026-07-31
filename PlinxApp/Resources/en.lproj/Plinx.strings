@@ -49,6 +49,8 @@
 "downloads.empty.title" = "No downloads";
 "downloads.empty.message" = "Downloaded content will appear here.";
 "downloads.status.queued" = "Queued";
+"downloads.status.deciding" = "Checking download";
+"downloads.status.preparing %lld" = "Preparing %lld%%";
 "downloads.status.downloading %lld" = "Downloading %lld%%";
 "downloads.status.failed" = "Download failed";
 "downloads.blockedByContentControls" = "This item is blocked by the current content controls.";
