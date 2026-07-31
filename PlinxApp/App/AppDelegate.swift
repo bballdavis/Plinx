@@ -1,16 +1,33 @@
 import UIKit
 
 final class AppDelegate: NSObject, UIApplicationDelegate {
+    override init() {
+        if ProcessInfo.processInfo.arguments.contains("--app-store-landscape") {
+            Self.orientationLock = .landscapeLeft
+            UIDevice.current.setValue(
+                UIInterfaceOrientation.landscapeLeft.rawValue,
+                forKey: "orientation"
+            )
+        }
+        super.init()
+    }
+
     static var orientationLock = UIInterfaceOrientationMask.all {
         didSet {
             for scene in UIApplication.shared.connectedScenes {
                 if let windowScene = scene as? UIWindowScene {
+                    windowScene.windows.first?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
                     windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: orientationLock))
                 }
             }
-            if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
-                scene.windows.first?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
-            }
+        }
+    }
+
+    static func requestCurrentGeometryUpdate() {
+        for scene in UIApplication.shared.connectedScenes {
+            guard let windowScene = scene as? UIWindowScene else { continue }
+            windowScene.windows.first?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
+            windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: orientationLock))
         }
     }
 

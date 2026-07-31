@@ -17,6 +17,16 @@ enum AppStoreScreenshotBootstrap {
         }
         #if os(iOS)
         AppDelegate.orientationLock = .landscapeLeft
+        // Simulator launch arguments do not emit a physical rotation event.
+        // Nudge UIKit once so the production scene renders landscape before
+        // the capture script takes its framebuffer screenshot.
+        UIDevice.current.setValue(
+            UIInterfaceOrientation.landscapeLeft.rawValue,
+            forKey: "orientation"
+        )
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            AppDelegate.requestCurrentGeometryUpdate()
+        }
         #endif
     }
 

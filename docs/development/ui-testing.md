@@ -103,6 +103,20 @@ production-view harness is `appStoreMediaDetail`, which supplies the selected
 fixture item to the real media-detail view model. The loading capture uses
 `homeLoading`; all other captures use normal production routes or live fixture
 loading. Keep the fixture service credential-free and capped at PG/TV-PG.
+The command validates fixture density, rating ceilings, unique identifiers,
+square channel artwork, and 16:9 video artwork before generating the Xcode
+project and building. It builds once and captures both device sets. For a
+fixture-only refresh, retain the existing inventory and capture only the
+affected production screens:
+
+```bash
+./scripts/capture_app_store_screenshots.sh --only home,youtarr
+```
+
+Simulator readiness is bounded to 120 seconds and checks the simulator's
+booted state without waiting indefinitely on a runtime service. The
+presentation-only status bar override is also bounded and cannot block a
+capture when the simulator is otherwise ready.
 
 ### tvOS focus rules
 

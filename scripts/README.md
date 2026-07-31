@@ -312,12 +312,14 @@ Validates the app bundle inside an `.xcarchive` before you upload it.
 
 ### App Store Screenshot Validation
 
-`scripts/capture_app_store_screenshots.sh` builds the app once, starts the
-credential-free Plex and Youtarr fixture service, resets the simulators, and
-captures the seven production surfaces:
+`scripts/capture_app_store_screenshots.sh` generates the Xcode project, builds
+the app once, starts the credential-free Plex and Youtarr fixture service,
+resets the simulators, and captures the seven production surfaces. It validates
+fixture density and artwork geometry before building:
 
 ```bash
 ./scripts/capture_app_store_screenshots.sh
+./scripts/capture_app_store_screenshots.sh --only home,youtarr
 ./scripts/tests/validate_app_store_screenshots.sh
 ```
 
@@ -329,7 +331,8 @@ The validator requires exactly 14 opaque PNG files:
 The fixture service supplies data and original abstract artwork only. It does
 not replace the app UI. The capture profile permits PG movies and TV-PG
 television, excludes unrated content, and includes an Other Videos Home row
-with landscape thumbnails.
+with landscape thumbnails. The `--only` form keeps the existing validated
+inventory and refreshes only the named production screens.
 
 Use `scripts/flatten_screenshot_alpha.sh INPUT.png OUTPUT.png` for an individual
 manual capture. Do not promote the legacy `screenshots/` files; they fail the

@@ -12,6 +12,52 @@ DERIVED_DATA="${PLINX_SCREENSHOT_DERIVED_DATA:-/tmp/plinx-app-store-derived}"
 TEMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/plinx-app-store.XXXXXX")"
 SERVER_PID=""
 CAPTURE_LANDSCAPE=0
+CAPTURE_ONLY="${PLINX_SCREENSHOT_CAPTURE_ONLY:-all}"
+
+if [[ "${1:-}" == "--only" ]]; then
+  CAPTURE_ONLY="${2:?Pass a comma-separated list after --only}"
+  shift 2
+fi
+if [[ "$#" -ne 0 ]]; then
+  echo "Usage: $0 [--only home,youtarr]" >&2
+  exit 2
+fi
+
+capture_requested() {
+  local screen="$1"
+  [[ ",$CAPTURE_ONLY," == *,all,* || ",$CAPTURE_ONLY," == *",$screen,"* ]]
+}
+
+validate_capture_selection() {
+  local selection=",${CAPTURE_ONLY},"
+  local valid
+  for valid in all loading connect home more-info settings parent-lock youtarr; do
+    selection="${selection//,$valid,/,}"
+  done
+  if [[ "$selection" != "," ]]; then
+    echo "Unknown capture selection: $CAPTURE_ONLY" >&2
+    exit 2
+  fi
+}
+
+run_best_effort_with_timeout() {
+  local timeout_seconds="$1"
+  local label="$2"
+  shift 2
+  "$@" &
+  local command_pid=$!
+  local attempts=$((timeout_seconds * 4))
+  for ((attempt = 1; attempt <= attempts; attempt++)); do
+    if ! kill -0 "$command_pid" >/dev/null 2>&1; then
+      wait "$command_pid" || true
+      return 0
+    fi
+    sleep 0.25
+  done
+  kill "$command_pid" >/dev/null 2>&1 || true
+  wait "$command_pid" >/dev/null 2>&1 || true
+  echo "Warning: timed out while setting $label; continuing." >&2
+}
 
 cleanup() {
   if [[ -n "$SERVER_PID" ]]; then
@@ -33,14 +79,30 @@ boot_device() {
   local device_id="$1"
   xcrun simctl boot "$device_id" >/dev/null 2>&1 || true
   open -ga Simulator
-  xcrun simctl bootstatus "$device_id" -b
-  xcrun simctl ui "$device_id" appearance dark
-  xcrun simctl status_bar "$device_id" override \
-    --time "9:41" \
-    --batteryState charged \
-    --batteryLevel 100 \
-    --wifiBars 3 \
-    --cellularBars 4
+  local is_ready=0
+  for attempt in {1..120}; do
+    if xcrun simctl list devices \
+      | grep -F "$device_id" \
+      | grep -q "(Booted)"; then
+      is_ready=1
+      break
+    fi
+    sleep 1
+  done
+  if [[ "$is_ready" -ne 1 ]]; then
+    echo "Simulator $device_id did not reach the booted state within 120 seconds." >&2
+    exit 1
+  fi
+  sleep 2
+  # The app forces dark appearance. The status override is presentation-only
+  # and must not block an otherwise ready simulator.
+  run_best_effort_with_timeout 10 "status bar" \
+    xcrun simctl status_bar "$device_id" override \
+      --time "9:41" \
+      --batteryState charged \
+      --batteryLevel 100 \
+      --wifiBars 3 \
+      --cellularBars 4
 }
 
 set_review_defaults() {
@@ -93,6 +155,9 @@ capture_opaque() {
   xcrun simctl io "$device_id" screenshot "$raw" >/dev/null
   "$REPO_ROOT/scripts/flatten_screenshot_alpha.sh" "$raw" "$destination" >/dev/null
   if [[ "$CAPTURE_LANDSCAPE" -eq 1 ]]; then
+    # simctl returns the iPad display in its native portrait framebuffer even
+    # after UIKit has laid out the app in landscape. Rotate the captured
+    # framebuffer counter-clockwise to produce the App Store landscape bitmap.
     sips -r -90 "$destination" >/dev/null
   fi
 }
@@ -115,40 +180,56 @@ capture_device_set() {
     CAPTURE_LANDSCAPE=0
   fi
   mkdir -p "$output_dir"
-  rm -f "$output_dir"/*.png
+  if capture_requested "all"; then
+    rm -f "$output_dir"/*.png
+  fi
 
   xcrun simctl uninstall "$device_id" "$BUNDLE_ID" >/dev/null 2>&1 || true
   xcrun simctl install "$device_id" "$APP_PATH"
   set_review_defaults "$device_id"
 
-  capture_loading "$device_id" "$output_dir/01-loading.png"
+  if capture_requested "loading"; then
+    capture_loading "$device_id" "$output_dir/01-loading.png"
+  fi
 
-  launch_fixture_app "$device_id" "signIn"
-  sleep 6
-  capture_opaque "$device_id" "$output_dir/02-connect.png"
+  if capture_requested "connect"; then
+    launch_fixture_app "$device_id" "signIn"
+    sleep 6
+    capture_opaque "$device_id" "$output_dir/02-connect.png"
+  fi
 
-  # Warm the live session and fixture artwork cache before the retained frame.
-  launch_fixture_app "$device_id"
-  sleep 10
-  launch_fixture_app "$device_id"
-  sleep 12
-  capture_opaque "$device_id" "$output_dir/03-home.png"
+  if capture_requested "home"; then
+    # Warm the live session and fixture artwork cache before the retained frame.
+    launch_fixture_app "$device_id"
+    sleep 10
+    launch_fixture_app "$device_id"
+    sleep 12
+    capture_opaque "$device_id" "$output_dir/03-home.png"
+  fi
 
-  launch_fixture_app "$device_id" "appStoreMediaDetail"
-  sleep 8
-  capture_opaque "$device_id" "$output_dir/04-more-info.png"
+  if capture_requested "more-info"; then
+    launch_fixture_app "$device_id" "appStoreMediaDetail"
+    sleep 8
+    capture_opaque "$device_id" "$output_dir/04-more-info.png"
+  fi
 
-  launch_fixture_app "$device_id" "settings"
-  sleep 10
-  capture_opaque "$device_id" "$output_dir/05-settings.png"
+  if capture_requested "settings"; then
+    launch_fixture_app "$device_id" "settings"
+    sleep 10
+    capture_opaque "$device_id" "$output_dir/05-settings.png"
+  fi
 
-  launch_fixture_app "$device_id" "parentalGate"
-  sleep 10
-  capture_opaque "$device_id" "$output_dir/06-parent-lock.png"
+  if capture_requested "parent-lock"; then
+    launch_fixture_app "$device_id" "parentalGate"
+    sleep 10
+    capture_opaque "$device_id" "$output_dir/06-parent-lock.png"
+  fi
 
-  launch_fixture_app "$device_id" "youtarrExploreLive"
-  sleep 6
-  capture_opaque "$device_id" "$output_dir/07-youtarr.png"
+  if capture_requested "youtarr"; then
+    launch_fixture_app "$device_id" "youtarrExploreLive"
+    sleep 6
+    capture_opaque "$device_id" "$output_dir/07-youtarr.png"
+  fi
 }
 
 IPHONE_ID="$(find_device "iPhone 17 Pro Max")"
@@ -159,12 +240,15 @@ if [[ -z "$IPHONE_ID" || -z "$IPAD_ID" ]]; then
   exit 1
 fi
 
+validate_capture_selection
+python3 "$REPO_ROOT/scripts/app_store_fixture_server.py" --validate
+
 python3 "$REPO_ROOT/scripts/app_store_fixture_server.py" \
   --port "$FIXTURE_PORT" >"$TEMP_ROOT/fixture-server.log" 2>&1 &
 SERVER_PID=$!
 
 for attempt in {1..30}; do
-  if curl -fsS "$FIXTURE_URL/healthz" >/dev/null; then
+  if curl -fsS "$FIXTURE_URL/healthz" >/dev/null 2>&1; then
     break
   fi
   if [[ "$attempt" -eq 30 ]]; then
@@ -173,6 +257,9 @@ for attempt in {1..30}; do
   fi
   sleep 0.2
 done
+
+bash "$REPO_ROOT/scripts/generate_xcodeproj.sh" \
+  >"$TEMP_ROOT/xcodegen.log" 2>&1
 
 xcodebuild build \
   -project "$PROJECT_PATH" \
