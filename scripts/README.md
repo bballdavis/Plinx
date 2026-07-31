@@ -312,13 +312,28 @@ Validates the app bundle inside an `.xcarchive` before you upload it.
 
 ### App Store Screenshot Validation
 
-`scripts/tests/validate_app_store_screenshots.sh` accepts only the release inventory:
+`scripts/capture_app_store_screenshots.sh` builds the app once, starts the
+credential-free Plex and Youtarr fixture service, resets the simulators, and
+captures the seven production surfaces:
 
-- iPhone 6.9-inch: `1320x2868` portrait or landscape inverse;
-- iPad 13-inch: `2064x2752` or `2048x2732` portrait, or either landscape inverse;
-- PNG files with no alpha channel.
+```bash
+./scripts/capture_app_store_screenshots.sh
+./scripts/tests/validate_app_store_screenshots.sh
+```
 
-Use `scripts/flatten_screenshot_alpha.sh INPUT.png OUTPUT.png` only after capturing fictional review content. Do not promote the legacy `screenshots/` files; they fail the current iPad-size and alpha checks.
+The validator requires exactly 14 opaque PNG files:
+
+- seven iPhone 6.9-inch files at `1320x2868` portrait;
+- seven iPad 13-inch files at `2732x2048` landscape.
+
+The fixture service supplies data and original abstract artwork only. It does
+not replace the app UI. The capture profile permits PG movies and TV-PG
+television, excludes unrated content, and includes an Other Videos Home row
+with landscape thumbnails.
+
+Use `scripts/flatten_screenshot_alpha.sh INPUT.png OUTPUT.png` for an individual
+manual capture. Do not promote the legacy `screenshots/` files; they fail the
+current inventory, dimensions, or alpha checks.
 
 ### `build_compliance_bundle.sh` — Package Corresponding Source
 

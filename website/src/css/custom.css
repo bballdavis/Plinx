@@ -1,11 +1,14 @@
 :root {
-  --ifm-color-primary: #218f82;
-  --ifm-color-primary-dark: #1e8175;
-  --ifm-color-primary-darker: #1c796e;
-  --ifm-color-primary-darkest: #17645b;
-  --ifm-color-primary-light: #269d8f;
-  --ifm-color-primary-lighter: #29a597;
-  --ifm-color-primary-lightest: #48b9ac;
+  --plinx-brand-lime: #9eee73;
+  --plinx-brand-teal: #399e91;
+  --plinx-brand-shell: #0b120e;
+  --ifm-color-primary: var(--plinx-brand-teal);
+  --ifm-color-primary-dark: #338e82;
+  --ifm-color-primary-darker: #30867b;
+  --ifm-color-primary-darkest: #286f66;
+  --ifm-color-primary-light: #4da89c;
+  --ifm-color-primary-lighter: #57ada2;
+  --ifm-color-primary-lightest: #77beb5;
   --ifm-font-family-base: ui-rounded, "SF Pro Rounded", "Avenir Next", system-ui, sans-serif;
   --ifm-heading-font-family: ui-rounded, "SF Pro Rounded", "Avenir Next", system-ui, sans-serif;
   --ifm-code-font-size: 92%;
@@ -13,6 +16,13 @@
 }
 
 [data-theme='dark'] {
+  --ifm-color-primary: var(--plinx-brand-lime);
+  --ifm-color-primary-dark: #8ed668;
+  --ifm-color-primary-darker: #86ca62;
+  --ifm-color-primary-darkest: #6fa751;
+  --ifm-color-primary-light: #a8f083;
+  --ifm-color-primary-lighter: #adf18b;
+  --ifm-color-primary-lightest: #c0f5a7;
   --ifm-background-color: #0c1210;
   --ifm-background-surface-color: #18211d;
   --ifm-color-emphasis-200: #33423b;
@@ -24,7 +34,39 @@
 .navbar {
   --ifm-navbar-height: 4.5rem;
   backdrop-filter: blur(16px);
-  background: color-mix(in srgb, var(--ifm-background-color) 86%, transparent);
+  background: rgba(255, 255, 255, 0.97);
+  border-bottom: 1px solid rgba(11, 18, 14, 0.12);
+  box-shadow: 0 0.35rem 1.25rem rgba(11, 18, 14, 0.08);
+  color: var(--plinx-brand-shell);
+}
+
+.navbar__link,
+.navbar__title,
+.navbar .clean-btn {
+  color: var(--plinx-brand-shell);
+}
+
+.navbar__link:hover,
+.navbar__link--active {
+  color: var(--plinx-brand-teal);
+}
+
+[data-theme='dark'] .navbar {
+  background: rgba(11, 18, 14, 0.97);
+  border-bottom-color: rgba(158, 238, 115, 0.2);
+  box-shadow: 0 0.35rem 1.25rem rgba(0, 0, 0, 0.3);
+  color: #fff;
+}
+
+[data-theme='dark'] .navbar__link,
+[data-theme='dark'] .navbar__title,
+[data-theme='dark'] .navbar .clean-btn {
+  color: #fff;
+}
+
+[data-theme='dark'] .navbar__link:hover,
+[data-theme='dark'] .navbar__link--active {
+  color: var(--plinx-brand-lime);
 }
 
 .navbar__logo {
