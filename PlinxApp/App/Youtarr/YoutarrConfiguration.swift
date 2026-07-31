@@ -386,6 +386,11 @@ enum YoutarrExplorePreference {
     static let defaultEnabled = false
 }
 
+enum YoutarrRecommendationPreference {
+    static let storageKey = "plinx.youtarr.recommendationsEnabled"
+    static let defaultEnabled = false
+}
+
 enum YoutarrExploreVisibility {
     static func shouldShow(isEnabled: Bool, isConfigured: Bool) -> Bool {
         isEnabled && isConfigured

@@ -48,6 +48,11 @@ Explore keeps its current catalog visible while refreshing. Leaving the tab or
 starting a newer refresh cancels obsolete requests silently; only a genuine
 first-load connection failure replaces the catalog with the retry screen.
 
+Parents can optionally enable personalized recommendations. Ranking happens
+entirely on the device using titles already loaded for the current Plex
+profile; those Plex signals are never sent to Youtarr. The setting is off by
+default and is cleared when the Youtarr connection is removed.
+
 ## Requests and video details
 
 Each video card has a small download control beside its channel and rating.
@@ -67,6 +72,12 @@ status and request time. It is sorted newest first. The default Recent filter
 keeps outstanding requests and status changes from the last seven days in
 view; Outstanding and All filters plus search make older histories easy to
 find.
+
+When the configured key advertises the required capability and scope, Explore
+also lets a parent request a YouTube channel. Keys with delete permission can
+request removal of downloaded videos from a channel detail screen after the
+Plinx parental gate is completed. Channel and deletion requests appear in My
+Requests without assuming that every request has a video identifier.
 
 ## Privacy and credentials
 

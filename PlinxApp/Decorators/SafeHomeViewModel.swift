@@ -46,6 +46,19 @@ final class SafeHomeViewModel {
         (continueWatching?.hasItems ?? false) || recentCatalogs.contains { !$0.items.isEmpty }
     }
 
+    var youtarrRecommendationSignals: [String] {
+        let continueWatchingTitles = continueWatching?.items
+            .compactMap(\.playableItem)
+            .map(\.title) ?? []
+        let recentTitles = recentCatalogs.flatMap { catalog in
+            [catalog.library.title] + catalog.items.map(\.title)
+        }
+        return continueWatchingTitles + recentTitles
+    }
+
+    // MARK: - Actions
+
+    /// Initial data load. Called once when the view appears.
     func load() async {
         guard !hasLoaded else { return }
         hasLoaded = true

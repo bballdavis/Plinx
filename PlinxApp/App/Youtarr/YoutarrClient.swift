@@ -337,13 +337,22 @@ enum YoutarrRequestStatus: String, Codable, CaseIterable, Equatable, Sendable {
 }
 
 struct YoutarrRequestTarget: Codable, Equatable, Sendable {
-    let youtubeId: String
+    let youtubeId: String?
     /// Youtarr's numeric channel database identifier, not YouTube's channel ID.
-    let channelId: Int
+    let channelId: Int?
+    let channelUrl: String?
+
+    init(youtubeId: String?, channelId: Int?, channelUrl: String? = nil) {
+        self.youtubeId = youtubeId
+        self.channelId = channelId
+        self.channelUrl = channelUrl
+    }
 }
 
 enum YoutarrRequestType: String, Codable, Equatable, Sendable {
     case video
+    case channel
+    case deleteVideo = "delete_video"
 }
 
 struct YoutarrRequest: Codable, Equatable, Identifiable, Sendable {
@@ -367,6 +376,7 @@ enum YoutarrVideoRequestOutcome: String, Codable, Equatable, Sendable {
     case created
     case duplicate
     case alreadyDownloaded = "already_downloaded"
+    case alreadyDeleted = "already_deleted"
 }
 
 struct YoutarrVideoRequestResponse: Codable, Equatable, Sendable {
@@ -536,7 +546,6 @@ struct YoutarrClient {
         }
         return try await get(path: "videos/\(youtubeID)")
     }
-
     func requests(
         page: Int = 1,
         pageSize: Int = 30,
@@ -565,6 +574,45 @@ struct YoutarrClient {
         }
         return try await send(
             path: "requests/videos",
+            method: "POST",
+            body: Body(
+                youtubeId: youtubeID,
+                channelId: channelID,
+                idempotencyKey: idempotencyKey.uuidString.lowercased()
+            )
+        )
+    }
+
+    func requestChannel(
+        channelURL: String,
+        idempotencyKey: UUID = UUID()
+    ) async throws -> YoutarrVideoRequestResponse {
+        struct Body: Encodable {
+            let channelUrl: String
+            let idempotencyKey: String
+        }
+        return try await send(
+            path: "requests/channels",
+            method: "POST",
+            body: Body(
+                channelUrl: channelURL,
+                idempotencyKey: idempotencyKey.uuidString.lowercased()
+            )
+        )
+    }
+
+    func requestVideoDeletion(
+        youtubeID: String,
+        channelID: Int,
+        idempotencyKey: UUID = UUID()
+    ) async throws -> YoutarrVideoRequestResponse {
+        struct Body: Encodable {
+            let youtubeId: String
+            let channelId: Int
+            let idempotencyKey: String
+        }
+        return try await send(
+            path: "requests/delete-videos",
             method: "POST",
             body: Body(
                 youtubeId: youtubeID,

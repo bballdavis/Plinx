@@ -20,6 +20,8 @@ struct YoutarrSettingsView: View {
     @State private var isConfigured = false
     @AppStorage(YoutarrExplorePreference.storageKey)
     private var isExploreEnabled = YoutarrExplorePreference.defaultEnabled
+    @AppStorage(YoutarrRecommendationPreference.storageKey)
+    private var areRecommendationsEnabled = YoutarrRecommendationPreference.defaultEnabled
 
     init(
         configurationStore: YoutarrConfigurationStore = YoutarrConfigurationStore(),
@@ -136,6 +138,15 @@ struct YoutarrSettingsView: View {
                 }
                 .disabled(!isConfigured)
                 .accessibilityIdentifier("youtarr.settings.explore.enabled")
+
+                Toggle(isOn: $areRecommendationsEnabled) {
+                    Label("Personalized recommendations", systemImage: "wand.and.stars")
+                }
+                .disabled(!isConfigured || !isExploreEnabled)
+                .accessibilityIdentifier("youtarr.settings.recommendations.enabled")
+                Text("Recommendation ranking uses Plex titles already loaded on this device. Those signals are never sent to Youtarr.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             } header: {
                 Text("youtarr.settings.explore.section", tableName: "Plinx")
             } footer: {
@@ -261,6 +272,7 @@ struct YoutarrSettingsView: View {
         do {
             try configurationStore.clear()
             isExploreEnabled = false
+            areRecommendationsEnabled = false
             isConfigured = false
             baseURL = ""
             apiKey = ""

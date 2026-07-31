@@ -88,6 +88,20 @@ is the default and includes every active request plus terminal requests updated
 within the last seven days. While the screen is visible, it polls at a
 15-second interval only if a request is pending, approved, or processing.
 Polling stops when all visible requests are terminal or the view disappears.
+
+The capability-expansion path also supports
+`POST /external-api/v1/requests/channels` and
+`POST /external-api/v1/requests/delete-videos`. Both use per-action
+idempotency UUIDs and are exposed only when the capabilities response grants
+the matching feature, scope, and role. Request targets are modeled as a union
+of optional video ID, numeric channel ID, and channel URL so the request list
+does not attempt video-detail enrichment for channel-only records.
+
+Optional recommendations reuse the already safety-filtered first catalog page
+and rank it locally against titles from the current Plex home model. No Plex
+signal is added to an HTTP request. The ranking is deterministic, bounded, and
+adds freshness, availability, and channel-diversity weights after title and
+channel token overlap.
 Paging is capped at 100 server pages.
 
 `YoutarrConfigurationStore` stores only the normalized server address in

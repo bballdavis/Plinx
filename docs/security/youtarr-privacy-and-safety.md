@@ -38,9 +38,17 @@ local-network purpose string before granting access.
 
 No telemetry or new third-party dependencies are added.
 
+Optional recommendation ranking uses only Plex titles already present in the
+in-memory home model. Plinx does not include those titles or derived tokens in
+Youtarr requests, logs, or persistent recommendation history. Recommendations
+remain disabled until a parent enables them.
+
 Video requests use a new random idempotency UUID for each deliberate tap.
 Duplicate taps are disabled while a request is in flight, and only a confirmed
 server response changes a video's requested/downloaded state. Request response
 bodies and server-provided messages are not shown or logged. My Requests
 performs no background refresh: polling is cancelled on navigation and runs
 only while the page is visible and an active request needs a status update.
+Channel requests require Youtarr's channel-request feature and scope. Delete
+requests additionally require a delete-capable role, the video-delete scope,
+and Plinx's parental gate; server-provided response messages remain hidden.

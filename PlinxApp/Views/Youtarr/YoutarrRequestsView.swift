@@ -57,9 +57,12 @@ enum YoutarrRequestListPolicy {
             .filter { matchesFilter($0, filter: filter, now: now) }
             .filter { request in
                 guard !query.isEmpty else { return true }
-                let detail = details[request.target.youtubeId]
+                let detail = request.target.youtubeId.flatMap { details[$0] }
                 return [
                     request.target.youtubeId,
+                    request.target.channelUrl,
+                    request.target.channelId.map(String.init),
+                    request.type.rawValue,
                     request.status.rawValue,
                     detail?.title,
                     detail?.channelTitle
@@ -110,6 +113,32 @@ enum YoutarrRequestListPolicy {
             return date
         }
         return ISO8601DateFormatter().date(from: rawValue)
+    }
+}
+
+extension YoutarrRequestPresentation {
+    static func typeLabel(for type: YoutarrRequestType) -> String {
+        switch type {
+        case .video:
+            return YoutarrStrings.value("youtarr.requests.video")
+        case .channel:
+            return YoutarrStrings.value("youtarr.requests.channel")
+        case .deleteVideo:
+            return YoutarrStrings.value("youtarr.requests.deleteVideo")
+        }
+    }
+
+    static func targetLabel(for request: YoutarrRequest) -> String {
+        if let channelURL = request.target.channelUrl, !channelURL.isEmpty {
+            return channelURL
+        }
+        if let youtubeID = request.target.youtubeId, !youtubeID.isEmpty {
+            return youtubeID
+        }
+        if let channelID = request.target.channelId {
+            return String(format: YoutarrStrings.value("youtarr.requests.channelId"), channelID)
+        }
+        return YoutarrStrings.value("youtarr.requests.targetUnavailable")
     }
 }
 
@@ -235,8 +264,9 @@ final class YoutarrRequestsViewModel: ObservableObject {
     }
 
     func loadVideoDetailIfNeeded(for request: YoutarrRequest) async {
-        let youtubeID = request.target.youtubeId
-        guard videoDetails[youtubeID] == nil,
+        guard let youtubeID = request.target.youtubeId,
+              !youtubeID.isEmpty,
+              videoDetails[youtubeID] == nil,
               !detailLoadsInFlight.contains(youtubeID) else {
             return
         }
@@ -427,7 +457,9 @@ struct YoutarrRequestsView: View {
                                 ForEach(presentedRequests) { request in
                                     YoutarrRequestRow(
                                         request: request,
-                                        video: viewModel.videoDetails[request.target.youtubeId],
+                                        video: request.target.youtubeId.flatMap {
+                                            viewModel.videoDetails[$0]
+                                        },
                                         configuration: configuration
                                     )
                                     .task {
@@ -549,7 +581,7 @@ private struct YoutarrRequestRow: View {
             .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
 
             VStack(alignment: .leading, spacing: 5) {
-                Text(video?.title ?? YoutarrStrings.value("youtarr.requests.video"))
+                Text(video?.title ?? YoutarrRequestPresentation.typeLabel(for: request.type))
                     .font(.headline)
                     .lineLimit(2)
 
@@ -560,10 +592,16 @@ private struct YoutarrRequestRow: View {
                         .lineLimit(1)
                 }
 
-                Text(request.target.youtubeId)
+                Text(YoutarrRequestPresentation.targetLabel(for: request))
                     .font(.caption.monospaced())
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                if let message = request.message, !message.isEmpty {
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
             }
 
             Spacer(minLength: 8)
@@ -603,7 +641,7 @@ private struct YoutarrRequestRow: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            "\(video?.title ?? YoutarrStrings.value("youtarr.requests.video")), "
+            "\(video?.title ?? YoutarrRequestPresentation.typeLabel(for: request.type)), "
                 + YoutarrRequestPresentation.label(for: request.status)
                 + ", \(requestedDateLabel)"
         )

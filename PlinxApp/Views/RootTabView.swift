@@ -640,6 +640,7 @@ struct RootTabView: View {
                     YoutarrExploreTabContent(
                         configuration: configuration,
                         safetyPolicy: safetyPolicy,
+                        plexSignals: homeViewModel?.youtarrRecommendationSignals ?? [],
                         isActive: activeRootTab == .seerrDiscover
                     )
                 }

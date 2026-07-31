@@ -60,6 +60,40 @@ final class YoutarrRequestTests: XCTestCase {
         )
     }
 
+    func test_channelAndDeleteRequestsUseDedicatedEndpoints() async throws {
+        let session = RequestRecordingSession(
+            data: Data(#"{"outcome":"created","request":null}"#.utf8)
+        )
+        let client = try makeClient(session: session)
+
+        _ = try await client.requestChannel(
+            channelURL: "https://www.youtube.com/@science",
+            idempotencyKey: UUID(uuidString: "7D286F34-D2A5-41B5-973A-1A9B78073080")!
+        )
+        _ = try await client.requestVideoDeletion(
+            youtubeID: "abcdefghijk",
+            channelID: 42,
+            idempotencyKey: UUID(uuidString: "3FB68EAF-397D-42CD-86E4-E575EB32EA26")!
+        )
+
+        XCTAssertEqual(session.requests.map(\.url?.path), [
+            "/family/external-api/v1/requests/channels",
+            "/family/external-api/v1/requests/delete-videos"
+        ])
+        let channelBody = try XCTUnwrap(session.requests[0].httpBody)
+        let channelObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: channelBody) as? [String: String]
+        )
+        XCTAssertEqual(channelObject["channelUrl"], "https://www.youtube.com/@science")
+
+        let deletionBody = try XCTUnwrap(session.requests[1].httpBody)
+        let deletionObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: deletionBody) as? [String: Any]
+        )
+        XCTAssertEqual(deletionObject["youtubeId"] as? String, "abcdefghijk")
+        XCTAssertEqual(deletionObject["channelId"] as? Int, 42)
+    }
+
     func test_requestsEndpointsBoundPaginationAndEncodeStatus() async throws {
         let session = RequestRecordingSession(
             data: Data(
@@ -118,12 +152,12 @@ final class YoutarrRequestTests: XCTestCase {
                 capabilities(role: .admin)
             )
         )
-        XCTAssertTrue(
+        XCTAssertFalse(
             YoutarrRequestCapabilityPolicy.canRequestVideos(
                 capabilities(role: .view)
             )
         )
-        XCTAssertTrue(
+        XCTAssertFalse(
             YoutarrRequestCapabilityPolicy.canRequestVideos(
                 capabilities(role: .unknown("future"))
             )
@@ -136,6 +170,28 @@ final class YoutarrRequestTests: XCTestCase {
         XCTAssertFalse(
             YoutarrRequestCapabilityPolicy.canRequestVideos(
                 capabilities(role: .request, scopes: [.catalogRead, .requestsRead])
+            )
+        )
+    }
+
+    func test_channelAndDeleteCapabilitiesRequireFeatureScopeAndRole() {
+        let expanded = capabilities(
+            role: .delete,
+            scopes: [.catalogRead, .requestsRead, .videoRequest, .channelRequest, .videoDelete],
+            channelRequests: true,
+            deleteRequests: true
+        )
+        XCTAssertTrue(YoutarrRequestCapabilityPolicy.canRequestChannels(expanded))
+        XCTAssertTrue(YoutarrRequestCapabilityPolicy.canRequestDeletion(expanded))
+
+        XCTAssertFalse(
+            YoutarrRequestCapabilityPolicy.canRequestChannels(
+                capabilities(role: .request, channelRequests: true)
+            )
+        )
+        XCTAssertFalse(
+            YoutarrRequestCapabilityPolicy.canRequestDeletion(
+                capabilities(role: .request, deleteRequests: true)
             )
         )
     }
@@ -462,7 +518,9 @@ final class YoutarrRequestTests: XCTestCase {
     private func capabilities(
         role: YoutarrRole,
         featuresRequests: Bool = true,
-        scopes: [YoutarrScope] = [.catalogRead, .requestsRead, .videoRequest]
+        scopes: [YoutarrScope] = [.catalogRead, .requestsRead, .videoRequest],
+        channelRequests: Bool = false,
+        deleteRequests: Bool = false
     ) -> YoutarrCapabilities {
         .init(
             apiVersion: "1",
@@ -480,8 +538,8 @@ final class YoutarrRequestTests: XCTestCase {
             features: .init(
                 catalog: true,
                 requests: featuresRequests,
-                channelRequests: false,
-                deleteRequests: false,
+                channelRequests: channelRequests,
+                deleteRequests: deleteRequests,
                 recommendations: false,
                 authenticatedAssets: true
             )

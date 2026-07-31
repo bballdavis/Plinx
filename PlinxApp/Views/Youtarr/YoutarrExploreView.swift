@@ -20,6 +20,7 @@ final class YoutarrExploreViewModel: ObservableObject {
     @Published private(set) var phase: Phase = .idle
     @Published private(set) var channels: [YoutarrChannel] = []
     @Published private(set) var videos: [YoutarrVideo] = []
+    @Published private(set) var recommendations: [YoutarrVideo] = []
     @Published private(set) var isRefreshing = false
     @Published private(set) var isLoadingMoreVideos = false
     @Published private(set) var requestStates: [String: YoutarrVideoActionState] = [:]
@@ -27,6 +28,8 @@ final class YoutarrExploreViewModel: ObservableObject {
     @Published private(set) var catalogErrorMessage: String?
     @Published private(set) var channelsErrorMessage: String?
     @Published var searchText = ""
+    @Published private(set) var isSubmittingChannelRequest = false
+    @Published private(set) var channelRequestMessage: String?
 
     let configuration: YoutarrConfiguration
     private let client: YoutarrClient
@@ -37,16 +40,24 @@ final class YoutarrExploreViewModel: ObservableObject {
     private var activeSearch = ""
     private var generation = 0
     private var requestGenerations: [String: UUID] = [:]
+    private let plexSignals: [String]
+    private let recommendationsEnabled: Bool
+
+    var usesPersonalRecommendationSignals: Bool { !plexSignals.isEmpty }
 
     init(
         configuration: YoutarrConfiguration,
         localSafetyPolicy: SafetyPolicy,
+        plexSignals: [String] = [],
+        recommendationsEnabled: Bool = false,
         client: YoutarrClient? = nil,
         requestService: (any YoutarrRequestServing)? = nil
     ) {
         let resolvedClient = client ?? YoutarrClient(configuration: configuration)
         self.configuration = configuration
         self.localSafetyPolicy = localSafetyPolicy
+        self.plexSignals = plexSignals
+        self.recommendationsEnabled = recommendationsEnabled
         self.client = resolvedClient
         self.requestService = requestService ?? resolvedClient
     }
@@ -140,6 +151,9 @@ final class YoutarrExploreViewModel: ObservableObject {
             switch loadedCatalog {
             case let .success(catalog):
                 videos = YoutarrCatalogPresentation.diversified(catalog.videos)
+                recommendations = recommendationsEnabled && loadedCapabilities.features.recommendations
+                    ? YoutarrRecommendationEngine.rank(catalog.videos, plexSignals: plexSignals)
+                    : []
                 emptyReason = catalog.hadSafetyFilteredVideos ? .safetyPolicy : .catalog
                 nextVideoCursor = catalog.nextCursor
                 catalogErrorMessage = nil
@@ -175,6 +189,23 @@ final class YoutarrExploreViewModel: ObservableObject {
 
     func submitSearch() async {
         await reload()
+    }
+
+    func requestChannel(url: String) async {
+        guard let capabilities,
+              YoutarrRequestCapabilityPolicy.canRequestChannels(capabilities),
+              !isSubmittingChannelRequest else { return }
+        isSubmittingChannelRequest = true
+        channelRequestMessage = nil
+        defer { isSubmittingChannelRequest = false }
+        do {
+            let response = try await client.requestChannel(channelURL: url)
+            channelRequestMessage = response.request?.status.rawValue ?? response.outcome.rawValue
+        } catch is CancellationError {
+            return
+        } catch {
+            channelRequestMessage = Self.message(for: error)
+        }
     }
 
     func loadMoreVideosIfNeeded(after video: YoutarrVideo) async {
@@ -383,6 +414,7 @@ final class YoutarrChannelViewModel: ObservableObject {
     private let requestService: any YoutarrRequestServing
     private let safetyPolicy: YoutarrExploreSafetyPolicy
     private let canRequestVideos: Bool
+    private let canDeleteVideos: Bool
     private var nextCursor: String?
     private var activeSearch = ""
     private var generation = 0
@@ -406,6 +438,7 @@ final class YoutarrChannelViewModel: ObservableObject {
             localPolicy: localSafetyPolicy
         )
         self.canRequestVideos = YoutarrRequestCapabilityPolicy.canRequestVideos(capabilities)
+        self.canDeleteVideos = YoutarrRequestCapabilityPolicy.canRequestDeletion(capabilities)
     }
 
     func load() async {
@@ -476,6 +509,57 @@ final class YoutarrChannelViewModel: ObservableObject {
         requestStates[video.youtubeId] ?? serverState(for: video)
     }
 
+    func canRequestDeletion(for video: YoutarrVideo) -> Bool {
+        canDeleteVideos && video.isDownloaded
+    }
+
+    func requestDeletion(_ video: YoutarrVideo) async {
+        guard canRequestDeletion(for: video), requestGenerations[video.youtubeId] == nil else {
+            return
+        }
+        let operation = UUID()
+        requestGenerations[video.youtubeId] = operation
+        requestStates[video.youtubeId] = .submitting
+        defer {
+            if requestGenerations[video.youtubeId] == operation {
+                requestGenerations[video.youtubeId] = nil
+            }
+        }
+        do {
+            let response = try await requestService.requestVideoDeletion(
+                youtubeID: video.youtubeId,
+                channelID: channel.id,
+                idempotencyKey: UUID()
+            )
+            guard requestGenerations[video.youtubeId] == operation else { return }
+            if response.outcome == .alreadyDeleted {
+                updateVideo(
+                    video.youtubeId,
+                    isDownloaded: false,
+                    isRequested: false,
+                    requestStatus: nil
+                )
+                requestStates[video.youtubeId] = .unavailable
+            } else {
+                let status = response.request?.status
+                updateVideo(
+                    video.youtubeId,
+                    isDownloaded: video.isDownloaded,
+                    isRequested: true,
+                    requestStatus: status?.rawValue
+                )
+                requestStates[video.youtubeId] = .requested(status)
+            }
+        } catch is CancellationError {
+            return
+        } catch {
+            guard requestGenerations[video.youtubeId] == operation else { return }
+            requestStates[video.youtubeId] = .failed(
+                YoutarrExploreViewModel.message(for: error)
+            )
+        }
+    }
+
     func requestVideo(_ video: YoutarrVideo) async {
         let currentState = requestState(for: video)
         guard !currentState.preventsSubmission,
@@ -519,6 +603,8 @@ final class YoutarrChannelViewModel: ObservableObject {
                     isRequested: false,
                     requestStatus: nil
                 )
+            case .alreadyDeleted:
+                requestStates[video.youtubeId] = .unavailable
             }
         } catch is CancellationError {
             guard operationGeneration == generation,
@@ -663,19 +749,29 @@ struct YoutarrExploreView: View {
     @State private var requestTasks: [String: Task<Void, Never>] = [:]
     @State private var selectedVideo: YoutarrVideo?
     @State private var quickActionVideo: YoutarrVideo?
+    @State private var showsChannelRequest = false
+    @State private var channelURL = ""
     @AppStorage(PlinxChromeButtonSizePreference.storageKey)
     private var chromeButtonSizeRaw = PlinxChromeButtonSizePreference.defaultValue.rawValue
     private let safetyPolicy: SafetyPolicy
+    @AppStorage(YoutarrRecommendationPreference.storageKey)
+    private var recommendationsEnabled = YoutarrRecommendationPreference.defaultEnabled
 
     init(
         configuration: YoutarrConfiguration,
         safetyPolicy: SafetyPolicy,
+        plexSignals: [String] = [],
         client: YoutarrClient? = nil
     ) {
+        let recommendationsEnabled = UserDefaults.standard.bool(
+            forKey: YoutarrRecommendationPreference.storageKey
+        )
         _viewModel = StateObject(
             wrappedValue: YoutarrExploreViewModel(
                 configuration: configuration,
                 localSafetyPolicy: safetyPolicy,
+                plexSignals: plexSignals,
+                recommendationsEnabled: recommendationsEnabled,
                 client: client
             )
         )
@@ -752,6 +848,40 @@ struct YoutarrExploreView: View {
                 }
             }
         }
+        .sheet(isPresented: $showsChannelRequest) {
+            NavigationStack {
+                Form {
+                    Section {
+                        TextField("YouTube channel URL", text: $channelURL)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                    } footer: {
+                        Text("Enter a YouTube channel or @handle URL. Plinx does not open external links.")
+                    }
+                    if let message = viewModel.channelRequestMessage {
+                        Text(message)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .navigationTitle("Request Channel")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { showsChannelRequest = false }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Submit") {
+                            Task { @MainActor in
+                                await viewModel.requestChannel(url: channelURL)
+                            }
+                        }
+                        .disabled(
+                            channelURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                || viewModel.isSubmittingChannelRequest
+                        )
+                    }
+                }
+            }
+        }
         .task {
             await viewModel.activate()
         }
@@ -771,6 +901,22 @@ struct YoutarrExploreView: View {
                     .font(.title2.bold())
 
                 Spacer(minLength: 0)
+
+                if let capabilities = viewModel.capabilities,
+                   YoutarrRequestCapabilityPolicy.canRequestChannels(capabilities) {
+                    Button {
+                        channelURL = ""
+                        showsChannelRequest = true
+                    } label: {
+                        PlinxChromeIconLabel(
+                            systemImage: "plus.rectangle.on.rectangle",
+                            sizePreference: chromeButtonSize
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Request channel")
+                    .accessibilityIdentifier("youtarr.request.channel")
+                }
 
                 if let capabilities = viewModel.capabilities,
                    YoutarrRequestCapabilityPolicy.canRead(capabilities) {
@@ -797,7 +943,7 @@ struct YoutarrExploreView: View {
                 TextField(
                     text: $viewModel.searchText,
                     prompt: Text("youtarr.explore.searchVideos", tableName: "Plinx")
-                ) {
+        ) {
                     EmptyView()
                 }
                 .submitLabel(.search)
@@ -838,6 +984,25 @@ struct YoutarrExploreView: View {
     private var exploreContent: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 28) {
+                if recommendationsEnabled, !viewModel.recommendations.isEmpty {
+                    Text(plexSignalsAvailableTitle)
+                        .font(.title2.bold())
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 16)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        LazyHStack(alignment: .top, spacing: 16) {
+                            ForEach(viewModel.recommendations) { video in
+                                videoCard(video, layout: .featured)
+                                    .frame(width: 300)
+                                    .accessibilityIdentifier(
+                                        "youtarr.explore.recommendation.\(video.youtubeId)"
+                                    )
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                    }
+                }
+
                 if !featuredVideos.isEmpty {
                     sectionTitle("youtarr.explore.newToExplore")
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -901,6 +1066,10 @@ struct YoutarrExploreView: View {
         .plinxRefreshable {
             await viewModel.reload()
         }
+    }
+
+    private var plexSignalsAvailableTitle: String {
+        viewModel.usesPersonalRecommendationSignals ? "Recommended for You" : "Explore"
     }
 
     private func startReload() {
@@ -991,7 +1160,9 @@ struct YoutarrExploreView: View {
             },
             requestAction: {
                 startRequest(video)
-            }
+            },
+            deleteAvailable: false,
+            deleteAction: {}
         )
     }
 
@@ -1035,6 +1206,7 @@ struct YoutarrExploreView: View {
 struct YoutarrExploreTabContent: View {
     let configuration: YoutarrConfiguration
     let safetyPolicy: SafetyPolicy
+    var plexSignals: [String] = []
     let isActive: Bool
     var client: YoutarrClient?
 
@@ -1044,6 +1216,7 @@ struct YoutarrExploreTabContent: View {
             YoutarrExploreView(
                 configuration: configuration,
                 safetyPolicy: safetyPolicy,
+                plexSignals: plexSignals,
                 client: client
             )
         } else {
@@ -1174,6 +1347,10 @@ private struct YoutarrChannelView: View {
                                 },
                                 requestAction: {
                                     startRequest(video)
+                                },
+                                deleteAvailable: viewModel.canRequestDeletion(for: video),
+                                deleteAction: {
+                                    startDeletion(video)
                                 }
                             )
                             .task {
@@ -1208,6 +1385,14 @@ private struct YoutarrChannelView: View {
         guard requestTasks[video.youtubeId] == nil else { return }
         requestTasks[video.youtubeId] = Task { @MainActor in
             await viewModel.requestVideo(video)
+            requestTasks[video.youtubeId] = nil
+        }
+    }
+
+    private func startDeletion(_ video: YoutarrVideo) {
+        guard requestTasks[video.youtubeId] == nil else { return }
+        requestTasks[video.youtubeId] = Task { @MainActor in
+            await viewModel.requestDeletion(video)
             requestTasks[video.youtubeId] = nil
         }
     }
@@ -1302,6 +1487,9 @@ private struct YoutarrVideoCard: View {
     let selectionAction: () -> Void
     let longPressAction: () -> Void
     let requestAction: () -> Void
+    let deleteAvailable: Bool
+    let deleteAction: () -> Void
+    @State private var showsParentalGate = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
@@ -1358,6 +1546,17 @@ private struct YoutarrVideoCard: View {
                 )
             }
             .frame(height: 44)
+
+            if deleteAvailable {
+                Button(role: .destructive) {
+                    showsParentalGate = true
+                } label: {
+                    Label("Request deletion", systemImage: "trash")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("youtarr.request.delete.\(video.youtubeId)")
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .plinxMediaCardInteraction(
@@ -1370,6 +1569,12 @@ private struct YoutarrVideoCard: View {
             selectionAction()
         }
         .accessibilityIdentifier("youtarr.explore.video.\(video.youtubeId)")
+        .sheet(isPresented: $showsParentalGate) {
+            ParentalGateView {
+                showsParentalGate = false
+                deleteAction()
+            }
+        }
     }
 
     private var titleHeight: CGFloat {

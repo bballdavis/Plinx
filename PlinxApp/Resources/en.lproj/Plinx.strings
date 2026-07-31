@@ -204,6 +204,10 @@
 "youtarr.requests.noMatches" = "No Matching Requests";
 "youtarr.requests.noMatches.help" = "Try another search or request filter.";
 "youtarr.requests.requested" = "Requested";
+"youtarr.requests.channel" = "Channel request";
+"youtarr.requests.deleteVideo" = "Delete video request";
+"youtarr.requests.channelId" = "Channel %d";
+"youtarr.requests.targetUnavailable" = "Target unavailable";
 "youtarr.requests.status.pending" = "Waiting for approval";
 "youtarr.requests.status.approved" = "Approved";
 "youtarr.requests.status.processing" = "Preparing";

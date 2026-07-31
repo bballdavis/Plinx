@@ -14,6 +14,34 @@ protocol YoutarrRequestServing {
         channelID: Int,
         idempotencyKey: UUID
     ) async throws -> YoutarrVideoRequestResponse
+
+    func requestChannel(
+        channelURL: String,
+        idempotencyKey: UUID
+    ) async throws -> YoutarrVideoRequestResponse
+
+    func requestVideoDeletion(
+        youtubeID: String,
+        channelID: Int,
+        idempotencyKey: UUID
+    ) async throws -> YoutarrVideoRequestResponse
+}
+
+extension YoutarrRequestServing {
+    func requestChannel(
+        channelURL: String,
+        idempotencyKey: UUID
+    ) async throws -> YoutarrVideoRequestResponse {
+        throw YoutarrClientError.invalidResponse
+    }
+
+    func requestVideoDeletion(
+        youtubeID: String,
+        channelID: Int,
+        idempotencyKey: UUID
+    ) async throws -> YoutarrVideoRequestResponse {
+        throw YoutarrClientError.invalidResponse
+    }
 }
 
 extension YoutarrClient: YoutarrRequestServing {}
@@ -33,6 +61,44 @@ enum YoutarrRequestCapabilityPolicy {
     static func canRequestVideos(_ capabilities: YoutarrCapabilities) -> Bool {
         canRead(capabilities)
             && capabilities.scopes.contains(.videoRequest)
+            && supportsVideoRequests(capabilities.role)
+    }
+
+    static func canRequestChannels(_ capabilities: YoutarrCapabilities) -> Bool {
+        canRead(capabilities)
+            && capabilities.features.channelRequests
+            && capabilities.scopes.contains(.channelRequest)
+            && supportsVideoRequests(capabilities.role)
+    }
+
+    static func canRequestDeletion(_ capabilities: YoutarrCapabilities) -> Bool {
+        canRead(capabilities)
+            && capabilities.features.deleteRequests
+            && capabilities.scopes.contains(.videoDelete)
+            && {
+                switch capabilities.role {
+                case .delete, .admin: return true
+                case .view, .request, .unknown: return false
+                }
+            }()
+    }
+
+    private static func supportsRequests(_ role: YoutarrRole) -> Bool {
+        switch role {
+        case .view, .request, .delete, .admin:
+            return true
+        case .unknown:
+            return false
+        }
+    }
+
+    private static func supportsVideoRequests(_ role: YoutarrRole) -> Bool {
+        switch role {
+        case .request, .delete, .admin:
+            return true
+        case .view, .unknown:
+            return false
+        }
     }
 }
 
