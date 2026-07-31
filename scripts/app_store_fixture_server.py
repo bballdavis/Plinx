@@ -19,6 +19,9 @@ MOVIES = [
     ("big-build", "The Big Build", "PG", 2024, "Friends transform an empty lot into a community workshop."),
     ("hidden-gardens", "Hidden Gardens", "G", 2023, "A gentle tour of surprising gardens around the world."),
     ("robot-club", "Robot Club", "PG", 2026, "A school robotics team learns to build together."),
+    ("lighthouse-map", "The Lighthouse Map", "PG", 2025, "Siblings follow clues along a quiet coast."),
+    ("paper-airship", "The Paper Airship", "G", 2024, "A classroom invention takes an unexpected journey."),
+    ("river-trail", "The River Trail", "PG", 2026, "Friends learn to read a landscape together."),
 ]
 
 SHOWS = [
@@ -26,6 +29,10 @@ SHOWS = [
     ("kitchen-lab", "Kitchen Lab", "TV-G", 2025, "Every recipe becomes a friendly science experiment."),
     ("wild-neighbors", "Wild Neighbors", "TV-PG", 2024, "Families discover the animals living close to home."),
     ("makers-next-door", "Makers Next Door", "TV-G", 2025, "Creative neighbors share practical projects."),
+    ("junior-rangers", "Junior Rangers", "TV-G", 2026, "Young naturalists care for a neighborhood park."),
+    ("story-station", "Story Station", "TV-PG", 2025, "A book club turns stories into weekend adventures."),
+    ("music-room", "The Music Room", "TV-G", 2024, "Friends explore instruments and sounds."),
+    ("market-day", "Market Day", "TV-PG", 2026, "A community market becomes a lesson in teamwork."),
 ]
 
 OTHER_VIDEOS = [
@@ -34,6 +41,11 @@ OTHER_VIDEOS = [
     ("tiny-garden", "Make a Tiny Garden", "G", 2026, "A small growing project for families."),
     ("science-sound", "The Science of Sound", "PG", 2026, "Experiments with rhythm and vibration."),
     ("friendly-dragons", "Drawing Friendly Dragons", "G", 2026, "A playful step-by-step drawing lesson."),
+    ("bird-feeder", "Build a Bird Feeder", "G", 2026, "A simple project for welcoming backyard birds."),
+    ("cloud-journal", "Start a Cloud Journal", "PG", 2026, "Learn to notice and record changing skies."),
+    ("paper-circuits", "Make a Paper Circuit", "PG", 2026, "Light up a drawing with a beginner circuit."),
+    ("bread-science", "The Science of Bread", "G", 2026, "See how simple ingredients change as dough rises."),
+    ("map-compass", "Maps and Compasses", "PG", 2026, "Practice basic navigation on a family walk."),
 ]
 
 YOUTARR_VIDEOS = [
@@ -43,6 +55,24 @@ YOUTARR_VIDEOS = [
     ("science-sound", "The Science of Sound", "Everyday Lab", "TV-PG", 532),
     ("friendly-dragons", "Drawing Friendly Dragons", "Art Table", "TV-Y7", 721),
     ("bird-feeder", "Build a Bird Feeder", "Curious Workshop", "TV-G", 574),
+    ("cloud-journal", "Start a Cloud Journal", "Weather Watch", "TV-G", 446),
+    ("paper-circuits", "Make a Paper Circuit", "Circuit Corner", "TV-PG", 638),
+    ("bread-science", "The Science of Bread", "Kitchen Lab", "TV-G", 509),
+    ("map-compass", "Maps and Compasses", "Trail Guides", "TV-PG", 682),
+    ("shadow-theater", "Build a Shadow Theater", "Art Table", "TV-Y7", 592),
+    ("pond-watch", "Life in a Small Pond", "Green Things", "TV-G", 557),
+]
+
+YOUTARR_CHANNELS = [
+    ("Curious Workshop", "Hands-on engineering for families"),
+    ("Sky Club", "Friendly guides to the night sky"),
+    ("Green Things", "Small projects for growing minds"),
+    ("Everyday Lab", "Science hiding in ordinary places"),
+    ("Art Table", "Drawing and making for every skill level"),
+    ("Weather Watch", "Simple ways to observe weather"),
+    ("Circuit Corner", "Friendly introductions to electronics"),
+    ("Kitchen Lab", "Food experiments for curious families"),
+    ("Trail Guides", "Outdoor skills for neighborhood explorers"),
 ]
 
 
@@ -119,6 +149,10 @@ CONTINUE_ITEMS = [
     plex_item(*SHOWS[0], item_type="show", view_offset=630_000),
     plex_item(*SHOWS[1], item_type="show", view_offset=420_000),
     plex_item(*MOVIES[0], item_type="movie", view_offset=1_920_000),
+    plex_item(*SHOWS[2], item_type="show", view_offset=510_000),
+    plex_item(*MOVIES[1], item_type="movie", view_offset=1_380_000),
+    plex_item(*SHOWS[4], item_type="show", view_offset=360_000),
+    plex_item(*MOVIES[5], item_type="movie", view_offset=2_040_000),
 ]
 
 
@@ -185,14 +219,8 @@ def youtarr_capabilities() -> dict:
 
 
 def youtarr_channels() -> dict:
-    channels = [
-        ("Curious Workshop", "Hands-on engineering for families"),
-        ("Sky Club", "Friendly guides to the night sky"),
-        ("Green Things", "Small projects for growing minds"),
-        ("Everyday Lab", "Science hiding in ordinary places"),
-    ]
     data = []
-    for index, (title, summary) in enumerate(channels, start=1):
+    for index, (title, summary) in enumerate(YOUTARR_CHANNELS, start=1):
         slug = title.lower().replace(" ", "-")
         data.append(
             {
@@ -221,6 +249,10 @@ def youtarr_channels() -> dict:
 
 
 def youtarr_videos() -> dict:
+    channel_ids = {
+        title: index
+        for index, (title, _) in enumerate(YOUTARR_CHANNELS, start=1)
+    }
     data = []
     for index, (slug, title, channel, rating, duration) in enumerate(
         YOUTARR_VIDEOS, start=1
@@ -237,8 +269,8 @@ def youtarr_videos() -> dict:
                 "isRequested": False,
                 "requestStatus": None,
                 "rating": rating,
-                "channelDatabaseId": (index % 4) + 1,
-                "channelId": f"fixture-channel-{(index % 4) + 1}",
+                "channelDatabaseId": channel_ids[channel],
+                "channelId": f"fixture-channel-{channel_ids[channel]}",
                 "channelTitle": channel,
                 "mediaType": "video",
             }
@@ -257,6 +289,71 @@ def youtarr_videos() -> dict:
         "lastIndexedAt": "2026-07-30T12:00:00.000Z",
         "indexingHint": None,
     }
+
+
+def asset_dimensions(path: str) -> tuple[int, int]:
+    if "/channel-" in path:
+        return (512, 512)
+    return (640, 360)
+
+
+def validate_fixtures() -> None:
+    minimum_counts = {
+        "movies": (MOVIES, 8),
+        "shows": (SHOWS, 8),
+        "other videos": (OTHER_VIDEOS, 10),
+        "continue watching": (CONTINUE_ITEMS, 6),
+        "Youtarr videos": (YOUTARR_VIDEOS, 12),
+        "Youtarr channels": (YOUTARR_CHANNELS, 8),
+    }
+    for label, (records, minimum) in minimum_counts.items():
+        if len(records) < minimum:
+            raise ValueError(
+                f"{label} has {len(records)} fixtures; expected at least {minimum}"
+            )
+
+    content_slugs = [record[0] for record in MOVIES + SHOWS + OTHER_VIDEOS]
+    if len(content_slugs) != len(set(content_slugs)):
+        raise ValueError("Plex fixture slugs must be unique")
+
+    youtarr_slugs = [record[0] for record in YOUTARR_VIDEOS]
+    if len(youtarr_slugs) != len(set(youtarr_slugs)):
+        raise ValueError("Youtarr fixture slugs must be unique")
+
+    channel_titles = {record[0] for record in YOUTARR_CHANNELS}
+    missing_channels = {
+        record[2]
+        for record in YOUTARR_VIDEOS
+        if record[2] not in channel_titles
+    }
+    if missing_channels:
+        raise ValueError(
+            f"Youtarr videos reference missing channels: {sorted(missing_channels)}"
+        )
+
+    plex_ratings = {record[2] for record in MOVIES + OTHER_VIDEOS}
+    show_ratings = {record[2] for record in SHOWS}
+    youtarr_ratings = {record[3] for record in YOUTARR_VIDEOS}
+    if not plex_ratings <= {"G", "PG"}:
+        raise ValueError(f"movie fixtures exceed PG: {sorted(plex_ratings)}")
+    if not show_ratings <= {"TV-Y", "TV-Y7", "TV-G", "TV-PG"}:
+        raise ValueError(f"show fixtures exceed TV-PG: {sorted(show_ratings)}")
+    if not youtarr_ratings <= {"TV-Y", "TV-Y7", "TV-G", "TV-PG"}:
+        raise ValueError(f"Youtarr fixtures exceed TV-PG: {sorted(youtarr_ratings)}")
+
+    for channel in youtarr_channels()["data"]:
+        width, height = asset_dimensions(channel["thumbnailUrl"])
+        if width != height:
+            raise ValueError(
+                f"channel artwork must be square: {channel['thumbnailUrl']}"
+            )
+
+    for video in youtarr_videos()["data"]:
+        width, height = asset_dimensions(video["thumbnailUrl"])
+        if width * 9 != height * 16:
+            raise ValueError(
+                f"video artwork must be 16:9: {video['thumbnailUrl']}"
+            )
 
 
 class FixtureHandler(BaseHTTPRequestHandler):
@@ -364,7 +461,8 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 }
             )
         elif path.startswith("/external-api/v1/assets/"):
-            self.send_png(path, 640, 360)
+            width, height = asset_dimensions(path)
+            self.send_png(path, width, height)
         else:
             self.send_json({"error": "fixture endpoint not found", "path": path}, 404)
 
@@ -402,7 +500,17 @@ def main() -> None:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", default=8765, type=int)
     parser.add_argument("--verbose", action="store_true")
+    parser.add_argument(
+        "--validate",
+        action="store_true",
+        help="validate fixture density, ratings, identifiers, and artwork shapes",
+    )
     args = parser.parse_args()
+
+    validate_fixtures()
+    if args.validate:
+        print("App Store fixtures are valid")
+        return
 
     server = ThreadingHTTPServer((args.host, args.port), FixtureHandler)
     server.verbose = args.verbose

@@ -98,12 +98,15 @@ installed app renders the production loading, connection, navigation, view
 models, Home rows, details, Settings, parental gate, and Youtarr Explore
 surfaces. Movie and television limits are set to PG and TV-PG, unrated content
 is excluded, and the Home screen includes a fictional Other Videos library
-with landscape thumbnails below Recent Movies & TV.
+with landscape thumbnails below Recent Movies & TV. The fixtures contain
+enough items to fill a landscape iPad row, and Youtarr channel artwork is
+square. The capture command validates those fixture contracts before building.
 
 The fixture service listens only on localhost and uses placeholder
 credentials. No personal Plex account, server name, Youtarr key, external
 link, or third-party promotional artwork is used. Run the capture script, then
 inspect all 14 files and run `scripts/tests/validate_app_store_screenshots.sh`.
+Use `--only home,youtarr` when only fixture-driven library screens changed.
 
 The `AppIcon` catalog is generated from the approved Plink Loop identity with
 Any, Dark, and Tinted 1024-point sources. Run
