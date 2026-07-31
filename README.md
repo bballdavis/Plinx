@@ -93,9 +93,9 @@ Plinx identity. The complete submission inventory is under
 
 <table>
 <tr>
-<td align="center"><img src="screenshots/app-store/iphone-6.9/01-splash.png" width="200" alt="Plinx welcome screen"><br><sub>Welcome</sub></td>
+<td align="center"><img src="screenshots/app-store/iphone-6.9/01-loading.png" width="200" alt="Plinx production loading screen"><br><sub>Loading</sub></td>
 <td align="center"><img src="screenshots/app-store/iphone-6.9/03-home.png" width="200" alt="Plinx home screen with PG and TV-PG content"><br><sub>Home</sub></td>
-<td align="center"><img src="screenshots/app-store/iphone-6.9/06-youtarr.png" width="200" alt="Youtarr Explore video library"><br><sub>Youtarr Explore</sub></td>
+<td align="center"><img src="screenshots/app-store/iphone-6.9/07-youtarr.png" width="200" alt="Youtarr Explore video library"><br><sub>Youtarr Explore</sub></td>
 </tr>
 </table>
 
@@ -103,9 +103,9 @@ Plinx identity. The complete submission inventory is under
 
 <table>
 <tr>
-<td align="center"><img src="screenshots/app-store/ipad-13/02-more-info.png" width="280" alt="Plinx media detail screen"><br><sub>More Info</sub></td>
-<td align="center"><img src="screenshots/app-store/ipad-13/04-settings.png" width="280" alt="Plinx settings with PG and TV-PG limits"><br><sub>Parent Settings</sub></td>
-<td align="center"><img src="screenshots/app-store/ipad-13/06-youtarr.png" width="280" alt="Youtarr Explore on iPad"><br><sub>Youtarr Explore</sub></td>
+<td align="center"><img src="screenshots/app-store/ipad-13/03-home.png" width="360" alt="Plinx home screen on a landscape 13-inch iPad"><br><sub>Home</sub></td>
+<td align="center"><img src="screenshots/app-store/ipad-13/04-more-info.png" width="360" alt="Plinx media detail screen"><br><sub>More Info</sub></td>
+<td align="center"><img src="screenshots/app-store/ipad-13/07-youtarr.png" width="360" alt="Youtarr Explore on a landscape 13-inch iPad"><br><sub>Youtarr Explore</sub></td>
 </tr>
 </table>
 

@@ -218,6 +218,24 @@ This is the canonical identity gradient and should be used for:
 
 - the loop mark
 - default app-icon background
+
+## Documentation site
+
+The public documentation site uses the same identity endpoints as the app:
+
+- lime `#9EEE73` for high-emphasis actions on the dark hero and primary links
+  in dark mode
+- teal `#399E91` for primary links in light mode and the hero action hover
+- shell `#0B120E` for dark navigation and foreground text on lime
+
+Do not substitute a separate teal or green palette for the website. Supporting
+hover shades may be derived from the two identity endpoints, but every primary
+accent must resolve to lime or teal.
+
+The sticky navigation bar must remain opaque enough to preserve text and logo
+contrast while content scrolls beneath it. Use a near-opaque white surface in
+light mode and the canonical shell in dark mode. Do not make the navigation
+transparent over the homepage hero.
 - contained sign-in portal surfaces
 - the parental gate
 - selected dedicated marketing artwork

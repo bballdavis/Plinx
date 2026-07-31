@@ -41,6 +41,12 @@ struct PlinxContentView: View {
                 }
             )
         }
+        .onAppear {
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                AppStoreScreenshotBootstrap.applyRequestedOrientation()
+            }
+        }
     }
 
     @ViewBuilder
@@ -76,16 +82,8 @@ struct PlinxContentView: View {
                 NavigationStack {
                     PlinxSettingsView(isUnlocked: true)
                 }
-            case AppStoreScreenshotPreview.splashScreen:
-                AppStoreSplashPreview()
-            case AppStoreScreenshotPreview.homeScreen:
-                AppStoreHomePreview()
-            case AppStoreScreenshotPreview.mediaDetailScreen:
-                AppStoreMediaDetailPreview()
-            case AppStoreScreenshotPreview.settingsScreen:
-                AppStoreSettingsPreview()
-            case AppStoreScreenshotPreview.youtarrScreen:
-                AppStoreYoutarrPreview()
+            case AppStoreScreenshotBootstrap.mediaDetailScreen:
+                AppStoreMediaDetailScreenshotHarness()
             case "profileSwitcher":
                 NavigationStack {
                     #if os(tvOS)

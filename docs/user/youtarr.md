@@ -9,9 +9,9 @@ default and its full-screen Explore tab only appears in the main navigation
 after a parent saves a connection and explicitly enables Explore.
 
 <img
-  src="/Plinx/app-store/iphone-6.9/06-youtarr.png"
-  alt="Plinx Youtarr Explore screen with fictional parent-approved channels and TV-G or TV-PG videos"
-  width="360"
+  src="/Plinx/app-store/ipad-13/07-youtarr.png"
+  alt="Plinx Youtarr Explore screen on a landscape 13-inch iPad with fictional parent-approved TV-G and TV-PG videos"
+  width="720"
 />
 
 ## Safety and access

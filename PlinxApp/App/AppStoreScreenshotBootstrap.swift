@@ -1,0 +1,87 @@
+import SwiftUI
+import UIKit
+
+/// UI-test-only entry points for capturing production views against the local
+/// fixture service. This type supplies initial data but does not own a visual
+/// implementation.
+enum AppStoreScreenshotBootstrap {
+    static let mediaDetailScreen = "appStoreMediaDetail"
+    private static let landscapeArgument = "--app-store-landscape"
+
+    @MainActor
+    static func applyRequestedOrientation(
+        arguments: [String] = ProcessInfo.processInfo.arguments
+    ) {
+        guard arguments.contains(landscapeArgument) else {
+            return
+        }
+        #if os(iOS)
+        AppDelegate.orientationLock = .landscapeLeft
+        #endif
+    }
+
+    static var media: PlayableMediaItem {
+        PlayableMediaItem(
+            mediaItem: MediaItem(
+                id: "moonbound",
+                guid: "plex://fixture/moonbound",
+                summary: "A family science adventure.",
+                title: "Moonbound",
+                type: .movie,
+                parentRatingKey: nil,
+                grandparentRatingKey: nil,
+                genres: ["Family", "Adventure"],
+                year: 2026,
+                duration: 6_120,
+                videoResolution: "1080",
+                rating: 8.1,
+                ratings: [],
+                contentRating: "PG",
+                studio: "Plinx Fixture Studio",
+                tagline: "Curiosity starts close to home.",
+                thumbPath: "/artwork/poster/moonbound.png",
+                artPath: "/artwork/backdrop/moonbound.png",
+                ultraBlurColors: nil,
+                viewOffset: nil,
+                viewCount: nil,
+                childCount: nil,
+                leafCount: nil,
+                viewedLeafCount: nil,
+                grandparentTitle: nil,
+                parentTitle: nil,
+                parentIndex: nil,
+                index: nil,
+                grandparentThumbPath: nil,
+                grandparentArtPath: nil,
+                parentThumbPath: nil
+            )
+        )!
+    }
+}
+
+struct AppStoreMediaDetailScreenshotHarness: View {
+    @Environment(SessionManager.self) private var sessionManager
+    @Environment(PlexAPIContext.self) private var plexApiContext
+    @Environment(\.safetyPolicy) private var safetyPolicy
+
+    var body: some View {
+        if sessionManager.status == .ready {
+            NavigationStack {
+                PlinxMediaDetailView(
+                    viewModel: SafeMediaDetailViewModel(
+                        inner: MediaDetailViewModel(
+                            media: AppStoreScreenshotBootstrap.media,
+                            context: plexApiContext
+                        ),
+                        policy: safetyPolicy
+                    ),
+                    onPlay: { _, _ in },
+                    onShuffle: { _, _ in },
+                    onSelectRelated: { _ in }
+                )
+            }
+        } else {
+            PlinxBrandedLoadingView(context: .appTransition)
+        }
+    }
+}

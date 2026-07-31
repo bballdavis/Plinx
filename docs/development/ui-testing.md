@@ -74,11 +74,7 @@ the app also receives `--ui-testing`:
 - `homeLoading`
 - `playerBuffering`
 - `refreshLoading`
-- `appStoreSplash`
-- `appStoreHome`
 - `appStoreMediaDetail`
-- `appStoreSettings`
-- `appStoreYoutarr`
 
 Keep these routes deterministic and free of credentials or personal data.
 When a visual-audit route needs account-backed content, capture loading or
@@ -99,10 +95,14 @@ inside, the outlined white wordmark beneath it, and no visible loading caption.
 `refreshLoading` provides a deterministic pull-to-refresh surface for visual
 inspection of the branded refresh indicator and hidden native spinner.
 
-The `appStore*` routes provide the credential-free App Store and
-documentation inventory. They use fictional media, the current Plinx identity,
-and PG/TV-PG examples. They must not gain network requests, account data, or
-copyrighted promotional artwork.
+The App Store and documentation inventory is captured by
+`scripts/capture_app_store_screenshots.sh`. A localhost fixture service returns
+fictional Plex and Youtarr data plus original abstract artwork, while the app
+renders its production views and behavior. The only screenshot-specific
+production-view harness is `appStoreMediaDetail`, which supplies the selected
+fixture item to the real media-detail view model. The loading capture uses
+`homeLoading`; all other captures use normal production routes or live fixture
+loading. Keep the fixture service credential-free and capped at PG/TV-PG.
 
 ### tvOS focus rules
 

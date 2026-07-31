@@ -36,9 +36,9 @@ export default function Home() {
             </div>
           </div>
           <img
-            className={styles.phone}
-            src={useBaseUrl('app-store/iphone-6.9/03-home.png')}
-            alt="Plinx home screen on a 6.9-inch iPhone"
+            className={styles.heroScreenshot}
+            src={useBaseUrl('app-store/ipad-13/03-home.png')}
+            alt="Plinx home screen on a landscape 13-inch iPad"
           />
         </section>
 
@@ -67,8 +67,8 @@ export default function Home() {
           </div>
           <img
             className={styles.featureImage}
-            src={useBaseUrl('app-store/iphone-6.9/06-youtarr.png')}
-            alt="Youtarr Explore showing parent-approved video channels in Plinx"
+            src={useBaseUrl('app-store/ipad-13/07-youtarr.png')}
+            alt="Youtarr Explore showing fictional parent-approved videos on a landscape 13-inch iPad"
           />
         </section>
 
