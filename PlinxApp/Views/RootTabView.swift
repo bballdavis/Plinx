@@ -135,7 +135,10 @@ struct RootTabView: View {
     }
 
     private var showsYoutarrExplore: Bool {
-        YoutarrExploreVisibility.shouldShow(
+        if YoutarrLiveTestBootstrap.mainTabConfiguration() != nil {
+            return true
+        }
+        return YoutarrExploreVisibility.shouldShow(
             isEnabled: isYoutarrExploreEnabled,
             isConfigured: isYoutarrConfigured
         )
@@ -446,6 +449,7 @@ struct RootTabView: View {
                 KidsMainTabPicker(
                     tabs: visibleTabs,
                     selectedTab: tabBinding,
+                    onSelect: handleTabSelection,
                     onAction: handleBottomAction
                 )
             }
@@ -738,6 +742,7 @@ struct RootTabView: View {
             tabs: visibleTabs,
             selectedTab: tabBinding,
             focusedTab: $focusedHeaderTab,
+            onSelect: handleTabSelection,
             onAction: handleBottomAction,
             onMoveDown: requestFirstContentFocus,
             placement: .header
@@ -792,6 +797,11 @@ struct RootTabView: View {
     }
 
     private func refreshYoutarrConfigurationState() {
+        if let testConfiguration = YoutarrLiveTestBootstrap.mainTabConfiguration() {
+            isYoutarrConfigured = true
+            youtarrExploreConfiguration = testConfiguration
+            return
+        }
         let store = YoutarrConfigurationStore()
         let configuration = try? store.load()
         isYoutarrConfigured = configuration != nil

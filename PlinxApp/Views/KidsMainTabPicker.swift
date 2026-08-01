@@ -27,6 +27,7 @@ struct KidsMainTabPicker: View {
     let tabs: [TabItem]
     @Binding var selectedTab: MainCoordinator.Tab
     var focusedTab: FocusState<MainCoordinator.Tab?>.Binding? = nil
+    var onSelect: ((MainCoordinator.Tab) -> Void)? = nil
     var onAction: (TabItem.Action) -> Void = { _ in }
     var onMoveDown: () -> Void = {}
     var placement: Placement = .floating
@@ -165,7 +166,11 @@ struct KidsMainTabPicker: View {
             if let action = item.action {
                 onAction(action)
             } else if let tab = item.tab {
-                selectedTab = tab
+                if let onSelect {
+                    onSelect(tab)
+                } else {
+                    selectedTab = tab
+                }
             }
         } label: {
             TabButtonContent(

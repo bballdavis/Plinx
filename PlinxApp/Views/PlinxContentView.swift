@@ -149,14 +149,11 @@ struct PlinxContentView: View {
             case YoutarrExploreUITestBootstrap.screenName:
                 if let configuration = YoutarrExploreUITestBootstrap.configuration() {
                     YoutarrExploreUITestHarness(
-                        configuration: configuration,
-                        client: YoutarrExploreUITestBootstrap.client(
-                            configuration: configuration
-                        )
+                        configuration: configuration
                     )
                 } else {
                     ContentUnavailableView(
-                        "Offline Explore fixture unavailable",
+                        "Synthetic Explore configuration missing",
                         systemImage: "wrench.and.screwdriver"
                     )
                 }
