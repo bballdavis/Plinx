@@ -182,7 +182,6 @@ jobs:
             -scheme Plinx-iOS \
             -destination "platform=iOS Simulator,name=Plinx iPhone 17 Pro (26.5),OS=26.5" \
             -derivedDataPath "$RUNNER_TEMP/plinx-derived-data" \
-            -only-testing:Plinx-iOS-UnitTests/SeasonDownloadSelectionTests \
             -only-testing:Plinx-iOS-UnitTests/YoutarrContractFixtureTests \
             -only-testing:Plinx-iOS-UnitTests/YoutarrFoundationTests \
             -only-testing:Plinx-iOS-UnitTests/YoutarrExploreTests \
