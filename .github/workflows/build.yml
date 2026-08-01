@@ -116,6 +116,7 @@ jobs:
           source config/youtarr-contract.env
           git clone --filter=blob:none https://github.com/bballdavis/Youtarr.git ../Youtarr
           git -C ../Youtarr checkout --detach "$YOUTARR_CONTRACT_COMMIT"
+          npm ci --prefix ../Youtarr --omit=dev --ignore-scripts
 
       - name: Verify Youtarr contract fixture
         run: bash ./scripts/verify_youtarr_contract_fixture.sh --check
