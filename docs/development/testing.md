@@ -137,7 +137,6 @@ xcodebuild test \
   -only-testing:Plinx-iOS-UnitTests/YoutarrFoundationTests \
   -only-testing:Plinx-iOS-UnitTests/YoutarrExploreTests \
   -only-testing:Plinx-iOS-UnitTests/YoutarrRequestTests \
-  -only-testing:Plinx-iOS-UITests/SeasonDownloadOfflineUITests \
   CODE_SIGNING_ALLOWED=NO
 ```
 
