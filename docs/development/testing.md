@@ -41,6 +41,7 @@ xcodebuild test \
   -scheme Plinx-iOS \
   -destination "platform=iOS Simulator,name=iPhone 16,OS=26.5" \
   -derivedDataPath "$PLINX_XCODE_DERIVED_DATA_PATH" \
+  -only-testing:Plinx-iOS-UnitTests/SeasonDownloadSelectionTests \
   -only-testing:Plinx-iOS-UnitTests \
   CODE_SIGNING_ALLOWED=NO
 ```
@@ -137,6 +138,7 @@ xcodebuild test \
   -only-testing:Plinx-iOS-UnitTests/YoutarrFoundationTests \
   -only-testing:Plinx-iOS-UnitTests/YoutarrExploreTests \
   -only-testing:Plinx-iOS-UnitTests/YoutarrRequestTests \
+  -only-testing:Plinx-iOS-UITests/SeasonDownloadOfflineUITests \
   CODE_SIGNING_ALLOWED=NO
 ```
 

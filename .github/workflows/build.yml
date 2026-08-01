@@ -164,6 +164,7 @@ jobs:
             -destination "platform=iOS Simulator,name=Plinx iPhone 17 Pro (26.5),OS=26.5" \
             -configuration Debug \
             -derivedDataPath "$RUNNER_TEMP/plinx-derived-data" \
+            -only-testing:Plinx-iOS-UnitTests/SeasonDownloadSelectionTests \
             CODE_SIGNING_ALLOWED=NO \
             -quiet
           xcodebuild build-for-testing \
@@ -186,6 +187,7 @@ jobs:
             -only-testing:Plinx-iOS-UnitTests/YoutarrFoundationTests \
             -only-testing:Plinx-iOS-UnitTests/YoutarrExploreTests \
             -only-testing:Plinx-iOS-UnitTests/YoutarrRequestTests \
+            -only-testing:Plinx-iOS-UITests/SeasonDownloadOfflineUITests \
             CODE_SIGNING_ALLOWED=NO \
             -quiet
 
