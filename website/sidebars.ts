@@ -35,6 +35,7 @@ const sidebars: SidebarsConfig = {
         'development/ui-testing',
         'development/ci',
         'development/branch-pairing',
+        'development/versioning-and-releases',
       ],
     },
     {

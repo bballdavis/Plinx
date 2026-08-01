@@ -2,7 +2,7 @@
 
 ## Canonical Pairing
 
-- Plinx `main` pairs with Strimr `plinx-patches`
+- Plinx `main` pairs with Strimr `main`
 - Plinx `dev` pairs with Strimr `dev-plinx`
 
 The machine-readable source of truth is
@@ -35,7 +35,7 @@ Plinx runtime builds expect the sibling checkout at `../strimr`.
 
 `--quick` verifies the configured source roots and the narrow Strimr symbols
 that Plinx requires. It does not modify either checkout. `--full` adds the
-clean-tree requirement, checks the `dev-plinx` branch and exact pin, verifies
+clean-tree requirement, checks the configured branch and exact pin, verifies
 that the configured upstream base is an ancestor, and rejects merge commits in
 the downstream patch stack.
 
@@ -45,8 +45,22 @@ the downstream patch stack.
 2. Verify the full contract before building the paired app.
 3. Keep candidate engine changes on a Strimr branch; do not add product policy
    to the generic engine.
-4. For `dev`, verify Strimr resolves to the commit recorded in
+4. For either branch, verify Strimr resolves to the commit recorded in
    `config/release-dependencies.env` before testing Plinx.
+
+## Promoting Dev To Main
+
+Use the [versioning and release guide](versioning-and-releases.md) for the
+complete calendar-release sequence. The paired promotion order is deliberate:
+
+1. Commit and push the clean Strimr `dev-plinx` stack, then merge its PR into
+   Strimr `main` without introducing a merge commit.
+2. Fetch the resulting Strimr `main` commit and update Plinx's exact
+   `STRIMR_COMMIT` and `STRIMR_BRANCH=main` values.
+3. Run the full pairing contract with both repositories clean, then merge the
+   Plinx `dev` PR into Plinx `main`.
+4. Tag the merged Plinx commit with the calendar release tag and create the
+   GitHub release only after the paired source revisions are recorded.
 
 ## Updating A Strimr Candidate
 

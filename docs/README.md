@@ -28,6 +28,7 @@ Recommended reading order for most work:
 | Which tests to run for a given change | `docs/development/testing.md` |
 | Snapshot and UI test strategy details | `docs/development/ui-testing.md` |
 | CI behavior and documentation guardrails | `docs/development/ci.md` |
+| Calendar versioning, paired promotion, and release tags | `docs/development/versioning-and-releases.md` |
 | Brand assets, theme rules, and UI branding expectations | `docs/product/branding.md` |
 | Privacy, safety, secrets, and release validation rules | `docs/security/privacy-and-safety.md` |
 | App Store submission copy | `docs/release/app-store.md` |

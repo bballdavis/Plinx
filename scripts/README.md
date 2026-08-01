@@ -11,11 +11,11 @@ Convenient shell scripts for building and running the Plinx iOS app on the simul
 Build and test scripts build from local files only. It's your responsibility to ensure the sibling `../strimr` checkout is on the correct branch and in a clean state before running any build command.
 
 **Branch selection:**
-- Working on **Plinx `main`** branch? Use **`plinx-patches`** branch in strimr:
+- Working on **Plinx `main`** branch? Use **`main`** branch in strimr:
   ```bash
   cd ../strimr
-  git checkout plinx-patches
-  git pull origin plinx-patches
+  git checkout main
+  git pull origin main
   ```
 
 - Working on **Plinx `dev`** branch? Use **`dev-plinx`** branch in strimr:

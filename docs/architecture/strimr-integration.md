@@ -18,7 +18,7 @@ in `project.yml`; it is no longer a sibling checkout.
 
 Stable branch pairing:
 
-- Plinx `main` ↔ Strimr `plinx-patches`
+- Plinx `main` ↔ Strimr `main`
 - Plinx `dev` ↔ Strimr `dev-plinx`
 
 CI and release builds use an exact configured Strimr commit rather than
@@ -89,7 +89,7 @@ When a Plinx need forces a Strimr patch, document:
 
 ## Current Release Patch
 
-The pinned `dev-plinx` revision contains the Strimr-side injection points that
+The pinned Strimr revision contains the Strimr-side injection points that
 cannot be supplied by a Plinx decorator:
 
 - host-app Plex product identity and encoded authentication-URL construction,
