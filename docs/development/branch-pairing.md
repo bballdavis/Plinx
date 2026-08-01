@@ -2,7 +2,7 @@
 
 ## Canonical Pairing
 
-- Plinx `main` pairs with Strimr `main`
+- Plinx `main` pairs with Strimr `plinx-patches`
 - Plinx `dev` pairs with Strimr `dev-plinx`
 
 The machine-readable source of truth is
@@ -54,9 +54,10 @@ Use the [versioning and release guide](versioning-and-releases.md) for the
 complete calendar-release sequence. The paired promotion order is deliberate:
 
 1. Commit and push the clean Strimr `dev-plinx` stack, then merge its PR into
-   Strimr `main` without introducing a merge commit.
-2. Fetch the resulting Strimr `main` commit and update Plinx's exact
-   `STRIMR_COMMIT` and `STRIMR_BRANCH=main` values.
+   Strimr `plinx-patches` without introducing a merge commit. Keep Strimr
+   `main` synchronized with upstream; it is not the Plinx release branch.
+2. Fetch the resulting Strimr `plinx-patches` commit and update Plinx's exact
+   `STRIMR_COMMIT` and `STRIMR_BRANCH=plinx-patches` values.
 3. Run the full pairing contract with both repositories clean, then merge the
    Plinx `dev` PR into Plinx `main`.
 4. Tag the merged Plinx commit with the calendar release tag and create the

@@ -18,7 +18,7 @@ in `project.yml`; it is no longer a sibling checkout.
 
 Stable branch pairing:
 
-- Plinx `main` ↔ Strimr `main`
+- Plinx `main` ↔ Strimr `plinx-patches`
 - Plinx `dev` ↔ Strimr `dev-plinx`
 
 CI and release builds use an exact configured Strimr commit rather than

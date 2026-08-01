@@ -38,9 +38,11 @@ Every release follows this order:
 
 1. Finish and commit the Strimr `dev-plinx` work as focused commits. Keep the
    sibling checkout and any linked worktrees clean before publishing.
-2. Push `dev-plinx` and merge its PR into Strimr `main` without a merge commit.
-3. Fetch Strimr `main`, set `STRIMR_BRANCH=main`, and record the exact merged
-   SHA in Plinx `config/release-dependencies.env`.
+2. Push `dev-plinx` and merge its PR into Strimr `plinx-patches` without a
+   merge commit. Keep Strimr `main` synchronized with upstream; it is not the
+   Plinx release branch.
+3. Fetch Strimr `plinx-patches`, set `STRIMR_BRANCH=plinx-patches`, and record
+   the exact merged SHA in Plinx `config/release-dependencies.env`.
 4. Run `./scripts/verify_strimr_integration_contract.sh --full`, the focused
    seam tests, package tests, documentation checks, and the release build
    gates from `docs/release/app-store.md`.

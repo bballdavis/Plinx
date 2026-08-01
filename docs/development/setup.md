@@ -22,13 +22,13 @@ This guide covers local development, project generation, and the sibling depende
    ```bash
    cd ..
    git clone https://github.com/bballdavis/strimr.git
-   git -C strimr checkout main
+   git -C strimr checkout plinx-patches
    cd Plinx
    ```
 
    If you are working on Plinx `dev`, switch the sibling Strimr checkout to
-   `dev-plinx`; for Plinx `main`, use Strimr `main`. In both cases verify the
-   exact revision in `config/release-dependencies.env`. See
+   `dev-plinx`; for Plinx `main`, use Strimr `plinx-patches`. In both cases
+   verify the exact revision in `config/release-dependencies.env`. See
    `docs/development/branch-pairing.md`.
 
 3. Install XcodeGen:
