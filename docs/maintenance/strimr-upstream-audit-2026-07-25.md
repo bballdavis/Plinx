@@ -139,7 +139,7 @@ branches, feature branches, and the uncommitted Strimr working tree.
 | Download network recheck/probe | Partly product-driven and not independently evidenced | Keep in Plinx until a reproducible upstream bug is documented |
 | Download quality selection/transcode profiles | Implemented through Plex's background download queue with forced reduced-quality decisions, typed output-profile validation, per-item sessions, and a 20% space-savings floor | Keep the product-neutral queue, protocol validation, and space-savings guard together as a focused upstream candidate |
 | Download artwork layout and library-agent metadata | Primarily Plinx presentation behavior for Other Videos | Keep in Plinx unless upstream asks for the general metadata |
-| Season-scoped episode download selection | Upstream downloads a season immediately and its show picker assumes a show-root detail model | Replay the minimal generic iOS picker scope and contribute upstream |
+| Season-scoped episode download selection | Superseded by direct season enqueue; the iOS picker remains show-scoped and tvOS does not incorporate downloads | Do not replay the obsolete season-scoped picker; retain only the shared empty-season reload guard |
 | Old MPV simulator/HDR fixes | MPV implementation deleted upstream | Obsolete; archive the PR branch |
 | MPV/VLC volume, lifecycle, buffering, and session patches | Superseded by AetherEngine | Do not replay |
 | Maximum-volume cap | Kid-safety policy | Keep in Plinx |

@@ -1,42 +1,40 @@
-# Season-Scoped Episode Download Selection
+# Season Download Routing
 
 ## Problem
 
-Strimr's iOS show download sheet assumes its detail model represents a show.
-When a host opens a selected season, the existing season action bypasses the
-picker and immediately enqueues every episode. A season-scoped picker cannot be
-implemented in a Plinx adapter without replacing Strimr's media-detail header.
+Strimr's season action enqueues the season's episodes directly. The iOS
+media-detail download sheet remains show-scoped and allows episode selection;
+Plinx does not replace that flow. Downloads are not incorporated into the tvOS
+target.
 
 ## Current Downstream Patch
 
-- Resolve Plinx detail routes as the selected movie, show, season, or episode.
-- Open the episode-selection sheet for shows and seasons.
-- Keep show scope switchable between seasons and constrain season scope to the
-  selected season.
-- Reload an already-selected season when its episode collection is empty.
-- Distinguish loading, retryable errors, and genuine empty results.
-- Keep completed episodes visible but unavailable for selection.
+- Keep direct season enqueue behavior for season details.
+- Keep the iOS episode-selection sheet available from show details.
+- Reload an already-selected show season when its episode collection is empty.
+- Keep downloads out of tvOS until that product surface is explicitly
+  incorporated.
 
 ## Upstream Candidate
 
-Contribute the scope enum, idempotent episode reload, and error presentation as
-one generic iOS media-detail fix. The behavior contains no Plinx branding or
-product policy and preserves standalone Strimr's existing show picker.
+The obsolete season-scoped picker is not an upstream candidate. The shared
+empty-season reload guard remains a small generic iOS media-detail fix because
+the show picker can otherwise remain empty after an initial load failure.
 
 ## Upgrade Replay Checklist
 
-1. Check whether season details already offer episode selection upstream.
-2. Drop the downstream patch if show and season scopes, retry states, and
-   completed-episode exclusion are equivalent.
-3. Otherwise replay only the shared reload guard and iOS picker/header changes.
+1. Preserve direct season enqueue behavior unless the product explicitly
+   requests season-level episode selection.
+2. Preserve the show-level picker and completed-episode exclusion.
+3. Keep the empty-season reload guard in the paired Strimr source.
 4. Update required seams and the exact Strimr pin after pushing the sibling
    commit.
 
 ## Validation
 
 - Build the Strimr iOS sources through Plinx for iPhone and iPad.
-- Verify show scope can switch seasons.
-- Verify season scope cannot escape the selected season.
+- Verify direct season enqueue remains available from season details.
+- Verify the show picker can switch seasons and reload an empty selection.
 - Verify Select All excludes completed episodes and submission de-duplicates.
-- Verify failed season and episode requests offer retry instead of empty copy.
+- Verify the tvOS target does not compile download sources.
 - Run the full Plinx-Strimr integration contract.

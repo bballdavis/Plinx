@@ -133,7 +133,6 @@ xcodebuild test \
   -scheme Plinx-iOS \
   -destination "platform=iOS Simulator,name=iPhone 17,OS=26.5" \
   -derivedDataPath "$PLINX_XCODE_DERIVED_DATA_PATH" \
-  -only-testing:Plinx-iOS-UnitTests/SeasonDownloadSelectionTests \
   -only-testing:Plinx-iOS-UnitTests/YoutarrContractFixtureTests \
   -only-testing:Plinx-iOS-UnitTests/YoutarrFoundationTests \
   -only-testing:Plinx-iOS-UnitTests/YoutarrExploreTests \
