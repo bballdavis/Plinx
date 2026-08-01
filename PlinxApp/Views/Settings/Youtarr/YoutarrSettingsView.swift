@@ -237,10 +237,10 @@ struct YoutarrSettingsView: View {
                     additionalHeaderName: additionalHeaderName,
                     additionalHeaderValue: additionalHeaderValue
                 )
-                let testedCapabilities = try await clientFactory(configuration).capabilities()
+                let diagnostic = try await clientFactory(configuration).connectionDiagnostic()
                 try Task.checkCancellation()
-                capabilities = testedCapabilities
-                statusMessage = YoutarrStrings.value("youtarr.status.verified")
+                capabilities = diagnostic.capabilities
+                statusMessage = YoutarrStrings.value(diagnostic.statusMessageKey)
             } catch is CancellationError {
                 // View dismissal and replacement tests are intentionally silent.
             } catch let error as LocalizedError {

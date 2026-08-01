@@ -5,7 +5,9 @@ import PlinxUI
 @MainActor
 final class YoutarrExploreViewModel: ObservableObject {
     enum EmptyReason: Equatable {
-        case catalog
+        case noApprovedChannels
+        case noRequestableVideos
+        case search
         case safetyPolicy
     }
 
@@ -23,7 +25,7 @@ final class YoutarrExploreViewModel: ObservableObject {
     @Published private(set) var isRefreshing = false
     @Published private(set) var isLoadingMoreVideos = false
     @Published private(set) var requestStates: [String: YoutarrVideoActionState] = [:]
-    @Published private(set) var emptyReason: EmptyReason = .catalog
+    @Published private(set) var emptyReason: EmptyReason = .noRequestableVideos
     @Published private(set) var catalogErrorMessage: String?
     @Published private(set) var channelsErrorMessage: String?
     @Published var searchText = ""
@@ -100,7 +102,7 @@ final class YoutarrExploreViewModel: ObservableObject {
                 channels = []
                 videos = []
                 requestStates = [:]
-                emptyReason = .catalog
+                emptyReason = .noRequestableVideos
                 requestGenerations = [:]
                 nextVideoCursor = nil
                 activeSearch = requestedSearch
@@ -140,7 +142,12 @@ final class YoutarrExploreViewModel: ObservableObject {
             switch loadedCatalog {
             case let .success(catalog):
                 videos = YoutarrCatalogPresentation.diversified(catalog.videos)
-                emptyReason = catalog.hadSafetyFilteredVideos ? .safetyPolicy : .catalog
+                emptyReason = Self.emptyReason(
+                    search: requestedSearch,
+                    channelsTotal: channelsTotal(from: loadedChannels),
+                    catalogTotal: catalog.total,
+                    hadSafetyFilteredVideos: catalog.hadSafetyFilteredVideos
+                )
                 nextVideoCursor = catalog.nextCursor
                 catalogErrorMessage = nil
                 requestStates = [:]
@@ -286,10 +293,12 @@ final class YoutarrExploreViewModel: ObservableObject {
     ) async throws -> (
         videos: [YoutarrVideo],
         nextCursor: String?,
+        total: Int,
         hadSafetyFilteredVideos: Bool
     ) {
         var requestedCursor = initialCursor
         var hadSafetyFilteredVideos = false
+        var total = 0
         repeat {
             let response = try await client.catalogVideos(
                 cursor: requestedCursor,
@@ -297,6 +306,7 @@ final class YoutarrExploreViewModel: ObservableObject {
                 search: search
             )
             try Task.checkCancellation()
+            total = response.pagination.total
             let candidates = response.data.filter {
                 !existingIDs.contains($0.id) && !$0.isDownloaded && !$0.isRequested
             }
@@ -305,7 +315,7 @@ final class YoutarrExploreViewModel: ObservableObject {
                 || candidates.contains { !safetyPolicy.allows($0) }
             requestedCursor = response.pagination.nextCursor
             if !visible.isEmpty || requestedCursor == nil {
-                return (visible, requestedCursor, hadSafetyFilteredVideos)
+                return (visible, requestedCursor, total, hadSafetyFilteredVideos)
             }
         } while true
     }
@@ -326,7 +336,7 @@ final class YoutarrExploreViewModel: ObservableObject {
         search: String,
         safetyPolicy: YoutarrExploreSafetyPolicy,
         excluding existingIDs: Set<String>
-    ) async -> Result<(videos: [YoutarrVideo], nextCursor: String?, hadSafetyFilteredVideos: Bool), Error> {
+    ) async -> Result<(videos: [YoutarrVideo], nextCursor: String?, total: Int, hadSafetyFilteredVideos: Bool), Error> {
         do {
             return .success(try await loadCatalogUntilVisibleOrFinished(
                 startingAt: cursor,
@@ -338,6 +348,26 @@ final class YoutarrExploreViewModel: ObservableObject {
         } catch {
             return .failure(error)
         }
+    }
+
+    private func channelsTotal(
+        from result: Result<YoutarrChannelsResponse, Error>
+    ) -> Int? {
+        guard case let .success(response) = result else { return nil }
+        return response.pagination.total
+    }
+
+    private static func emptyReason(
+        search: String,
+        channelsTotal: Int?,
+        catalogTotal: Int,
+        hadSafetyFilteredVideos: Bool
+    ) -> EmptyReason {
+        if !search.isEmpty { return .search }
+        if catalogTotal > 0 && hadSafetyFilteredVideos { return .safetyPolicy }
+        if channelsTotal == 0 { return .noApprovedChannels }
+        if catalogTotal == 0 { return .noRequestableVideos }
+        return .noRequestableVideos
     }
 
     private func serverState(for video: YoutarrVideo) -> YoutarrVideoActionState {
@@ -919,17 +949,33 @@ struct YoutarrExploreView: View {
         if let message = viewModel.catalogErrorMessage {
             sectionError(message, retry: startReload)
         } else {
+            let emptyPresentation = emptyPresentation(for: viewModel.emptyReason)
             YoutarrExploreStateView(
-                systemImage: viewModel.emptyReason == .safetyPolicy ? "checkmark.shield" : "play.slash",
-                titleKey: viewModel.emptyReason == .safetyPolicy
-                    ? "youtarr.explore.filteredVideos"
-                    : "youtarr.explore.emptyVideos",
-                messageKey: viewModel.emptyReason == .safetyPolicy
-                    ? "youtarr.explore.filteredVideos.help"
-                    : "youtarr.explore.emptyVideos.help",
+                systemImage: emptyPresentation.systemImage,
+                titleKey: emptyPresentation.titleKey,
+                titleAccessibilityIdentifier: emptyPresentation.accessibilityIdentifier,
+                messageKey: emptyPresentation.messageKey,
                 retry: startReload
             )
             .frame(minHeight: viewModel.channels.isEmpty ? 360 : 240)
+        }
+    }
+
+    private func emptyPresentation(for reason: YoutarrExploreViewModel.EmptyReason) -> (
+        systemImage: String,
+        titleKey: String,
+        messageKey: String,
+        accessibilityIdentifier: String
+    ) {
+        switch reason {
+        case .noApprovedChannels:
+            ("person.crop.circle.badge.exclamationmark", "youtarr.explore.noApprovedChannels", "youtarr.explore.noApprovedChannels.help", "youtarr.explore.empty.noApprovedChannels")
+        case .noRequestableVideos:
+            ("play.slash", "youtarr.explore.emptyVideos", "youtarr.explore.emptyVideos.help", "youtarr.explore.empty.noRequestableVideos")
+        case .search:
+            ("magnifyingglass", "youtarr.explore.searchEmpty", "youtarr.explore.searchEmpty.help", "youtarr.explore.empty.search")
+        case .safetyPolicy:
+            ("checkmark.shield", "youtarr.explore.filteredVideos", "youtarr.explore.filteredVideos.help", "youtarr.explore.empty.safetyPolicy")
         }
     }
 
@@ -1952,6 +1998,7 @@ private struct YoutarrAuthenticatedImageView: View {
 struct YoutarrExploreStateView: View {
     let systemImage: String
     let titleKey: String
+    var titleAccessibilityIdentifier: String? = nil
     var messageKey: String?
     var message: String?
     var showsProgress = false
@@ -1964,6 +2011,7 @@ struct YoutarrExploreStateView: View {
             } icon: {
                 Image(systemName: systemImage)
             }
+            .accessibilityIdentifier(titleAccessibilityIdentifier ?? titleKey)
         } description: {
             if let messageKey {
                 Text(LocalizedStringKey(messageKey), tableName: "Plinx")

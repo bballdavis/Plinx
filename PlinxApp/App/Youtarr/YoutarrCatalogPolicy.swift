@@ -7,6 +7,52 @@ enum YoutarrCatalogCapabilityPolicy {
     }
 }
 
+struct YoutarrConnectionDiagnostic: Equatable {
+    enum State: Equatable {
+        case verified
+        case incompatible
+        case noApprovedChannels
+        case noRequestableVideos
+    }
+
+    let capabilities: YoutarrCapabilities
+    let state: State
+    let approvedChannelTotal: Int
+    let requestableVideoTotal: Int
+
+    init(
+        capabilities: YoutarrCapabilities,
+        approvedChannelTotal: Int,
+        requestableVideoTotal: Int
+    ) {
+        self.capabilities = capabilities
+        self.approvedChannelTotal = approvedChannelTotal
+        self.requestableVideoTotal = requestableVideoTotal
+        if !YoutarrCatalogCapabilityPolicy.canBrowse(capabilities) {
+            state = .incompatible
+        } else if approvedChannelTotal == 0 {
+            state = .noApprovedChannels
+        } else if requestableVideoTotal == 0 {
+            state = .noRequestableVideos
+        } else {
+            state = .verified
+        }
+    }
+
+    var statusMessageKey: String {
+        switch state {
+        case .verified:
+            "youtarr.status.verified"
+        case .incompatible:
+            "youtarr.status.incompatible"
+        case .noApprovedChannels:
+            "youtarr.status.noApprovedChannels"
+        case .noRequestableVideos:
+            "youtarr.status.noRequestableVideos"
+        }
+    }
+}
+
 enum YoutarrCatalogPresentation {
     /// Preserves the server's recency order except when the same channel would
     /// occupy more than `maximumConsecutive` cards and another channel is

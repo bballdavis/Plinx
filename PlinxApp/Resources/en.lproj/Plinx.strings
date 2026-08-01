@@ -51,6 +51,7 @@
 "downloads.status.queued" = "Queued";
 "downloads.status.deciding" = "Checking download";
 "downloads.status.preparing %lld" = "Preparing %lld%%";
+"downloads.status.transcoding %lld" = "Transcoding %lld%%";
 "downloads.status.downloading %lld" = "Downloading %lld%%";
 "downloads.status.failed" = "Download failed";
 "downloads.blockedByContentControls" = "This item is blocked by the current content controls.";
@@ -119,13 +120,16 @@
 "youtarr.settings.remove.help" = "This removes the server address and securely stored API key from this device.";
 "youtarr.status.saved" = "Youtarr connection saved.";
 "youtarr.status.verified" = "Youtarr connection verified.";
+"youtarr.status.noApprovedChannels" = "Youtarr connected, but this key has no approved channels.";
+"youtarr.status.noRequestableVideos" = "Youtarr connected, but no requestable videos are currently available.";
+"youtarr.status.incompatible" = "Youtarr connected, but this key cannot browse the supported catalog.";
 "youtarr.status.removed" = "Youtarr configuration removed.";
 "youtarr.error.invalidURL" = "Enter a valid HTTPS address or local-network HTTP address.";
 "youtarr.error.missingAPIKey" = "Enter an API key before saving this connection.";
 "youtarr.error.missingAdditionalHeader" = "Enter both the additional header name and value.";
 "youtarr.error.invalidAdditionalHeader" = "Enter a valid custom header that does not replace a header managed by Plinx.";
 "youtarr.error.credentialStore" = "Plinx could not securely save this connection.";
-"youtarr.error.unauthorized" = "Youtarr did not accept this API key.";
+"youtarr.error.unauthorized" = "Youtarr did not accept this API key. A parent must replace or reconfigure it in Settings.";
 "youtarr.error.notFound" = "Youtarr's external API was not found at this address.";
 "youtarr.error.rateLimited" = "Youtarr is busy. Try again in a moment.";
 "youtarr.error.serverUnavailable" = "Youtarr is temporarily unavailable.";
@@ -164,6 +168,10 @@
 "youtarr.explore.emptyChannels.help" = "Try another search or ask a parent to approve channels in Youtarr.";
 "youtarr.explore.emptyVideos" = "No Videos Found";
 "youtarr.explore.emptyVideos.help" = "No videos are available to this connection. A parent can check the Youtarr key’s channel access and rating rules.";
+"youtarr.explore.noApprovedChannels" = "No Approved Channels";
+"youtarr.explore.noApprovedChannels.help" = "A parent can approve channels for this Youtarr key in Settings.";
+"youtarr.explore.searchEmpty" = "No Matching Videos";
+"youtarr.explore.searchEmpty.help" = "Try a different search.";
 "youtarr.explore.filteredVideos" = "Nothing Matches This Profile";
 "youtarr.explore.filteredVideos.help" = "Youtarr has videos, but their ratings are above this profile’s limit. A parent can review channel ratings or the profile’s rating settings.";
 "youtarr.explore.partialCatalog" = "Youtarr is still indexing this channel. More videos may appear later.";
@@ -246,6 +254,15 @@
 "settings.downloads.quality.description" = "Applies to future downloads. Original keeps the source file when possible; other options request a server-side transcode before saving offline.";
 "settings.downloads.wifiOnly" = "Download on Wi-Fi Only";
 "settings.downloads.wifiOnly.footer" = "When enabled, new downloads wait for a Wi-Fi connection.";
+"downloads.manage.quality" = "Requested: %@ • Result: %@";
+"downloads.manage.sourceSize" = "Source %@";
+"downloads.manage.estimatedSize" = "Estimated %@";
+"downloads.manage.finalSize" = "Final %@";
+"downloads.manage.savings" = "%lld%% saved";
+"downloads.manage.reason.originalSmaller" = "Original was smaller than the selected preset estimate.";
+"downloads.manage.reason.insufficientSavings" = "Original was used because the estimate saved less than 20%.";
+"downloads.manage.reason.serverRejected" = "Plex did not honor the requested reduced-quality profile.";
+"downloads.manage.reason.actualSavings" = "The prepared file saved less than 20%, so Original was used.";
 
 /* Settings — Playback */
 "settings.playback.section" = "Playback";

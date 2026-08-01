@@ -581,6 +581,26 @@ struct YoutarrClient {
         return capabilities
     }
 
+    func connectionDiagnostic() async throws -> YoutarrConnectionDiagnostic {
+        let capabilities = try await capabilities()
+        guard YoutarrCatalogCapabilityPolicy.canBrowse(capabilities) else {
+            return YoutarrConnectionDiagnostic(
+                capabilities: capabilities,
+                approvedChannelTotal: 0,
+                requestableVideoTotal: 0
+            )
+        }
+
+        async let channelsResponse = channels(page: 1, pageSize: 1)
+        async let videosResponse = catalogVideos(pageSize: 1)
+        let (channels, videos) = try await (channelsResponse, videosResponse)
+        return YoutarrConnectionDiagnostic(
+            capabilities: capabilities,
+            approvedChannelTotal: channels.pagination.total,
+            requestableVideoTotal: videos.pagination.total
+        )
+    }
+
     func channels(
         page: Int = 1,
         pageSize: Int = 30,
