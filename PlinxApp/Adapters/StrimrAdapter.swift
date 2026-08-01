@@ -13,7 +13,9 @@ extension PlayQueueState: Identifiable {}
 
 extension MainCoordinator {
     func resetToRoot(for tab: Tab) {
-        pathBinding(for: tab).wrappedValue = NavigationPath()
+        let path = pathBinding(for: tab)
+        guard !path.wrappedValue.isEmpty else { return }
+        path.wrappedValue = NavigationPath()
     }
 }
 

@@ -57,6 +57,16 @@ final class SettingsManagerPlaybackTests: XCTestCase {
         XCTAssertEqual(reloaded.playback.maxVolumePercent, 100)
     }
 
+    func test_downloadQualitySelectionPersistsForFutureEnqueues() {
+        let settings = SettingsManager(userDefaults: defaults)
+
+        settings.setDownloadQuality(.megabits3_720p)
+
+        XCTAssertEqual(settings.downloads.quality, .megabits3_720p)
+        let reloaded = SettingsManager(userDefaults: defaults)
+        XCTAssertEqual(reloaded.downloads.quality, .megabits3_720p)
+    }
+
     func test_loadingOutOfRangePersistedVolumeClampsImmediately() {
         let stored = """
         {

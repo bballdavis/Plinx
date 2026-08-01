@@ -313,12 +313,21 @@ struct PlinxDownloadsGridView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                if item.isPlayable {
-                    Image(systemName: "play.circle.fill")
-                        .font(.system(size: 40, weight: .semibold))
-                        .foregroundStyle(Color.accentColor)
-                        .frame(maxHeight: .infinity, alignment: .center)
+                VStack(alignment: .trailing, spacing: 4) {
+                    if let downloadedSize = downloadedSize(for: item) {
+                        Text(formattedBytes(downloadedSize))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+
+                    if item.isPlayable {
+                        Image(systemName: "play.circle.fill")
+                            .font(.system(size: 40, weight: .semibold))
+                            .foregroundStyle(Color.accentColor)
+                    }
                 }
+                .frame(minWidth: item.isPlayable ? 40 : nil, maxHeight: .infinity, alignment: .center)
             }
             .padding(10)
             .background(
@@ -398,7 +407,13 @@ struct PlinxDownloadsGridView: View {
             return NSLocalizedString("downloads.status.deciding", tableName: "Plinx", comment: "")
         case .preparing:
             return String.localizedStringWithFormat(
-                NSLocalizedString("downloads.status.preparing %lld", tableName: "Plinx", comment: ""),
+                NSLocalizedString(
+                    item.preparationProgress == nil
+                        ? "downloads.status.preparing %lld"
+                        : "downloads.status.transcoding %lld",
+                    tableName: "Plinx",
+                    comment: "",
+                ),
                 Int64(((item.preparationProgress ?? 0) * 100).rounded())
             )
         case .downloading:
@@ -424,6 +439,14 @@ struct PlinxDownloadsGridView: View {
 
     private func formattedBytes(_ value: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: value, countStyle: .file)
+    }
+
+    private func downloadedSize(for item: DownloadItem) -> Int64? {
+        if let fileSize = item.metadata.fileSize, fileSize > 0 {
+            return fileSize
+        }
+
+        return item.bytesWritten > 0 ? item.bytesWritten : nil
     }
 
     private func chromeButton(systemImage: String, action: @escaping () -> Void) -> some View {
@@ -602,6 +625,31 @@ struct PlinxDownloadsManageView: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
 
+                            if let qualitySummary = qualitySummary(for: item) {
+                                Text(qualitySummary)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
+
+                            if let sizeSummary = sizeSummary(for: item) {
+                                Text(sizeSummary)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
+
+                            if let reason = qualityReason(for: item) {
+                                Text(reason)
+                                    .font(.caption2)
+                                    .foregroundStyle(
+                                        item.qualityResolutionReason == .serverRejectedProfile
+                                            ? Color.red
+                                            : Color.secondary
+                                    )
+                                    .lineLimit(2)
+                            }
+
                             if item.status == .failed, let errorMessage = item.errorMessage {
                                 Text(errorMessage)
                                     .font(.caption2)
@@ -654,6 +702,67 @@ struct PlinxDownloadsManageView: View {
         .padding(.horizontal, 20)
         .padding(.top, 8)
         .padding(.bottom, 10)
+    }
+
+    private func qualitySummary(for item: DownloadItem) -> String? {
+        guard let requestedQuality = item.requestedQuality else { return nil }
+        let effectiveQuality = item.effectiveQuality ?? requestedQuality
+        return String.localizedStringWithFormat(
+            NSLocalizedString("downloads.manage.quality", tableName: "Plinx", comment: ""),
+            requestedQuality.title,
+            effectiveQuality.title
+        )
+    }
+
+    private func sizeSummary(for item: DownloadItem) -> String? {
+        var values: [String] = []
+        if let sourceFileSize = item.sourceFileSize, sourceFileSize > 0 {
+            values.append(String.localizedStringWithFormat(
+                NSLocalizedString("downloads.manage.sourceSize", tableName: "Plinx", comment: ""),
+                Self.formattedBytes(sourceFileSize)
+            ))
+        }
+        if let estimatedOutputBytes = item.estimatedOutputBytes, estimatedOutputBytes > 0 {
+            values.append(String.localizedStringWithFormat(
+                NSLocalizedString("downloads.manage.estimatedSize", tableName: "Plinx", comment: ""),
+                Self.formattedBytes(estimatedOutputBytes)
+            ))
+        }
+        if let finalSize = item.metadata.fileSize, finalSize > 0 {
+            values.append(String.localizedStringWithFormat(
+                NSLocalizedString("downloads.manage.finalSize", tableName: "Plinx", comment: ""),
+                Self.formattedBytes(finalSize)
+            ))
+            if let sourceFileSize = item.sourceFileSize, sourceFileSize > 0, finalSize < sourceFileSize {
+                let percent = Int(((1 - Double(finalSize) / Double(sourceFileSize)) * 100).rounded())
+                values.append(String.localizedStringWithFormat(
+                    NSLocalizedString("downloads.manage.savings", tableName: "Plinx", comment: ""),
+                    Int64(percent)
+                ))
+            }
+        }
+        return values.isEmpty ? nil : values.joined(separator: " • ")
+    }
+
+    private func qualityReason(for item: DownloadItem) -> String? {
+        guard let reason = item.qualityResolutionReason, reason != .requested else { return nil }
+        let key = switch reason {
+        case .requested:
+            "downloads.manage.reason.requested"
+        case .originalIsSmaller:
+            "downloads.manage.reason.originalSmaller"
+        case .insufficientSavings:
+            "downloads.manage.reason.insufficientSavings"
+        case .serverRejectedProfile:
+            "downloads.manage.reason.serverRejected"
+        case .actualSavingsTooSmall:
+            "downloads.manage.reason.actualSavings"
+        }
+        return NSLocalizedString(key, tableName: "Plinx", comment: "")
+    }
+
+    private static func formattedBytes(_ value: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: value, countStyle: .file)
     }
 }
 

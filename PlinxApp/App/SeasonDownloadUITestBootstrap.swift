@@ -1,4 +1,5 @@
 import SwiftUI
+import PlinxCore
 
 #if !os(tvOS)
 struct SeasonDownloadUITestHarness: View {
