@@ -22,10 +22,27 @@ server transcode before exposing a downloadable media response.
    index so an interrupted app can continue monitoring server work.
 4. Start the existing background `URLSession` transfer only after the queue
    item becomes available.
-5. Preserve original-quality direct-play/direct-stream behavior while adding
-   bitrate and resolution caps for reduced-quality presets.
+5. Download Original directly from the selected source part; use the background
+   queue only for reduced-quality bitrate and resolution caps.
 6. Reject HTTP error bodies and structured HTML, JSON, or XML responses before
    moving staged content into playable storage.
+7. Decode the selected Plex part's source byte size and choose Original before
+   transcoding when the requested video bitrate alone cannot produce a smaller
+   file.
+8. Compare a completed reduced-quality transfer with its source size. Discard
+   it and transfer the original source directly when it provides no storage
+   savings.
+9. Force reduced-quality queue decisions by disabling direct play, direct
+   stream, and automatic quality, and validate the typed `/decision` response
+   before starting the device transfer.
+10. Use a per-download session identifier and a documented replacement HTTP
+    transcode target for MKV/H.264/AAC with stereo audio capped at 192 kbps.
+11. Require at least 20 percent estimated and actual savings; persist a
+    non-sensitive reason whenever Original is substituted or Plex rejects the
+    requested profile.
+12. Validate a resumed HTTP 206 transfer against the complete byte count from
+    `Content-Range`, not the resumed segment's `Content-Length`, because the
+    background session delivers the fully reassembled file.
 
 ## Scope Exclusions
 
@@ -38,6 +55,11 @@ server transcode before exposing a downloadable media response.
 
 - Unit-test every quality/profile mapping and original-quality omission.
 - Decode persisted pre-feature download records.
+- Decode metadata with and without the optional Plex part `size` field.
+- Cover the bitrate estimate boundary and completed-file fallback without
+  changing normal playback negotiation.
+- Assert exact reduced-quality request flags, client-profile augmentation,
+  per-item session identity, and decision-profile validation.
 - Exercise deciding, waiting, processing, available, expired, error, restart,
   relaunch, deletion, and cleanup paths.
 - Run live direct-play and forced-transcode downloads against Plex Media Server

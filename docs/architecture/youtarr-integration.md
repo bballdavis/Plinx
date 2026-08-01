@@ -120,10 +120,11 @@ memory-only image cache. A durable upstream thumbnail cache belongs in Youtarr,
 so every Plinx client benefits without increasing Google API or image-host
 traffic.
 
-Opt-in live API, authenticated landscape-thumbnail, and end-to-end
-Explore/video-detail/Requests coverage is documented in
-[Youtarr live smoke tests](../development/youtarr-live-smoke-tests.md). The
-suite is intentionally separate from day-to-day and CI runs.
+The secret-free CI gate mounts Youtarr's real external router over its canonical
+sanitized dataset and drives Plinx through production HTTP and UI code. The
+separate credentialed smoke validates a deployed parent-configured service.
+Both are documented in
+[Youtarr live smoke tests](../development/youtarr-live-smoke-tests.md).
 
 The sanitized v1 consumer contract is owned by Youtarr and vendored byte-for-byte
 under the Plinx unit-test fixtures. `config/youtarr-contract.env` pins the

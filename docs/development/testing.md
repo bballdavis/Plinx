@@ -89,12 +89,17 @@ behavioral coverage for testable upstream seams.
 ./scripts/ui_tests.sh --live
 ```
 
-The Youtarr Explore tab also has deterministic unit and UI regression coverage
-that uses in-process catalog fixtures. It exercises tab selection, production
-view mounting, response decoding, safety filtering, transactional refresh,
-URLSession cancellation, and video-card rendering without a Youtarr or Plex
-server. A cancelled activation or refresh must never appear as a network
-failure, and a failed refresh must preserve an already-rendered catalog:
+The Youtarr Explore tab has a required synthetic HTTP integration gate:
+
+```bash
+./scripts/tests/youtarr_synthetic_ui_tests.sh
+```
+
+The runner mounts Youtarr's real external API router over the canonical
+sanitized dataset; it does not start the full Youtarr app or a database. Plinx
+uses its production HTTP client and UI to verify authentication, query and
+response compatibility, safety filtering, artwork, details, request writes,
+request lifecycles, cancellation, and explicit empty/error states.
 
 The unit-test bundle also contains Youtarr's canonical sanitized external API
 fixture. Before changing the client contract, verify that the vendored fixture
@@ -133,7 +138,6 @@ xcodebuild test \
   -only-testing:Plinx-iOS-UnitTests/YoutarrFoundationTests \
   -only-testing:Plinx-iOS-UnitTests/YoutarrExploreTests \
   -only-testing:Plinx-iOS-UnitTests/YoutarrRequestTests \
-  -only-testing:Plinx-iOS-UITests/YoutarrExploreOfflineUITests \
   -only-testing:Plinx-iOS-UITests/SeasonDownloadOfflineUITests \
   CODE_SIGNING_ALLOWED=NO
 ```

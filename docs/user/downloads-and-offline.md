@@ -15,18 +15,30 @@ chosen before confirming.
 
 ## Download quality
 
-The Original option asks Plex to preserve the source quality whenever the
-server can deliver it directly. The remaining presets cap the video bitrate and
+The Original option downloads the selected source media part directly. The
+remaining presets cap the video bitrate and
 resolution, from 20 Mbps at 1080p down to 0.7 Mbps at 328p. The selected preset
 applies to downloads started after the setting changes; it does not rewrite
 files already stored on the device.
 
+Reduced-quality presets are used only when they are estimated to save at least
+20 percent. The estimate combines the selected video bitrate, 192 kbps stereo
+AAC audio, and container overhead. If the estimate cannot meet that threshold,
+that item downloads at Original quality instead. Plinx validates the profile
+selected by Plex and also verifies the prepared and completed file sizes. A
+result that saves less than 20 percent is discarded and replaced with the
+original source file.
+
 For a reduced-quality download, Plinx submits the item to Plex Media Server's
 download queue. The Downloads tab shows a preparation phase while the server
 decides whether it can direct play, direct stream, or must transcode the item.
-The device transfer begins when the queued media is available. Server-side
-preparation can continue while Plinx is not active, and Plinx resumes monitoring
-it when the correct server and profile return.
+When the queue reports transcode progress, Plinx labels that phase
+“Transcoding”; the device transfer begins only when the queued media is
+available. Server-side preparation can continue while Plinx is not active, and
+Plinx resumes monitoring it when the correct server and profile return.
+The parent-gated Manage Downloads screen shows the requested and effective
+quality, source and estimated sizes, final size, savings, and any reason Plinx
+used Original instead.
 
 This flow requires Plex Media Server 1.41.9 or newer and a Plex account that is
 permitted to use server downloads/transcoding. A failed item remains visible in

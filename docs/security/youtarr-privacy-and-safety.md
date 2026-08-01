@@ -12,8 +12,11 @@ configure one additional header for an authentication proxy; its name and
 value are stored together in the Keychain. Plinx rejects malformed names,
 line breaks in values, and headers managed by Plinx or URL loading. Disabling
 the additional header and saving deletes the pair. Plinx does not log either
-credential or HTTP response bodies. Connection errors are mapped to generic,
-user-facing states instead of exposing server responses.
+credential or HTTP response bodies. Connection errors are mapped to safe
+user-facing categories instead of exposing server responses. Rejected
+credentials tell the parent to replace or reconfigure the key; transport,
+unsupported-version, malformed-response, and server-unavailable states remain
+distinct.
 
 Explore checks capabilities before loading the catalog. Video records are
 filtered again on-device against the Youtarr key policy and Plinx's current

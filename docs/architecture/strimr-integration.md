@@ -106,9 +106,10 @@ Plinx supplies the actual content decision in `StrimrAdapter`; Strimr remains un
 
 Download transcoding lives in Strimr because queue negotiation, polling,
 background transfer, persisted recovery, and cleanup are generic Plex download
-engine behavior. Strimr talks to Plex Media Server's versioned
-`/downloadQueue` API and persists only the queue identifiers needed to resume a
-request. It does not know about Plinx profiles or kid policy.
+engine behavior. Original-quality downloads transfer the selected source part
+directly. Reduced-quality downloads use Plex Media Server's versioned
+`/downloadQueue` API and persist only the queue identifiers needed to resume a
+request. Strimr does not know about Plinx profiles or kid policy.
 
 Plinx owns the safety boundary around that engine. A newly enqueued local
 download ID is claimed by the current server/profile identity, and lifecycle
