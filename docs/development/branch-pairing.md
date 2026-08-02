@@ -5,6 +5,13 @@
 - Plinx `main` pairs with Strimr `plinx-patches`
 - Plinx `dev` pairs with Strimr `dev-plinx`
 
+`plinx-patches` is the canonical stable base for Plinx work. At each release
+boundary, `dev-plinx` is intentionally aligned to the same commit as
+`plinx-patches`; new Strimr work starts from `dev-plinx` and is promoted into
+`plinx-patches` with a fast-forward-only update. This keeps the development
+and release patch trains on one history while leaving Strimr `main` upstream-
+only.
+
 The machine-readable source of truth is
 `config/release-dependencies.env`. It records the exact release commit, the
 paired branch, the upstream base, and the source seams that Plinx compiles.
@@ -53,9 +60,10 @@ the downstream patch stack.
 Use the [versioning and release guide](versioning-and-releases.md) for the
 complete calendar-release sequence. The paired promotion order is deliberate:
 
-1. Commit and push the clean Strimr `dev-plinx` stack, then merge its PR into
-   Strimr `plinx-patches` without introducing a merge commit. Keep Strimr
-   `main` synchronized with upstream; it is not the Plinx release branch.
+1. Commit and push the clean Strimr `dev-plinx` stack, then promote it into
+   Strimr `plinx-patches` with a fast-forward-only PR/update. Do not replay
+   the same commits or create a merge commit. Keep Strimr `main` synchronized
+   with upstream; it is not the Plinx release branch.
 2. Fetch the resulting Strimr `plinx-patches` commit and update Plinx's exact
    `STRIMR_COMMIT` and `STRIMR_BRANCH=plinx-patches` values.
 3. Run the full pairing contract with both repositories clean, then merge the
@@ -65,8 +73,10 @@ complete calendar-release sequence. The paired promotion order is deliberate:
 
 ## Updating A Strimr Candidate
 
-Never rebase the published `dev-plinx` branch in place while Plinx points to
-it. Treat it as the currently promoted integration release.
+Do not rebase the aligned `dev-plinx`/`plinx-patches` pair during normal
+feature work. Treat both names as one linear integration patch train. Only
+rebuild the pair when adopting a new upstream baseline; archive the old
+development tip first and use an explicit force-with-lease update.
 
 1. Fetch `upstream/main` and create a `candidate/plinx-<upstream-short-sha>` branch from
    the new upstream commit. Reapply the downstream commits there as a linear
@@ -78,8 +88,9 @@ it. Treat it as the currently promoted integration release.
    contract and all iOS/tvOS seam tests and builds.
 4. After review and a testing soak, archive the old `dev-plinx` tip with an
    annotated tag such as `plinx/archive-YYYY-MM-DD`. Promote the candidate to
-   `dev-plinx` with an explicit `--force-with-lease=<old-tip>` only when its
-   history was rebuilt; a fast-forward is preferred whenever possible.
+   both paired branch names with an explicit `--force-with-lease=<old-tip>`
+   only when its history was rebuilt; a fast-forward is preferred whenever
+   possible.
 5. Push Strimr first, verify the remote commit, then merge/push the paired Plinx
    pin. Rollback means restoring both the archived Strimr tip and the prior
    Plinx pin together.

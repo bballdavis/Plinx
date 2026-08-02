@@ -21,6 +21,11 @@ Stable branch pairing:
 - Plinx `main` ↔ Strimr `plinx-patches`
 - Plinx `dev` ↔ Strimr `dev-plinx`
 
+`dev-plinx` and `plinx-patches` are maintained as one linear downstream
+history. They are aligned at release boundaries so the next development stack
+can promote with a fast-forward-only update. Strimr `main` remains the
+upstream-synced branch and is never used as Plinx's patch target.
+
 CI and release builds use an exact configured Strimr commit rather than
 resolving a moving branch head. View the branch, commit, and upstream base on
 the generated [current dependency status](../maintenance/current-dependencies.mdx)
