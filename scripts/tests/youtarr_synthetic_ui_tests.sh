@@ -63,7 +63,7 @@ import subprocess
 data = json.loads(subprocess.check_output(
     ["xcrun", "simctl", "list", "devices", "available", "-j"], text=True
 ))
-preferred = ("Plinx iPhone 17 Pro (26.5)", "iPhone 17 Pro Max", "iPhone 17 Pro", "iPhone 17")
+preferred = ("Plinx iPhone 17 Pro Max (26.5)", "Plinx iPhone 17 Pro (26.5)", "iPhone 17 Pro Max", "iPhone 17 Pro", "iPhone 17")
 devices = [
     device
     for runtime, values in data["devices"].items()
