@@ -63,6 +63,9 @@ final class YoutarrExploreOfflineUITests: XCTestCase {
             XCTFail("My Requests did not mount.\n\(app.debugDescription)")
             return
         }
+        let allRequests = app.buttons["youtarr.requests.filter.all"]
+        XCTAssertTrue(allRequests.waitForExistence(timeout: 10))
+        allRequests.tap()
         for requestID in [
             "00000000-0000-4000-8000-000000000098", // pending synthetic write
             "00000000-0000-4000-8000-000000000097", // unknown-safe fallback
