@@ -30,6 +30,10 @@ Build and test scripts build from local files only. It's your responsibility to 
 git status                     # Verify clean working tree
 ```
 
+At release boundaries, `dev-plinx` and `plinx-patches` are aligned to the same
+Strimr commit. Promote new `dev-plinx` work into `plinx-patches` with a
+fast-forward-only update; do not maintain separate replayed patch histories.
+
 If `../strimr` is on the wrong branch or has uncommitted changes, the build can pick up the wrong engine code. Developers are responsible for managing both local git states intentionally.
 
 Run the pairing verifier before a combined build:

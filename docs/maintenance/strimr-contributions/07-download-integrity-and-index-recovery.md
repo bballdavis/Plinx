@@ -19,7 +19,9 @@ and `ebdaf0b` contain earlier fixes.
    staged media file.
 2. Remove the staged response body and mark the task failed on invalid status.
 3. Verify the staged file is non-empty and, when the server supplies a valid
-   content length, reconcile it before completion.
+   complete-file length, reconcile it before completion. For a resumed HTTP
+   `206` response, use the total from `Content-Range`; `Content-Length` covers
+   only the resumed segment while `URLSession` supplies the assembled file.
 4. Report index encode, write, read, and decode failures through the existing
    `ErrorReporter` using error/category data only.
 5. On index read/decode failure, preserve the last valid in-memory state and
@@ -33,8 +35,8 @@ and `ebdaf0b` contain earlier fixes.
 
 ## Validation
 
-- URL-protocol tests for `200`, redirects resolved to `2xx`, `401`, `404`, `500`,
-  empty bodies, and length mismatch.
+- URL-protocol tests for `200`, resumed `206` responses, redirects resolved to
+  `2xx`, `401`, `404`, `500`, empty bodies, and length mismatch.
 - Filesystem tests for unwritable, truncated, and invalid indexes.
 - Confirm failed downloads never appear playable and successful downloads still
   survive relaunch.

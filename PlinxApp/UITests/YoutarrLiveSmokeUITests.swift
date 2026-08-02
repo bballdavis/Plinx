@@ -48,15 +48,14 @@ final class YoutarrLiveSmokeUITests: XCTestCase {
     }
 
     /// Exercises the real configured RootTabView instead of the isolated live
-    /// fixture. This is intentionally a second opt-in because it also requires
-    /// an existing live Plex session and saved Youtarr configuration in the
-    /// selected simulator.
+    /// fixture. This is intentionally a second opt-in because it requires an
+    /// existing live Plex session in the selected simulator. The Youtarr
+    /// configuration itself is injected only for this process.
     func test_liveExploreLoadsThroughConfiguredMainTab() throws {
         guard ProcessInfo.processInfo.environment["PLINX_YOUTARR_LIVE_MAIN_TAB"] == "1" else {
             throw XCTSkip("Configured main-tab smoke test is separately opt-in.")
         }
 
-        app.launchEnvironment["PLINX_YOUTARR_SEED_SAVED_CONFIGURATION"] = "1"
         app.launch()
 
         let exploreTab = app.buttons["main.tab.explore"]
@@ -98,7 +97,9 @@ final class YoutarrLiveSmokeUITests: XCTestCase {
         )
         XCTAssertTrue(
             app.descendants(matching: .any)["youtarr.details.loaded"]
-                .waitForExistence(timeout: 35),
+                // A cold Youtarr detail lookup may populate its metadata cache
+                // before returning; keep the release smoke above that bound.
+                .waitForExistence(timeout: 90),
             "Expected the live video-detail endpoint to return rich metadata."
         )
         attachScreenshot(name: "youtarr-video-detail-main-tab-live")

@@ -14,7 +14,9 @@ final class YoutarrLiveSmokeTests: XCTestCase {
         XCTAssertEqual(capabilities.apiVersion, "1")
         XCTAssertTrue(YoutarrCatalogCapabilityPolicy.canBrowse(capabilities))
 
-        let response = try await client.catalogVideos(pageSize: 10)
+        // Validate the complete first API page. A small prefix can legitimately
+        // contain only unrated rows even when later policy-visible rows exist.
+        let response = try await client.catalogVideos(pageSize: 100)
         let videos = response.data
         XCTAssertFalse(videos.isEmpty, "The live fixture needs at least one requestable video.")
         XCTAssertTrue(videos.allSatisfy { !$0.isDownloaded && !$0.isRequested })

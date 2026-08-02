@@ -4,7 +4,10 @@ import PlinxUI
 
 enum YoutarrRequestPresentation {
     static func label(for status: YoutarrRequestStatus) -> String {
-        YoutarrStrings.value("youtarr.requests.status.\(status.rawValue)")
+        guard case .unknown = status else {
+            return YoutarrStrings.value("youtarr.requests.status.\(status.rawValue)")
+        }
+        return YoutarrStrings.value("youtarr.requests.status.unknown")
     }
 
     static func systemImage(for status: YoutarrRequestStatus) -> String {
@@ -16,6 +19,7 @@ enum YoutarrRequestPresentation {
         case .rejected: return "hand.raised.fill"
         case .failed: return "exclamationmark.triangle.fill"
         case .cancelled: return "xmark.circle"
+        case .unknown: return "questionmark.circle"
         }
     }
 
@@ -26,6 +30,7 @@ enum YoutarrRequestPresentation {
         case .processing: return .blue
         case .rejected, .failed: return .red
         case .cancelled: return .secondary
+        case .unknown: return .secondary
         }
     }
 }
@@ -57,9 +62,9 @@ enum YoutarrRequestListPolicy {
             .filter { matchesFilter($0, filter: filter, now: now) }
             .filter { request in
                 guard !query.isEmpty else { return true }
-                let detail = details[request.target.youtubeId]
+                let detail = request.videoYoutubeID.flatMap { details[$0] }
                 return [
-                    request.target.youtubeId,
+                    request.videoYoutubeID,
                     request.status.rawValue,
                     detail?.title,
                     detail?.channelTitle
@@ -177,16 +182,12 @@ final class YoutarrRequestsViewModel: ObservableObject {
         isLoadingNextPage = false
 
         do {
-            let response = try await service.requests(
-                page: 1,
-                pageSize: Self.pageSize,
-                status: nil
-            )
+            let loaded = try await loadVideoRequestPage(startingAt: 1)
             try Task.checkCancellation()
             guard operationGeneration == generation else { return }
-            requests = YoutarrRequestListPolicy.sorted(response.data)
-            totalPages = boundedTotalPages(response.pagination.totalPages)
-            nextPage = 2
+            requests = YoutarrRequestListPolicy.sorted(loaded.requests)
+            totalPages = loaded.totalPages
+            nextPage = loaded.nextPage
             phase = .ready
             restartPollingIfNeeded()
         } catch is CancellationError {
@@ -213,18 +214,16 @@ final class YoutarrRequestsViewModel: ObservableObject {
         }
 
         do {
-            let response = try await service.requests(
-                page: requestedPage,
-                pageSize: Self.pageSize,
-                status: nil
-            )
+            let loaded = try await loadVideoRequestPage(startingAt: requestedPage)
             try Task.checkCancellation()
             guard operationGeneration == generation else { return }
             let existing = Set(requests.map(\.id))
-            requests.append(contentsOf: response.data.filter { !existing.contains($0.id) })
+            requests.append(contentsOf: loaded.requests.filter {
+                !existing.contains($0.id)
+            })
             requests = YoutarrRequestListPolicy.sorted(requests)
-            totalPages = boundedTotalPages(response.pagination.totalPages)
-            nextPage = requestedPage + 1
+            totalPages = loaded.totalPages
+            nextPage = loaded.nextPage
             restartPollingIfNeeded()
         } catch is CancellationError {
             // Scrolling away cancels pagination without replacing visible data.
@@ -234,8 +233,33 @@ final class YoutarrRequestsViewModel: ObservableObject {
         }
     }
 
+    private func loadVideoRequestPage(
+        startingAt initialPage: Int
+    ) async throws -> (requests: [YoutarrRequest], nextPage: Int, totalPages: Int) {
+        var page = initialPage
+        var totalPages = max(1, initialPage)
+
+        repeat {
+            let response = try await service.requests(
+                page: page,
+                pageSize: Self.pageSize,
+                status: nil
+            )
+            try Task.checkCancellation()
+            totalPages = boundedTotalPages(response.pagination.totalPages)
+            let videoRequests = response.data.filter { $0.videoYoutubeID != nil }
+            let nextPage = page + 1
+            if !videoRequests.isEmpty || nextPage > totalPages {
+                return (videoRequests, nextPage, totalPages)
+            }
+            page = nextPage
+        } while page <= totalPages
+
+        return ([], page, totalPages)
+    }
+
     func loadVideoDetailIfNeeded(for request: YoutarrRequest) async {
-        let youtubeID = request.target.youtubeId
+        guard let youtubeID = request.videoYoutubeID else { return }
         guard videoDetails[youtubeID] == nil,
               !detailLoadsInFlight.contains(youtubeID) else {
             return
@@ -427,7 +451,7 @@ struct YoutarrRequestsView: View {
                                 ForEach(presentedRequests) { request in
                                     YoutarrRequestRow(
                                         request: request,
-                                        video: viewModel.videoDetails[request.target.youtubeId],
+                                        video: request.videoYoutubeID.flatMap { viewModel.videoDetails[$0] },
                                         configuration: configuration
                                     )
                                     .task {
@@ -560,7 +584,7 @@ private struct YoutarrRequestRow: View {
                         .lineLimit(1)
                 }
 
-                Text(request.target.youtubeId)
+                Text(request.videoYoutubeID ?? "")
                     .font(.caption.monospaced())
                     .foregroundStyle(.secondary)
                     .lineLimit(1)

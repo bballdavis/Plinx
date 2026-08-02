@@ -27,7 +27,7 @@ source dependencies recorded by the generated package resolution.
 
 ## Strimr Compatibility Seams
 
-The paired Strimr `dev-plinx` commit contains narrow, generic compatibility
+The paired Strimr commit contains narrow, generic compatibility
 seams that:
 
 - propagates the persisted playback-level setting through the tvOS wrapper and reapplies it at MPV lifecycle boundaries;

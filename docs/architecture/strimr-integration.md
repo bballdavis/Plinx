@@ -21,6 +21,11 @@ Stable branch pairing:
 - Plinx `main` ↔ Strimr `plinx-patches`
 - Plinx `dev` ↔ Strimr `dev-plinx`
 
+`dev-plinx` and `plinx-patches` are maintained as one linear downstream
+history. They are aligned at release boundaries so the next development stack
+can promote with a fast-forward-only update. Strimr `main` remains the
+upstream-synced branch and is never used as Plinx's patch target.
+
 CI and release builds use an exact configured Strimr commit rather than
 resolving a moving branch head. View the branch, commit, and upstream base on
 the generated [current dependency status](../maintenance/current-dependencies.mdx)
@@ -89,15 +94,51 @@ When a Plinx need forces a Strimr patch, document:
 
 ## Current Release Patch
 
-The pinned `dev-plinx` revision contains the Strimr-side injection points that
+The pinned Strimr revision contains the Strimr-side injection points that
 cannot be supplied by a Plinx decorator:
 
+- host-app Plex product identity and encoded authentication-URL construction,
+  required because Plex PIN creation headers and the browser claim URL must use
+  the same product name before control returns to a Plinx-owned view;
 - tvOS playback-gain propagation and MPV lifecycle reapplication;
 - an optional authorization callback before autoplay or next-queue playback on iOS and tvOS;
 - a default-enabled `showsBufferingOverlay` option on the iOS and tvOS player wrappers;
 - default-allow playlist and media-detail cache authorization hooks required because those upstream views load their own models.
 
 Plinx supplies the actual content decision in `StrimrAdapter`; Strimr remains unaware of Plinx policy or product copy.
+
+## Download Queue Ownership
+
+Download transcoding lives in Strimr because queue negotiation, polling,
+background transfer, persisted recovery, and cleanup are generic Plex download
+engine behavior. Original-quality downloads transfer the selected source part
+directly. Reduced-quality downloads use Plex Media Server's versioned
+`/downloadQueue` API and persist only the queue identifiers needed to resume a
+request. Strimr does not know about Plinx profiles or kid policy.
+
+Plinx owns the safety boundary around that engine. A newly enqueued local
+download ID is claimed by the current server/profile identity, and lifecycle
+resume passes only the IDs owned by that identity back to Strimr. Consequently,
+switching Plex profiles cancels preparation polling for the prior profile and
+cannot resume, clean up, or expose another profile's queued download. An
+already-running background file transfer remains hidden and is subject to the
+same ownership check before playback. Existing unowned downloads retain the documented
+legacy visibility behavior, but only newly queued and explicitly owned items
+can have server preparation resumed.
+
+The server queue item is best-effort deleted after a validated local transfer
+or explicit user deletion. Tokens, media paths, queue error text, account
+identifiers, and server identifiers are not emitted to diagnostics or shown in
+kid-facing UI. This Strimr change is an upstream PR candidate because the queue
+transport and state machine are product-neutral; Plinx ownership filtering is
+not part of that candidate.
+
+The Plex identity seam reads the host bundle display name and falls back to
+`Strimr`, so the generic client remains correctly branded while Plinx sends
+`Plinx` consistently in both `X-Plex-Product` and the encoded browser
+authorization context. This cannot live only in a Plinx adapter because the
+paired Strimr networking clients construct those requests internally. The seam
+is expected to remain upstreamable.
 
 ## Player Buffering Ownership
 

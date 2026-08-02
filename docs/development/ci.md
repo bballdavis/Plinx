@@ -90,8 +90,8 @@ The iPhone and iPad jobs intentionally share one `$RUNNER_TEMP/plinx-derived-dat
 root. The builds run sequentially, so they can reuse package checkouts and
 compiler artifacts instead of creating one SourcePackages tree per device.
 
-The workflow creates a local `dev-plinx` branch at the configured exact commit
-only inside its disposable clone, then runs:
+The workflow creates a local branch matching the configured exact commit only
+inside its disposable clone, then runs:
 
 ```bash
 ./scripts/verify_strimr_integration_contract.sh --full

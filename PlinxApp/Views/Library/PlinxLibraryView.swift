@@ -7,6 +7,7 @@ struct PlinxLibraryView: View {
     var topContent: AnyView? = nil
     var onSelectLibrary: (Library) -> Void
     var onRequestHomeNavigationFocus: () -> Void = {}
+    var contentFocusRequest: Int = 0
     @State private var artworkRefreshToken = UUID()
     @AppStorage(LibraryCardLayoutPolicy.hotReloadLibraryArtworkStorageKey)
     private var hotReloadLibraryArtwork = false
@@ -46,6 +47,9 @@ struct PlinxLibraryView: View {
         .onChange(of: viewModel.libraries.map(\.id)) { _, ids in
             guard focusedLibraryID == nil else { return }
             focusedLibraryID = ids.first
+        }
+        .onChange(of: contentFocusRequest) { _, _ in
+            focusedLibraryID = viewModel.libraries.first?.id
         }
         #endif
         .onChange(of: safetyPolicy) { _, newPolicy in

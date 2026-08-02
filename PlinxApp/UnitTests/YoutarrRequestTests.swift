@@ -23,6 +23,29 @@ final class YoutarrRequestTests: XCTestCase {
         }
     }
 
+    func test_decodesUnknownRequestEnumsWithoutTreatingThemAsActiveVideoRequests() throws {
+        let request = try JSONDecoder().decode(
+            YoutarrRequest.self,
+            from: Data(
+                """
+                {
+                  "id": "future-request",
+                  "type": "future_type",
+                  "status": "future_status",
+                  "target": {"youtubeId": null, "channelId": null, "channelUrl": null},
+                  "createdAt": "2026-07-31T12:00:00.000Z",
+                  "updatedAt": "2026-07-31T12:00:00.000Z"
+                }
+                """.utf8
+            )
+        )
+
+        XCTAssertEqual(request.type, .unknown("future_type"))
+        XCTAssertEqual(request.status, .unknown("future_status"))
+        XCTAssertFalse(request.status.isActive)
+        XCTAssertNil(request.videoYoutubeID)
+    }
+
     func test_postVideoRequestUsesExactBodyAPIKeyAndIdempotencyUUID() async throws {
         let idempotencyKey = UUID(uuidString: "7D286F34-D2A5-41B5-973A-1A9B78073080")!
         let session = RequestRecordingSession(
@@ -178,6 +201,25 @@ final class YoutarrRequestTests: XCTestCase {
         XCTAssertEqual(viewModel.requestState(for: viewModel.videos[0]), .downloaded)
         XCTAssertTrue(viewModel.videos[0].isDownloaded)
         XCTAssertFalse(viewModel.videos[0].isRequested)
+    }
+
+    @MainActor
+    func test_unknownRequestOutcomeDoesNotMutateCatalogAsSuccess() async throws {
+        let service = RequestServiceMock(
+            videoResponse: .init(outcome: .unknown("future_outcome"), request: nil)
+        )
+        let viewModel = try makeLoadedChannelViewModel(service: service)
+        await viewModel.load()
+        let video = try XCTUnwrap(viewModel.videos.first)
+
+        await viewModel.requestVideo(video)
+
+        XCTAssertEqual(
+            viewModel.requestState(for: viewModel.videos[0]),
+            .failed(YoutarrStrings.value("youtarr.request.failed"))
+        )
+        XCTAssertFalse(viewModel.videos[0].isRequested)
+        XCTAssertFalse(viewModel.videos[0].isDownloaded)
     }
 
     @MainActor
@@ -371,12 +413,12 @@ final class YoutarrRequestTests: XCTestCase {
     func test_requestSearchMatchesEnrichedVideoTitleAndChannel() throws {
         let science = request(
             id: "science",
-            youtubeID: "science00001",
+            youtubeID: "science0001",
             status: .completed
         )
         let stories = request(
             id: "stories",
-            youtubeID: "stories00001",
+            youtubeID: "stories0001",
             status: .completed
         )
         let detail = try JSONDecoder().decode(
@@ -384,7 +426,7 @@ final class YoutarrRequestTests: XCTestCase {
             from: Data(
                 """
                 {
-                  "youtubeId": "science00001",
+                  "youtubeId": "science0001",
                   "title": "A Safe Science Experiment",
                   "isDownloaded": true,
                   "isRequested": false,
@@ -398,13 +440,13 @@ final class YoutarrRequestTests: XCTestCase {
 
         let byTitle = YoutarrRequestListPolicy.presented(
             [stories, science],
-            details: ["science00001": detail],
+            details: ["science0001": detail],
             filter: .all,
             searchText: "science"
         )
         let byChannel = YoutarrRequestListPolicy.presented(
             [stories, science],
-            details: ["science00001": detail],
+            details: ["science0001": detail],
             filter: .all,
             searchText: "learning"
         )
@@ -696,7 +738,7 @@ private func request(
         id: id,
         type: .video,
         status: status,
-        target: .init(youtubeId: youtubeID, channelId: 42),
+        target: .init(youtubeId: youtubeID, channelId: 42, channelUrl: nil),
         createdAt: createdAt,
         updatedAt: updatedAt,
         decidedAt: status.isActive ? nil : updatedAt,

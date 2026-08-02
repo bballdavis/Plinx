@@ -95,9 +95,6 @@ struct PlinxApp: App {
     init() {
         let processEnvironment = ProcessInfo.processInfo.environment
         LivePlexUITestBootstrap.primeCredentialsIfNeeded(environment: processEnvironment)
-        YoutarrLiveTestBootstrap.seedSavedConfigurationIfNeeded(
-            environment: processEnvironment
-        )
 
         // Layer 1: Strimr infrastructure (no Plinx knowledge)
         let context = PlexAPIContext()
@@ -177,7 +174,10 @@ struct PlinxApp: App {
                 .lifecycleHardening(
                     coordinator: playbackCoordinator,
                     mainCoordinator: mainCoordinator,
-                    downloadManager: downloadManager
+                    downloadManager: downloadManager,
+                    plexApiContext: plexApiContext,
+                    sessionManager: sessionManager,
+                    downloadOwnershipStore: downloadOwnershipStore
                 )
                 #else
                 .lifecycleHardening(

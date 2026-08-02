@@ -5,6 +5,13 @@
 - Plinx `main` pairs with Strimr `plinx-patches`
 - Plinx `dev` pairs with Strimr `dev-plinx`
 
+`plinx-patches` is the canonical stable base for Plinx work. At each release
+boundary, `dev-plinx` is intentionally aligned to the same commit as
+`plinx-patches`; new Strimr work starts from `dev-plinx` and is promoted into
+`plinx-patches` with a fast-forward-only update. This keeps the development
+and release patch trains on one history while leaving Strimr `main` upstream-
+only.
+
 The machine-readable source of truth is
 `config/release-dependencies.env`. It records the exact release commit, the
 paired branch, the upstream base, and the source seams that Plinx compiles.
@@ -35,7 +42,7 @@ Plinx runtime builds expect the sibling checkout at `../strimr`.
 
 `--quick` verifies the configured source roots and the narrow Strimr symbols
 that Plinx requires. It does not modify either checkout. `--full` adds the
-clean-tree requirement, checks the `dev-plinx` branch and exact pin, verifies
+clean-tree requirement, checks the configured branch and exact pin, verifies
 that the configured upstream base is an ancestor, and rejects merge commits in
 the downstream patch stack.
 
@@ -45,13 +52,31 @@ the downstream patch stack.
 2. Verify the full contract before building the paired app.
 3. Keep candidate engine changes on a Strimr branch; do not add product policy
    to the generic engine.
-4. For `dev`, verify Strimr resolves to the commit recorded in
+4. For either branch, verify Strimr resolves to the commit recorded in
    `config/release-dependencies.env` before testing Plinx.
+
+## Promoting Dev To Main
+
+Use the [versioning and release guide](versioning-and-releases.md) for the
+complete calendar-release sequence. The paired promotion order is deliberate:
+
+1. Commit and push the clean Strimr `dev-plinx` stack, then promote it into
+   Strimr `plinx-patches` with a fast-forward-only PR/update. Do not replay
+   the same commits or create a merge commit. Keep Strimr `main` synchronized
+   with upstream; it is not the Plinx release branch.
+2. Fetch the resulting Strimr `plinx-patches` commit and update Plinx's exact
+   `STRIMR_COMMIT` and `STRIMR_BRANCH=plinx-patches` values.
+3. Run the full pairing contract with both repositories clean, then merge the
+   Plinx `dev` PR into Plinx `main`.
+4. Tag the merged Plinx commit with the calendar release tag and create the
+   GitHub release only after the paired source revisions are recorded.
 
 ## Updating A Strimr Candidate
 
-Never rebase the published `dev-plinx` branch in place while Plinx points to
-it. Treat it as the currently promoted integration release.
+Do not rebase the aligned `dev-plinx`/`plinx-patches` pair during normal
+feature work. Treat both names as one linear integration patch train. Only
+rebuild the pair when adopting a new upstream baseline; archive the old
+development tip first and use an explicit force-with-lease update.
 
 1. Fetch `upstream/main` and create a `candidate/plinx-<upstream-short-sha>` branch from
    the new upstream commit. Reapply the downstream commits there as a linear
@@ -63,8 +88,9 @@ it. Treat it as the currently promoted integration release.
    contract and all iOS/tvOS seam tests and builds.
 4. After review and a testing soak, archive the old `dev-plinx` tip with an
    annotated tag such as `plinx/archive-YYYY-MM-DD`. Promote the candidate to
-   `dev-plinx` with an explicit `--force-with-lease=<old-tip>` only when its
-   history was rebuilt; a fast-forward is preferred whenever possible.
+   both paired branch names with an explicit `--force-with-lease=<old-tip>`
+   only when its history was rebuilt; a fast-forward is preferred whenever
+   possible.
 5. Push Strimr first, verify the remote commit, then merge/push the paired Plinx
    pin. Rollback means restoring both the archived Strimr tip and the prior
    Plinx pin together.
@@ -78,6 +104,28 @@ it. Treat it as the currently promoted integration release.
 
 The exact pin remains authoritative: the expected branch name is an audit
 constraint, never a request to resolve or build from a moving branch head.
+
+## Recording Every Strimr Edit
+
+Any change in the sibling Strimr repository must leave a durable migration
+record in Plinx in the same workstream. Before considering the change complete:
+
+1. Record the capability and disposition in
+   `docs/maintenance/strimr-upstream-audit-2026-07-25.md`.
+2. Add or update a focused file in
+   `docs/maintenance/strimr-contributions/` when the change is generic,
+   upstreamable, or must be replayed on the next Strimr baseline.
+3. Update `STRIMR_REQUIRED_SEAMS` when Plinx compilation or behavior depends on
+   a stable source token in the sibling checkout.
+4. Commit and push Strimr first, then update Plinx's exact `STRIMR_COMMIT`.
+   A dirty sibling checkout is useful for development but is not a valid
+   release pairing.
+5. Run the full integration contract and the validation named by the focused
+   contribution plan.
+
+During the next Strimr upgrade, review this inventory before resolving source
+conflicts. Mark each downstream patch as adopted upstream, dropped as obsolete,
+kept in a Plinx-owned layer, or replayed as a minimal generic seam.
 
 ## Rule Of Thumb
 

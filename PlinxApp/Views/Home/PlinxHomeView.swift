@@ -53,6 +53,7 @@ struct PlinxHomeView: View {
     var onSelectMedia: (MediaDisplayItem) -> Void
     var onLongPressMedia: (MediaDisplayItem) -> Void = { _ in }
     var onRequestHomeNavigationFocus: () -> Void = {}
+    var contentFocusRequest: Int = 0
     /// Returns whether a given display item should show as watched.
     /// Injected by parent to reflect optimistic local overrides.
     var isItemWatched: (MediaDisplayItem) -> Bool = { $0.isFullyWatched }
@@ -112,6 +113,9 @@ struct PlinxHomeView: View {
         }
         .onChange(of: defaultHeroMedia?.id) { _, _ in
             synchronizeHeroSelection()
+        }
+        .onChange(of: contentFocusRequest) { _, _ in
+            focusFirstContentIfAvailable()
         }
         #endif
     }
@@ -249,6 +253,11 @@ struct PlinxHomeView: View {
         // Keep generic library cards in sync without allowing a previous
         // library focus to choose the Home hero when this screen returns.
         mediaFocusModel.focusedMedia = media
+    }
+
+    private func focusFirstContentIfAvailable() {
+        guard let rowIndex = homeRows.firstIndex(where: { !$0.hub.items.isEmpty }) else { return }
+        focusedCard = .card(row: rowIndex, item: 0)
     }
     #endif
 
@@ -457,7 +466,7 @@ struct PlinxHomeView: View {
 
     private var cardFocusPadding: CGFloat {
         #if os(tvOS)
-        10
+        24
         #else
         0
         #endif
@@ -479,7 +488,15 @@ private struct PlinxMediaCardInteractionModifier: ViewModifier {
     let onTap: () -> Void
     let onLongPress: () -> Void
 
+    @ViewBuilder
     func body(content: Content) -> some View {
+        #if os(tvOS)
+        content
+            .contentShape(Rectangle())
+            .onTapGesture(perform: onTap)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { onTap() }
+        #else
         content
             .contentShape(Rectangle())
             .gesture(
@@ -497,6 +514,7 @@ private struct PlinxMediaCardInteractionModifier: ViewModifier {
             )
             .accessibilityAddTraits(.isButton)
             .accessibilityAction { onTap() }
+        #endif
     }
 }
 
@@ -510,11 +528,16 @@ extension View {
 
     /// Use when an existing reusable card owns its normal Button action. The
     /// high-priority recognizer prevents that Button from winning a long press.
+    @ViewBuilder
     func plinxQuickActionLongPress(_ action: @escaping () -> Void) -> some View {
+        #if os(tvOS)
+        self
+        #else
         highPriorityGesture(
             LongPressGesture(minimumDuration: 0.5, maximumDistance: 24)
                 .onEnded { _ in action() }
         )
+        #endif
     }
 }
 
@@ -534,7 +557,7 @@ private struct HomeMediaCardBody: View {
 
     private var focusHaloInset: CGFloat {
         #if os(tvOS)
-        20
+        24
         #else
         0
         #endif
@@ -566,17 +589,7 @@ private struct HomeMediaCardBody: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ZStack {
-                if isFocused {
-                    RoundedRectangle(cornerRadius: artworkCornerRadius + 4, style: .continuous)
-                        .stroke(Color.accentColor.opacity(0.78), lineWidth: 8)
-                        .frame(width: cardWidth, height: thumbHeight)
-                        .blur(radius: 10)
-                        .padding(6)
-                        .transition(.opacity)
-                }
-
-                ZStack(alignment: .bottom) {
+            ZStack(alignment: .bottom) {
                     MediaImageView(
                         viewModel: imageViewModel
                     )
@@ -600,10 +613,6 @@ private struct HomeMediaCardBody: View {
                             .padding(8)
                         }
                     }
-                    .overlay {
-                        RoundedRectangle(cornerRadius: artworkCornerRadius, style: .continuous)
-                            .stroke(isFocused ? Color.accentColor : .clear, lineWidth: isFocused ? 3.5 : 0)
-                    }
                     .accessibilityIdentifier("home.thumbnail.\(sectionKey).\(index)")
 
                     if let pct = item.viewProgressPercentage, pct > 0 {
@@ -622,11 +631,19 @@ private struct HomeMediaCardBody: View {
                                 .stroke(Color.black.opacity(0.7), lineWidth: 1)
                         }
                     }
-                }
-                .scaleEffect(isFocused ? 1.08 : 1.0)
-                .shadow(color: isFocused ? Color.accentColor.opacity(0.62) : .clear, radius: isFocused ? 10 : 0)
-                .shadow(color: isFocused ? Color.accentColor.opacity(0.24) : .clear, radius: isFocused ? 16 : 0)
             }
+            .frame(width: cardWidth, height: thumbHeight)
+            .scaleEffect(isFocused ? 1.08 : 1.0)
+            .overlay {
+                RoundedRectangle(
+                    cornerRadius: isFocused ? artworkCornerRadius * 1.08 : artworkCornerRadius,
+                    style: .continuous
+                )
+                .stroke(Color.accentColor, lineWidth: isFocused ? 4 : 0)
+                .scaleEffect(isFocused ? 1.08 : 1.0)
+            }
+            .shadow(color: isFocused ? Color.accentColor.opacity(0.58) : .clear, radius: isFocused ? 10 : 0)
+            .shadow(color: isFocused ? Color.accentColor.opacity(0.22) : .clear, radius: isFocused ? 18 : 0)
             .frame(width: cardWidth + (focusHaloInset * 2), height: thumbHeight + (focusHaloInset * 2))
 
             Text(item.primaryLabel)
@@ -704,7 +721,10 @@ struct SharedTvBrowsePageLayout<NavigationContent: View, FilterContent: View, Ro
                 let leadingShift = -(proxy.safeAreaInsets.leading * heroMetrics.leadingSafeAreaReduction)
 
                 VStack(spacing: 0) {
-                    heroSection(availableWidth: proxy.size.width)
+                    heroSection(
+                        availableWidth: proxy.size.width,
+                        topSafeAreaInset: proxy.safeAreaInsets.top
+                    )
                         .frame(height: heroHeight)
                         .background(Color.appBackground.ignoresSafeArea(edges: [.top, .horizontal]))
 
@@ -721,17 +741,18 @@ struct SharedTvBrowsePageLayout<NavigationContent: View, FilterContent: View, Ro
                         .padding(.bottom, 22)
                         .frame(minHeight: rowsHeight, alignment: .top)
                     }
-                    .scrollClipDisabled()
+                    .clipped()
                     .frame(height: rowsHeight)
                 }
                 .padding(.leading, leadingShift)
                 .frame(width: proxy.size.width - leadingShift, alignment: .leading)
                 .background(Color.appBackground.ignoresSafeArea())
             }
+            .ignoresSafeArea(edges: .top)
         }
     }
 
-    private func heroSection(availableWidth: CGFloat) -> some View {
+    private func heroSection(availableWidth: CGFloat, topSafeAreaInset: CGFloat) -> some View {
         ZStack(alignment: .topLeading) {
             if let heroMedia {
                 TvPinnedHeroBackdrop(media: heroMedia)
@@ -751,8 +772,9 @@ struct SharedTvBrowsePageLayout<NavigationContent: View, FilterContent: View, Ro
                 }
             }
             .padding(.horizontal, heroMetrics.contentHorizontalPadding)
-            .padding(.top, heroMetrics.contentTopPadding)
+            .padding(.top, topSafeAreaInset + heroMetrics.contentTopPadding)
         }
+        .clipped()
     }
 }
 
@@ -1174,13 +1196,10 @@ private struct TvPinnedHeroBackdrop: View {
                             Color.appBackground
                         }
                     }
-                    .frame(
-                        width: (proxy.size.width * 0.62) + 96,
-                        height: proxy.size.height + 72
-                    )
+                    .frame(width: (proxy.size.width * 0.62) + 96, height: proxy.size.height)
                     .clipped()
                     .mask(TvPinnedHeroImageMask())
-                    .offset(x: 48, y: -36)
+                    .offset(x: 48)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                 }
 

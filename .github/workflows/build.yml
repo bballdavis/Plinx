@@ -110,6 +110,17 @@ jobs:
           git clone --filter=blob:none "https://x-access-token:${AUTH_TOKEN}@github.com/${STRIMR_REPO}.git" ../strimr
           git -C ../strimr checkout --force -B "$STRIMR_BRANCH" "$STRIMR_COMMIT"
 
+      - name: Fetch pinned Youtarr contract source
+        run: |
+          set -euo pipefail
+          source config/youtarr-contract.env
+          git clone --filter=blob:none https://github.com/bballdavis/Youtarr.git ../Youtarr
+          git -C ../Youtarr checkout --detach "$YOUTARR_CONTRACT_COMMIT"
+          npm ci --prefix ../Youtarr --omit=dev --ignore-scripts
+
+      - name: Verify Youtarr contract fixture
+        run: bash ./scripts/verify_youtarr_contract_fixture.sh --check
+
       - name: Verify Strimr integration contract
         run: bash ./scripts/verify_strimr_integration_contract.sh --full
 
@@ -139,6 +150,12 @@ jobs:
               com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro \
               com.apple.CoreSimulator.SimRuntime.iOS-26-5
           fi
+          if ! xcrun simctl list devices available | grep -F "Plinx iPhone 17 Pro Max (26.5)"; then
+            xcrun simctl create \
+              "Plinx iPhone 17 Pro Max (26.5)" \
+              com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro-Max \
+              com.apple.CoreSimulator.SimRuntime.iOS-26-5
+          fi
           if ! xcrun simctl list devices available | grep -F "Plinx iPad Pro 13-inch (26.5)"; then
             xcrun simctl create \
               "Plinx iPad Pro 13-inch (26.5)" \
@@ -154,6 +171,7 @@ jobs:
             -destination "platform=iOS Simulator,name=Plinx iPhone 17 Pro (26.5),OS=26.5" \
             -configuration Debug \
             -derivedDataPath "$RUNNER_TEMP/plinx-derived-data" \
+            -only-testing:Plinx-iOS-UnitTests/SeasonDownloadSelectionTests \
             CODE_SIGNING_ALLOWED=NO \
             -quiet
           xcodebuild build-for-testing \
@@ -164,3 +182,23 @@ jobs:
             -derivedDataPath "$RUNNER_TEMP/plinx-derived-data" \
             CODE_SIGNING_ALLOWED=NO \
             -quiet
+
+      - name: Run focused app contract tests
+        run: |
+          xcodebuild test-without-building \
+            -project PlinxApp/Plinx.xcodeproj \
+            -scheme Plinx-iOS \
+            -destination "platform=iOS Simulator,name=Plinx iPhone 17 Pro Max (26.5),OS=26.5" \
+            -derivedDataPath "$RUNNER_TEMP/plinx-derived-data" \
+            -only-testing:Plinx-iOS-UnitTests/YoutarrContractFixtureTests \
+            -only-testing:Plinx-iOS-UnitTests/YoutarrFoundationTests \
+            -only-testing:Plinx-iOS-UnitTests/YoutarrExploreTests \
+            -only-testing:Plinx-iOS-UnitTests/YoutarrRequestTests \
+            -only-testing:Plinx-iOS-UITests/SeasonDownloadOfflineUITests \
+            CODE_SIGNING_ALLOWED=NO \
+            -quiet
+
+      - name: Run synthetic Youtarr HTTP integration gate
+        env:
+          PLINX_YOUTARR_DERIVED_DATA: ${{ runner.temp }}/plinx-derived-data
+        run: bash ./scripts/tests/youtarr_synthetic_ui_tests.sh

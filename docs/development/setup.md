@@ -27,8 +27,9 @@ This guide covers local development, project generation, and the sibling depende
    ```
 
    If you are working on Plinx `dev`, switch the sibling Strimr checkout to
-   `dev-plinx` and verify it matches the exact revision in
-   `config/release-dependencies.env`. See `docs/development/branch-pairing.md`.
+   `dev-plinx`; for Plinx `main`, use Strimr `plinx-patches`. In both cases
+   verify the exact revision in `config/release-dependencies.env`. See
+   `docs/development/branch-pairing.md`.
 
 3. Install XcodeGen:
 

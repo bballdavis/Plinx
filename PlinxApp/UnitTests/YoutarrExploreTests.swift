@@ -310,6 +310,7 @@ final class YoutarrExploreTests: XCTestCase {
         XCTAssertEqual(query["pageSize"], "100")
         XCTAssertEqual(query["status"], "requestable")
         XCTAssertEqual(query["search"], "trucks & trains")
+        XCTAssertNil(query["tabType"])
         XCTAssertNil(query["page"])
     }
 
@@ -701,6 +702,152 @@ final class YoutarrExploreTests: XCTestCase {
         XCTAssertEqual(viewModel.emptyReason, .safetyPolicy)
     }
 
+    @MainActor
+    func test_exploreIdentifiesKeyWithoutApprovedChannels() async throws {
+        let configuration = try YoutarrConfiguration(
+            baseURL: URL(string: "https://family.example/family")!,
+            apiKey: "top-secret"
+        )
+        let viewModel = YoutarrExploreViewModel(
+            configuration: configuration,
+            localSafetyPolicy: .ratingOnly(max: .r, allowUnrated: true),
+            client: YoutarrClient(
+                configuration: configuration,
+                session: ExploreEmptyCatalogSession(channelTotal: 0)
+            )
+        )
+
+        await viewModel.reload()
+
+        XCTAssertEqual(viewModel.phase, .ready)
+        XCTAssertTrue(viewModel.videos.isEmpty)
+        XCTAssertEqual(viewModel.emptyReason, .noApprovedChannels)
+    }
+
+    @MainActor
+    func test_exploreDistinguishesGrantedButEmptyRequestableCatalog() async throws {
+        let configuration = try YoutarrConfiguration(
+            baseURL: URL(string: "https://family.example/family")!,
+            apiKey: "top-secret"
+        )
+        let viewModel = YoutarrExploreViewModel(
+            configuration: configuration,
+            localSafetyPolicy: .ratingOnly(max: .r, allowUnrated: true),
+            client: YoutarrClient(
+                configuration: configuration,
+                session: ExploreEmptyCatalogSession(channelTotal: 4)
+            )
+        )
+
+        await viewModel.reload()
+
+        XCTAssertEqual(viewModel.phase, .ready)
+        XCTAssertTrue(viewModel.videos.isEmpty)
+        XCTAssertEqual(viewModel.emptyReason, .noRequestableVideos)
+    }
+
+    @MainActor
+    func test_exploreUsesSearchEmptyStateWithoutClaimingGrantsAreMissing() async throws {
+        let configuration = try YoutarrConfiguration(
+            baseURL: URL(string: "https://family.example/family")!,
+            apiKey: "top-secret"
+        )
+        let viewModel = YoutarrExploreViewModel(
+            configuration: configuration,
+            localSafetyPolicy: .ratingOnly(max: .r, allowUnrated: true),
+            client: YoutarrClient(
+                configuration: configuration,
+                session: ExploreEmptyCatalogSession(channelTotal: 0)
+            )
+        )
+        viewModel.searchText = "missing"
+
+        await viewModel.reload()
+
+        XCTAssertEqual(viewModel.phase, .ready)
+        XCTAssertTrue(viewModel.videos.isEmpty)
+        XCTAssertEqual(viewModel.emptyReason, .search)
+    }
+
+    func test_connectionDiagnosticClassifiesCapabilitiesAndCatalogTotals() throws {
+        let capabilities = try JSONDecoder().decode(
+            YoutarrCapabilities.self,
+            from: ExploreRaceSession.capabilitiesData
+        )
+
+        XCTAssertEqual(
+            YoutarrConnectionDiagnostic(
+                capabilities: capabilities,
+                approvedChannelTotal: 4,
+                requestableVideoTotal: 100
+            ).state,
+            .verified
+        )
+        XCTAssertEqual(
+            YoutarrConnectionDiagnostic(
+                capabilities: capabilities,
+                approvedChannelTotal: 0,
+                requestableVideoTotal: 0
+            ).state,
+            .noApprovedChannels
+        )
+        XCTAssertEqual(
+            YoutarrConnectionDiagnostic(
+                capabilities: capabilities,
+                approvedChannelTotal: 4,
+                requestableVideoTotal: 0
+            ).state,
+            .noRequestableVideos
+        )
+
+        let incompatible = YoutarrCapabilities(
+            apiVersion: capabilities.apiVersion,
+            serverVersion: capabilities.serverVersion,
+            role: capabilities.role,
+            scopes: [],
+            policy: capabilities.policy,
+            features: capabilities.features
+        )
+        XCTAssertEqual(
+            YoutarrConnectionDiagnostic(
+                capabilities: incompatible,
+                approvedChannelTotal: 4,
+                requestableVideoTotal: 100
+            ).state,
+            .incompatible
+        )
+    }
+
+    func test_connectionDiagnosticLoadsTotalsAndPropagatesPartialFailure() async throws {
+        let configuration = try YoutarrConfiguration(
+            baseURL: URL(string: "https://family.example/family")!,
+            apiKey: "top-secret"
+        )
+        let noGrants = try await YoutarrClient(
+            configuration: configuration,
+            session: ExploreEmptyCatalogSession(channelTotal: 0)
+        ).connectionDiagnostic()
+        XCTAssertEqual(noGrants.state, .noApprovedChannels)
+        XCTAssertEqual(noGrants.approvedChannelTotal, 0)
+        XCTAssertEqual(noGrants.requestableVideoTotal, 0)
+
+        let noRequestableVideos = try await YoutarrClient(
+            configuration: configuration,
+            session: ExploreEmptyCatalogSession(channelTotal: 4)
+        ).connectionDiagnostic()
+        XCTAssertEqual(noRequestableVideos.state, .noRequestableVideos)
+
+        do {
+            _ = try await YoutarrClient(
+                configuration: configuration,
+                session: ExplorePartialCatalogFailureSession()
+            ).connectionDiagnostic()
+            XCTFail("Expected a partial channels/videos failure to fail the diagnostic.")
+        } catch {
+            XCTAssertEqual(error as? YoutarrClientError, .networkUnavailable)
+        }
+    }
+
     private func makeClient(session: any YoutarrHTTPSession) throws -> YoutarrClient {
         let configuration = try YoutarrConfiguration(
             baseURL: URL(string: "https://family.example/family")!,
@@ -744,6 +891,104 @@ final class YoutarrExploreTests: XCTestCase {
             channelId: channelID,
             channelTitle: "Channel",
             mediaType: mediaType
+        )
+    }
+}
+
+private final class ExploreEmptyCatalogSession: YoutarrHTTPSession {
+    private let channelTotal: Int
+
+    init(channelTotal: Int) {
+        self.channelTotal = channelTotal
+    }
+
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        let url = try XCTUnwrap(request.url)
+        let data: Data
+        if url.path.hasSuffix("/capabilities") {
+            data = ExploreRaceSession.capabilitiesData
+        } else if url.path.hasSuffix("/channels") {
+            data = Data(
+                """
+                {
+                  "data": [],
+                  "pagination": {
+                    "page": 1,
+                    "pageSize": 100,
+                    "total": \(channelTotal),
+                    "totalPages": \(channelTotal == 0 ? 0 : 1),
+                    "nextCursor": null
+                  },
+                  "dataSource": "cache"
+                }
+                """.utf8
+            )
+        } else {
+            data = Data(
+                """
+                {
+                  "data": [],
+                  "pagination": {
+                    "page": 1,
+                    "pageSize": 40,
+                    "total": 0,
+                    "totalPages": 0,
+                    "nextCursor": null
+                  },
+                  "dataSource": "cache",
+                  "isFullyIndexed": true,
+                  "lastIndexedAt": null,
+                  "indexingHint": null
+                }
+                """.utf8
+            )
+        }
+        return (
+            data,
+            HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+        )
+    }
+}
+
+private final class ExplorePartialCatalogFailureSession: YoutarrHTTPSession {
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        let url = try XCTUnwrap(request.url)
+        if url.path.hasSuffix("/videos") {
+            throw URLError(.notConnectedToInternet)
+        }
+        let data: Data
+        if url.path.hasSuffix("/capabilities") {
+            data = ExploreRaceSession.capabilitiesData
+        } else {
+            data = Data(
+                """
+                {
+                  "data": [],
+                  "pagination": {
+                    "page": 1,
+                    "pageSize": 1,
+                    "total": 4,
+                    "totalPages": 4,
+                    "nextCursor": null
+                  },
+                  "dataSource": "cache"
+                }
+                """.utf8
+            )
+        }
+        return (
+            data,
+            HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )!
         )
     }
 }

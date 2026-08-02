@@ -5,8 +5,7 @@ import PlinxCore
 /// keeps test credentials in the test process environment rather than source.
 enum YoutarrLiveTestBootstrap {
     static let screenName = "youtarrExploreLive"
-    private static let seedSavedConfigurationKey =
-        "PLINX_YOUTARR_SEED_SAVED_CONFIGURATION"
+    private static let mainTabEnvironmentKey = "PLINX_YOUTARR_LIVE_MAIN_TAB"
 
     static func configuration(
         arguments: [String] = ProcessInfo.processInfo.arguments,
@@ -36,30 +35,17 @@ enum YoutarrLiveTestBootstrap {
         )
     }
 
-    /// Seeds the real configuration store only for the explicitly mutating
-    /// main-tab smoke test. This lets that test cover RootTabView's normal
-    /// configuration path without embedding a credential in source.
-    static func seedSavedConfigurationIfNeeded(
+    /// Process-only configuration for the opt-in RootTab live smoke test.
+    /// This deliberately never writes the simulator's production defaults or
+    /// Keychain, so a test key cannot alter a family's saved connection.
+    static func mainTabConfiguration(
         arguments: [String] = ProcessInfo.processInfo.arguments,
-        environment: [String: String] = ProcessInfo.processInfo.environment,
-        defaults: UserDefaults = .standard
-    ) {
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> YoutarrConfiguration? {
         guard arguments.contains("--ui-testing"),
-              environment[seedSavedConfigurationKey] == "1",
-              let configuration = configuration(
-                arguments: arguments,
-                environment: environment
-              ) else {
-            return
+              environment[mainTabEnvironmentKey] == "1" else {
+            return nil
         }
-        do {
-            try YoutarrConfigurationStore(defaults: defaults).save(
-                baseURL: configuration.baseURL.absoluteString,
-                apiKey: configuration.apiKey
-            )
-            defaults.set(true, forKey: YoutarrExplorePreference.storageKey)
-        } catch {
-            assertionFailure("Unable to seed the Youtarr live-test configuration.")
-        }
+        return configuration(arguments: arguments, environment: environment)
     }
 }

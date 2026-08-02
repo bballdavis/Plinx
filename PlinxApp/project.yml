@@ -50,7 +50,7 @@ settings:
     # Team ID for code signing (do NOT include this in the bundle identifier)
     DEVELOPMENT_TEAM: Z8F9MLDQGX
     CURRENT_PROJECT_VERSION: 1
-    MARKETING_VERSION: 1.5
+    MARKETING_VERSION: 2026.08.00
     SWIFT_OBJC_INTEROP_MODE: objcxx
     # Plinx branding — no Strimr references leak into the binary
     PRODUCT_NAME: Plinx
@@ -192,6 +192,7 @@ targets:
     resources:
       - path: UnitTests/test_creds.yaml
         optional: true
+      - path: UnitTests/Fixtures/YoutarrExternalAPIV1
 
     dependencies:
       - target: Plinx-iOS
@@ -317,6 +318,7 @@ targets:
           Plinx-tvOS: all
       testTargets:
         - Plinx-tvOS-UnitTests
+        - Plinx-tvOS-UITests
       run:
         config: Debug
       test:
@@ -345,3 +347,19 @@ targets:
         OTHER_SWIFT_FLAGS: "-Xfrontend -strict-concurrency=minimal"
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Plinx.app/Plinx"
         BUNDLE_LOADER: "$(TEST_HOST)"
+
+  Plinx-tvOS-UITests:
+    type: bundle.ui-testing
+    platform: tvOS
+
+    sources:
+      - path: UITestsTV
+
+    dependencies:
+      - target: Plinx-tvOS
+
+    settings:
+      base:
+        PRODUCT_NAME: PlinxTVUITests
+        PRODUCT_BUNDLE_IDENTIFIER: com.bballdavis.plinx.tvos.uitests
+        GENERATE_INFOPLIST_FILE: YES

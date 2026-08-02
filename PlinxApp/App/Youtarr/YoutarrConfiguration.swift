@@ -34,15 +34,18 @@ struct YoutarrAdditionalHeader: Codable, Equatable {
     let value: String
 
     init(name: String, value: String) throws {
+        guard value.unicodeScalars.allSatisfy({ scalar in
+            scalar.value >= 0x20 && scalar.value != 0x7F
+        }) else {
+            throw YoutarrConfigurationError.invalidAdditionalHeader
+        }
         let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedName.isEmpty, !normalizedValue.isEmpty else {
             throw YoutarrConfigurationError.missingAdditionalHeader
         }
         guard Self.isValidName(normalizedName),
-              !Self.reservedNames.contains(normalizedName.lowercased()),
-              !normalizedValue.contains("\r"),
-              !normalizedValue.contains("\n") else {
+              !Self.reservedNames.contains(normalizedName.lowercased()) else {
             throw YoutarrConfigurationError.invalidAdditionalHeader
         }
         self.name = normalizedName

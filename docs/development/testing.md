@@ -41,6 +41,7 @@ xcodebuild test \
   -scheme Plinx-iOS \
   -destination "platform=iOS Simulator,name=iPhone 16,OS=26.5" \
   -derivedDataPath "$PLINX_XCODE_DERIVED_DATA_PATH" \
+  -only-testing:Plinx-iOS-UnitTests/SeasonDownloadSelectionTests \
   -only-testing:Plinx-iOS-UnitTests \
   CODE_SIGNING_ALLOWED=NO
 ```
@@ -89,17 +90,41 @@ behavioral coverage for testable upstream seams.
 ./scripts/ui_tests.sh --live
 ```
 
-The Youtarr Explore tab also has deterministic unit and UI regression coverage
-that uses in-process catalog fixtures. It exercises tab selection, production
-view mounting, response decoding, safety filtering, transactional refresh,
-URLSession cancellation, and video-card rendering without a Youtarr or Plex
-server. A cancelled activation or refresh must never appear as a network
-failure, and a failed refresh must preserve an already-rendered catalog:
+The Youtarr Explore tab has a required synthetic HTTP integration gate:
+
+```bash
+./scripts/tests/youtarr_synthetic_ui_tests.sh
+```
+
+The runner mounts Youtarr's real external API router over the canonical
+sanitized dataset; it does not start the full Youtarr app or a database. Plinx
+uses its production HTTP client and UI to verify authentication, query and
+response compatibility, safety filtering, artwork, details, request writes,
+request lifecycles, cancellation, and explicit empty/error states.
+
+The unit-test bundle also contains Youtarr's canonical sanitized external API
+fixture. Before changing the client contract, verify that the vendored fixture
+matches the pinned producer revision:
+
+```bash
+./scripts/verify_youtarr_contract_fixture.sh --check
+```
 
 The focused tests also cover the 40-video initial catalog request, independent
 catalog/channel failures, tail-triggered pagination, and long-press actions.
 Offline-download policy tests cover both profile-owned downloads and
 rating-gated shared legacy downloads created before ownership tracking.
+`StrimrDownloadIntegrityTests` also locks the complete download-quality preset
+mapping, original-quality request behavior, and rejection of structured error
+payloads returned with a successful HTTP status.
+
+Download-queue changes require a live Plex pass before release because CI does
+not provision Plex Media Server. Run one direct-play-compatible title and one
+forced-transcode title at a reduced preset. For each, verify the
+deciding/preparing/downloading transitions, final offline playback, relaunch
+recovery during preparation, profile-switch isolation, explicit deletion, and
+server queue cleanup. Repeat the original preset to confirm no bitrate or
+resolution cap is sent.
 
 ```bash
 source scripts/build_environment.sh
@@ -109,9 +134,11 @@ xcodebuild test \
   -scheme Plinx-iOS \
   -destination "platform=iOS Simulator,name=iPhone 17,OS=26.5" \
   -derivedDataPath "$PLINX_XCODE_DERIVED_DATA_PATH" \
+  -only-testing:Plinx-iOS-UnitTests/YoutarrContractFixtureTests \
   -only-testing:Plinx-iOS-UnitTests/YoutarrFoundationTests \
   -only-testing:Plinx-iOS-UnitTests/YoutarrExploreTests \
-  -only-testing:Plinx-iOS-UITests/YoutarrExploreOfflineUITests \
+  -only-testing:Plinx-iOS-UnitTests/YoutarrRequestTests \
+  -only-testing:Plinx-iOS-UITests/SeasonDownloadOfflineUITests \
   CODE_SIGNING_ALLOWED=NO
 ```
 

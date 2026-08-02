@@ -133,12 +133,13 @@ branches, feature branches, and the uncommitted Strimr working tree.
 | Recently-added identifier variants | Upstream still matches only `recentlyadded` | Contribute a pure identifier classifier; drop public title logging and English title matching |
 | Search hidden-library parity | Still absent | Contribute; hidden libraries should not reappear through search |
 | Search with no forced movie/TV filter | Still absent | Include with search parity so clips and future supported types can appear |
-| Download HTTP response validation | Still absent | Contribute as download integrity hardening |
+| Download HTTP response validation | Implemented, including complete-file validation after HTTP 206 background-session resumes | Contribute as download integrity hardening |
 | Download-index error handling | Upstream still swallows persistence errors | Contribute non-sensitive diagnostics and preserve the last valid index |
 | Offline resume/watched state | Still absent | Contribute separately from download-file integrity |
 | Download network recheck/probe | Partly product-driven and not independently evidenced | Keep in Plinx until a reproducible upstream bug is documented |
-| Download quality selection/transcode profiles | Fork ultimately bypasses the selected quality because Plex background transcoding is not implemented safely | Do not upstream in its current form |
+| Download quality selection/transcode profiles | Implemented through Plex's background download queue with forced reduced-quality decisions, typed output-profile validation, per-item sessions, and a 20% space-savings floor | Keep the product-neutral queue, protocol validation, and space-savings guard together as a focused upstream candidate |
 | Download artwork layout and library-agent metadata | Primarily Plinx presentation behavior for Other Videos | Keep in Plinx unless upstream asks for the general metadata |
+| Season-scoped episode download selection | iOS/iPadOS retain a show- and season-scoped episode picker; tvOS does not incorporate downloads | Keep the generic iOS picker, empty-season reload guard, and accessibility hooks; keep download sources out of tvOS |
 | Old MPV simulator/HDR fixes | MPV implementation deleted upstream | Obsolete; archive the PR branch |
 | MPV/VLC volume, lifecycle, buffering, and session patches | Superseded by AetherEngine | Do not replay |
 | Maximum-volume cap | Kid-safety policy | Keep in Plinx |
@@ -146,6 +147,7 @@ branches, feature branches, and the uncommitted Strimr working tree.
 | Optimistic watched-status environment | Used by Plinx quick actions and UI composition | Keep in Plinx unless upstream introduces equivalent actions |
 | Kids tabs, hidden controls, Plinx product identifiers, branding, and player chrome | Plinx-owned product behavior | Never upstream |
 | Dynamic authentication polling | No Plex API evidence or regression test supports the chosen backoff | Do not upstream yet |
+| Host-app Plex product identity and encoded auth URL | Upstream hard-codes `Strimr` in Plex request headers and auth URLs | Replay the generic host-bundle identity seam until upstream accepts it; PIN creation and browser claim identity must remain identical |
 | Direct-server bootstrap and UI-test token hooks | Plinx offline/UI-test infrastructure | Keep in Plinx |
 | Library sizing, artwork selection, and focus styling | Upstream has overlapping but different tvOS changes | Reapply only after screenshots and focus tests show a remaining defect |
 | Uncommitted speed removal and player-control restyling | Product/UI preference, not a generic engine fix | Keep out of the upstream contribution queue |
@@ -260,6 +262,8 @@ The individual plans are stored in
 8. [Offline playback progress](strimr-contributions/08-offline-playback-progress.md)
 9. [Explicit default-server preference](strimr-contributions/09-explicit-default-server-preference.md)
 10. [SharePlay presentation capability](strimr-contributions/10-shareplay-presentation-capability.md)
+11. [Plex Download Queue transcoding](strimr-contributions/11-download-queue-transcoding.md)
+12. [Host-app Plex authentication identity](strimr-contributions/12-plex-authentication-product-identity.md)
 
 ## Upstream Commit Appendix
 
