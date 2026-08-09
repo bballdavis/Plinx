@@ -29,6 +29,7 @@ struct PlaybackLauncher {
         type: PlexItemType,
         shuffle: Bool = false,
         shouldResumeFromOffset: Bool = true,
+        shouldContinue: @escaping @MainActor () -> Bool = { true },
     ) async -> Result {
         do {
             guard try await isAllowed(ratingKey: ratingKey) else {
@@ -58,6 +59,10 @@ struct PlaybackLauncher {
             }
             guard try await isAllowed(playQueue: playQueue) else {
                 return .blocked
+            }
+
+            guard !Task.isCancelled, shouldContinue() else {
+                return .failed
             }
 
             coordinator.showPlayer(

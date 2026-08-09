@@ -39,4 +39,28 @@ final class PlinxPlayerControlLayoutTests: XCTestCase {
             1.65
         )
     }
+
+    func test_exitButtonUsesKidFriendlyTouchTargetAcrossSizeClasses() {
+        XCTAssertEqual(
+            PlinxPlayerControlLayout.exitButtonSize(
+                horizontalSizeClass: .compact,
+                verticalSizeClass: .regular
+            ),
+            80
+        )
+        XCTAssertEqual(
+            PlinxPlayerControlLayout.exitButtonSize(
+                horizontalSizeClass: .regular,
+                verticalSizeClass: .regular
+            ),
+            104
+        )
+        XCTAssertGreaterThan(
+            PlinxPlayerControlLayout.exitIconSize(
+                horizontalSizeClass: .compact,
+                verticalSizeClass: .regular
+            ),
+            20
+        )
+    }
 }

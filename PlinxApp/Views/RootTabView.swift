@@ -63,6 +63,7 @@ struct RootTabView: View {
     @Environment(DownloadOwnershipStore.self) private var downloadOwnershipStore
     @Environment(SharePlayCoordinator.self) private var sharePlayCoordinator
     @EnvironmentObject private var mainCoordinator: MainCoordinator
+    @EnvironmentObject private var playbackLaunchCoordinator: PlaybackLaunchCoordinator
     @Environment(\.safetyPolicy) private var safetyPolicy
 
     @State private var showSettings = false
@@ -213,6 +214,10 @@ struct RootTabView: View {
         mainTabView
             .onAppear {
                 sharePlayCoordinator.configurePlaybackLauncher(launcher)
+            }
+            .onChange(of: playbackLaunchCoordinator.lastResult) { _, result in
+                guard let result else { return }
+                handlePlaybackResult(result)
             }
             #if os(tvOS)
             .allowsHitTesting(selectedQuickActionMedia == nil)
@@ -911,29 +916,33 @@ struct RootTabView: View {
         shuffle: Bool = false,
         shouldResumeFromOffset: Bool = true
     ) {
-        Task { @MainActor in
-            let result = await launcher.play(
+        playbackLaunchCoordinator.launch { [launcher] in
+            await launcher.play(
                 ratingKey: ratingKey,
                 type: type,
                 shuffle: shuffle,
-                shouldResumeFromOffset: shouldResumeFromOffset
+                shouldResumeFromOffset: shouldResumeFromOffset,
+                shouldContinue: { playbackLaunchCoordinator.isLaunching }
             )
-            switch result {
-            case .started:
-                break
-            case .blocked:
-                quickActionErrorMessage = NSLocalizedString(
-                    "playback.blockedByContentControls",
-                    tableName: "Plinx",
-                    comment: ""
-                )
-            case .failed:
-                quickActionErrorMessage = NSLocalizedString(
-                    "playback.unavailable",
-                    tableName: "Plinx",
-                    comment: ""
-                )
-            }
+        }
+    }
+
+    private func handlePlaybackResult(_ result: PlaybackLauncher.Result) {
+        switch result {
+        case .started:
+            break
+        case .blocked:
+            quickActionErrorMessage = NSLocalizedString(
+                "playback.blockedByContentControls",
+                tableName: "Plinx",
+                comment: ""
+            )
+        case .failed:
+            quickActionErrorMessage = NSLocalizedString(
+                "playback.unavailable",
+                tableName: "Plinx",
+                comment: ""
+            )
         }
     }
 

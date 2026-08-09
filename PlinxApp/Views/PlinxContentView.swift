@@ -6,6 +6,11 @@ struct PlinxContentView: View {
     @Environment(PlexAPIContext.self) private var plexApiContext
     @Environment(\.safetyPolicy) private var safetyPolicy
     @EnvironmentObject private var mainCoordinator: MainCoordinator
+    @StateObject private var playbackLaunchCoordinator = PlaybackLaunchCoordinator()
+
+    private struct PlaybackPresentationToken: Identifiable {
+        let id = "plinx.playback.presentation"
+    }
 
     private var uiTestScreenOverride: String? {
         guard ProcessInfo.processInfo.arguments.contains("--ui-testing") else {
@@ -26,20 +31,10 @@ struct PlinxContentView: View {
 
             rootContent
         }
-        .fullScreenCover(item: $mainCoordinator.selectedPlayQueue) { playQueue in
-            PlinxPlayerPlaybackView(
-                viewModel: PlayerViewModel(
-                    playQueue: playQueue,
-                    context: plexApiContext,
-                    shouldResumeFromOffset: mainCoordinator.shouldResumeFromOffset
-                ),
-                onExit: {
-                    mainCoordinator.resetPlayer()
-                },
-                isPlaybackAuthorized: { item in
-                    PlinxContentAuthorization.isAllowed(item, policy: safetyPolicy)
-                }
-            )
+        .environmentObject(playbackLaunchCoordinator)
+        .fullScreenCover(item: playbackPresentationBinding) { _ in
+            PlinxPlaybackPresentationView()
+                .environmentObject(playbackLaunchCoordinator)
         }
         .onAppear {
             Task { @MainActor in
@@ -47,6 +42,23 @@ struct PlinxContentView: View {
                 AppStoreScreenshotBootstrap.applyRequestedOrientation()
             }
         }
+    }
+
+    private var playbackPresentationBinding: Binding<PlaybackPresentationToken?> {
+        Binding(
+            get: {
+                guard playbackLaunchCoordinator.pendingLaunch != nil
+                    || mainCoordinator.selectedPlayQueue != nil else {
+                    return nil
+                }
+                return PlaybackPresentationToken()
+            },
+            set: { newValue in
+                guard newValue == nil else { return }
+                playbackLaunchCoordinator.cancelPendingLaunch()
+                mainCoordinator.resetPlayer()
+            }
+        )
     }
 
     @ViewBuilder
@@ -80,6 +92,8 @@ struct PlinxContentView: View {
                 homeHeaderPreview
             case "playerBuffering":
                 playerBufferingPreview
+            case "playerLoading":
+                PlinxPlaybackLoadingView(onExit: {})
             case "refreshLoading":
                 refreshLoadingPreview
             case "settings":

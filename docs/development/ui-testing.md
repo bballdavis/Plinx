@@ -73,6 +73,7 @@ the app also receives `--ui-testing`:
 - `loadingGallery`
 - `homeLoading`
 - `playerBuffering`
+- `playerLoading`
 - `refreshLoading`
 - `appStoreMediaDetail`
 
@@ -88,7 +89,8 @@ network access.
 variants together. `playerBuffering` renders the actual Plinx-owned video
 overlay against a deterministic colorful frame. Branding UI tests assert that
 these fixtures contain the expected Plinx accessibility identifiers and no
-native activity indicator.
+native activity indicator. `playerLoading` renders the immediate playback
+preparation surface with the hero loader and kid-friendly back control.
 `homeLoading` renders the production full-screen hero identity: the existing
 animated rounded-square beacon at hero scale, with the full-color loop centered
 inside, the outlined white wordmark beneath it, and no visible loading caption.

@@ -16,6 +16,32 @@ enum PlinxPlayerControlLayout {
             1.3
         }
     }
+
+    static func exitButtonSize(
+        horizontalSizeClass: UserInterfaceSizeClass?,
+        verticalSizeClass: UserInterfaceSizeClass?
+    ) -> CGFloat {
+        switch (horizontalSizeClass, verticalSizeClass) {
+        case (.regular, .regular):
+            104
+        case (.regular, .compact):
+            96
+        case (.compact, .compact):
+            88
+        default:
+            80
+        }
+    }
+
+    static func exitIconSize(
+        horizontalSizeClass: UserInterfaceSizeClass?,
+        verticalSizeClass: UserInterfaceSizeClass?
+    ) -> CGFloat {
+        exitButtonSize(
+            horizontalSizeClass: horizontalSizeClass,
+            verticalSizeClass: verticalSizeClass
+        ) * 0.34
+    }
 }
 
 private struct PlinxPlayerControlMetrics {

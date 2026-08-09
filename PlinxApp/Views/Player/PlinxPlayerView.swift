@@ -4,7 +4,7 @@ import PlinxUI
 /// Plinx-styled player screen.
 ///
 /// Wraps Strimr's `PlayerWrapper` with kid-safe UI:
-/// - Top-left ✕ close button (YouTube-style)
+/// - Top-left oversized back button
 /// - Oversized centre play/pause (shown when paused)
 /// - Progress bar with fat-finger scrubber
 /// - Swipe-up "Related Videos" tray (Phase 3 — placeholder)
@@ -60,26 +60,11 @@ struct PlinxPlayerView: View {
     }
 
     private var closeButton: some View {
-        Button {
+        PlinxPlayerExitButton {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                 isPresented = false
             }
-        } label: {
-            ZStack {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(.ultraThinMaterial)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .stroke(Color.brandPrimary.opacity(0.42), lineWidth: 1)
-                    )
-                    .frame(width: 66, height: 66)
-                Image(systemName: "xmark")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundStyle(.white)
-            }
-            .shadow(color: Color.brandPrimary.opacity(0.14), radius: 12, x: 0, y: 6)
         }
-        .buttonStyle(.plain)
     }
 
     private var contentRatingBadge: some View {
@@ -98,6 +83,56 @@ struct PlinxPlayerView: View {
                     .opacity(0.85)
             }
         }
+    }
+}
+
+struct PlinxPlayerExitButton: View {
+    let action: () -> Void
+
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+
+    private var buttonSize: CGFloat {
+        PlinxPlayerControlLayout.exitButtonSize(
+            horizontalSizeClass: horizontalSizeClass,
+            verticalSizeClass: verticalSizeClass
+        )
+    }
+
+    private var iconSize: CGFloat {
+        PlinxPlayerControlLayout.exitIconSize(
+            horizontalSizeClass: horizontalSizeClass,
+            verticalSizeClass: verticalSizeClass
+        )
+    }
+
+    var body: some View {
+        Button(action: action) {
+            let chrome = RoundedRectangle(
+                cornerRadius: buttonSize * 0.27,
+                style: .continuous
+            )
+            Image(systemName: "chevron.left")
+                .font(.system(size: iconSize, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: buttonSize, height: buttonSize)
+                .background(chrome.fill(.ultraThinMaterial))
+                .overlay(
+                    chrome.stroke(
+                        Color.brandPrimary.opacity(0.52),
+                        lineWidth: max(2, buttonSize / 40)
+                    )
+                )
+                .shadow(
+                    color: Color.brandPrimary.opacity(0.18),
+                    radius: buttonSize * 0.18,
+                    x: 0,
+                    y: buttonSize * 0.09
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(String(localized: "common.actions.back"))
+        .accessibilityIdentifier("player.back")
     }
 }
 
@@ -143,12 +178,92 @@ struct PlinxPlayerPlaybackView: View {
 struct PlinxVideoBufferingOverlay: View {
     var body: some View {
         PlinxLoadingIndicator(
-            size: .regular,
+            size: .hero,
             surface: .video,
             accessibilityLabel: "player.status.buffering",
             accessibilityIdentifier: "player.buffering.plinx"
         )
         .padding(28)
         .allowsHitTesting(false)
+    }
+}
+
+struct PlinxPlaybackLoadingView: View {
+    let onExit: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            PlinxLoadingIndicator(
+                size: .hero,
+                surface: .video,
+                label: "player.status.loading",
+                accessibilityLabel: "player.status.loading",
+                accessibilityIdentifier: "player.loading.plinx"
+            )
+            .allowsHitTesting(false)
+
+            VStack {
+                HStack {
+                    PlinxPlayerExitButton(action: onExit)
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 52)
+
+                Spacer()
+            }
+        }
+        #if !os(tvOS)
+        .statusBarHidden(true)
+        .persistentSystemOverlays(.hidden)
+        #endif
+    }
+}
+
+struct PlinxPlaybackPresentationView: View {
+    @EnvironmentObject private var mainCoordinator: MainCoordinator
+    @EnvironmentObject private var playbackLaunchCoordinator: PlaybackLaunchCoordinator
+    @Environment(PlexAPIContext.self) private var plexApiContext
+    @State private var playerViewModel: PlayerViewModel?
+
+    var body: some View {
+        Group {
+            if let playerViewModel {
+                PlinxPlayerView(
+                    isPresented: playerPresentationBinding,
+                    viewModel: playerViewModel
+                )
+            } else {
+                PlinxPlaybackLoadingView {
+                    playbackLaunchCoordinator.cancelPendingLaunch()
+                    mainCoordinator.resetPlayer()
+                }
+            }
+        }
+        .task(id: mainCoordinator.selectedPlayQueue?.id) {
+            guard let playQueue = mainCoordinator.selectedPlayQueue else {
+                playerViewModel = nil
+                return
+            }
+
+            playerViewModel = PlayerViewModel(
+                playQueue: playQueue,
+                context: plexApiContext,
+                shouldResumeFromOffset: mainCoordinator.shouldResumeFromOffset
+            )
+        }
+    }
+
+    private var playerPresentationBinding: Binding<Bool> {
+        Binding(
+            get: { mainCoordinator.selectedPlayQueue != nil },
+            set: { isPresented in
+                if !isPresented {
+                    mainCoordinator.resetPlayer()
+                }
+            }
+        )
     }
 }

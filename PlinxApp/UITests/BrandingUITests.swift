@@ -159,6 +159,18 @@ final class BrandingUITests: XCTestCase {
         )
     }
 
+    func test_playerLoading_usesHeroIndicatorAndLargeBackButton() {
+        let app = launch(screen: "playerLoading")
+
+        let loader = app.descendants(matching: .any)["player.loading.plinx"]
+        XCTAssertTrue(loader.waitForExistence(timeout: 8))
+
+        let backButton = app.buttons["player.back"]
+        XCTAssertTrue(backButton.waitForExistence(timeout: 8))
+        XCTAssertGreaterThan(backButton.frame.width, 66)
+        XCTAssertEqual(app.activityIndicators.count, 0)
+    }
+
     private func launch(screen: String) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments += ["--ui-testing", "--disable-animations"]

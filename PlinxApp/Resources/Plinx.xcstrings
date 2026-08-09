@@ -391,6 +391,16 @@
         }
       }
     },
+    "player.status.loading" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading video…"
+          }
+        }
+      }
+    },
     "settings.content.section" : {
       "localizations" : {
         "en" : {

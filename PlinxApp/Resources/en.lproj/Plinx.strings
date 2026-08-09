@@ -331,6 +331,7 @@
 /* Player */
 "player.vlc.missing" = "VLC Player Engine not installed in this build.";
 "player.settings.previewUnavailable" = "Player settings preview unavailable on tvOS";
+"player.status.loading" = "Loading video…";
 "playback.blockedByContentControls" = "Playback was blocked by the current parent-managed content controls.";
 "playback.unavailable" = "This item could not be prepared for playback.";
 
