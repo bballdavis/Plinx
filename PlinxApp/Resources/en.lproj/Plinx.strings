@@ -8,6 +8,9 @@
 
 /* Common actions */
 "common.actions.back" = "Back";
+"common.status.loading" = "Loading";
+"common.status.on" = "On";
+"common.status.off" = "Off";
 "common.actions.cancel" = "Cancel";
 "common.actions.close" = "Close";
 "common.actions.done" = "Done";
@@ -77,6 +80,7 @@
 /* Search */
 "search.placeholder" = "Search movies, shows…";
 "search.placeholder.prompt" = "What would you like to watch?";
+"search.loading" = "Searching your library…";
 "search.no_results %@" = "No results for \"%@\"";
 
 /* Settings — Content */
@@ -228,7 +232,9 @@
 "settings.homescreen.recentlyadded.title" = "Recently Added Libraries";
 "settings.homescreen.recentlyadded.footer" = "Choose which libraries appear in the Recently Added rows.";
 "settings.homescreen.sections.title" = "Section Order";
-"settings.homescreen.sections.footer" = "Drag to control which section appears first on the Home tab.";
+"settings.homescreen.sections.footer" = "Choose which section appears first on the Home tab.";
+"settings.actions.moveUp" = "Move Up";
+"settings.actions.moveDown" = "Move Down";
 
 /* Settings — Appearance */
 "settings.appearance.section" = "Appearance";
@@ -332,6 +338,7 @@
 "player.vlc.missing" = "VLC Player Engine not installed in this build.";
 "player.settings.previewUnavailable" = "Player settings preview unavailable on tvOS";
 "player.status.loading" = "Loading video…";
+"player.status.buffering" = "Buffering video";
 "playback.blockedByContentControls" = "Playback was blocked by the current parent-managed content controls.";
 "playback.unavailable" = "This item could not be prepared for playback.";
 

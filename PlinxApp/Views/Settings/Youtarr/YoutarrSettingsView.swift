@@ -1,4 +1,5 @@
 import SwiftUI
+import PlinxUI
 
 /// Parent-only configuration for Youtarr. This view is reachable only from
 /// `PlinxSettingsView`, whose contents are protected by the parental gate.
@@ -178,6 +179,7 @@ struct YoutarrSettingsView: View {
             }
         }
         .navigationTitle(Text("youtarr.settings.title", tableName: "Plinx"))
+        .plinxSettingsChrome()
         .task {
             baseURL = configurationStore.storedBaseURL ?? ""
             isConfigured = configurationStore.isConfigured()

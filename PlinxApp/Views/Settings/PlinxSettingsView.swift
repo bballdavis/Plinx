@@ -6,9 +6,17 @@ import PlinxUI
 struct PlinxSettingsView: View {
     @Environment(ParentalAccessCoordinator.self) private var parentalAccessCoordinator
     private let bypassGateForTesting: Bool
+    private let contentFocusRequest: Int
+    private let onRequestShellNavigationFocus: () -> Void
 
-    init(isUnlocked: Bool = false) {
+    init(
+        isUnlocked: Bool = false,
+        contentFocusRequest: Int = 0,
+        onRequestShellNavigationFocus: @escaping () -> Void = {}
+    ) {
         bypassGateForTesting = isUnlocked
+        self.contentFocusRequest = contentFocusRequest
+        self.onRequestShellNavigationFocus = onRequestShellNavigationFocus
     }
 
     var body: some View {
@@ -20,13 +28,19 @@ struct PlinxSettingsView: View {
     }
 
     private var settingsContent: some View {
-        SettingsBody()
+        SettingsBody(
+            contentFocusRequest: contentFocusRequest,
+            onRequestShellNavigationFocus: onRequestShellNavigationFocus
+        )
     }
 }
 
 // MARK: - Settings body
 
 private struct SettingsBody: View {
+    let contentFocusRequest: Int
+    let onRequestShellNavigationFocus: () -> Void
+
     @Environment(SettingsManager.self) private var settingsManager
     @Environment(LibraryStore.self) private var libraryStore
     @Environment(SessionManager.self) private var sessionManager
@@ -40,6 +54,9 @@ private struct SettingsBody: View {
     private var showSearchInMainNavigation = PlinxNavigationPreference.defaultShowSearchInMainNavigation
 
     @State private var isPresentingProfileSwitcher = false
+    #if os(tvOS)
+    @FocusState private var isFirstSettingFocused: Bool
+    #endif
 
     private var maxVolumeBinding: Binding<Double> {
         Binding(
@@ -299,6 +316,7 @@ private struct SettingsBody: View {
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .background(Color.appBackground.ignoresSafeArea())
+        .plinxSettingsChrome(handlesExit: false)
         .task {
             if libraryStore.libraries.isEmpty {
                 try? await libraryStore.loadLibraries()
@@ -327,6 +345,13 @@ private struct SettingsBody: View {
                         icon: "square.grid.2x2.fill",
                         destination: VisibleLibrariesView()
                     )
+                    .focused($isFirstSettingFocused)
+                    .accessibilityIdentifier("settings.libraries")
+                    .onMoveCommand { direction in
+                        guard direction == .up else { return }
+                        isFirstSettingFocused = false
+                        onRequestShellNavigationFocus()
+                    }
                     tvNavigationLink(
                         title: LocalizedStringKey("settings.homescreen.title"),
                         icon: "house.fill",
@@ -504,10 +529,17 @@ private struct SettingsBody: View {
             .padding(.bottom, 50)
         }
         .background(Color.appBackground)
+        .plinxSettingsChrome(handlesExit: false)
         .task {
             if libraryStore.libraries.isEmpty {
                 try? await libraryStore.loadLibraries()
             }
+        }
+        .onChange(of: contentFocusRequest) { _, _ in
+            isFirstSettingFocused = true
+        }
+        .onAppear {
+            isFirstSettingFocused = true
         }
         .sheet(isPresented: $isPresentingProfileSwitcher) {
             NavigationStack {
@@ -623,14 +655,7 @@ private struct TvSettingsRow: View {
         }
         .padding(.horizontal, 22)
         .frame(minHeight: 78)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(isFocused ? Color.white.opacity(0.13) : .clear)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(isFocused ? Color.accentColor : .clear, lineWidth: 3)
-        )
+        .plinxFocusSurface(isSelected: false, isFocused: isFocused)
     }
 }
 
@@ -640,17 +665,22 @@ private struct TvSettingsToggleRow: View {
     @Binding var isOn: Bool
 
     var body: some View {
+        let localizedValue = String(
+            localized: isOn ? "common.status.on" : "common.status.off",
+            table: "Plinx"
+        )
+
         Button {
             isOn.toggle()
         } label: {
             TvSettingsRow(
                 title: title,
                 icon: icon,
-                trailingValue: isOn ? "On" : "Off"
+                trailingValue: localizedValue
             )
         }
         .buttonStyle(.plain)
-        .accessibilityValue(isOn ? "On" : "Off")
+        .accessibilityValue(localizedValue)
         .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 }
@@ -703,12 +733,9 @@ private struct TvSettingsAdjustmentButtonBody: View {
             .foregroundStyle(.white)
             .background(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(isFocused ? Color.white.opacity(0.16) : Color.white.opacity(0.08))
+                    .fill(Color.white.opacity(0.08))
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(isFocused ? Color.accentColor : .clear, lineWidth: 3)
-            )
+            .plinxFocusSurface(isSelected: false, isFocused: isFocused)
     }
 }
 
@@ -741,6 +768,8 @@ private struct TvRatingChooser: View {
             .padding(42)
         }
         .background(Color.appBackground.ignoresSafeArea())
+        .accessibilityIdentifier("settings.rating.screen")
+        .plinxSettingsChrome()
         .onAppear {
             focusedRating = ratings.contains(selection) ? selection : ratings.first
         }
@@ -767,14 +796,8 @@ private struct TvRatingChoiceRow: View {
         }
         .padding(.horizontal, 24)
         .frame(minHeight: 76)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(isFocused ? Color.white.opacity(0.14) : Color.white.opacity(0.07))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(isFocused ? Color.accentColor : .clear, lineWidth: 3)
-        )
+        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Color.white.opacity(0.07)))
+        .plinxFocusSurface(isSelected: isSelected, isFocused: isFocused)
     }
 }
 #endif

@@ -1,4 +1,5 @@
 import SwiftUI
+import PlinxUI
 
 struct DefaultServerSettingsView: View {
     @Environment(SessionManager.self) private var sessionManager
@@ -38,6 +39,7 @@ struct DefaultServerSettingsView: View {
         .scrollContentBackground(.hidden)
         #endif
         .background(Color.appBackground.ignoresSafeArea())
+        .plinxSettingsChrome()
         .tint(.accentColor)
         .task {
             await viewModel.load()

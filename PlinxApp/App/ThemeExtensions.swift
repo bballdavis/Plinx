@@ -146,7 +146,7 @@ enum PlinxNavigationPreference {
 
 enum PlinxAnimationPreference {
     static let playfulAnimationsStorageKey = "plinx.playfulAnimationsEnabled"
-    static let defaultPlayfulAnimationsEnabled = true
+    static let defaultPlayfulAnimationsEnabled = false
 }
 
 struct PlinxChromeButton: View {
@@ -191,7 +191,7 @@ struct PlinxChromeButton: View {
             radius: usesPlayfulTapAnimation && isAnimatingTap ? 16 : 0,
             y: usesPlayfulTapAnimation && isAnimatingTap ? 8 : 0
         )
-        .animation(.interpolatingSpring(stiffness: 340, damping: 18), value: isAnimatingTap)
+        .animation(.easeOut(duration: 0.2), value: isAnimatingTap)
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityHint(Text("accessibility.chromeButton.hint", tableName: "Plinx"))
@@ -228,7 +228,7 @@ struct PlinxChromeButton: View {
 
         isAnimatingTap = true
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 110_000_000)
+            try? await Task.sleep(nanoseconds: 180_000_000)
             action()
             isAnimatingTap = false
         }

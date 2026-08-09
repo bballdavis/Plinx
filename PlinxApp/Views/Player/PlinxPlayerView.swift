@@ -61,7 +61,7 @@ struct PlinxPlayerView: View {
 
     private var closeButton: some View {
         PlinxPlayerExitButton {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            withAnimation(.easeOut(duration: 0.2)) {
                 isPresented = false
             }
         }
@@ -130,9 +130,25 @@ struct PlinxPlayerExitButton: View {
                     y: buttonSize * 0.09
                 )
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(String(localized: "common.actions.back"))
+        .buttonStyle(PlinxPlayerExitButtonStyle())
+        .accessibilityLabel(String(localized: "common.actions.back", table: "Plinx"))
         .accessibilityIdentifier("player.back")
+    }
+}
+
+private struct PlinxPlayerExitButtonStyle: ButtonStyle {
+    @Environment(\.isFocused) private var isFocused
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .plinxFocusSurface(isSelected: false, isFocused: isFocused)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1)
+            .opacity(configuration.isPressed ? 0.88 : 1)
+            .animation(
+                reduceMotion ? nil : .easeOut(duration: 0.18),
+                value: configuration.isPressed
+            )
     }
 }
 
@@ -177,10 +193,12 @@ struct PlinxPlayerPlaybackView: View {
 
 struct PlinxVideoBufferingOverlay: View {
     var body: some View {
-        PlinxLoadingIndicator(
-            size: .hero,
-            surface: .video,
-            accessibilityLabel: "player.status.buffering",
+        PlinxLoadingStateView(
+            role: .playback,
+            accessibilityLabel: LocalizedStringResource(
+                "player.status.buffering",
+                table: "Plinx"
+            ),
             accessibilityIdentifier: "player.buffering.plinx"
         )
         .padding(28)
@@ -190,16 +208,24 @@ struct PlinxVideoBufferingOverlay: View {
 
 struct PlinxPlaybackLoadingView: View {
     let onExit: () -> Void
+    #if os(tvOS)
+    @Namespace private var focusNamespace
+    #endif
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            PlinxLoadingIndicator(
-                size: .hero,
-                surface: .video,
-                label: "player.status.loading",
-                accessibilityLabel: "player.status.loading",
+            PlinxLoadingStateView(
+                role: .playback,
+                label: LocalizedStringResource(
+                    "player.status.loading",
+                    table: "Plinx"
+                ),
+                accessibilityLabel: LocalizedStringResource(
+                    "player.status.loading",
+                    table: "Plinx"
+                ),
                 accessibilityIdentifier: "player.loading.plinx"
             )
             .allowsHitTesting(false)
@@ -207,6 +233,9 @@ struct PlinxPlaybackLoadingView: View {
             VStack {
                 HStack {
                     PlinxPlayerExitButton(action: onExit)
+                    #if os(tvOS)
+                        .prefersDefaultFocus(true, in: focusNamespace)
+                    #endif
                     Spacer()
                 }
                 .padding(.horizontal, 16)
@@ -218,6 +247,9 @@ struct PlinxPlaybackLoadingView: View {
         #if !os(tvOS)
         .statusBarHidden(true)
         .persistentSystemOverlays(.hidden)
+        #else
+        .focusScope(focusNamespace)
+        .onExitCommand(perform: onExit)
         #endif
     }
 }

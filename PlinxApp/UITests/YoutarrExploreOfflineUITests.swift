@@ -7,6 +7,7 @@ final class YoutarrExploreOfflineUITests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
         baseURL = URL(string: "http://127.0.0.1:39087")!
         apiKey = "plinx-synthetic-key"
     }

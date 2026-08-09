@@ -110,7 +110,9 @@ struct ProfileSwitcherView: View {
         if viewModel.isLoading {
             PlinxBrandedLoadingView(
                 context: .content,
-                titleKey: "auth.profile.loading"
+                titleKey: LocalizedStringResource(
+                    "auth.profile.loading"
+                )
             )
             .frame(maxWidth: .infinity)
         } else {

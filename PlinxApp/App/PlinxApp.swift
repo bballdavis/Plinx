@@ -115,10 +115,10 @@ struct PlinxApp: App {
 
         // DownloadManager: inject so MediaDetailHeaderSection's @Environment(DownloadManager.self)
         // resolves. Plinx supports downloads as a passthrough from Strimr.
-        let downloads = DownloadManager(settingsManager: settings)
         #if !os(tvOS)
         DownloadUITestFixtures.seedIfNeeded(environment: processEnvironment)
         #endif
+        let downloads = DownloadManager(settingsManager: settings)
         LivePlexUITestBootstrap.bootstrapIfNeeded(
             environment: processEnvironment,
             sessionManager: session,

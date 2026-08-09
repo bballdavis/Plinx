@@ -59,6 +59,7 @@ struct ParentalGateView: View {
                 .font(.title2.bold())
                 .foregroundStyle(PlinxBrand.shell)
                 .accessibilityIdentifier("parentalGate.title")
+                .accessibilityValue(PlinxBrandingSemantics.parentalGateTitleColorValue)
 
             Group {
                 #if os(tvOS)

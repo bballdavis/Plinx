@@ -2,20 +2,26 @@ import XCTest
 @testable import Plinx
 
 final class AppleTVBrowseFocusRoutingTests: XCTestCase {
-    func test_headerReturnTarget_isAlwaysHomeWhenVisible() {
+    func test_headerReturnTarget_keepsCurrentVisibleTab() {
         let tabs = KidsMainTabPicker.TabItem.mainTabs(
             showSearchInMainNavigation: true,
             includeSettings: true
         )
 
-        XCTAssertEqual(HeaderFocusOrder.returnTarget(visibleTabs: tabs), .home)
+        XCTAssertEqual(
+            HeaderFocusOrder.returnTarget(currentTab: .library, visibleTabs: tabs),
+            .library
+        )
     }
 
     func test_headerReturnTarget_fallsBackToFirstRealTabWhenHomeIsMissing() {
         let tabs = KidsMainTabPicker.TabItem.mainTabs(showSearchInMainNavigation: true)
             .filter { $0.tab != .home }
 
-        XCTAssertEqual(HeaderFocusOrder.returnTarget(visibleTabs: tabs), .library)
+        XCTAssertEqual(
+            HeaderFocusOrder.returnTarget(currentTab: .home, visibleTabs: tabs),
+            .library
+        )
     }
 
     func test_upFromFirstHomeRow_routesToNavigation() {
@@ -55,6 +61,17 @@ final class AppleTVBrowseFocusRoutingTests: XCTestCase {
         XCTAssertEqual(
             HomeVerticalFocusRouting.nextRoute(direction: .down, fromRow: 0, rowCount: 0),
             .unchanged
+        )
+    }
+
+    func test_removedFocusedItem_fallsBackToNearestSibling() {
+        XCTAssertEqual(
+            PlinxTVFocusCoordinator.resolvedContentID(
+                currentID: "b",
+                previousIDs: ["a", "b", "c"],
+                availableIDs: ["a", "c"]
+            ),
+            "c"
         )
     }
 }

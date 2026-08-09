@@ -6,9 +6,14 @@ struct PlinxMediaDetailView: View {
     var onShuffle: (String, PlexItemType) -> Void
     var onSelectRelated: (MediaDisplayItem) -> Void
     var onSelectParentSeries: (PlayableMediaItem) -> Void = { _ in }
+    var onRequestShellNavigationFocus: () -> Void = {}
+    var contentFocusRequest: Int = 0
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.safetyPolicy) private var safetyPolicy
+    #if os(tvOS)
+    @FocusState private var isBackFocused: Bool
+    #endif
 
     var body: some View {
         ZStack {
@@ -54,19 +59,50 @@ struct PlinxMediaDetailView: View {
         .onChange(of: safetyPolicy) { _, newPolicy in
             viewModel.updatePolicy(newPolicy)
         }
+        #if os(tvOS)
+        .onAppear {
+            isBackFocused = true
+        }
+        .onChange(of: contentFocusRequest) { _, _ in
+            isBackFocused = true
+        }
+        #endif
     }
 
     // MARK: - Plinx back-button chrome
 
     private var detailHeader: some View {
         HStack(spacing: 10) {
+            #if os(tvOS)
             PlinxChromeButton(systemImage: "chevron.left") {
                 dismiss()
             }
+            .focused($isBackFocused)
+            .onMoveCommand { direction in
+                guard direction == .up else { return }
+                isBackFocused = false
+                onRequestShellNavigationFocus()
+            }
+
+            Text(viewModel.media.title)
+                .font(.system(size: 32, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+            #else
+            PlinxChromeButton(systemImage: "chevron.left") {
+                dismiss()
+            }
+            #endif
             Spacer(minLength: 0)
         }
+        #if os(tvOS)
+        .padding(.horizontal, 42)
+        .padding(.vertical, 12)
+        .background(Color.black.opacity(0.2))
+        #else
         .padding(.horizontal, 16)
         .padding(.top, 4)
+        #endif
     }
 
     // MARK: - Blocked

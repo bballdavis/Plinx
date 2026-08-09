@@ -15,6 +15,7 @@ final class HomeScreenSectionUITests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
         app.launchArguments += ["--ui-testing", "--disable-animations"]
         app.launchEnvironment["PLINX_UI_TEST_MODE"] = "live"
 

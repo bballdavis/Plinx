@@ -1,4 +1,5 @@
 import SwiftUI
+import PlinxUI
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AccentColorSettingsView
@@ -205,6 +206,7 @@ struct AppearanceSettingsView: View {
         .scrollContentBackground(.hidden)
         #endif
         .background(Color.appBackground.ignoresSafeArea())
+        .plinxSettingsChrome()
     }
 }
 
@@ -237,6 +239,7 @@ struct AccentColorSettingsView: View {
         .scrollContentBackground(.hidden)
         #endif
         .background(Color.appBackground.ignoresSafeArea())
+        .plinxSettingsChrome()
     }
 
     private func colorSwatch(_ option: PlinxAccentColor) -> some View {

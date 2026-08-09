@@ -26,7 +26,9 @@ struct KidsMainTabPicker: View {
 
     let tabs: [TabItem]
     @Binding var selectedTab: MainCoordinator.Tab
-    var focusedTab: FocusState<MainCoordinator.Tab?>.Binding? = nil
+    #if os(tvOS)
+    var focusedTarget: FocusState<PlinxTVShellFocusTarget?>.Binding? = nil
+    #endif
     var onSelect: ((MainCoordinator.Tab) -> Void)? = nil
     var onAction: (TabItem.Action) -> Void = { _ in }
     var onMoveDown: () -> Void = {}
@@ -36,8 +38,6 @@ struct KidsMainTabPicker: View {
     @Namespace private var selectionAnimation
     @AppStorage(PlinxAnimationPreference.playfulAnimationsStorageKey)
     private var playfulAnimationsEnabled = PlinxAnimationPreference.defaultPlayfulAnimationsEnabled
-    @State private var playfulSelectionTrigger = 0
-    @State private var playfulTiltDirection: Double = 1
 
     private var isRegular: Bool { sizeClass == .regular }
     private var usesCompactDistribution: Bool {
@@ -54,7 +54,7 @@ struct KidsMainTabPicker: View {
     private var buttonMinWidth: CGFloat  {
         #if os(tvOS)
         if isInline { return 82 }
-        if isHeader { return 108 }
+        if isHeader { return 132 }
         return 154
         #else
         isRegular ? 96 : 110
@@ -63,7 +63,7 @@ struct KidsMainTabPicker: View {
     private var buttonHeight: CGFloat    {
         #if os(tvOS)
         if isInline { return 46 }
-        if isHeader { return 52 }
+        if isHeader { return 68 }
         return 94
         #else
         isRegular ? 64 : 72
@@ -72,7 +72,7 @@ struct KidsMainTabPicker: View {
     private var iconPointSize: CGFloat   {
         #if os(tvOS)
         if isInline { return 18 }
-        if isHeader { return 22 }
+        if isHeader { return 26 }
         return 30
         #else
         isRegular ? 22 : (usesCompactDistribution ? 22 : 26)
@@ -81,7 +81,7 @@ struct KidsMainTabPicker: View {
     private var labelFont: Font          {
         #if os(tvOS)
         if isInline { return .caption }
-        if isHeader { return .footnote }
+        if isHeader { return .callout }
         return .headline
         #else
         isRegular ? .caption : (usesCompactDistribution ? .caption2 : .subheadline)
@@ -90,7 +90,7 @@ struct KidsMainTabPicker: View {
     private var cornerRadius: CGFloat    {
         #if os(tvOS)
         if isInline { return 12 }
-        if isHeader { return 16 }
+        if isHeader { return 18 }
         return 20
         #else
         isRegular ? 14 : 16
@@ -99,7 +99,7 @@ struct KidsMainTabPicker: View {
     private var hSpacing: CGFloat        {
         #if os(tvOS)
         if isInline { return 8 }
-        if isHeader { return 12 }
+        if isHeader { return 14 }
         return 18
         #else
         isRegular ? 8 : (usesCompactDistribution ? 6 : 12)
@@ -135,11 +135,6 @@ struct KidsMainTabPicker: View {
         }
         .padding(.horizontal, contentHorizontalPadding)
         .padding(.vertical, isInline ? 0 : (isHeader ? 5 : (playfulAnimationsEnabled ? (isRegular ? 12 : 10) : 10)))
-        .onChange(of: selectedTab) { _, _ in
-            guard playfulAnimationsEnabled else { return }
-            playfulSelectionTrigger &+= 1
-            playfulTiltDirection = Bool.random() ? 1 : -1
-        }
 
         if isInline {
             row
@@ -176,9 +171,6 @@ struct KidsMainTabPicker: View {
             TabButtonContent(
                 item: item,
                 selectedTab: selectedTab,
-                playfulAnimationsEnabled: playfulAnimationsEnabled,
-                playfulSelectionTrigger: playfulSelectionTrigger,
-                playfulTiltDirection: playfulTiltDirection,
                 usesCompactDistribution: usesCompactDistribution,
                 buttonMinWidth: buttonMinWidth,
                 buttonHeight: buttonHeight,
@@ -191,18 +183,20 @@ struct KidsMainTabPicker: View {
         }
         .buttonStyle(PlinkButtonStyle())
         .animation(
-            playfulAnimationsEnabled
-                ? .interpolatingSpring(stiffness: 170, damping: 10)
-                : .interpolatingSpring(stiffness: 280, damping: 20),
+            .easeOut(duration: 0.2),
             value: selectedTab
         )
         .accessibilityIdentifier("main.tab.\(item.id)")
 
-        if let tab = item.tab, let focusedTab {
-            button.focused(focusedTab, equals: tab)
+        #if os(tvOS)
+        if let focusedTarget {
+            button.focused(focusedTarget, equals: item.shellFocusTarget)
         } else {
             button
         }
+        #else
+        button
+        #endif
     }
 }
 
@@ -219,6 +213,13 @@ extension KidsMainTabPicker {
         let action: Action?
         let iconName: String
         let title: LocalizedStringResource
+
+        #if os(tvOS)
+        var shellFocusTarget: PlinxTVShellFocusTarget {
+            if let tab { return .tab(tab) }
+            return .settings
+        }
+        #endif
 
         /// The default main tabs for the Plinx app.
         static func mainTabs(
@@ -303,9 +304,6 @@ extension KidsMainTabPicker {
 private struct TabButtonContent: View {
     let item: KidsMainTabPicker.TabItem
     let selectedTab: MainCoordinator.Tab
-    let playfulAnimationsEnabled: Bool
-    let playfulSelectionTrigger: Int
-    let playfulTiltDirection: Double
     let usesCompactDistribution: Bool
     let buttonMinWidth: CGFloat
     let buttonHeight: CGFloat
@@ -324,39 +322,33 @@ private struct TabButtonContent: View {
         item.tab.map { selectedTab == $0 } ?? false
     }
 
-    private var isEmphasized: Bool {
-        isSelected || isFocused
-    }
-
     var body: some View {
         VStack(spacing: 6) {
             Image(systemName: item.iconName)
                 .font(.system(size: iconPointSize, weight: .semibold))
-                .symbolEffect(
-                    .bounce.byLayer,
-                    value: playfulAnimationsEnabled && isSelected ? playfulSelectionTrigger : 0
-                )
-                .scaleEffect(iconScale)
-                .rotationEffect(.degrees(isSelected && playfulAnimationsEnabled ? -6 * playfulTiltDirection : 0))
+                .scaleEffect(isFocused ? 1.06 : 1)
 
             Text(item.title)
                 .font(labelFont.bold())
                 .lineLimit(1)
                 .minimumScaleFactor(usesCompactDistribution ? 0.68 : 0.85)
-                .scaleEffect(isEmphasized && playfulAnimationsEnabled && !isHeader ? 1.05 : 1.0)
         }
-            .foregroundStyle(foregroundColor)
+        .foregroundStyle(foregroundColor)
         .frame(
             minWidth: usesCompactDistribution ? nil : buttonMinWidth,
             maxWidth: usesCompactDistribution ? .infinity : nil,
             minHeight: buttonHeight
         )
         .background(background)
-        .overlay(border)
-        .scaleEffect(isEmphasized ? tabScale : 1.0)
-        .offset(y: isSelected ? (playfulAnimationsEnabled ? 0 : 1) : 0)
-        .rotationEffect(.degrees(isSelected && playfulAnimationsEnabled ? 2.5 * playfulTiltDirection : 0))
-        .shadow(color: shadowColor, radius: shadowRadius, y: shadowYOffset)
+        .overlay(alignment: .bottom) {
+            if isSelected {
+                Capsule()
+                    .fill(Color.accentColor)
+                    .frame(width: isHeader ? 48 : 38, height: isHeader ? 4 : 3)
+                    .padding(.bottom, isHeader ? 6 : 4)
+            }
+        }
+        .plinxFocusSurface(isSelected: isSelected, isFocused: isFocused)
         .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
     }
 
@@ -366,72 +358,20 @@ private struct TabButtonContent: View {
             if isSelected {
                 if !isInline {
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(Color.accentColor.opacity(playfulAnimationsEnabled ? (isHeader ? 0.26 : 0.22) : (isHeader ? 0.2 : 0.16)))
+                        .fill(Color.accentColor.opacity(isHeader ? 0.20 : 0.16))
                         .matchedGeometryEffect(id: "selectedTabBackground", in: selectionAnimation)
                 }
             }
         }
     }
 
-    private var border: some View {
-        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            .stroke(
-                isEmphasized ? Color.accentColor.opacity(isFocused ? 0.95 : 0.7) : Color.clear,
-                lineWidth: isFocused ? (isInline ? 2 : 3) : (isSelected && isInline ? 1.5 : 1)
-            )
-    }
-
-    private var tabScale: CGFloat {
-        #if os(tvOS)
-        if isInline { return isFocused ? 1.06 : (isSelected ? 1.03 : 1.0) }
-        if isHeader { return isFocused ? 1.09 : (isSelected ? 1.05 : 1.0) }
-        return isFocused ? 1.16 : (isSelected ? 1.08 : 1.0)
-        #else
-        isSelected ? (playfulAnimationsEnabled ? 1.14 : 1.03) : 1.0
-        #endif
-    }
-
-    private var iconScale: CGFloat {
-        if !isEmphasized {
-            return 1.0
-        }
-        if isHeader {
-            return playfulAnimationsEnabled ? 1.12 : 1.06
-        }
-        return playfulAnimationsEnabled ? 1.18 : 1.08
-    }
-
     private var foregroundColor: Color {
-        if isSelected {
-            return .accentColor
-        }
         if isFocused {
             return .white
         }
+        if isSelected {
+            return .accentColor
+        }
         return .white.opacity(0.72)
-    }
-
-    private var shadowColor: Color {
-        guard isEmphasized else { return .clear }
-        return Color.accentColor.opacity(isFocused ? 0.7 : 0.25)
-    }
-
-    private var shadowRadius: CGFloat {
-        #if os(tvOS)
-        if isInline { return isFocused ? 16 : (isSelected ? 8 : 0) }
-        if isHeader { return isFocused ? 18 : (isSelected ? 10 : 0) }
-        return isFocused ? 30 : (isSelected ? 18 : 0)
-        #else
-        isSelected && playfulAnimationsEnabled ? 24 : 0
-        #endif
-    }
-
-    private var shadowYOffset: CGFloat {
-        #if os(tvOS)
-        if isInline || isHeader { return 0 }
-        return isFocused ? 0 : (isSelected ? 8 : 0)
-        #else
-        isSelected && playfulAnimationsEnabled ? 11 : 0
-        #endif
     }
 }

@@ -18,7 +18,7 @@ final class AppleTVInteractionUITests: XCTestCase {
         assertFocused(firstCard)
     }
 
-    func test_libraryRoot_upTargetsHome_andDownTargetsFirstLibrary() {
+    func test_libraryRoot_upTargetsLibrary_andDownRestoresFirstLibrary() {
         let app = launch(screen: "appleTVBrowseFocus")
         let home = app.buttons["main.tab.home"]
         let library = app.buttons["main.tab.library"]
@@ -31,9 +31,7 @@ final class AppleTVInteractionUITests: XCTestCase {
         XCUIRemote.shared.press(.down)
         assertFocused(firstLibrary)
         XCUIRemote.shared.press(.up)
-        assertFocused(home)
-        XCUIRemote.shared.press(.right)
-        XCUIRemote.shared.press(.select)
+        assertFocused(library)
         XCUIRemote.shared.press(.down)
         assertFocused(firstLibrary)
     }
@@ -51,8 +49,8 @@ final class AppleTVInteractionUITests: XCTestCase {
     func test_libraryDetail_downVisitsFilterThenMedia_andUpReversesRoute() {
         let app = launch(screen: "appleTVLibraryDetailFocus")
         let library = app.buttons["main.tab.library"]
-        let home = app.buttons["main.tab.home"]
         let filter = app.buttons["library.detail.filter.recommended"]
+        let back = app.buttons["library.detail.back"]
         let firstCard = app.buttons["library.detail.card.0"]
 
         assertFocused(library)
@@ -63,7 +61,69 @@ final class AppleTVInteractionUITests: XCTestCase {
         XCUIRemote.shared.press(.up)
         assertFocused(filter)
         XCUIRemote.shared.press(.up)
+        assertFocused(back)
+        XCUIRemote.shared.press(.up)
+        assertFocused(library)
+    }
+
+    func test_movingAcrossHeader_doesNotSwitchTabsUntilSelect() {
+        let app = launch(screen: "appleTVBrowseFocus")
+        let home = app.buttons["main.tab.home"]
+        let library = app.buttons["main.tab.library"]
+        let firstHomeCard = app.buttons["home.card.fixture.0"]
+
         assertFocused(home)
+        XCUIRemote.shared.press(.right)
+        assertFocused(library)
+        XCUIRemote.shared.press(.down)
+        assertFocused(firstHomeCard)
+    }
+
+    func test_settings_hasDeterministicFirstFocus() {
+        let app = launch(screen: "settings")
+        assertFocused(app.buttons["settings.libraries"], timeout: 8)
+    }
+
+    func test_settings_menuPopsSubpageBeforeClosingRoot() {
+        let app = launch(screen: "settingsNavigation")
+        let libraries = app.buttons["settings.libraries"]
+        let movieRating = app.buttons["settings.rating.movie"]
+
+        assertFocused(libraries, timeout: 8)
+        XCUIRemote.shared.press(.select)
+        XCTAssertTrue(
+            app.descendants(matching: .any)["settings.libraries.screen"]
+                .waitForExistence(timeout: 8)
+        )
+
+        XCUIRemote.shared.press(.menu)
+        assertFocused(libraries, timeout: 8)
+        XCTAssertFalse(app.staticTexts["settings.fixture.closed"].exists)
+
+        for _ in 0..<20 where !movieRating.hasFocus {
+            XCUIRemote.shared.press(.down)
+        }
+        assertFocused(movieRating, timeout: 8)
+        XCUIRemote.shared.press(.select)
+        XCTAssertTrue(
+            app.descendants(matching: .any)["settings.rating.screen"]
+                .waitForExistence(timeout: 8)
+        )
+
+        XCUIRemote.shared.press(.menu)
+        assertFocused(movieRating, timeout: 8)
+        XCTAssertFalse(app.staticTexts["settings.fixture.closed"].exists)
+
+        XCUIRemote.shared.press(.menu)
+        XCTAssertTrue(
+            app.staticTexts["settings.fixture.closed"].waitForExistence(timeout: 8)
+        )
+    }
+
+    func test_playerPreparation_hasFocusedBackAction() {
+        let app = launch(screen: "playerLoading")
+        assertFocused(app.buttons["player.back"], timeout: 8)
+        XCTAssertEqual(app.activityIndicators.count, 0)
     }
 
     func test_parentalGate_selectEntersDigit_deleteRemovesIt_andInvalidUnlockStaysGated() {

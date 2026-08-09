@@ -1,49 +1,5 @@
 import SwiftUI
 
-enum PlinxPlayerControlLayout {
-    static func scale(
-        horizontalSizeClass: UserInterfaceSizeClass?,
-        verticalSizeClass: UserInterfaceSizeClass?
-    ) -> CGFloat {
-        switch (horizontalSizeClass, verticalSizeClass) {
-        case (.regular, .regular):
-            2
-        case (.regular, .compact):
-            1.65
-        case (.compact, .compact):
-            1.45
-        default:
-            1.3
-        }
-    }
-
-    static func exitButtonSize(
-        horizontalSizeClass: UserInterfaceSizeClass?,
-        verticalSizeClass: UserInterfaceSizeClass?
-    ) -> CGFloat {
-        switch (horizontalSizeClass, verticalSizeClass) {
-        case (.regular, .regular):
-            104
-        case (.regular, .compact):
-            96
-        case (.compact, .compact):
-            88
-        default:
-            80
-        }
-    }
-
-    static func exitIconSize(
-        horizontalSizeClass: UserInterfaceSizeClass?,
-        verticalSizeClass: UserInterfaceSizeClass?
-    ) -> CGFloat {
-        exitButtonSize(
-            horizontalSizeClass: horizontalSizeClass,
-            verticalSizeClass: verticalSizeClass
-        ) * 0.34
-    }
-}
-
 private struct PlinxPlayerControlMetrics {
     let scale: CGFloat
 

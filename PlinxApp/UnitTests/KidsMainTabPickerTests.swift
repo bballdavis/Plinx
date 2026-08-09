@@ -89,12 +89,12 @@ final class QuickActionFocusOrderTests: XCTestCase {
 
 final class HeaderFocusOrderTests: XCTestCase {
 
-    func test_returnTarget_isAlwaysHomeWhenHomeIsVisible() {
+    func test_returnTarget_keepsTheCurrentVisibleTab() {
         let tabs = KidsMainTabPicker.TabItem.mainTabs(showSearchInMainNavigation: true, includeSettings: true)
 
         XCTAssertEqual(
-            HeaderFocusOrder.returnTarget(visibleTabs: tabs),
-            .home
+            HeaderFocusOrder.returnTarget(currentTab: .library, visibleTabs: tabs),
+            .library
         )
     }
 
@@ -102,7 +102,7 @@ final class HeaderFocusOrderTests: XCTestCase {
         let tabs = KidsMainTabPicker.TabItem.mainTabs(showSearchInMainNavigation: false, includeSettings: true)
 
         XCTAssertEqual(
-            HeaderFocusOrder.returnTarget(visibleTabs: tabs),
+            HeaderFocusOrder.returnTarget(currentTab: .home, visibleTabs: tabs),
             .home
         )
     }
@@ -112,9 +112,84 @@ final class HeaderFocusOrderTests: XCTestCase {
             .filter { $0.tab != .home }
 
         XCTAssertEqual(
-            HeaderFocusOrder.returnTarget(visibleTabs: tabs),
+            HeaderFocusOrder.returnTarget(currentTab: .home, visibleTabs: tabs),
             .library
         )
+    }
+
+    func test_focusCoordinator_resolvesRemovedContentDeterministically() {
+        XCTAssertEqual(
+            PlinxTVFocusCoordinator.resolvedContentID(
+                currentID: "removed",
+                availableIDs: ["first", "second"],
+                preferredID: "second"
+            ),
+            "second"
+        )
+        XCTAssertNil(
+            PlinxTVFocusCoordinator.resolvedContentID(
+                currentID: "removed",
+                availableIDs: [String]()
+            )
+        )
+    }
+
+    func test_focusCoordinator_resolvesRemovedContentToNearestSibling() {
+        XCTAssertEqual(
+            PlinxTVFocusCoordinator.resolvedContentID(
+                currentID: "second",
+                previousIDs: ["first", "second", "third", "fourth"],
+                availableIDs: ["first", "third", "fourth"]
+            ),
+            "third"
+        )
+    }
+
+    @MainActor
+    func test_focusCoordinator_restoresPerTabAndModalFocus() {
+        let coordinator = PlinxTVFocusCoordinator()
+        let tabs = KidsMainTabPicker.TabItem.mainTabs(
+            showSearchInMainNavigation: true,
+            includeSettings: true
+        )
+
+        coordinator.rememberShellTarget(.tab(.library), for: .library)
+        XCTAssertEqual(
+            coordinator.preferredShellTarget(
+                activeTab: .library,
+                showsSettings: false,
+                visibleTabs: tabs
+            ),
+            .tab(.library)
+        )
+
+        coordinator.beginModal(from: .library, shellTarget: .tab(.library))
+        coordinator.activate(.settings)
+        XCTAssertEqual(
+            coordinator.endModal(),
+            PlinxTVFocusRestoration(
+                contentRegion: .library,
+                shellTarget: .tab(.library)
+            )
+        )
+    }
+
+    @MainActor
+    func test_focusCoordinator_remembersOnlyAvailableContentTargets() {
+        let coordinator = PlinxTVFocusCoordinator()
+        coordinator.rememberContentTarget("second", in: .library)
+
+        let available: String? = coordinator.rememberedContentTarget(
+            in: .library,
+            availableIDs: ["first", "second"]
+        )
+        let removed: String? = coordinator.rememberedContentTarget(
+            in: .library,
+            availableIDs: ["first"]
+        )
+
+        XCTAssertEqual(available, "second")
+        XCTAssertNil(removed)
     }
 }
 

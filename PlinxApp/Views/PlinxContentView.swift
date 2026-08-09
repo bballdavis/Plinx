@@ -1,4 +1,5 @@
 import PlinxUI
+import Foundation
 import SwiftUI
 
 struct PlinxContentView: View {
@@ -66,11 +67,7 @@ struct PlinxContentView: View {
         if let uiTestScreenOverride {
             switch uiTestScreenOverride {
             case "parentalGate":
-                #if os(tvOS)
                 ParentalGateUITestHarness()
-                #else
-                ParentalGateView(onAllowed: {})
-                #endif
             case "signIn":
                 SignInView(
                     viewModel: PlinxSignInViewModel(
@@ -101,6 +98,8 @@ struct PlinxContentView: View {
                     PlinxSettingsView(isUnlocked: true)
                 }
             #if os(tvOS)
+            case "settingsNavigation":
+                AppleTVSettingsNavigationUITestHarness()
             case "appleTVBrowseFocus":
                 AppleTVBrowseFocusUITestHarness(scenario: .root(hasContent: true))
             case "appleTVBrowseFocusEmpty":
@@ -333,7 +332,10 @@ struct PlinxContentView: View {
     private var contentLoadingPreview: some View {
         PlinxBrandedLoadingView(
             context: .content,
-            titleKey: "library.loading.plinx"
+            titleKey: LocalizedStringResource(
+                "library.loading.plinx",
+                table: "Plinx"
+            )
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.appBackground.ignoresSafeArea())
@@ -452,20 +454,44 @@ struct PlinxContentView: View {
     }
 }
 
-#if os(tvOS)
 private struct ParentalGateUITestHarness: View {
     @State private var isAllowed = false
+    @State private var parentalAccessCoordinator: ParentalAccessCoordinator
+
+    init() {
+        let suiteName = "com.bballdavis.plinx.ui-tests.parental-gate"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defaults.removePersistentDomain(forName: suiteName)
+        _parentalAccessCoordinator = State(
+            initialValue: ParentalAccessCoordinator(
+                store: EmptyParentalPINStore(),
+                legacyDefaults: defaults
+            )
+        )
+    }
 
     var body: some View {
-        if isAllowed {
-            NavigationStack {
-                PlinxSettingsView(isUnlocked: true)
-            }
-        } else {
-            ParentalGateView {
-                isAllowed = true
+        Group {
+            if isAllowed {
+                #if os(tvOS)
+                NavigationStack {
+                    PlinxSettingsView(isUnlocked: true)
+                }
+                #else
+                EmptyView()
+                #endif
+            } else {
+                ParentalGateView {
+                    isAllowed = true
+                }
             }
         }
+        .environment(parentalAccessCoordinator)
     }
 }
-#endif
+
+private struct EmptyParentalPINStore: ParentalPINStoring {
+    func readPIN() throws -> String? { nil }
+    func writePIN(_ pin: String) throws {}
+    func deletePIN() throws {}
+}

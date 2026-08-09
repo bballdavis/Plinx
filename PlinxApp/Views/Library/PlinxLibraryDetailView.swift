@@ -16,24 +16,24 @@ struct PlinxLibraryDetailView: View {
 
     @Environment(PlexAPIContext.self) private var plexApiContext
     @Environment(SettingsManager.self) private var settingsManager
-    @Environment(DownloadManager.self) private var downloadManager
     @Environment(\.safetyPolicy) private var safetyPolicy
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var mainCoordinator: MainCoordinator
     #if os(tvOS)
     @Environment(MediaFocusModel.self) private var mediaFocusModel
+    @EnvironmentObject private var tvFocusCoordinator: PlinxTVFocusCoordinator
     #endif
 
     let library: Library
     let onSelectMedia: (MediaDisplayItem) -> Void
     var onLongPressMedia: (MediaDisplayItem) -> Void = { _ in }
+    var onRequestShellNavigationFocus: () -> Void = {}
+    var contentFocusRequest: Int = 0
 
     @State private var selectedTab: LibraryDetailTab = .recommended
-    @AppStorage(YoutarrExplorePreference.storageKey)
-    private var isYoutarrExploreEnabled = YoutarrExplorePreference.defaultEnabled
     #if os(tvOS)
     @State private var tvHeroMedia: MediaItem?
-    @FocusState private var focusedRootNavTab: MainCoordinator.Tab?
+    @FocusState private var isBackFocused: Bool
     @FocusState private var focusedLibraryFilterTab: LibraryDetailTab?
     #endif
 
@@ -73,8 +73,13 @@ struct PlinxLibraryDetailView: View {
             tvHeroMedia = nil
         }
         .onAppear {
-            focusedRootNavTab = .library
+            tvFocusCoordinator.activate(.libraryDetail)
             focusedLibraryFilterTab = selectedTab
+        }
+        .onChange(of: contentFocusRequest) { _, _ in
+            focusedLibraryFilterTab = availableTabs.contains(selectedTab)
+                ? selectedTab
+                : availableTabs.first
         }
         .onExitCommand {
             dismiss()
@@ -169,50 +174,6 @@ struct PlinxLibraryDetailView: View {
 
     // MARK: - Tab helpers
 
-    private var hasDownloadActivity: Bool {
-        !downloadManager.items.isEmpty
-    }
-
-    private var showsYoutarrExplore: Bool {
-        YoutarrExploreVisibility.shouldShow(
-            isEnabled: isYoutarrExploreEnabled,
-            isConfigured: YoutarrConfigurationStore().isConfigured()
-        )
-    }
-
-    private var activeRootTab: MainCoordinator.Tab {
-        switch mainCoordinator.tab {
-        case .search:
-            return .search
-        case .library, .libraryDetail(_):
-            return .library
-        case .more:
-            return .more
-        case .seerrDiscover:
-            return .seerrDiscover
-        case .home:
-            return .home
-        }
-    }
-
-    private var rootTabBinding: Binding<MainCoordinator.Tab> {
-        Binding(
-            get: { activeRootTab },
-            set: { newValue in
-                handleRootTabSelection(newValue)
-            }
-        )
-    }
-
-    private var visibleRootTabs: [KidsMainTabPicker.TabItem] {
-        KidsMainTabPicker.TabItem.mainTabs(
-            includeDownloads: hasDownloadActivity,
-            showSearchInMainNavigation: true,
-            includeExplore: showsYoutarrExplore,
-            includeSettings: false
-        )
-    }
-
     private var availableTabs: [LibraryDetailTab] {
         LibraryDetailTab.allCases.filter { tab in
             switch tab {
@@ -234,7 +195,7 @@ struct PlinxLibraryDetailView: View {
             heroMedia: mediaFocusModel.focusedMedia ?? tvHeroMedia,
             showsFilters: true,
             navigationContent: {
-                tvNavigationRow
+                tvContextRow
             },
             filterContent: {
                 tvFilterRow
@@ -290,41 +251,41 @@ struct PlinxLibraryDetailView: View {
         }
     }
 
-    private var tvNavigationRow: some View {
-        KidsMainTabPicker(
-            tabs: visibleRootTabs,
-            selectedTab: rootTabBinding,
-            focusedTab: $focusedRootNavTab,
-            onMoveDown: {
-                focusedLibraryFilterTab = selectedTab
-            },
-            placement: .header
-        )
-        .overlay(alignment: .leading) {
-            HStack(spacing: 10) {
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.headline.weight(.semibold))
-                        .frame(minWidth: 58, minHeight: 58)
-                }
-                .buttonStyle(TvPillButtonStyle(isSelected: false))
-                .accessibilityIdentifier("library.detail.back")
-
-                Text(library.title)
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.95))
-                    .lineLimit(1)
-
-                Spacer(minLength: 0)
-
-                Color.clear
-                    .frame(width: 1, height: 1)
+    private var tvContextRow: some View {
+        HStack(spacing: 16) {
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.title3.weight(.bold))
+                    .frame(minWidth: 68, minHeight: 64)
             }
-            .frame(maxWidth: 420, alignment: .leading)
-            .padding(.leading, 14)
+            .buttonStyle(TvPillButtonStyle(isSelected: false))
+            .focused($isBackFocused)
+            .accessibilityIdentifier("library.detail.back")
+            .onMoveCommand { direction in
+                switch direction {
+                case .up:
+                    isBackFocused = false
+                    onRequestShellNavigationFocus()
+                case .down:
+                    focusedLibraryFilterTab = availableTabs.contains(selectedTab)
+                        ? selectedTab
+                        : availableTabs.first
+                default:
+                    break
+                }
+            }
+
+            Text(library.title)
+                .font(.title2.weight(.bold))
+                .foregroundStyle(.white.opacity(0.96))
+                .lineLimit(1)
+
+            Spacer(minLength: 0)
         }
+        .padding(.horizontal, 24)
+        .padding(.top, 12)
     }
 
     private var tvFilterRow: some View {
@@ -352,12 +313,16 @@ struct PlinxLibraryDetailView: View {
         .focused($focusedLibraryFilterTab, equals: tab)
         .buttonStyle(TvPillButtonStyle(isSelected: selectedTab == tab))
         .accessibilityIdentifier("library.detail.filter.\(tab.rawValue)")
+        .onMoveCommand { direction in
+            guard direction == .up else { return }
+            focusedLibraryFilterTab = nil
+            isBackFocused = true
+        }
     }
 
     private var tvHeaderContent: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Single row: [back + library name] overlaid with centered nav picker
-            tvNavigationRow
+            tvContextRow
 
             // Library sub-tabs (Recommended / Browse / Collections)
             tvFilterRow
@@ -381,11 +346,6 @@ struct PlinxLibraryDetailView: View {
     /// for "none"-agent libraries (YouTube, Home Videos) and clip libraries.
     private var preferredCarouselLayout: MediaCarousel.Layout? {
         LibraryCardLayoutPolicy.prefersLandscape(for: library) ? .landscape : nil
-    }
-
-    private func handleRootTabSelection(_ newValue: MainCoordinator.Tab) {
-        mainCoordinator.resetToRoot(for: newValue)
-        mainCoordinator.tab = newValue
     }
 
     // MARK: - ViewModel factories (Plinx-side safety injection)
@@ -481,7 +441,13 @@ private struct PlinxLibraryRecommendedContentView: View {
                 }
 
                 if viewModel.isLoading, !viewModel.hasContent {
-                    ProgressView("library.recommended.loading")
+                    PlinxLoadingStateView(
+                        role: .content,
+                        label: LocalizedStringResource(
+                            "library.recommended.loading",
+                            table: "Plinx"
+                        )
+                    )
                         .frame(maxWidth: .infinity)
                 }
 
@@ -537,7 +503,7 @@ private struct PlinxLibraryRecommendedContentView: View {
             }
             .plinxQuickActionLongPress { onLongPressMedia(media) }
         case .landscape:
-            LandscapeMediaCard(media: media, showsLabels: true) {
+            PlinxLibraryLandscapeMediaCard(media: media, showsLabels: true) {
                 onSelectMedia(media)
             }
             .plinxQuickActionLongPress { onLongPressMedia(media) }
@@ -617,7 +583,13 @@ private struct PlinxLibraryBrowseContentView: View {
         }
         .overlay {
             if viewModel.isLoading, viewModel.browseItems.isEmpty {
-                ProgressView("library.browse.loading")
+                PlinxLoadingStateView(
+                    role: .content,
+                    label: LocalizedStringResource(
+                        "library.browse.loading",
+                        table: "Plinx"
+                    )
+                )
             } else if let errorMessage = viewModel.errorMessage, viewModel.browseItems.isEmpty {
                 ContentUnavailableView(
                     errorMessage,
@@ -643,7 +615,7 @@ private struct PlinxLibraryBrowseContentView: View {
         switch item {
         case let .media(media):
             if usesLandscapeCards {
-                LandscapeMediaCard(media: media, width: cardWidth, showsLabels: true) {
+                PlinxLibraryLandscapeMediaCard(media: media, width: cardWidth, showsLabels: true) {
                     onSelectMedia(media)
                 }
                 .plinxQuickActionLongPress { onLongPressMedia(media) }
@@ -708,7 +680,13 @@ private struct PlinxLibraryCollectionsContentView: View {
         }
         .overlay {
             if viewModel.isLoading, viewModel.items.isEmpty {
-                ProgressView("library.browse.loading")
+                PlinxLoadingStateView(
+                    role: .content,
+                    label: LocalizedStringResource(
+                        "library.browse.loading",
+                        table: "Plinx"
+                    )
+                )
             } else if let errorMessage = viewModel.errorMessage, viewModel.items.isEmpty {
                 ContentUnavailableView(
                     errorMessage,
@@ -738,6 +716,60 @@ private struct PlinxLibraryCollectionsContentView: View {
 }
 #endif
 
+/// Plinx's library-detail landscape card. Strimr's `LandscapeMediaCard`
+/// always chooses backdrop art; this wrapper honors the library-specific
+/// artwork preference so Other Videos displays each item's Plex thumbnail.
+private struct PlinxLibraryLandscapeMediaCard: View {
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.preferredLandscapeArtworkKind) private var preferredArtworkKind
+
+    let media: MediaDisplayItem
+    let height: CGFloat?
+    let width: CGFloat?
+    let showsLabels: Bool
+    let onTap: () -> Void
+
+    private let aspectRatio: CGFloat = 16 / 9
+
+    init(
+        media: MediaDisplayItem,
+        height: CGFloat? = nil,
+        width: CGFloat? = nil,
+        showsLabels: Bool,
+        onTap: @escaping () -> Void
+    ) {
+        self.media = media
+        self.height = height
+        self.width = width
+        self.showsLabels = showsLabels
+        self.onTap = onTap
+    }
+
+    private var defaultHeight: CGFloat {
+        #if os(tvOS)
+        180
+        #elseif os(macOS)
+        140
+        #else
+        sizeClass == .compact ? 90 : 124
+        #endif
+    }
+
+    var body: some View {
+        let resolvedHeight = height ?? (width.map { $0 / aspectRatio } ?? defaultHeight)
+        let resolvedWidth = width ?? (height.map { $0 * aspectRatio } ?? resolvedHeight * aspectRatio)
+        MediaCard(
+            size: CGSize(width: resolvedWidth, height: resolvedHeight),
+            media: media,
+            artworkKind: ArtworkSelectionPolicy.landscapeCardArtworkKind(
+                preferredArtworkKind: preferredArtworkKind
+            ),
+            showsLabels: showsLabels,
+            onTap: onTap
+        )
+    }
+}
+
 #if os(tvOS)
 private struct PlinxLibraryRecommendedRowsView: View {
     @Environment(MediaFocusModel.self) private var focusModel
@@ -760,7 +792,13 @@ private struct PlinxLibraryRecommendedRowsView: View {
             }
 
             if viewModel.isLoading, !viewModel.hasContent {
-                ProgressView("library.recommended.loading")
+                PlinxLoadingStateView(
+                    role: .content,
+                    label: LocalizedStringResource(
+                        "library.recommended.loading",
+                        table: "Plinx"
+                    )
+                )
                     .frame(maxWidth: .infinity)
             }
 
@@ -790,8 +828,7 @@ private struct PlinxLibraryRecommendedRowsView: View {
     @ViewBuilder
     private func carousel(for hub: Hub) -> some View {
         if shouldUseLandscape(for: hub) {
-            MediaCarousel(
-                layout: .landscape,
+            PlinxLibraryLandscapeCarousel(
                 items: hub.items,
                 showsLabels: true,
                 onSelectMedia: onSelectMedia
@@ -844,6 +881,29 @@ private struct PlinxLibraryRecommendedRowsView: View {
     }
 }
 
+private struct PlinxLibraryLandscapeCarousel: View {
+    let items: [MediaDisplayItem]
+    let showsLabels: Bool
+    let onSelectMedia: (MediaDisplayItem) -> Void
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(alignment: .top, spacing: 32) {
+                ForEach(items, id: \.id) { media in
+                    PlinxLibraryLandscapeMediaCard(media: media, showsLabels: showsLabels) {
+                        onSelectMedia(media)
+                    }
+                }
+            }
+            .padding(.vertical, 20)
+            .padding(.horizontal, 16)
+        }
+        .mouseDragScrolling()
+        .scrollClipDisabled()
+        .focusSection()
+    }
+}
+
 private struct PlinxLibraryBrowseRowsView: View {
     @Environment(MediaFocusModel.self) private var focusModel
     @FocusState private var focusedCharacterId: String?
@@ -886,7 +946,7 @@ private struct PlinxLibraryBrowseRowsView: View {
                                 switch item {
                                 case let .media(media):
                                     if usesLandscapeCards {
-                                        LandscapeMediaCard(media: media, width: cardWidth, showsLabels: true) {
+                                        PlinxLibraryLandscapeMediaCard(media: media, width: cardWidth, showsLabels: true) {
                                             onSelectMedia(media)
                                         }
                                     } else {
@@ -914,7 +974,13 @@ private struct PlinxLibraryBrowseRowsView: View {
                 }
 
                 if viewModel.isLoading, viewModel.itemsByIndex.isEmpty {
-                    ProgressView("library.browse.loading")
+                    PlinxLoadingStateView(
+                        role: .content,
+                        label: LocalizedStringResource(
+                            "library.browse.loading",
+                            table: "Plinx"
+                        )
+                    )
                         .frame(maxWidth: .infinity)
                 } else if let errorMessage = viewModel.errorMessage, viewModel.itemsByIndex.isEmpty {
                     ContentUnavailableView(
@@ -1071,7 +1137,13 @@ private struct PlinxLibraryCollectionsRowsView: View {
                 }
 
                 if viewModel.isLoading, viewModel.itemsByIndex.isEmpty {
-                    ProgressView("library.browse.loading")
+                    PlinxLoadingStateView(
+                        role: .content,
+                        label: LocalizedStringResource(
+                            "library.browse.loading",
+                            table: "Plinx"
+                        )
+                    )
                         .frame(maxWidth: .infinity)
                 } else if let errorMessage = viewModel.errorMessage, viewModel.itemsByIndex.isEmpty {
                     ContentUnavailableView(

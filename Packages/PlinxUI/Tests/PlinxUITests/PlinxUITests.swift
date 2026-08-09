@@ -174,5 +174,32 @@ struct PlinxLoadingIndicatorTests {
     @Test func progressStyleCanBeInstalledAtTheAppRoot() {
         _ = PlinxProgressViewStyle()
     }
+
+    @Test func loadingRolesMapToTheirPrescribedBeaconConfigurations() {
+        #expect(PlinxLoadingRole.appTransition.indicatorSize == .hero)
+        #expect(PlinxLoadingRole.appTransition.indicatorSurface == .glass)
+        #expect(PlinxLoadingRole.appTransition.usesFullLockup)
+        #expect(PlinxLoadingRole.content.indicatorSize == .regular)
+        #expect(PlinxLoadingRole.content.indicatorSurface == .glass)
+        #expect(PlinxLoadingRole.inline.indicatorSize == .compact)
+        #expect(PlinxLoadingRole.inline.indicatorSurface == .transparent)
+        #expect(PlinxLoadingRole.playback.indicatorSize == .playback)
+        #expect(PlinxLoadingRole.playback.indicatorSurface == .video)
+    }
+
+    @Test func loadingStatePreservesCallerOwnedLocalizationResources() {
+        let label = LocalizedStringResource("Please wait")
+        let state = PlinxLoadingStateView(role: .content, label: label)
+        #expect(state.role == .content)
+        #expect(state.label != nil)
+    }
+
+    @Test func calmPremiumFocusStyleKeepsSelectionAndFocusPoliciesDistinct() {
+        let style = PlinxFocusSurfaceStyle.calmPremium
+        #expect(style.selectionOpacity < style.focusRingOpacity)
+        #expect(style.focusedScale > 1)
+        #expect(style.focusedScale < 1.1)
+        #expect(style.focusedShadowRadius > 0)
+    }
 }
 #endif

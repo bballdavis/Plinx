@@ -24,6 +24,7 @@ struct PlaybackLauncher {
     let coordinator: any PlaybackPresenting
     let safetyPolicy: SafetyPolicy
 
+    @discardableResult
     func play(
         ratingKey: String,
         type: PlexItemType,

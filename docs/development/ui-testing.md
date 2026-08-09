@@ -90,7 +90,8 @@ variants together. `playerBuffering` renders the actual Plinx-owned video
 overlay against a deterministic colorful frame. Branding UI tests assert that
 these fixtures contain the expected Plinx accessibility identifiers and no
 native activity indicator. `playerLoading` renders the immediate playback
-preparation surface with the hero loader and kid-friendly back control.
+preparation surface with the high-contrast playback beacon and kid-friendly
+back control.
 `homeLoading` renders the production full-screen hero identity: the existing
 animated rounded-square beacon at hero scale, with the full-color loop centered
 inside, the outlined white wordmark beneath it, and no visible loading caption.
@@ -122,23 +123,51 @@ capture when the simulator is otherwise ready.
 
 ### tvOS focus rules
 
+- one persistent shell owns the Plinx lockup, Home, Search, Library, optional
+  Explore, and Settings; child screens must not add a second root picker
+- only the active tab stack is mounted and eligible for focus
 - every primary tvOS action must be reachable with remote UDLR navigation
 - do not rely on touch, pointer, or click-only interactions on Apple TV
 - keep retry and refresh affordances focusable when they are part of the recovery path
 - verify the default focus path for any screen that has a single primary action
-- on Home and Library, pressing up from the first content row must return focus to the visible `Home` button in the header instead of trapping focus in content
-- pressing down from the header must return to the first available object below it: the first Home card, first Library tile, or the selected library-detail filter before the first media card
+- on Home, Search, Library, and Explore, pressing up from the first local region
+  returns focus to that screen's selected header item instead of always jumping
+  to Home
+- pressing down from the header restores the last valid object for that screen,
+  then falls back to the nearest sibling, first content item, or selected header
+- library, collection, playlist, and media details use a secondary Back/title/filter
+  context row; Menu pops exactly one local level
 - empty and loading states must leave focus in the header until a real destination exists; content arrival must not steal focus
+- opening parent-gated Settings records the invoking screen and focus; closing
+  immediately relocks Settings and restores that snapshot
+- playback preparation exposes a default-focused Back action, supports Menu
+  cancellation, and returns to the originating card after failure or exit
 - the tvOS parental gate Select action enters the focused digit and never submits or dismisses the gate; only the explicit Unlock action submits
 - `AppleTVInteractionUITests` sends real Siri Remote UDLR and Select events
   through deterministic, network-free browse fixtures. Navigation changes must
   assert the exact focused accessibility identifier for Home, Library root,
   empty content, and Library detail.
 
+Pure focus-state tests cover per-tab restoration, modal restoration, removed
+items, and nearest-sibling fallback. Current network-free remote tests cover
+the persistent header, populated and empty browse states, Library drill-down,
+the parental gate, Settings root and subpage Menu behavior, the rating chooser,
+and playback preparation. Search keyboard/results, Settings reordering,
+optional Explore states, and playback buffering/failure/exit remain required
+parts of the manual release-candidate navigation matrix until deterministic
+fixtures are added for those flows.
+
+The release-candidate visual checklist targets tvOS 4K, iPhone portrait, and
+iPad landscape for authentication, loading, home chrome, browse/detail,
+Settings, player, empty, and error states. Also verify Reduce Motion, Increase
+Contrast, large Dynamic Type on iOS/iPad, VoiceOver order and labels, and Siri
+Remote or Switch Control traversal. A physical Apple TV smoke pass remains
+required before release.
+
 ### Live smoke checks
 
 - live home content renders expected sections
-- Other Videos content keeps landscape geometry
+- Other Videos content keeps landscape geometry and uses each item's Plex thumbnail on Home plus Library Recommended and Browse
 - Movies/TV content keeps portrait geometry
 - section types remain visually distinct
 
