@@ -147,7 +147,6 @@ xcodebuild_args=(
   -archivePath "$ARCHIVE_PATH"
   -derivedDataPath "$PLINX_XCODE_DERIVED_DATA_PATH"
   CURRENT_PROJECT_VERSION="$BUILD_NUMBER"
-  CODE_SIGN_IDENTITY="Apple Distribution"
   CODE_SIGN_STYLE="Automatic"
 )
 
