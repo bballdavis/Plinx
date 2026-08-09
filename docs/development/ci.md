@@ -27,6 +27,15 @@ It currently enforces:
 - Xcode project generation
 - iPhone and iPad app builds, including compilation of app unit/UI test targets
 
+Pull requests targeting `dev` or `main` run the verification jobs. Pushes to
+`dev` and `dev-testflight` run those same verification jobs. Only a push to
+`dev-testflight`, after every check passes, submits a new internal-only
+TestFlight build. The delivery job never runs for `dev`, pull requests, or a
+manual workflow dispatch.
+
+See [TestFlight delivery](testflight-delivery.md) for the one-time App Store
+Connect and GitHub secret setup, scope, and failure handling.
+
 ## Documentation Workflow
 
 `.github/workflows/docs.yml` runs the documentation tests, TypeScript
@@ -107,7 +116,8 @@ remote branch.
 
 - live Plex-dependent UI smoke
 - live parity checks that require local credentials
-- manual App Store upload
+- TestFlight builds for pull requests, manual dispatches, `main`, or release tags
+- external TestFlight distribution or App Store submission
 
 Run those locally when the change affects playback, real-data rendering, safety filtering against live content, or release packaging.
 
@@ -122,6 +132,7 @@ gh workflow run build.yml --ref your-branch
 Update this file in the same PR when changing:
 
 - workflow jobs or sequencing
+- TestFlight delivery triggers, signing, or upload behavior
 - enforced test scope
 - docs-guard rules
 - required branch pairing or dependency assumptions that CI relies on

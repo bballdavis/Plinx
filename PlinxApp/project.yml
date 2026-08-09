@@ -133,6 +133,9 @@ targets:
         CFBundleDisplayName: Plinx
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        # Standard platform and network encryption only; see the TestFlight
+        # delivery runbook before changing this compliance declaration.
+        ITSAppUsesNonExemptEncryption: false
         PlinxBuildConfiguration: $(CONFIGURATION)
         NSLocalNetworkUsageDescription: Plinx connects to Plex Media Servers and a parent-configured Youtarr server on your local network.
         NSAppTransportSecurity:

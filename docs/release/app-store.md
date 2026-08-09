@@ -36,7 +36,7 @@ Plinx requires an existing Plex account and access to a Plex Media Server. Avail
 - **Marketing URL:** leave blank for version 1 unless a maintained public product page is created.
 - **Copyright:** use the current calendar year and the legal name on the Apple Developer account.
 - **Content rights:** state that Plinx plays and downloads media from Plex servers the reviewer/user is authorized to access; Plinx does not provide a media catalog.
-- **Export compliance:** answer from the final binary and Apple’s current questionnaire. The app uses standard platform/network encryption and does not implement a proprietary cryptographic service.
+- **Export compliance:** the final archive declares `ITSAppUsesNonExemptEncryption=false`, reflecting its standard platform/network encryption and absence of proprietary cryptography. Reassess this before changing the binary’s cryptographic behavior; complete Apple’s current process if the declaration no longer applies. Internal `dev-testflight` delivery validates this declaration before upload.
 
 ## Age Rating
 

@@ -68,6 +68,7 @@ minimum_os=$(plist_value MinimumOSVersion "$INFO_PLIST")
 launch_storyboard_name=$(plist_value UILaunchStoryboardName "$INFO_PLIST")
 supported_platforms=$(plist_value CFBundleSupportedPlatforms "$INFO_PLIST")
 build_configuration=$(plist_value PlinxBuildConfiguration "$INFO_PLIST")
+uses_non_exempt_encryption=$(plist_value ITSAppUsesNonExemptEncryption "$INFO_PLIST")
 signing_identity=$(plist_value "ApplicationProperties:SigningIdentity" "$ARCHIVE_INFO")
 archive_bundle_id=$(plist_value "ApplicationProperties:CFBundleIdentifier" "$ARCHIVE_INFO")
 
@@ -80,6 +81,7 @@ archive_bundle_id=$(plist_value "ApplicationProperties:CFBundleIdentifier" "$ARC
 [[ -n "$minimum_os" ]] || fail "MinimumOSVersion is missing"
 [[ "$minimum_os" == "$EXPECTED_MINIMUM_OS" ]] || fail "Expected minimum OS $EXPECTED_MINIMUM_OS, found $minimum_os"
 [[ "$build_configuration" == "$EXPECTED_CONFIGURATION" ]] || fail "Expected $EXPECTED_CONFIGURATION configuration, found $build_configuration"
+[[ "$uses_non_exempt_encryption" == "false" ]] || fail "ITSAppUsesNonExemptEncryption must be false for the declared exempt-encryption build"
 [[ "$supported_platforms" == *"iPhoneOS"* ]] || fail "Archive is not an iOS device build"
 [[ -n "$signing_identity" ]] || fail "Archive signing identity is missing"
 [[ -n "$executable_name" ]] || fail "CFBundleExecutable is missing"
@@ -122,5 +124,6 @@ echo "  Bundle: $bundle_id"
 echo "  Version: $short_version ($bundle_version)"
 echo "  Minimum OS: $minimum_os"
 echo "  Configuration: $build_configuration"
+echo "  Non-exempt encryption: $uses_non_exempt_encryption"
 echo "  Architectures: $architectures"
 echo "  Signing identity: $signing_identity"
