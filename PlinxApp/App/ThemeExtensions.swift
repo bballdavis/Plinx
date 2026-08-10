@@ -294,6 +294,59 @@ struct PlinxChromeActionButton: View {
     }
 }
 
+/// Keeps the tvOS focus ring attached to the scaled artwork edge.
+///
+/// The ring is expanded by half its width before the combined artwork/ring is
+/// scaled. That leaves the full thumbnail unobscured and prevents the inset
+/// border that appears when a ring is applied after `scaleEffect`.
+struct PlinxTVCardFocusArtworkModifier: ViewModifier {
+    let isFocused: Bool
+    let cornerRadius: CGFloat
+    let focusedScale: CGFloat
+    let lineWidth: CGFloat
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+
+        content
+            .overlay {
+                shape
+                    .stroke(isFocused ? Color.accentColor : .clear, lineWidth: lineWidth)
+                    .padding(-(lineWidth / 2))
+            }
+            .shadow(
+                color: isFocused ? Color.accentColor.opacity(0.58) : .clear,
+                radius: isFocused ? 10 : 0
+            )
+            .shadow(
+                color: isFocused ? Color.accentColor.opacity(0.22) : .clear,
+                radius: isFocused ? 18 : 0
+            )
+            .scaleEffect(isFocused && !reduceMotion ? focusedScale : 1)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: isFocused)
+    }
+}
+
+extension View {
+    func plinxTVCardFocusArtwork(
+        isFocused: Bool,
+        cornerRadius: CGFloat,
+        focusedScale: CGFloat = 1.08,
+        lineWidth: CGFloat = 4
+    ) -> some View {
+        modifier(
+            PlinxTVCardFocusArtworkModifier(
+                isFocused: isFocused,
+                cornerRadius: cornerRadius,
+                focusedScale: focusedScale,
+                lineWidth: lineWidth
+            )
+        )
+    }
+}
+
 /// Shared Plinx chrome for the primary and secondary actions in media detail.
 /// The paired Strimr views compile into the app target, so this keeps their
 /// product-specific presentation in Plinx without forking their behavior.

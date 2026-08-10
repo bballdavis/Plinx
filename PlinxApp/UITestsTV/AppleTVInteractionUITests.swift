@@ -26,10 +26,10 @@ final class AppleTVInteractionUITests: XCTestCase {
 
         XCUIRemote.shared.press(.down)
         assertFocused(firstCard)
-        // The three-point ring expands the accessibility frame slightly; the
-        // media itself must remain unscaled when Reduce Motion is requested.
-        XCTAssertEqual(firstCard.frame.width, secondCard.frame.width, accuracy: 4)
-        XCTAssertEqual(firstCard.frame.height, secondCard.frame.height, accuracy: 4)
+        // The four-point ring sits fully outside the artwork, expanding each
+        // focused dimension by eight points. Reduce Motion must add no scale.
+        XCTAssertEqual(firstCard.frame.width - secondCard.frame.width, 8, accuracy: 2)
+        XCTAssertEqual(firstCard.frame.height - secondCard.frame.height, 8, accuracy: 2)
         capture(name: "tvOS-4K-home-focused-artwork-reduce-motion")
     }
 
@@ -66,7 +66,6 @@ final class AppleTVInteractionUITests: XCTestCase {
         let app = launch(screen: "appleTVLibraryDetailFocus")
         let library = app.buttons["main.tab.library"]
         let filter = app.buttons["library.detail.filter.recommended"]
-        let back = app.buttons["library.detail.back"]
         let firstCard = app.buttons["library.detail.card.0"]
 
         assertFocused(library)
@@ -77,9 +76,8 @@ final class AppleTVInteractionUITests: XCTestCase {
         XCUIRemote.shared.press(.up)
         assertFocused(filter)
         XCUIRemote.shared.press(.up)
-        assertFocused(back)
-        XCUIRemote.shared.press(.up)
         assertFocused(library)
+        XCTAssertFalse(app.buttons["library.detail.back"].exists)
     }
 
     func test_movingAcrossHeader_doesNotSwitchTabsUntilSelect() {
@@ -147,6 +145,8 @@ final class AppleTVInteractionUITests: XCTestCase {
             app.descendants(matching: .any)["settings.libraries.screen"]
                 .waitForExistence(timeout: 8)
         )
+        XCTAssertTrue(app.buttons["settings.back"].exists)
+        capture(name: "tvOS-4K-settings-subpage-back")
 
         XCUIRemote.shared.press(.menu)
         assertFocused(libraries, timeout: 8)

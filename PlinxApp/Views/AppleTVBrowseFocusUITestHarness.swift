@@ -13,7 +13,6 @@ struct AppleTVBrowseFocusUITestHarness: View {
     private enum ContentTarget: Hashable {
         case homeCard(Int)
         case libraryTile(Int)
-        case detailBack
         case detailFilter
         case detailCard(Int)
     }
@@ -135,23 +134,6 @@ struct AppleTVBrowseFocusUITestHarness: View {
     private var libraryDetailContent: some View {
         VStack(spacing: 34) {
             fixtureButton(
-                "Back",
-                identifier: "library.detail.back",
-                isFocused: focusedContent == .detailBack
-            )
-                .focused($focusedContent, equals: .detailBack)
-                .onMoveCommand { direction in
-                    switch direction {
-                    case .up:
-                        focusedShellTarget = .tab(.library)
-                    case .down:
-                        focusedContent = .detailFilter
-                    default:
-                        break
-                    }
-                }
-
-            fixtureButton(
                 "Recommended",
                 identifier: "library.detail.filter.recommended",
                 isFocused: focusedContent == .detailFilter
@@ -160,7 +142,7 @@ struct AppleTVBrowseFocusUITestHarness: View {
                 .onMoveCommand { direction in
                     switch direction {
                     case .up:
-                        focusedContent = .detailBack
+                        focusedShellTarget = .tab(.library)
                     case .down where hasContent:
                         focusedContent = .detailCard(0)
                     default:
@@ -327,13 +309,10 @@ private struct AppleTVFocusFixtureButton: View {
             }
             .frame(width: 360, height: 150)
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .plinxFocusSurface(
-                isSelected: false,
+            .plinxTVCardFocusArtwork(
                 isFocused: isFocused,
-                style: PlinxFocusSurfaceStyle(
-                    focusedScale: reduceMotion ? 1 : 1.08,
-                    cornerRadius: 18
-                )
+                cornerRadius: 18,
+                focusedScale: reduceMotion ? 1 : 1.08
             )
         }
         .buttonStyle(PlinkButtonStyle())

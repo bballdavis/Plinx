@@ -117,4 +117,71 @@ final class AppleTVBrowseFocusRoutingTests: XCTestCase {
             "c"
         )
     }
+
+    func test_recommendationsAddDiscoveryWhenOnlyContinueWatchingExists() {
+        let continueWatching = Hub(
+            id: "hub.inProgress",
+            title: "Continue Watching",
+            items: [collection("continue")]
+        )
+
+        XCTAssertTrue(
+            LibraryRecommendationFallbackPolicy.needsDiscoveryHub([continueWatching])
+        )
+    }
+
+    func test_recommendationsKeepARealPlexDiscoveryHub() {
+        let continueWatching = Hub(
+            id: "hub.inProgress",
+            title: "Continue Watching",
+            items: [collection("continue")]
+        )
+        let topRated = Hub(
+            id: "hub.topRated",
+            title: "Top Rated",
+            items: [collection("top")]
+        )
+
+        XCTAssertFalse(
+            LibraryRecommendationFallbackPolicy.needsDiscoveryHub([continueWatching, topRated])
+        )
+    }
+
+    func test_discoveryCandidatesExcludeExistingItemsAndPreserveOrder() {
+        let existing = Hub(
+            id: "hub.inProgress",
+            title: "Continue Watching",
+            items: [collection("existing")]
+        )
+        let candidates = [
+            collection("existing"),
+            collection("new-1"),
+            collection("new-1"),
+            collection("new-2")
+        ]
+
+        let result = LibraryRecommendationFallbackPolicy.discoveryItems(
+            from: candidates,
+            excluding: [existing]
+        )
+
+        XCTAssertEqual(result.map(\.id), ["new-1", "new-2"])
+    }
+
+    private func collection(_ id: String) -> MediaDisplayItem {
+        .collection(
+            CollectionMediaItem(
+                id: id,
+                key: "/library/collections/\(id)/children",
+                guid: "plex://collection/\(id)",
+                type: .collection,
+                title: id,
+                summary: nil,
+                thumbPath: nil,
+                childCount: nil,
+                minYear: nil,
+                maxYear: nil
+            )
+        )
+    }
 }

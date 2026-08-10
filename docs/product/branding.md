@@ -161,8 +161,11 @@ Default rule:
 - larger only for dedicated onboarding, app-transition, or tvOS hero layouts
 
 The persistent tvOS shell uses a compact 220 by 52-point lockup. Child screens
-never repeat that root identity; detail screens use a
-secondary context row for Back, title, and local filters.
+never repeat that root identity. Library detail screens use the persistent
+Library destination plus the remote Menu action instead of adding a second
+page-level Back button. Parent-only Settings destinations are the exception:
+they expose a visible Back action below the shell so a parent can pop a
+subpage without leaving and re-entering the gate.
 
 ## Loading hierarchy
 
@@ -814,7 +817,9 @@ Rules:
 - The home lockup should consume the height already reserved by the search and
   settings controls. Scale it with that chrome row, capped at 56 points high,
   without pushing the first content section down.
-- Section titles should remain large and readable, with enough spacing to breathe.
+- Section titles should remain large and readable. tvOS browse rows use a
+  30-point bold rounded title, while vertical section gaps stay compact enough
+  to keep the next row visible without clipping the focus halo.
 - On tvOS, the main header is a persistent top overlay: use 52-point controls,
   22-point icons, footnote labels, 108-point minimum tab widths, and 16-point
   corners. Center the controls-width glass capsule independently of the leading
@@ -823,6 +828,9 @@ Rules:
 - On tvOS, hero artwork should overscan to the top-right edge and blend only on the left and bottom into the dark shell. Keep the clear-logo layer above those fades with no dark rectangular backing.
 - On tvOS, text metadata belongs in the leading safe area, sized to its content with continuous corners and a softly feathered dark edge. It must reserve the trailing logo area rather than overlap it.
 - On tvOS library detail screens, Recommended/Browse/Collections controls sit below the hero metadata and before the first content section, never in front of the artwork.
+- tvOS library detail screens do not add a local Back tile. Move Up from the
+  local filter row returns focus to the persistent Library destination; Menu
+  dismisses the detail screen.
 - On tvOS, hero artwork should overscan slightly past the top and right edges so the shell background never peeks through there.
 - On tvOS, the hero is a bounded pinned region: artwork reaches the physical top and right edges, metadata and artwork share one bottom guide, and vertical content clips at that guide instead of painting over the hero.
 - tvOS selected media tiles should scale up slightly and use a 4-point solid accent border around the scaled outer artwork bounds plus a short, fully fading accent glow. Reserve at least 24 points around horizontal carousels for the halo; only horizontal carousel clipping may be disabled.
@@ -846,6 +854,9 @@ Rules:
   30-point primary labels, and readable supporting copy. Do not add an X close
   control: the persistent main navigation is the primary exit, and Menu pops
   one Settings subpage or closes the Settings root.
+- Every tvOS Settings subpage reserves the persistent shell clearance and adds
+  one visible Back action above its scrollable content. The inset must prevent
+  titles and rows from scrolling under the Plinx lockup or navigation capsule.
 - While Settings or its parental gate is visible, Settings—not the originating
   content tab—owns the selected navigation appearance. Selecting any content
   destination immediately closes and relocks Settings, then restores that

@@ -62,7 +62,7 @@ struct PlinxSettingsChrome: ViewModifier {
         #if os(tvOS)
         if handlesExit {
             if let navigationCoordinator {
-                settingsSurface(content)
+                settingsDestinationSurface(content)
                     .onAppear {
                         navigationCoordinator.register(id: destinationID, dismiss: dismiss)
                     }
@@ -70,7 +70,7 @@ struct PlinxSettingsChrome: ViewModifier {
                         navigationCoordinator.unregister(id: destinationID)
                     }
             } else {
-                settingsSurface(content)
+                settingsDestinationSurface(content)
                     .onExitCommand {
                         dismiss()
                     }
@@ -90,6 +90,38 @@ struct PlinxSettingsChrome: ViewModifier {
         content
             .background(PlinxAmbientBackground(intensity: .restrained))
             .tint(.accentColor)
+    }
+
+    private func settingsDestinationSurface(_ content: Content) -> some View {
+        settingsSurface(content)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                HStack {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Label {
+                            Text("common.actions.back", tableName: "Plinx")
+                        } icon: {
+                            Image(systemName: "chevron.left")
+                        }
+                    }
+                    .buttonStyle(PlinxSettingsActionButtonStyle())
+                    .focusEffectDisabled()
+                    .accessibilityIdentifier("settings.back")
+
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 42)
+                .padding(.top, PlinxTVShellMetrics.contentClearance + 12)
+                .padding(.bottom, 14)
+                .background(
+                    LinearGradient(
+                        colors: [Color.appBackground, Color.appBackground.opacity(0.94), .clear],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+            }
     }
     #endif
 }

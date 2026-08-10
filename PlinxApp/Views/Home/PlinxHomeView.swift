@@ -147,7 +147,7 @@ struct PlinxHomeView: View {
                 EmptyView()
             },
             rowsContent: { _ in
-                LazyVStack(alignment: .leading, spacing: 24) {
+                LazyVStack(alignment: .leading, spacing: 12) {
                     ForEach(Array(homeRows.enumerated()), id: \.element.id) { rowIndex, row in
                         hubRow(
                             row.hub,
@@ -341,7 +341,7 @@ struct PlinxHomeView: View {
     // MARK: - Hub row
 
     private func hubRow(_ hub: Hub, layout: CardLayout, sectionKey: String, rowIndex: Int, rowCount: Int) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 6) {
             Text(hub.title)
                 .font(sectionTitleFont)
                 .foregroundStyle(.white)
@@ -464,7 +464,7 @@ struct PlinxHomeView: View {
 
     private var sectionTitleFont: Font {
         #if os(tvOS)
-        .system(size: 22, weight: .bold, design: .default)
+        .system(size: 30, weight: .bold, design: .rounded)
         #else
         .title3.bold()
         #endif
@@ -496,7 +496,7 @@ struct PlinxHomeView: View {
 
     private var cardFocusPadding: CGFloat {
         #if os(tvOS)
-        24
+        10
         #else
         0
         #endif
@@ -504,7 +504,7 @@ struct PlinxHomeView: View {
 
     private var bottomContentPadding: CGFloat {
         #if os(tvOS)
-        36
+        24
         #else
         120
         #endif
@@ -582,13 +582,11 @@ private struct HomeMediaCardBody: View {
     let imageViewModel: MediaImageViewModel
 
     @Environment(\.isFocused) private var isFocused
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
     private var thumbHeight: CGFloat { cardWidth / ratio }
 
     private var focusHaloInset: CGFloat {
         #if os(tvOS)
-        24
+        14
         #else
         0
         #endif
@@ -619,7 +617,7 @@ private struct HomeMediaCardBody: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             ZStack(alignment: .bottom) {
                     MediaImageView(
                         viewModel: imageViewModel
@@ -664,16 +662,10 @@ private struct HomeMediaCardBody: View {
                     }
             }
             .frame(width: cardWidth, height: thumbHeight)
-            .overlay {
-                RoundedRectangle(
-                    cornerRadius: artworkCornerRadius,
-                    style: .continuous
-                )
-                .stroke(Color.accentColor, lineWidth: isFocused ? 4 : 0)
-            }
-            .scaleEffect(isFocused && !reduceMotion ? 1.08 : 1.0)
-            .shadow(color: isFocused ? Color.accentColor.opacity(0.58) : .clear, radius: isFocused ? 10 : 0)
-            .shadow(color: isFocused ? Color.accentColor.opacity(0.22) : .clear, radius: isFocused ? 18 : 0)
+            .plinxTVCardFocusArtwork(
+                isFocused: isFocused,
+                cornerRadius: artworkCornerRadius
+            )
             .frame(width: cardWidth + (focusHaloInset * 2), height: thumbHeight + (focusHaloInset * 2))
 
             Text(item.primaryLabel)
@@ -756,7 +748,7 @@ struct SharedTvBrowsePageLayout<NavigationContent: View, FilterContent: View, Ro
                         .background(Color.appBackground.ignoresSafeArea(edges: [.top, .horizontal]))
 
                     ScrollView {
-                        VStack(alignment: .leading, spacing: 18) {
+                        VStack(alignment: .leading, spacing: 10) {
                             if showsFilters {
                                 filterContent()
                                     .padding(.top, 6)
@@ -764,8 +756,8 @@ struct SharedTvBrowsePageLayout<NavigationContent: View, FilterContent: View, Ro
 
                             rowsContent(scrollProxy)
                         }
-                        .padding(.top, 10)
-                        .padding(.bottom, 22)
+                        .padding(.top, 6)
+                        .padding(.bottom, 16)
                         .frame(minHeight: rowsHeight, alignment: .top)
                     }
                     .clipped()
@@ -775,7 +767,7 @@ struct SharedTvBrowsePageLayout<NavigationContent: View, FilterContent: View, Ro
                 .frame(width: proxy.size.width - leadingShift, alignment: .leading)
                 .background(Color.appBackground.ignoresSafeArea())
             }
-            .ignoresSafeArea(edges: .top)
+            .ignoresSafeArea(edges: [.top, .trailing])
         }
     }
 
