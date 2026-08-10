@@ -17,11 +17,16 @@ struct ParentalGateView: View {
     @State private var lockoutMessage: String?
 
     var onAllowed: () -> Void
+    var onRequestShellNavigationFocus: () -> Void
 
-    init(onAllowed: @escaping () -> Void) {
+    init(
+        onAllowed: @escaping () -> Void,
+        onRequestShellNavigationFocus: @escaping () -> Void = {}
+    ) {
         var rng = SystemRandomNumberGenerator()
         _challenge = State(initialValue: mathGate.makeChallenge(rng: &rng))
         self.onAllowed = onAllowed
+        self.onRequestShellNavigationFocus = onRequestShellNavigationFocus
     }
 
     private var usePIN: Bool { parentalAccessCoordinator.hasPIN }
@@ -72,6 +77,7 @@ struct ParentalGateView: View {
                         tableName: "Plinx",
                         comment: ""
                     ),
+                    onRequestShellNavigationFocus: onRequestShellNavigationFocus,
                     onSubmit: submitPin
                 )
                 #else
@@ -136,6 +142,7 @@ struct ParentalGateView: View {
                     tableName: "Plinx",
                     comment: ""
                 ),
+                onRequestShellNavigationFocus: onRequestShellNavigationFocus,
                 onSubmit: submitMathAnswer
             )
             #else
@@ -222,6 +229,7 @@ private struct TvParentalNumberPad: View {
     let isSecure: Bool
     let maximumDigits: Int
     let accessibilityLabel: String
+    let onRequestShellNavigationFocus: () -> Void
     let onSubmit: () -> Void
 
     @FocusState private var focusedKey: Key?
@@ -279,6 +287,11 @@ private struct TvParentalNumberPad: View {
         }
         .buttonStyle(TvParentalKeyStyle(isUnlock: key == .unlock))
         .focused($focusedKey, equals: key)
+        .onMoveCommand { direction in
+            guard direction == .up, isTopRow(key) else { return }
+            focusedKey = nil
+            onRequestShellNavigationFocus()
+        }
         .accessibilityIdentifier(accessibilityIdentifier(for: key))
         .accessibilityValue(
             key == .unlock ? PlinxBrandingSemantics.parentalGateUnlockStyleValue : ""
@@ -295,6 +308,15 @@ private struct TvParentalNumberPad: View {
             text.removeLast()
         case .unlock:
             onSubmit()
+        }
+    }
+
+    private func isTopRow(_ key: Key) -> Bool {
+        switch key {
+        case .digit(1), .digit(2), .digit(3):
+            true
+        default:
+            false
         }
     }
 

@@ -135,10 +135,12 @@ struct PlinxCollectionDetailView: View {
                 )
                 .plinxFocusSurface(
                     isSelected: false,
-                    isFocused: focusedTarget == .back
+                    isFocused: focusedTarget == .back,
+                    style: PlinxFocusSurfaceStyle(cornerRadius: 18)
                 )
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PlinkButtonStyle())
+            .focusEffectDisabled()
             .focused($focusedTarget, equals: .back)
             .onMoveCommand { direction in
                 switch direction {
@@ -160,7 +162,8 @@ struct PlinxCollectionDetailView: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 42)
-        .padding(.vertical, 16)
+        .padding(.top, PlinxTVShellMetrics.contentClearance + 16)
+        .padding(.bottom, 16)
         .background(Color.black.opacity(0.18))
     }
 
@@ -190,9 +193,14 @@ struct PlinxCollectionDetailView: View {
             )
             .aspectRatio(aspectRatio, contentMode: .fit)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .plinxFocusSurface(isSelected: false, isFocused: isFocused)
+            .plinxFocusSurface(
+                isSelected: false,
+                isFocused: isFocused,
+                style: PlinxFocusSurfaceStyle(cornerRadius: 14)
+            )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PlinkButtonStyle())
+        .focusEffectDisabled()
         .focused($focusedTarget, equals: .item(item.id))
         .onMoveCommand { direction in
             guard direction == .up,

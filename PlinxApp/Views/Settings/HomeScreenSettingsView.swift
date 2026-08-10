@@ -106,6 +106,7 @@ struct HomeScreenSettingsView: View {
                             }
                         }
                         .buttonStyle(PlinxSettingsActionButtonStyle())
+                        .focusEffectDisabled()
                         .disabled(index == 0)
                         .accessibilityLabel(Text("settings.actions.moveUp", tableName: "Plinx"))
 
@@ -117,6 +118,7 @@ struct HomeScreenSettingsView: View {
                             }
                         }
                         .buttonStyle(PlinxSettingsActionButtonStyle())
+                        .focusEffectDisabled()
                         .disabled(index == orderedSections.count - 1)
                         .accessibilityLabel(Text("settings.actions.moveDown", tableName: "Plinx"))
                     }

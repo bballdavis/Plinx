@@ -102,10 +102,12 @@ struct PlinxPlaylistDetailView: View {
                 )
                 .plinxFocusSurface(
                     isSelected: false,
-                    isFocused: isBackFocused
+                    isFocused: isBackFocused,
+                    style: PlinxFocusSurfaceStyle(cornerRadius: 18)
                 )
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PlinkButtonStyle())
+            .focusEffectDisabled()
             .focused($isBackFocused)
             .onMoveCommand { direction in
                 guard direction == .up else { return }
@@ -121,7 +123,8 @@ struct PlinxPlaylistDetailView: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 42)
-        .padding(.vertical, 16)
+        .padding(.top, PlinxTVShellMetrics.contentClearance + 16)
+        .padding(.bottom, 16)
         .background(Color.black.opacity(0.18))
     }
     #endif

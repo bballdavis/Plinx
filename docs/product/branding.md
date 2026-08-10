@@ -160,8 +160,8 @@ Default rule:
 - 220-280 pt max width for standard hero/logo moments on iPhone and iPad
 - larger only for dedicated onboarding, app-transition, or tvOS hero layouts
 
-The persistent tvOS shell uses a compact 230-point lockup capped at 62 points
-high. Child screens never repeat that root identity; detail screens use a
+The persistent tvOS shell uses a compact 220 by 52-point lockup. Child screens
+never repeat that root identity; detail screens use a
 secondary context row for Back, title, and local filters.
 
 ## Loading hierarchy
@@ -199,7 +199,17 @@ visually distinct:
 The Apple TV root shell is persistent and owns the Plinx lockup, primary
 destinations, and Settings action. Moving focus across destinations does not
 switch screens; Select activates one. Only the active tab stack is mounted, so
-hidden content cannot remain a focus candidate.
+hidden content cannot remain a focus candidate. Its compact glass capsule is a
+top-layer overlay rather than a reserved full-width band: the capsule stays
+centered independently of the leading logo, while heroes and backgrounds can
+continue behind both. Scrollable foreground content reserves only enough
+initial clearance to remain readable and focusable.
+
+Main-navigation selection never uses a title underline on iOS, iPadOS, or
+tvOS. Accent fill plus icon/text color and the shared ring provide the selected
+cue. On tvOS, the ring, fill, content, shadow, and optional scale form one focus
+surface so the ring always follows the scaled outer shape. Reduce Motion keeps
+the fill and ring while resolving the scale to 1.0.
 
 ## Settings surfaces
 
@@ -208,7 +218,9 @@ navigation over the ambient shell. tvOS uses large dark-glass rows with the
 shared focus surface, deterministic first-focus restoration, and explicit Move
 Up/Move Down actions instead of drag-only reordering. Legal, privacy, support,
 and source links stay inside this gated surface and never appear in kid-facing
-navigation.
+navigation. Focused tvOS Settings controls remain at 1.0 scale with white
+content, a 14% accent tint, a 3-point accent-gradient ring, and a restrained
+shadow; do not layer the native bright focus plate over this treatment.
 
 ### Clear-space rule
 
@@ -803,7 +815,11 @@ Rules:
   settings controls. Scale it with that chrome row, capped at 56 points high,
   without pushing the first content section down.
 - Section titles should remain large and readable, with enough spacing to breathe.
-- On tvOS, the main header navigation should be a centered, controls-width glass capsule; do not leave empty glass spanning the hero.
+- On tvOS, the main header is a persistent top overlay: use 52-point controls,
+  22-point icons, footnote labels, 108-point minimum tab widths, and 16-point
+  corners. Center the controls-width glass capsule independently of the leading
+  220 by 52-point lockup; do not leave empty glass or a separator spanning the
+  hero.
 - On tvOS, hero artwork should overscan to the top-right edge and blend only on the left and bottom into the dark shell. Keep the clear-logo layer above those fades with no dark rectangular backing.
 - On tvOS, text metadata belongs in the leading safe area, sized to its content with continuous corners and a softly feathered dark edge. It must reserve the trailing logo area rather than overlap it.
 - On tvOS library detail screens, Recommended/Browse/Collections controls sit below the hero metadata and before the first content section, never in front of the artwork.
@@ -819,14 +835,24 @@ Current settings language:
 - softened charcoal grouped panels
 - white text with muted gray support labels
 - accent icons and toggles
-- floating close/action controls
+- touch-only close controls on iOS and iPadOS
 
 Rules:
 
 - Settings should feel parent-safe and serious, but still clearly part of Plinx.
 - Use accent for the actionable part of each setting, not as page wallpaper.
 - Group panels should feel soft and elevated, never harsh or sterile.
-- On tvOS, use a near-full-screen parent modal with large grouped rows, 30-point primary labels, readable supporting copy, and a persistent close control.
+- On tvOS, use a near-full-screen parent modal with large grouped rows,
+  30-point primary labels, and readable supporting copy. Do not add an X close
+  control: the persistent main navigation is the primary exit, and Menu pops
+  one Settings subpage or closes the Settings root.
+- While Settings or its parental gate is visible, Settings—not the originating
+  content tab—owns the selected navigation appearance. Selecting any content
+  destination immediately closes and relocks Settings, then restores that
+  tab's saved navigation and focus state. Selecting Settings again is a no-op.
+- Focused Settings rows keep their normal geometry: use a dark row, white
+  text/icons, 14% accent fill, a 3-point accent-gradient outer ring, and a
+  restrained shadow with no native white focus plate.
 - tvOS rating choices use neutral text and a selected checkmark. Accent outlines communicate focus; never place accent-colored rating text on an accent-colored pill.
 
 ## Profile Selection

@@ -6,21 +6,32 @@ public struct PlinxFocusSurfaceStyle: Sendable, Equatable {
     public let focusRingOpacity: Double
     public let focusedScale: CGFloat
     public let focusedShadowRadius: CGFloat
+    public let cornerRadius: CGFloat
+    public let focusedFillOpacity: Double?
 
     public init(
         selectionOpacity: Double = 0.72,
         focusRingOpacity: Double = 0.98,
         focusedScale: CGFloat = 1.035,
-        focusedShadowRadius: CGFloat = 18
+        focusedShadowRadius: CGFloat = 18,
+        cornerRadius: CGFloat = 18,
+        focusedFillOpacity: Double? = nil
     ) {
         self.selectionOpacity = selectionOpacity
         self.focusRingOpacity = focusRingOpacity
         self.focusedScale = focusedScale
         self.focusedShadowRadius = focusedShadowRadius
+        self.cornerRadius = cornerRadius
+        self.focusedFillOpacity = focusedFillOpacity
     }
 
     /// The calm premium default: persistent selection, with a brighter live-focus cue.
     public static let calmPremium = Self()
+
+    /// Resolves motion without changing the focused fill or ring cue.
+    public func resolvedScale(isFocused: Bool, reduceMotion: Bool) -> CGFloat {
+        isFocused && !reduceMotion ? focusedScale : 1
+    }
 }
 
 /// Separates persistent selection from transient platform focus.
@@ -42,10 +53,18 @@ public struct PlinxFocusSurfaceModifier: ViewModifier {
     }
 
     public func body(content: Content) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
-        let focusScale = isFocused && !reduceMotion ? style.focusedScale : 1
+        let shape = RoundedRectangle(cornerRadius: style.cornerRadius, style: .continuous)
+        let focusScale = style.resolvedScale(
+            isFocused: isFocused,
+            reduceMotion: reduceMotion
+        )
 
         content
+            .background {
+                if isFocused, let focusedFillOpacity = style.focusedFillOpacity {
+                    shape.fill(Color.accentColor.opacity(focusedFillOpacity))
+                }
+            }
             .overlay {
                 shape.stroke(
                     PlinxBrand.gradient,

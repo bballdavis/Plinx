@@ -47,6 +47,66 @@ enum HeaderFocusOrder {
     }
 }
 
+enum RootTabSelectionPolicy {
+    struct Decision: Equatable {
+        let destination: MainCoordinator.Tab
+        let closesSettings: Bool
+        let resetsNavigationStack: Bool
+    }
+
+    static func decision(
+        isSettingsPresented: Bool,
+        currentTab: MainCoordinator.Tab,
+        selectedTab: MainCoordinator.Tab
+    ) -> Decision {
+        Decision(
+            destination: selectedTab,
+            closesSettings: isSettingsPresented,
+            resetsNavigationStack: !isSettingsPresented && currentTab == selectedTab
+        )
+    }
+}
+
+#if os(tvOS)
+struct PlinxTVShellHeader: View {
+    let tabs: [KidsMainTabPicker.TabItem]
+    let selectedTab: Binding<MainCoordinator.Tab>
+    let selectedAction: KidsMainTabPicker.TabItem.Action?
+    let focusedTarget: FocusState<PlinxTVShellFocusTarget?>.Binding
+    let onSelect: (MainCoordinator.Tab) -> Void
+    let onAction: (KidsMainTabPicker.TabItem.Action) -> Void
+    let onMoveDown: () -> Void
+
+    var body: some View {
+        KidsMainTabPicker(
+            tabs: tabs,
+            selectedTab: selectedTab,
+            selectedAction: selectedAction,
+            focusedTarget: focusedTarget,
+            onSelect: onSelect,
+            onAction: onAction,
+            onMoveDown: onMoveDown,
+            placement: .header
+        )
+        .overlay(alignment: .leading) {
+            PlinxHomeHeaderLogoView(
+                accessibilityIdentifier: "tv.shell.logo",
+                maxWidth: PlinxTVShellMetrics.logoMaxWidth,
+                logoHeight: PlinxTVShellMetrics.logoHeight
+            )
+            .frame(maxWidth: 320, alignment: .leading)
+            .padding(.leading, 14)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+        .padding(.horizontal, 4)
+        .padding(.top, 1)
+        .padding(.bottom, 4)
+        .focusSection()
+    }
+}
+#endif
+
 struct RootTabView: View {
     private struct QuickActionOption: Identifiable {
         let id: String
@@ -85,6 +145,7 @@ struct RootTabView: View {
     @State private var mediaFocusModel = MediaFocusModel()
     @StateObject private var tvFocusCoordinator = PlinxTVFocusCoordinator()
     @State private var settingsNavigationCoordinator = PlinxSettingsNavigationCoordinator()
+    @State private var settingsExitDestination: MainCoordinator.Tab?
     @FocusState private var focusedShellTarget: PlinxTVShellFocusTarget?
     @FocusState private var focusedQuickActionID: String?
     #endif
@@ -289,10 +350,16 @@ struct RootTabView: View {
                     refreshYoutarrConfigurationState()
                     #if os(tvOS)
                     let restoration = tvFocusCoordinator.endModal()
-                    tvFocusCoordinator.activate(
-                        restoration?.contentRegion ?? contentRegion(for: activeRootTab)
-                    )
-                    focusedShellTarget = restoration?.shellTarget ?? .tab(activeRootTab)
+                    if let destination = settingsExitDestination {
+                        settingsExitDestination = nil
+                        tvFocusCoordinator.activate(contentRegion(for: destination))
+                        focusedShellTarget = .tab(destination)
+                    } else {
+                        tvFocusCoordinator.activate(
+                            restoration?.contentRegion ?? contentRegion(for: activeRootTab)
+                        )
+                        focusedShellTarget = restoration?.shellTarget ?? .tab(activeRootTab)
+                    }
                     #endif
                 }
             }
@@ -489,14 +556,15 @@ struct RootTabView: View {
             #endif
 
         #if os(tvOS)
-        VStack(spacing: 0) {
-            tvOSShellHeader
-
+        ZStack(alignment: .top) {
             if showSettings {
                 tvOSSettingsContent
             } else {
                 content
             }
+
+            tvOSShellHeader
+                .zIndex(1)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(PlinxAmbientBackground(intensity: .restrained))
@@ -552,38 +620,15 @@ struct RootTabView: View {
 
     #if os(tvOS)
     private var tvOSShellHeader: some View {
-        HStack(spacing: 30) {
-            PlinxHomeHeaderLogoView(
-                accessibilityIdentifier: "tv.shell.logo",
-                maxWidth: 230,
-                logoHeight: 62
-            )
-            .accessibilityHidden(true)
-
-            KidsMainTabPicker(
-                tabs: visibleTabs,
-                selectedTab: tabBinding,
-                focusedTarget: $focusedShellTarget,
-                onSelect: handleTabSelection,
-                onAction: handleBottomAction,
-                onMoveDown: requestFirstContentFocus,
-                placement: .header
-            )
-        }
-        .padding(.horizontal, 58)
-        .padding(.top, 18)
-        .padding(.bottom, 14)
-        .background(.ultraThinMaterial)
-        .overlay(alignment: .bottom) {
-            LinearGradient(
-                colors: [.clear, Color.accentColor.opacity(0.52), .clear],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-            .frame(height: 1)
-        }
-        .focusSection()
-        .accessibilityIdentifier("tv.shell.header")
+        PlinxTVShellHeader(
+            tabs: visibleTabs,
+            selectedTab: tabBinding,
+            selectedAction: showSettings ? .settings : nil,
+            focusedTarget: $focusedShellTarget,
+            onSelect: handleTabSelection,
+            onAction: handleBottomAction,
+            onMoveDown: requestFirstContentFocus
+        )
     }
 
     @ViewBuilder
@@ -606,6 +651,8 @@ struct RootTabView: View {
                 ParentalGateView {
                     tvFocusCoordinator.activate(.settings)
                     settingsContentFocusRequest &+= 1
+                } onRequestShellNavigationFocus: {
+                    focusedShellTarget = .settings
                 }
             }
         }
@@ -804,15 +851,34 @@ struct RootTabView: View {
     }
 
     private func handleTabSelection(_ newValue: MainCoordinator.Tab) {
-        if activeRootTab == newValue {
-            mainCoordinator.resetToRoot(for: newValue)
+        let decision = RootTabSelectionPolicy.decision(
+            isSettingsPresented: showSettings,
+            currentTab: activeRootTab,
+            selectedTab: newValue
+        )
+
+        #if os(tvOS)
+        if decision.closesSettings {
+            settingsExitDestination = decision.destination
+            showSettings = false
+            mainCoordinator.tab = decision.destination
+            return
         }
-        mainCoordinator.tab = newValue
+        #endif
+
+        if decision.resetsNavigationStack {
+            mainCoordinator.resetToRoot(for: decision.destination)
+        }
+        mainCoordinator.tab = decision.destination
     }
 
     private func handleBottomAction(_ action: KidsMainTabPicker.TabItem.Action) {
         switch action {
         case .settings:
+            guard !showSettings else { return }
+            #if os(tvOS)
+            settingsExitDestination = nil
+            #endif
             parentalAccessCoordinator.lock()
             showSettings = true
         }
@@ -886,14 +952,16 @@ struct RootTabView: View {
                 #endif
                 .foregroundStyle(.white.opacity(0.95))
             Spacer()
+            #if !os(tvOS)
             PlinxChromeButton(systemImage: "xmark") {
                 closeSettings()
             }
             .accessibilityIdentifier("settings.close")
+            #endif
         }
         #if os(tvOS)
         .padding(.horizontal, 42)
-        .padding(.top, 26)
+        .padding(.top, PlinxTVShellMetrics.contentClearance + 12)
         .padding(.bottom, 20)
         #else
         .padding(.horizontal, 20)
@@ -909,7 +977,11 @@ struct RootTabView: View {
         showsLogo: Bool = false
     ) -> AnyView? {
         #if os(tvOS)
-        nil
+        AnyView(
+            Color.clear
+                .frame(height: PlinxTVShellMetrics.contentClearance)
+                .accessibilityHidden(true)
+        )
         #else
         AnyView(
             topTitleRow(
@@ -1045,7 +1117,17 @@ struct RootTabView: View {
                     mainCoordinator.showMediaDetail(displayItem)
                 }
             )
+            #if os(tvOS)
+            tvDetailFocusRegion(
+                view.safeAreaInset(edge: .top, spacing: 0) {
+                    Color.clear
+                        .frame(height: PlinxTVShellMetrics.contentClearance)
+                        .accessibilityHidden(true)
+                }
+            )
+            #else
             tvDetailFocusRegion(view)
+            #endif
         }
     }
 

@@ -1,7 +1,50 @@
 import XCTest
+import PlinxUI
 @testable import Plinx
 
 final class AppleTVBrowseFocusRoutingTests: XCTestCase {
+    func test_settingsActionOwnsSelectionWhileSettingsIsVisible() throws {
+        let tabs = KidsMainTabPicker.TabItem.mainTabs(includeSettings: true)
+        let home = try XCTUnwrap(tabs.first(where: { $0.id == "home" }))
+        let settings = try XCTUnwrap(tabs.first(where: { $0.id == "settings" }))
+
+        XCTAssertFalse(home.isSelected(selectedTab: .home, selectedAction: .settings))
+        XCTAssertTrue(settings.isSelected(selectedTab: .home, selectedAction: .settings))
+        XCTAssertTrue(home.isSelected(selectedTab: .home, selectedAction: nil))
+        XCTAssertFalse(settings.isSelected(selectedTab: .home, selectedAction: nil))
+    }
+
+    func test_contentFocusFallback_isNilWhenARegionHasNoFocusableItems() {
+        XCTAssertNil(
+            PlinxTVFocusCoordinator.resolvedContentID(
+                currentID: "removed",
+                availableIDs: [String](),
+                preferredID: "also-removed"
+            )
+        )
+    }
+
+    func test_settingsToTabDecisionClosesWithoutResettingSavedNavigation() {
+        let decision = RootTabSelectionPolicy.decision(
+            isSettingsPresented: true,
+            currentTab: .home,
+            selectedTab: .library
+        )
+
+        XCTAssertEqual(decision.destination, .library)
+        XCTAssertTrue(decision.closesSettings)
+        XCTAssertFalse(decision.resetsNavigationStack)
+    }
+
+    func test_settingsFocusStyleUsesStableScaleAndDarkAccentCue() {
+        let style = PlinxFocusSurfaceStyle.tvSettings(cornerRadius: 20)
+
+        XCTAssertEqual(style.focusedScale, 1)
+        XCTAssertEqual(style.cornerRadius, 20)
+        XCTAssertEqual(style.focusedFillOpacity, 0.14)
+        XCTAssertEqual(style.resolvedScale(isFocused: true, reduceMotion: false), 1)
+    }
+
     func test_headerReturnTarget_keepsCurrentVisibleTab() {
         let tabs = KidsMainTabPicker.TabItem.mainTabs(
             showSearchInMainNavigation: true,

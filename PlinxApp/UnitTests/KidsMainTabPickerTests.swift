@@ -89,6 +89,42 @@ final class QuickActionFocusOrderTests: XCTestCase {
 
 final class HeaderFocusOrderTests: XCTestCase {
 
+    func test_tabSelectionPolicy_reselectingActiveTabResetsItsStack() {
+        let decision = RootTabSelectionPolicy.decision(
+            isSettingsPresented: false,
+            currentTab: .library,
+            selectedTab: .library
+        )
+
+        XCTAssertEqual(decision.destination, .library)
+        XCTAssertFalse(decision.closesSettings)
+        XCTAssertTrue(decision.resetsNavigationStack)
+    }
+
+    func test_tabSelectionPolicy_settingsExitPreservesOriginatingStack() {
+        let decision = RootTabSelectionPolicy.decision(
+            isSettingsPresented: true,
+            currentTab: .library,
+            selectedTab: .library
+        )
+
+        XCTAssertEqual(decision.destination, .library)
+        XCTAssertTrue(decision.closesSettings)
+        XCTAssertFalse(decision.resetsNavigationStack)
+    }
+
+    func test_tabSelectionPolicy_settingsExitRestoresAnotherTabsSavedState() {
+        let decision = RootTabSelectionPolicy.decision(
+            isSettingsPresented: true,
+            currentTab: .home,
+            selectedTab: .search
+        )
+
+        XCTAssertEqual(decision.destination, .search)
+        XCTAssertTrue(decision.closesSettings)
+        XCTAssertFalse(decision.resetsNavigationStack)
+    }
+
     func test_returnTarget_keepsTheCurrentVisibleTab() {
         let tabs = KidsMainTabPicker.TabItem.mainTabs(showSearchInMainNavigation: true, includeSettings: true)
 
