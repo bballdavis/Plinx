@@ -194,7 +194,7 @@ struct PlinxLibraryDetailView: View {
             heroMedia: mediaFocusModel.focusedMedia ?? tvHeroMedia,
             showsFilters: true,
             navigationContent: {
-                tvContextRow
+                EmptyView()
             },
             filterContent: {
                 tvFilterRow
@@ -215,7 +215,7 @@ struct PlinxLibraryDetailView: View {
                 usesLandscapeCards: LibraryCardLayoutPolicy.usesLandscapeDetailCards(for: library, surface: .recommended),
                 onSelectMedia: onSelectMedia
             )
-            .padding(.horizontal, 12)
+            .padding(.horizontal, TvBrowseHeroMetrics.alignedContentInset)
             .padding(.bottom, 28)
         case .browse:
             PlinxLibraryBrowseRowsView(
@@ -229,7 +229,7 @@ struct PlinxLibraryDetailView: View {
                     }
                 }
             )
-            .padding(.horizontal, 12)
+            .padding(.horizontal, TvBrowseHeroMetrics.alignedContentInset)
             .padding(.bottom, 28)
         case .collections:
             PlinxLibraryCollectionsRowsView(
@@ -243,24 +243,11 @@ struct PlinxLibraryDetailView: View {
                     }
                 }
             )
-            .padding(.horizontal, 12)
+            .padding(.horizontal, TvBrowseHeroMetrics.alignedContentInset)
             .padding(.bottom, 28)
         case .playlists:
             EmptyView()
         }
-    }
-
-    private var tvContextRow: some View {
-        HStack(spacing: 16) {
-            Text(library.title)
-                .font(.title2.weight(.bold))
-                .foregroundStyle(.white.opacity(0.96))
-                .lineLimit(1)
-
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 24)
-        .padding(.top, PlinxTVShellMetrics.contentClearance + 12)
     }
 
     private var tvFilterRow: some View {
@@ -298,7 +285,9 @@ struct PlinxLibraryDetailView: View {
 
     private var tvHeaderContent: some View {
         VStack(alignment: .leading, spacing: 8) {
-            tvContextRow
+            Color.clear
+                .frame(height: PlinxTVShellMetrics.contentClearance + 12)
+                .accessibilityHidden(true)
 
             // Library sub-tabs (Recommended / Browse / Collections)
             tvFilterRow
@@ -1220,7 +1209,7 @@ private struct PlinxLibraryLandscapeCarousel: View {
                 }
             }
             .padding(.vertical, 20)
-            .padding(.horizontal, 16)
+            .padding(.trailing, 16)
         }
         .mouseDragScrolling()
         .scrollClipDisabled()
@@ -1243,7 +1232,7 @@ private struct PlinxLibraryPortraitCarousel: View {
                 }
             }
             .padding(.vertical, 16)
-            .padding(.horizontal, 16)
+            .padding(.trailing, 16)
         }
         .mouseDragScrolling()
         .scrollClipDisabled()
@@ -1314,7 +1303,7 @@ private struct PlinxLibraryBrowseControlsView: View {
                     }
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.trailing, 16)
             .padding(.vertical, 12)
         }
         .mouseDragScrolling()
@@ -1364,7 +1353,7 @@ private struct PlinxLibraryBrowseControlsView: View {
                     }
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.trailing, 16)
             .padding(.vertical, 10)
         }
         .mouseDragScrolling()
@@ -1540,7 +1529,7 @@ private struct PlinxLibraryBrowseRowsView: View {
                     )
                 }
 
-                LazyVGrid(columns: gridColumns, spacing: 32) {
+                LazyVGrid(columns: gridColumns, alignment: .leading, spacing: 32) {
                     ForEach(0 ..< viewModel.totalItemCount, id: \.self) { index in
                         Group {
                             if let item = viewModel.itemsByIndex[index] {
@@ -1611,6 +1600,7 @@ private struct PlinxLibraryBrowseRowsView: View {
                 )
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .task {
             await loadCompleteFilteredCatalog()
         }
@@ -1738,7 +1728,7 @@ private struct PlinxLibraryCollectionsRowsView: View {
     var body: some View {
         HStack(alignment: .top, spacing: 24) {
             VStack(alignment: .leading, spacing: 24) {
-                LazyVGrid(columns: gridColumns, spacing: 32) {
+                LazyVGrid(columns: gridColumns, alignment: .leading, spacing: 32) {
                     ForEach(0 ..< viewModel.totalItemCount, id: \.self) { index in
                         Group {
                             if let media = viewModel.itemsByIndex[index] {
@@ -1800,6 +1790,7 @@ private struct PlinxLibraryCollectionsRowsView: View {
                 }
             )
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .task {
             await viewModel.load()
         }

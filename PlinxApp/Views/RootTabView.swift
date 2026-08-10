@@ -68,10 +68,39 @@ enum RootTabSelectionPolicy {
 }
 
 #if os(tvOS)
+enum PlinxTVShellLeadingIdentity: Equatable {
+    case brand
+    case title(String)
+
+    static func resolve(
+        showsSettings: Bool,
+        activeTab: MainCoordinator.Tab,
+        libraryTitle: String?
+    ) -> Self {
+        if showsSettings {
+            return .title("tabs.settings".plinxLocalized)
+        }
+
+        switch activeTab {
+        case .home:
+            return .brand
+        case .library, .libraryDetail:
+            return .title(libraryTitle ?? "tabs.library".plinxLocalized)
+        case .search:
+            return .title("tabs.search".plinxLocalized)
+        case .more:
+            return .title("tabs.downloads".plinxLocalized)
+        case .seerrDiscover:
+            return .title("youtarr.explore.title".plinxLocalized)
+        }
+    }
+}
+
 struct PlinxTVShellHeader: View {
     let tabs: [KidsMainTabPicker.TabItem]
     let selectedTab: Binding<MainCoordinator.Tab>
     let selectedAction: KidsMainTabPicker.TabItem.Action?
+    let leadingIdentity: PlinxTVShellLeadingIdentity
     let focusedTarget: FocusState<PlinxTVShellFocusTarget?>.Binding
     let onSelect: (MainCoordinator.Tab) -> Void
     let onAction: (KidsMainTabPicker.TabItem.Action) -> Void
@@ -89,6 +118,19 @@ struct PlinxTVShellHeader: View {
             placement: .header
         )
         .overlay(alignment: .leading) {
+            leadingIdentityView
+                .allowsHitTesting(false)
+        }
+        .padding(.horizontal, 4)
+        .padding(.top, 1)
+        .padding(.bottom, 4)
+        .focusSection()
+    }
+
+    @ViewBuilder
+    private var leadingIdentityView: some View {
+        switch leadingIdentity {
+        case .brand:
             PlinxHomeHeaderLogoView(
                 accessibilityIdentifier: "tv.shell.logo",
                 maxWidth: PlinxTVShellMetrics.logoMaxWidth,
@@ -96,13 +138,19 @@ struct PlinxTVShellHeader: View {
             )
             .frame(maxWidth: 320, alignment: .leading)
             .padding(.leading, 14)
-            .allowsHitTesting(false)
             .accessibilityHidden(true)
+
+        case let .title(title):
+            Text(title)
+                .font(.system(size: 44, weight: .bold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.96))
+                .lineLimit(1)
+                .minimumScaleFactor(0.68)
+                .frame(width: 520, alignment: .leading)
+                .padding(.leading, 28)
+                .accessibilityIdentifier("tv.shell.context.title")
+                .accessibilityAddTraits(.isHeader)
         }
-        .padding(.horizontal, 4)
-        .padding(.top, 1)
-        .padding(.bottom, 4)
-        .focusSection()
     }
 }
 #endif
@@ -146,6 +194,7 @@ struct RootTabView: View {
     @StateObject private var tvFocusCoordinator = PlinxTVFocusCoordinator()
     @State private var settingsNavigationCoordinator = PlinxSettingsNavigationCoordinator()
     @State private var settingsExitDestination: MainCoordinator.Tab?
+    @State private var tvLibraryShellTitle: String?
     @FocusState private var focusedShellTarget: PlinxTVShellFocusTarget?
     @FocusState private var focusedQuickActionID: String?
     #endif
@@ -624,6 +673,11 @@ struct RootTabView: View {
             tabs: visibleTabs,
             selectedTab: tabBinding,
             selectedAction: showSettings ? .settings : nil,
+            leadingIdentity: PlinxTVShellLeadingIdentity.resolve(
+                showsSettings: showSettings,
+                activeTab: activeRootTab,
+                libraryTitle: mainCoordinator.libraryPath.isEmpty ? nil : tvLibraryShellTitle
+            ),
             focusedTarget: $focusedShellTarget,
             onSelect: handleTabSelection,
             onAction: handleBottomAction,
@@ -768,6 +822,9 @@ struct RootTabView: View {
                     ),
                     topContent: scrollingHeaderContent(title: "tabs.library".plinxLocalized, showsSettingsButton: false),
                     onSelectLibrary: { library in
+                        #if os(tvOS)
+                        tvLibraryShellTitle = library.title
+                        #endif
                         mainCoordinator.libraryPath.append(library)
                     },
                     onRequestHomeNavigationFocus: {
@@ -790,6 +847,11 @@ struct RootTabView: View {
                         },
                         contentFocusRequest: libraryDetailContentFocusRequest
                     )
+                    #if os(tvOS)
+                    .onAppear {
+                        tvLibraryShellTitle = library.title
+                    }
+                    #endif
                 }
                 .navigationDestination(for: MainCoordinator.Route.self) { route in
                     destination(for: route)
@@ -860,10 +922,16 @@ struct RootTabView: View {
         #if os(tvOS)
         if decision.closesSettings {
             settingsExitDestination = decision.destination
+            tvFocusCoordinator.activate(contentRegion(for: decision.destination))
             showSettings = false
             mainCoordinator.tab = decision.destination
             return
         }
+
+        // Update focus ownership synchronously. Waiting for the tab view's
+        // onChange callback leaves a small window where Down can still be
+        // routed to the previously visible Library region.
+        tvFocusCoordinator.activate(contentRegion(for: decision.destination))
         #endif
 
         if decision.resetsNavigationStack {
@@ -943,27 +1011,21 @@ struct RootTabView: View {
     }
 
     private var settingsHeaderRow: some View {
+        #if os(tvOS)
+        Color.clear
+            .frame(height: PlinxTVShellMetrics.contentClearance + 12)
+            .accessibilityHidden(true)
+        #else
         HStack(spacing: 12) {
             Text("tabs.settings".plinxLocalized)
-                #if os(tvOS)
-                .font(.system(size: 46, weight: .bold, design: .rounded))
-                #else
                 .font(.title3.weight(.bold))
-                #endif
                 .foregroundStyle(.white.opacity(0.95))
             Spacer()
-            #if !os(tvOS)
             PlinxChromeButton(systemImage: "xmark") {
                 closeSettings()
             }
             .accessibilityIdentifier("settings.close")
-            #endif
         }
-        #if os(tvOS)
-        .padding(.horizontal, 42)
-        .padding(.top, PlinxTVShellMetrics.contentClearance + 12)
-        .padding(.bottom, 20)
-        #else
         .padding(.horizontal, 20)
         .padding(.top, 8)
         .padding(.bottom, 10)

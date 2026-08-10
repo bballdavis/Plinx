@@ -54,8 +54,12 @@ struct AppleTVBrowseFocusUITestHarness: View {
                 tabs: fixtureTabs,
                 selectedTab: $selectedTab,
                 selectedAction: nil,
+                leadingIdentity: shellLeadingIdentity,
                 focusedTarget: $focusedShellTarget,
-                onSelect: { selectedTab = $0 },
+                onSelect: {
+                    selectedTab = $0
+                    focusedContent = nil
+                },
                 onAction: { _ in },
                 onMoveDown: moveDownFromHeader
             )
@@ -71,6 +75,16 @@ struct AppleTVBrowseFocusUITestHarness: View {
             showSearchInMainNavigation: true,
             includeSettings: true
         )
+    }
+
+    private var shellLeadingIdentity: PlinxTVShellLeadingIdentity {
+        if scenario.isLibraryDetail {
+            return .title("Fixture Library")
+        }
+        if selectedTab == .home {
+            return .brand
+        }
+        return .title(selectedTab.fixtureID.capitalized)
     }
 
     @ViewBuilder
@@ -262,6 +276,11 @@ struct AppleTVSettingsNavigationUITestHarness: View {
                 ),
                 selectedTab: $selectedTab,
                 selectedAction: isSettingsPresented ? .settings : nil,
+                leadingIdentity: isSettingsPresented
+                    ? .title("Settings")
+                    : (selectedTab == .home
+                        ? .brand
+                        : .title(selectedTab.fixtureID.capitalized)),
                 focusedTarget: $focusedShellTarget,
                 onSelect: exitSettings(to:),
                 onAction: { action in

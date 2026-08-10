@@ -52,6 +52,32 @@ final class AppleTVInteractionUITests: XCTestCase {
         assertFocused(firstLibrary)
     }
 
+    func test_switchingFromLibraryBackHome_downAlwaysRestoresHomeContent() {
+        let app = launch(screen: "appleTVBrowseFocus")
+        let home = app.buttons["main.tab.home"]
+        let library = app.buttons["main.tab.library"]
+        let firstLibrary = app.buttons["library.tile.0"]
+        let firstHomeCard = app.buttons["home.card.fixture.0"]
+        let shellTitle = app.staticTexts["tv.shell.context.title"]
+
+        assertFocused(home)
+        XCUIRemote.shared.press(.right)
+        assertFocused(library)
+        XCUIRemote.shared.press(.select)
+        XCTAssertEqual(shellTitle.label, "Library")
+        XCUIRemote.shared.press(.down)
+        assertFocused(firstLibrary)
+        XCUIRemote.shared.press(.up)
+        assertFocused(library)
+
+        XCUIRemote.shared.press(.left)
+        assertFocused(home)
+        XCUIRemote.shared.press(.select)
+        XCTAssertFalse(shellTitle.exists, "Only Home should render the Plinx brand in the shell's leading slot")
+        XCUIRemote.shared.press(.down)
+        assertFocused(firstHomeCard)
+    }
+
     func test_emptyBrowse_downStaysInHeader() {
         let app = launch(screen: "appleTVBrowseFocusEmpty")
         let home = app.buttons["main.tab.home"]
@@ -106,6 +132,7 @@ final class AppleTVInteractionUITests: XCTestCase {
         let settings = app.buttons["main.tab.settings"]
 
         assertFocused(libraries, timeout: 8)
+        XCTAssertEqual(app.staticTexts["tv.shell.context.title"].label, "Settings")
         XCUIRemote.shared.press(.up)
         assertFocused(settings)
         XCUIRemote.shared.press(.down)

@@ -67,6 +67,8 @@ struct PlinxHomeView: View {
     @EnvironmentObject private var tvFocusCoordinator: PlinxTVFocusCoordinator
     @FocusState private var focusedCard: HomeFocusTarget?
     @State private var selectedHeroMedia: MediaItem?
+    @State private var isContentFocusPending = false
+    @State private var contentFocusGeneration = 0
     #endif
 
     // Plinx-specific home screen settings (separate from Library-tab visibility)
@@ -116,11 +118,11 @@ struct PlinxHomeView: View {
             synchronizeHeroSelection()
         }
         .onChange(of: contentFocusRequest) { _, _ in
-            restoreContentFocusIfAvailable()
+            requestContentFocus()
         }
         .onChange(of: homeRows.map { "\($0.id):\($0.hub.items.count)" }) { _, _ in
-            guard focusedCard != nil else { return }
-            restoreContentFocusIfAvailable()
+            guard focusedCard != nil || isContentFocusPending else { return }
+            restoreContentFocusIfAvailable(forceTransfer: isContentFocusPending)
         }
         #endif
     }
@@ -260,7 +262,12 @@ struct PlinxHomeView: View {
         mediaFocusModel.focusedMedia = media
     }
 
-    private func restoreContentFocusIfAvailable() {
+    private func requestContentFocus() {
+        isContentFocusPending = true
+        restoreContentFocusIfAvailable(forceTransfer: true)
+    }
+
+    private func restoreContentFocusIfAvailable(forceTransfer: Bool = false) {
         let availableTargets = homeRows.enumerated().flatMap { rowIndex, row in
             row.hub.items.indices.map { itemIndex in
                 HomeFocusTarget.card(row: rowIndex, item: itemIndex)
@@ -270,11 +277,33 @@ struct PlinxHomeView: View {
             in: .home,
             availableIDs: homeRows.flatMap { $0.hub.items.map(\.id) }
         ).flatMap(focusTarget(forMediaID:))
-        focusedCard = PlinxTVFocusCoordinator.resolvedContentID(
+        guard let target = PlinxTVFocusCoordinator.resolvedContentID(
             currentID: focusedCard,
             availableIDs: availableTargets,
             preferredID: preferredTarget
-        )
+        ) else {
+            focusedCard = nil
+            return
+        }
+
+        guard forceTransfer else {
+            focusedCard = target
+            return
+        }
+
+        // A hidden Home view can retain the same FocusState value while the
+        // actual focus engine has moved to the persistent shell. Clear and
+        // reassert on the next actor turn so every explicit Down request
+        // performs a real transfer, even after returning from Library.
+        contentFocusGeneration &+= 1
+        let generation = contentFocusGeneration
+        focusedCard = nil
+        Task { @MainActor in
+            await Task.yield()
+            guard generation == contentFocusGeneration else { return }
+            focusedCard = target
+            isContentFocusPending = false
+        }
     }
 
     private func focusTarget(forMediaID mediaID: String) -> HomeFocusTarget? {
@@ -701,6 +730,10 @@ private func decodeStringArray(_ json: String) -> [String] {
 #if os(tvOS)
 
 struct TvBrowseHeroMetrics {
+    /// Aligns row artwork with the readable text inside `TvHeroMetadataPanel`
+    /// (four points of hero padding plus twelve points inside the panel).
+    static let alignedContentInset: CGFloat = 16
+
     let heightRatio: CGFloat
     let leadingSafeAreaReduction: CGFloat
     let contentHorizontalPadding: CGFloat

@@ -160,12 +160,14 @@ Default rule:
 - 220-280 pt max width for standard hero/logo moments on iPhone and iPad
 - larger only for dedicated onboarding, app-transition, or tvOS hero layouts
 
-The persistent tvOS shell uses a compact 220 by 52-point lockup. Child screens
-never repeat that root identity. Library detail screens use the persistent
-Library destination plus the remote Menu action instead of adding a second
-page-level Back button. Parent-only Settings destinations are the exception:
-they expose a visible Back action below the shell so a parent can pop a
-subpage without leaving and re-entering the gate.
+The persistent tvOS shell uses a compact 220 by 52-point lockup on Home only.
+Every other root destination replaces that leading lockup with its contextual
+title; a library detail uses the library name and Settings uses `Settings`.
+Child screens never stack a second title below that leading identity. Library
+detail screens use the persistent Library destination plus the remote Menu
+action instead of adding a second page-level Back button. Parent-only Settings
+destinations are the exception: they expose a visible Back action below the
+shell so a parent can pop a subpage without leaving and re-entering the gate.
 
 ## Loading hierarchy
 
@@ -199,14 +201,17 @@ visually distinct:
 - shape, ring, and/or icon changes accompany color so focus is never conveyed by color alone
 - exactly one element should be visibly focused after a tvOS screen settles
 
-The Apple TV root shell is persistent and owns the Plinx lockup, primary
-destinations, and Settings action. Moving focus across destinations does not
-switch screens; Select activates one. Only the active tab stack is mounted, so
-hidden content cannot remain a focus candidate. Its compact glass capsule is a
-top-layer overlay rather than a reserved full-width band: the capsule stays
-centered independently of the leading logo, while heroes and backgrounds can
-continue behind both. Scrollable foreground content reserves only enough
-initial clearance to remain readable and focusable.
+The Apple TV root shell is persistent and owns the Home-only Plinx lockup,
+contextual destination title, primary destinations, and Settings action.
+Moving focus across destinations does not switch screens; Select activates
+one. Only the active tab stack is mounted, so hidden content cannot remain a
+focus candidate. Its compact glass capsule is a top-layer overlay rather than
+a reserved full-width band: the capsule stays centered independently of the
+leading identity, while heroes and backgrounds can continue behind both.
+Scrollable foreground content reserves only enough initial clearance to remain
+readable and focusable. A Down request from the shell must always reassert a
+real focus transfer into the visible content region, including immediately
+after switching from Library back to Home.
 
 Main-navigation selection never uses a title underline on iOS, iPadOS, or
 tvOS. Accent fill plus icon/text color and the shared ring provide the selected
@@ -823,11 +828,15 @@ Rules:
 - On tvOS, the main header is a persistent top overlay: use 52-point controls,
   22-point icons, footnote labels, 108-point minimum tab widths, and 16-point
   corners. Center the controls-width glass capsule independently of the leading
-  220 by 52-point lockup; do not leave empty glass or a separator spanning the
-  hero.
+  identity: the 220 by 52-point lockup on Home or a single contextual title on
+  every other destination. Do not leave empty glass or a separator spanning
+  the hero.
 - On tvOS, hero artwork should overscan to the top-right edge and blend only on the left and bottom into the dark shell. Keep the clear-logo layer above those fades with no dark rectangular backing.
 - On tvOS, text metadata belongs in the leading safe area, sized to its content with continuous corners and a softly feathered dark edge. It must reserve the trailing logo area rather than overlap it.
 - On tvOS library detail screens, Recommended/Browse/Collections controls sit below the hero metadata and before the first content section, never in front of the artwork.
+- The first library card column aligns with the leading text inside the hero
+  metadata panel. Adaptive grids use leading alignment and carousels do not add
+  a second leading inset.
 - tvOS library detail screens do not add a local Back tile. Move Up from the
   local filter row returns focus to the persistent Library destination; Menu
   dismisses the detail screen.

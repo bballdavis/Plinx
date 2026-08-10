@@ -3,6 +3,34 @@ import PlinxUI
 @testable import Plinx
 
 final class AppleTVBrowseFocusRoutingTests: XCTestCase {
+    func test_shellUsesBrandOnlyOnHome() {
+        XCTAssertEqual(
+            PlinxTVShellLeadingIdentity.resolve(
+                showsSettings: false,
+                activeTab: .home,
+                libraryTitle: nil
+            ),
+            .brand
+        )
+
+        XCTAssertEqual(
+            PlinxTVShellLeadingIdentity.resolve(
+                showsSettings: false,
+                activeTab: .library,
+                libraryTitle: "YouTube Videos"
+            ),
+            .title("YouTube Videos")
+        )
+
+        guard case .title = PlinxTVShellLeadingIdentity.resolve(
+            showsSettings: true,
+            activeTab: .home,
+            libraryTitle: nil
+        ) else {
+            return XCTFail("Settings must replace the Home brand with a contextual title")
+        }
+    }
+
     func test_settingsActionOwnsSelectionWhileSettingsIsVisible() throws {
         let tabs = KidsMainTabPicker.TabItem.mainTabs(includeSettings: true)
         let home = try XCTUnwrap(tabs.first(where: { $0.id == "home" }))
