@@ -30,7 +30,6 @@ struct PlinxPlayerView: View {
             )
             .ignoresSafeArea()
 
-            overlayControls
         }
         .animation(.easeInOut(duration: 0.18), value: viewModel.isLoading)
         .animation(.easeInOut(duration: 0.18), value: viewModel.isBuffering)
@@ -40,39 +39,6 @@ struct PlinxPlayerView: View {
         #endif
     }
 
-    // MARK: - Overlay controls
-
-    private var overlayControls: some View {
-        VStack {
-            HStack {
-                Spacer()
-                contentRatingBadge
-            }
-            .padding(.horizontal, 10)
-            .padding(.top, 52)
-
-            Spacer()
-        }
-        .allowsHitTesting(false)
-    }
-
-    private var contentRatingBadge: some View {
-        Group {
-            if let rating = viewModel.media?.contentRating {
-                Text(rating)
-                    .font(.caption.bold())
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(
-                        Capsule()
-                            .fill(.ultraThinMaterial)
-                            .overlay(Capsule().stroke(.white.opacity(0.2), lineWidth: 1))
-                    )
-                    .opacity(0.85)
-            }
-        }
-    }
 }
 
 struct PlinxPlayerExitButton: View {

@@ -10,6 +10,23 @@ final class PlinxPlayerControlLayoutTests: XCTestCase {
         XCTAssertEqual(PlinxPlayerControlLayout.titleSize, 30)
     }
 
+    func test_transportControlsUseResponsiveScale() {
+        XCTAssertEqual(
+            PlinxPlayerControlLayout.scale(
+                horizontalSizeClass: .regular,
+                verticalSizeClass: .regular
+            ),
+            2
+        )
+        XCTAssertEqual(
+            PlinxPlayerControlLayout.scale(
+                horizontalSizeClass: .regular,
+                verticalSizeClass: .compact
+            ),
+            1.65
+        )
+    }
+
     func test_exitButtonUsesKidFriendlyTouchTargetAcrossSizeClasses() {
         XCTAssertEqual(
             PlinxPlayerControlLayout.exitButtonSize(

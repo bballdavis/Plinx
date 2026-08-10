@@ -16,6 +16,22 @@ enum PlinxPlayerControlLayout {
     static let headerCornerRadius = baseHeaderCornerRadius * emphasisScale
     static let titleSize = baseTitleSize * emphasisScale
 
+    static func scale(
+        horizontalSizeClass: UserInterfaceSizeClass?,
+        verticalSizeClass: UserInterfaceSizeClass?
+    ) -> CGFloat {
+        switch (horizontalSizeClass, verticalSizeClass) {
+        case (.regular, .regular):
+            2
+        case (.regular, .compact):
+            1.65
+        case (.compact, .compact):
+            1.45
+        default:
+            1.3
+        }
+    }
+
     static func exitButtonSize(
         horizontalSizeClass: UserInterfaceSizeClass?,
         verticalSizeClass: UserInterfaceSizeClass?

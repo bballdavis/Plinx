@@ -1,26 +1,59 @@
 import SwiftUI
 
+private struct PlinxPlayerControlMetrics {
+    let scale: CGFloat
+
+    var seekButtonSize: CGFloat { 58 * scale }
+    var seekIconSize: CGFloat { 20 * scale }
+    var seekCornerRadius: CGFloat { 22 * scale }
+    var playButtonSize: CGFloat { 72 * scale }
+    var playIconSize: CGFloat { 28 * scale }
+    var playCornerRadius: CGFloat { 26 * scale }
+    var borderWidth: CGFloat { max(2, scale) }
+}
+
 struct PlayerIconButton: View {
     let systemName: String
     var accessibilityLabel: String?
     let action: () -> Void
 
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    private var metrics: PlinxPlayerControlMetrics {
+        PlinxPlayerControlMetrics(
+            scale: PlinxPlayerControlLayout.scale(
+                horizontalSizeClass: horizontalSizeClass,
+                verticalSizeClass: verticalSizeClass
+            )
+        )
+    }
+
     var body: some View {
         Button(action: action) {
-            let chrome = RoundedRectangle(cornerRadius: 22, style: .continuous)
+            let chrome = RoundedRectangle(
+                cornerRadius: metrics.seekCornerRadius,
+                style: .continuous
+            )
             Image(systemName: systemName)
-                .font(.title3.weight(.bold))
+                .font(.system(size: metrics.seekIconSize, weight: .bold))
                 .foregroundStyle(.white)
-                .frame(width: 58, height: 58)
-                .background(chrome.fill(.thinMaterial))
+                .frame(width: metrics.seekButtonSize, height: metrics.seekButtonSize)
+                .background(
+                    chrome.fill(Color.black.opacity(reduceTransparency ? 1 : 0.84))
+                )
                 .overlay(
-                    chrome.stroke(Color.brandPrimary.opacity(0.42), lineWidth: 1)
+                    chrome.stroke(
+                        Color.white.opacity(0.78),
+                        lineWidth: metrics.borderWidth
+                    )
                 )
                 .shadow(
-                    color: Color.brandPrimary.opacity(0.14),
-                    radius: 10,
+                    color: Color.black.opacity(0.58),
+                    radius: 12 * metrics.scale,
                     x: 0,
-                    y: 6
+                    y: 6 * metrics.scale
                 )
         }
         .accessibilityLabel(accessibilityLabel ?? systemName)
@@ -32,24 +65,50 @@ struct PlayPauseButton: View {
     var isPaused: Bool
     let action: () -> Void
 
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    private var metrics: PlinxPlayerControlMetrics {
+        PlinxPlayerControlMetrics(
+            scale: PlinxPlayerControlLayout.scale(
+                horizontalSizeClass: horizontalSizeClass,
+                verticalSizeClass: verticalSizeClass
+            )
+        )
+    }
+
     var body: some View {
         Button(action: action) {
-            let chrome = RoundedRectangle(cornerRadius: 26, style: .continuous)
+            let chrome = RoundedRectangle(
+                cornerRadius: metrics.playCornerRadius,
+                style: .continuous
+            )
             Image(systemName: isPaused ? "play.fill" : "pause.fill")
-                .font(.title.weight(.black))
+                .font(.system(size: metrics.playIconSize, weight: .black))
                 .foregroundStyle(.white)
-                .frame(width: 72, height: 72)
-                .background(
-                    chrome.fill(Color.brandPrimary.opacity(0.18))
-                )
+                .frame(width: metrics.playButtonSize, height: metrics.playButtonSize)
+                .background {
+                    ZStack {
+                        chrome.fill(
+                            Color.black.opacity(reduceTransparency ? 1 : 0.9)
+                        )
+                        chrome.fill(
+                            Color.brandPrimary.opacity(reduceTransparency ? 0.72 : 0.62)
+                        )
+                    }
+                }
                 .overlay(
-                    chrome.stroke(Color.brandPrimary.opacity(0.52), lineWidth: 1)
+                    chrome.stroke(
+                        Color.white.opacity(0.88),
+                        lineWidth: metrics.borderWidth
+                    )
                 )
                 .shadow(
-                    color: Color.brandPrimary.opacity(0.18),
-                    radius: 12,
+                    color: Color.black.opacity(0.62),
+                    radius: 14 * metrics.scale,
                     x: 0,
-                    y: 8
+                    y: 7 * metrics.scale
                 )
         }
         .accessibilityLabel(

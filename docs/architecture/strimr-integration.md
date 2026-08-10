@@ -182,8 +182,9 @@ Plinx excludes Strimr's `PlayerControlButtons.swift` and
 `PlayerControlsView.swift` from the iOS source set and provides same-module
 replacements in `Views/Player/`. This keeps the playback engine and control
 actions upstream while Plinx owns the overlay presentation. The transport
-controls retain their upstream dimensions; the existing back and settings
+controls use responsive, high-contrast sizing; the existing back and settings
 controls and video title use a focused 1.5x emphasis. Plinx does not add a
 second persistent dismiss control over the player. The upstream
 `PlayerControlsView(` call remains an integration-contract seam so signature
-drift is caught during a Strimr upgrade.
+drift is caught during a Strimr upgrade. Plinx does not add a persistent
+content-rating chip over the playback surface.
