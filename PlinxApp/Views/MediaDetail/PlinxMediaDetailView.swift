@@ -97,7 +97,8 @@ struct PlinxMediaDetailView: View {
         }
         #if os(tvOS)
         .padding(.horizontal, 42)
-        .padding(.vertical, 12)
+        .padding(.top, PlinxTVShellMetrics.contentClearance + 12)
+        .padding(.bottom, 12)
         .background(Color.black.opacity(0.2))
         #else
         .padding(.horizontal, 16)

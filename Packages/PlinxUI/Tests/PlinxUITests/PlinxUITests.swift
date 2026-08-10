@@ -200,6 +200,31 @@ struct PlinxLoadingIndicatorTests {
         #expect(style.focusedScale > 1)
         #expect(style.focusedScale < 1.1)
         #expect(style.focusedShadowRadius > 0)
+        #expect(style.cornerRadius == 18)
+        #expect(style.focusedFillOpacity == nil)
+    }
+
+    @Test func focusSurfaceStyleSupportsPerShapeGeometryAndFocusedFill() {
+        let style = PlinxFocusSurfaceStyle(
+            cornerRadius: 20,
+            focusedFillOpacity: 0.14
+        )
+
+        #expect(style.cornerRadius == 20)
+        #expect(style.focusedFillOpacity == 0.14)
+    }
+
+    @Test func reduceMotionSuppressesScaleWithoutChangingFocusConfiguration() {
+        let style = PlinxFocusSurfaceStyle(
+            focusRingOpacity: 0.91,
+            focusedScale: 1.08,
+            focusedFillOpacity: 0.14
+        )
+
+        #expect(style.resolvedScale(isFocused: true, reduceMotion: false) == 1.08)
+        #expect(style.resolvedScale(isFocused: true, reduceMotion: true) == 1)
+        #expect(style.focusRingOpacity == 0.91)
+        #expect(style.focusedFillOpacity == 0.14)
     }
 }
 #endif

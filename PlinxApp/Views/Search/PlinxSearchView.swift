@@ -327,7 +327,8 @@ private struct SearchResultButton: View {
             )
             .plinxFocusSurface(isSelected: false, isFocused: isFocused)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PlinkButtonStyle())
+        .focusEffectDisabled()
         .plinxQuickActionLongPress(onLongPress)
     }
 }

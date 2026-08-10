@@ -10,12 +10,27 @@ final class AppleTVInteractionUITests: XCTestCase {
         assertFocused(home)
         XCUIRemote.shared.press(.down)
         assertFocused(firstCard)
+        capture(name: "tvOS-4K-home-focused-artwork")
         XCUIRemote.shared.press(.right)
         assertFocused(secondCard)
         XCUIRemote.shared.press(.up)
         assertFocused(home)
         XCUIRemote.shared.press(.down)
         assertFocused(firstCard)
+    }
+
+    func test_rootBrowse_reduceMotionKeepsRingWithoutScalingArtwork() {
+        let app = launch(screen: "appleTVBrowseFocus", reduceMotion: true)
+        let firstCard = app.buttons["home.card.fixture.0"]
+        let secondCard = app.buttons["home.card.fixture.1"]
+
+        XCUIRemote.shared.press(.down)
+        assertFocused(firstCard)
+        // The three-point ring expands the accessibility frame slightly; the
+        // media itself must remain unscaled when Reduce Motion is requested.
+        XCTAssertEqual(firstCard.frame.width, secondCard.frame.width, accuracy: 4)
+        XCTAssertEqual(firstCard.frame.height, secondCard.frame.height, accuracy: 4)
+        capture(name: "tvOS-4K-home-focused-artwork-reduce-motion")
     }
 
     func test_libraryRoot_upTargetsLibrary_andDownRestoresFirstLibrary() {
@@ -30,6 +45,7 @@ final class AppleTVInteractionUITests: XCTestCase {
         XCUIRemote.shared.press(.select)
         XCUIRemote.shared.press(.down)
         assertFocused(firstLibrary)
+        capture(name: "tvOS-4K-library-focused-tile")
         XCUIRemote.shared.press(.up)
         assertFocused(library)
         XCUIRemote.shared.press(.down)
@@ -82,6 +98,42 @@ final class AppleTVInteractionUITests: XCTestCase {
     func test_settings_hasDeterministicFirstFocus() {
         let app = launch(screen: "settings")
         assertFocused(app.buttons["settings.libraries"], timeout: 8)
+        XCTAssertFalse(app.buttons["settings.close"].exists)
+        capture(name: "tvOS-4K-settings-focused-row")
+    }
+
+    func test_settings_upAndDownMovesBetweenContentAndPersistentHeader() {
+        let app = launch(screen: "settingsNavigation")
+        let libraries = app.buttons["settings.libraries"]
+        let settings = app.buttons["main.tab.settings"]
+
+        assertFocused(libraries, timeout: 8)
+        XCUIRemote.shared.press(.up)
+        assertFocused(settings)
+        XCUIRemote.shared.press(.down)
+        assertFocused(libraries)
+    }
+
+    func test_settings_headerTabClosesAndRestoresDestinationFocus() {
+        let app = launch(screen: "settingsNavigation")
+        let libraries = app.buttons["settings.libraries"]
+        let settings = app.buttons["main.tab.settings"]
+        let home = app.buttons["main.tab.home"]
+
+        assertFocused(libraries, timeout: 8)
+        XCUIRemote.shared.press(.up)
+        assertFocused(settings)
+        move(.left, count: 3)
+        assertFocused(home)
+        XCUIRemote.shared.press(.select)
+
+        XCTAssertTrue(app.staticTexts["settings.fixture.closed"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["settings.fixture.destination.home"].exists)
+        XCTAssertFalse(app.buttons["settings.close"].exists)
+        assertFocused(home)
+
+        XCUIRemote.shared.press(.down)
+        assertFocused(app.buttons["settings.fixture.restored.home"])
     }
 
     func test_settings_menuPopsSubpageBeforeClosingRoot() {
@@ -214,10 +266,20 @@ final class AppleTVInteractionUITests: XCTestCase {
         )
     }
 
-    private func launch(screen: String) -> XCUIApplication {
+    private func capture(name: String) {
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    private func launch(screen: String, reduceMotion: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments += ["--ui-testing", "--disable-animations"]
         app.launchEnvironment["PLINX_UI_TEST_SCREEN"] = screen
+        if reduceMotion {
+            app.launchEnvironment["PLINX_UI_TEST_REDUCE_MOTION"] = "1"
+        }
         app.launch()
         return app
     }

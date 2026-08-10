@@ -20,6 +20,10 @@ struct PlinxContentView: View {
         return ProcessInfo.processInfo.environment["PLINX_UI_TEST_SCREEN"]
     }
 
+    private var uiTestReduceMotion: Bool {
+        ProcessInfo.processInfo.environment["PLINX_UI_TEST_REDUCE_MOTION"] == "1"
+    }
+
     var body: some View {
         ZStack {
             // Match the ambient launch treatment during hydration to eliminate
@@ -94,14 +98,21 @@ struct PlinxContentView: View {
             case "refreshLoading":
                 refreshLoadingPreview
             case "settings":
+                #if os(tvOS)
+                AppleTVSettingsNavigationUITestHarness()
+                #else
                 NavigationStack {
                     PlinxSettingsView(isUnlocked: true)
                 }
+                #endif
             #if os(tvOS)
             case "settingsNavigation":
                 AppleTVSettingsNavigationUITestHarness()
             case "appleTVBrowseFocus":
-                AppleTVBrowseFocusUITestHarness(scenario: .root(hasContent: true))
+                AppleTVBrowseFocusUITestHarness(
+                    scenario: .root(hasContent: true),
+                    reduceMotion: uiTestReduceMotion
+                )
             case "appleTVBrowseFocusEmpty":
                 AppleTVBrowseFocusUITestHarness(scenario: .root(hasContent: false))
             case "appleTVLibraryDetailFocus":

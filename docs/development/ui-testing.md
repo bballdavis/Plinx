@@ -125,9 +125,15 @@ capture when the simulator is otherwise ready.
 
 - one persistent shell owns the Plinx lockup, Home, Search, Library, optional
   Explore, and Settings; child screens must not add a second root picker
+- the tvOS shell is a top-layer overlay, not a layout row or full-width material
+  band; each screen keeps its background full-bleed and gives only foreground
+  controls enough initial top clearance
 - only the active tab stack is mounted and eligible for focus
 - every primary tvOS action must be reachable with remote UDLR navigation
 - do not rely on touch, pointer, or click-only interactions on Apple TV
+- Home cards and Library tiles are real plain Buttons with one custom focus
+  surface; disable the native focus plate and never stack a second ring or
+  independently scaled outline inside the artwork
 - keep retry and refresh affordances focusable when they are part of the recovery path
 - verify the default focus path for any screen that has a single primary action
 - on Home, Search, Library, and Explore, pressing up from the first local region
@@ -138,8 +144,13 @@ capture when the simulator is otherwise ready.
 - library, collection, playlist, and media details use a secondary Back/title/filter
   context row; Menu pops exactly one local level
 - empty and loading states must leave focus in the header until a real destination exists; content arrival must not steal focus
-- opening parent-gated Settings records the invoking screen and focus; closing
-  immediately relocks Settings and restores that snapshot
+- opening parent-gated Settings records the invoking screen and focus; Menu at
+  the root closes and immediately relocks Settings, while Menu on a subpage pops
+  exactly one level
+- Settings has no tvOS X control. Moving up from its first row reaches the
+  selected Settings header action; moving down returns to the first row.
+  Selecting Home, Library, Search, or Explore closes and relocks Settings and
+  restores that destination's saved stack/focus without resetting it
 - playback preparation exposes a default-focused Back action, supports Menu
   cancellation, and returns to the originating card after failure or exit
 - the tvOS parental gate Select action enters the focused digit and never submits or dismisses the gate; only the explicit Unlock action submits
@@ -148,14 +159,26 @@ capture when the simulator is otherwise ready.
   assert the exact focused accessibility identifier for Home, Library root,
   empty content, and Library detail.
 
-Pure focus-state tests cover per-tab restoration, modal restoration, removed
-items, and nearest-sibling fallback. Current network-free remote tests cover
-the persistent header, populated and empty browse states, Library drill-down,
-the parental gate, Settings root and subpage Menu behavior, the rating chooser,
-and playback preparation. Search keyboard/results, Settings reordering,
+Pure focus-state tests cover action-item selection, per-shape focus geometry,
+no-scale Settings focus, per-tab restoration, modal restoration, removed items,
+content fallback, nearest-sibling fallback, and Settings-to-tab transition
+policy. The network-free tvOS harness uses the production shell header and
+production-style plain-button cards. Current Remote tests cover Home Down/Up,
+visible Library focus, populated and empty browse states, Library drill-down,
+Settings Down/Up, navigation-based Settings exit and focus restoration,
+absence of `settings.close`, the parental gate, Settings root and subpage Menu
+behavior, the rating chooser, and playback preparation. Search keyboard/results, Settings reordering,
 optional Explore states, and playback buffering/failure/exit remain required
 parts of the manual release-candidate navigation matrix until deterministic
 fixtures are added for those flows.
+
+The Home artwork, Library tile, and Settings row Remote tests attach 4K focus
+captures named `tvOS-4K-home-focused-artwork`,
+`tvOS-4K-home-focused-artwork-reduce-motion`,
+`tvOS-4K-library-focused-tile`, and `tvOS-4K-settings-focused-row`. Inspect
+them for one aligned outer ring, readable white content, no shell overlap, and
+reclaimed header space. With Reduce Motion enabled, focused media must retain
+its ring/fill cue while its scale remains 1.0.
 
 The release-candidate visual checklist targets tvOS 4K, iPhone portrait, and
 iPad landscape for authentication, loading, home chrome, browse/detail,

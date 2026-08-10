@@ -877,7 +877,11 @@ struct YoutarrExploreView: View {
                     .stroke(Color.accentColor.opacity(0.24), lineWidth: 1)
             }
             #if os(tvOS)
-            .plinxFocusSurface(isSelected: false, isFocused: isSearchFocused)
+            .plinxFocusSurface(
+                isSelected: false,
+                isFocused: isSearchFocused,
+                style: PlinxFocusSurfaceStyle(cornerRadius: 14)
+            )
             .onMoveCommand { direction in
                 guard direction == .up else { return }
                 isSearchFocused = false
@@ -886,7 +890,11 @@ struct YoutarrExploreView: View {
             #endif
         }
         .padding(.horizontal, 16)
+        #if os(tvOS)
+        .padding(.top, PlinxTVShellMetrics.contentClearance + 8)
+        #else
         .padding(.top, 8)
+        #endif
         .padding(.bottom, 8)
     }
 

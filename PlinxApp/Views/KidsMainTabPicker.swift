@@ -26,6 +26,7 @@ struct KidsMainTabPicker: View {
 
     let tabs: [TabItem]
     @Binding var selectedTab: MainCoordinator.Tab
+    var selectedAction: TabItem.Action? = nil
     #if os(tvOS)
     var focusedTarget: FocusState<PlinxTVShellFocusTarget?>.Binding? = nil
     #endif
@@ -54,7 +55,7 @@ struct KidsMainTabPicker: View {
     private var buttonMinWidth: CGFloat  {
         #if os(tvOS)
         if isInline { return 82 }
-        if isHeader { return 132 }
+        if isHeader { return PlinxTVShellMetrics.buttonMinWidth }
         return 154
         #else
         isRegular ? 96 : 110
@@ -63,7 +64,7 @@ struct KidsMainTabPicker: View {
     private var buttonHeight: CGFloat    {
         #if os(tvOS)
         if isInline { return 46 }
-        if isHeader { return 68 }
+        if isHeader { return PlinxTVShellMetrics.buttonHeight }
         return 94
         #else
         isRegular ? 64 : 72
@@ -72,7 +73,7 @@ struct KidsMainTabPicker: View {
     private var iconPointSize: CGFloat   {
         #if os(tvOS)
         if isInline { return 18 }
-        if isHeader { return 26 }
+        if isHeader { return PlinxTVShellMetrics.iconPointSize }
         return 30
         #else
         isRegular ? 22 : (usesCompactDistribution ? 22 : 26)
@@ -81,7 +82,7 @@ struct KidsMainTabPicker: View {
     private var labelFont: Font          {
         #if os(tvOS)
         if isInline { return .caption }
-        if isHeader { return .callout }
+        if isHeader { return .footnote }
         return .headline
         #else
         isRegular ? .caption : (usesCompactDistribution ? .caption2 : .subheadline)
@@ -90,7 +91,7 @@ struct KidsMainTabPicker: View {
     private var cornerRadius: CGFloat    {
         #if os(tvOS)
         if isInline { return 12 }
-        if isHeader { return 18 }
+        if isHeader { return PlinxTVShellMetrics.cornerRadius }
         return 20
         #else
         isRegular ? 14 : 16
@@ -99,7 +100,7 @@ struct KidsMainTabPicker: View {
     private var hSpacing: CGFloat        {
         #if os(tvOS)
         if isInline { return 8 }
-        if isHeader { return 14 }
+        if isHeader { return 12 }
         return 18
         #else
         isRegular ? 8 : (usesCompactDistribution ? 6 : 12)
@@ -144,12 +145,6 @@ struct KidsMainTabPicker: View {
                 .frame(maxWidth: isHeader ? .infinity : nil, alignment: .center)
                 .padding(.horizontal, containerHorizontalPadding)
                 .padding(.bottom, isHeader ? 0 : 1)
-                #if os(tvOS)
-                .onMoveCommand { direction in
-                    guard isHeader, direction == .down else { return }
-                    onMoveDown()
-                }
-                #endif
         }
     }
 
@@ -171,6 +166,7 @@ struct KidsMainTabPicker: View {
             TabButtonContent(
                 item: item,
                 selectedTab: selectedTab,
+                selectedAction: selectedAction,
                 usesCompactDistribution: usesCompactDistribution,
                 buttonMinWidth: buttonMinWidth,
                 buttonHeight: buttonHeight,
@@ -189,10 +185,17 @@ struct KidsMainTabPicker: View {
         .accessibilityIdentifier("main.tab.\(item.id)")
 
         #if os(tvOS)
+        let focusableButton = button
+            .focusEffectDisabled()
+            .onMoveCommand { direction in
+                guard isHeader, direction == .down else { return }
+                onMoveDown()
+            }
+
         if let focusedTarget {
-            button.focused(focusedTarget, equals: item.shellFocusTarget)
+            focusableButton.focused(focusedTarget, equals: item.shellFocusTarget)
         } else {
-            button
+            focusableButton
         }
         #else
         button
@@ -218,6 +221,17 @@ extension KidsMainTabPicker {
         var shellFocusTarget: PlinxTVShellFocusTarget {
             if let tab { return .tab(tab) }
             return .settings
+        }
+
+        func isSelected(
+            selectedTab: MainCoordinator.Tab,
+            selectedAction: Action?
+        ) -> Bool {
+            if let action {
+                return selectedAction == action
+            }
+            guard selectedAction == nil, let tab else { return false }
+            return selectedTab == tab
         }
         #endif
 
@@ -304,6 +318,7 @@ extension KidsMainTabPicker {
 private struct TabButtonContent: View {
     let item: KidsMainTabPicker.TabItem
     let selectedTab: MainCoordinator.Tab
+    let selectedAction: KidsMainTabPicker.TabItem.Action?
     let usesCompactDistribution: Bool
     let buttonMinWidth: CGFloat
     let buttonHeight: CGFloat
@@ -319,7 +334,11 @@ private struct TabButtonContent: View {
     private var isHeader: Bool { placement == .header }
 
     private var isSelected: Bool {
+        #if os(tvOS)
+        item.isSelected(selectedTab: selectedTab, selectedAction: selectedAction)
+        #else
         item.tab.map { selectedTab == $0 } ?? false
+        #endif
     }
 
     var body: some View {
@@ -340,16 +359,13 @@ private struct TabButtonContent: View {
             minHeight: buttonHeight
         )
         .background(background)
-        .overlay(alignment: .bottom) {
-            if isSelected {
-                Capsule()
-                    .fill(Color.accentColor)
-                    .frame(width: isHeader ? 48 : 38, height: isHeader ? 4 : 3)
-                    .padding(.bottom, isHeader ? 6 : 4)
-            }
-        }
-        .plinxFocusSurface(isSelected: isSelected, isFocused: isFocused)
+        .plinxFocusSurface(
+            isSelected: isSelected,
+            isFocused: isFocused,
+            style: PlinxFocusSurfaceStyle(cornerRadius: cornerRadius)
+        )
         .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     @ViewBuilder
@@ -375,3 +391,15 @@ private struct TabButtonContent: View {
         return .white.opacity(0.72)
     }
 }
+
+#if os(tvOS)
+enum PlinxTVShellMetrics {
+    static let buttonMinWidth: CGFloat = 108
+    static let buttonHeight: CGFloat = 52
+    static let iconPointSize: CGFloat = 22
+    static let cornerRadius: CGFloat = 16
+    static let logoMaxWidth: CGFloat = 220
+    static let logoHeight: CGFloat = 52
+    static let contentClearance: CGFloat = 76
+}
+#endif

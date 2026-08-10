@@ -104,6 +104,21 @@ extension View {
 }
 
 #if os(tvOS)
+extension PlinxFocusSurfaceStyle {
+    /// The stable Settings focus treatment keeps tvOS from applying its own
+    /// bright focus plate while preserving each control's native geometry.
+    static func tvSettings(cornerRadius: CGFloat) -> Self {
+        Self(
+            selectionOpacity: 0.72,
+            focusRingOpacity: 0.98,
+            focusedScale: 1,
+            focusedShadowRadius: 10,
+            cornerRadius: cornerRadius,
+            focusedFillOpacity: 0.14
+        )
+    }
+}
+
 struct PlinxSettingsActionButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         PlinxSettingsActionButtonBody(configuration: configuration)
@@ -124,7 +139,11 @@ private struct PlinxSettingsActionButtonBody: View {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(Color.white.opacity(0.08))
             )
-            .plinxFocusSurface(isSelected: false, isFocused: isFocused)
+            .plinxFocusSurface(
+                isSelected: false,
+                isFocused: isFocused,
+                style: .tvSettings(cornerRadius: 16)
+            )
             .opacity(configuration.isPressed ? 0.82 : 1)
     }
 }

@@ -410,7 +410,8 @@ private struct SettingsBody: View {
                             showsChevron: true
                         )
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(PlinkButtonStyle())
+                    .focusEffectDisabled()
                     .accessibilityIdentifier("settings.rating.movie")
 
                     NavigationLink {
@@ -427,7 +428,8 @@ private struct SettingsBody: View {
                             showsChevron: true
                         )
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(PlinkButtonStyle())
+                    .focusEffectDisabled()
                     .accessibilityIdentifier("settings.rating.tv")
 
                     TvSettingsToggleRow(
@@ -482,7 +484,8 @@ private struct SettingsBody: View {
                             showsChevron: true
                         )
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(PlinkButtonStyle())
+                    .focusEffectDisabled()
                 }
 
                 TvSettingsSection(
@@ -521,7 +524,8 @@ private struct SettingsBody: View {
                             roleColor: .red
                         )
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(PlinkButtonStyle())
+                    .focusEffectDisabled()
                 }
             }
             .padding(.horizontal, 42)
@@ -561,7 +565,8 @@ private struct SettingsBody: View {
         NavigationLink(destination: destination) {
             TvSettingsRow(title: title, icon: icon, showsChevron: true)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PlinkButtonStyle())
+        .focusEffectDisabled()
     }
 
     private func tvExternalLink(
@@ -572,7 +577,8 @@ private struct SettingsBody: View {
         Link(destination: url) {
             TvSettingsRow(title: title, icon: icon, showsChevron: true)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PlinkButtonStyle())
+        .focusEffectDisabled()
     }
     #endif
 }
@@ -624,7 +630,7 @@ private struct TvSettingsRow: View {
     let icon: String
     var trailingValue: String?
     var showsChevron = false
-    var roleColor: Color = .accentColor
+    var roleColor: Color = .white
 
     @Environment(\.isFocused) private var isFocused
 
@@ -632,7 +638,7 @@ private struct TvSettingsRow: View {
         HStack(spacing: 20) {
             Image(systemName: icon)
                 .font(.system(size: 28, weight: .semibold))
-                .foregroundStyle(roleColor)
+                .foregroundStyle(isFocused ? .white : roleColor)
                 .frame(width: 42)
 
             Text(title, tableName: "Plinx")
@@ -655,7 +661,15 @@ private struct TvSettingsRow: View {
         }
         .padding(.horizontal, 22)
         .frame(minHeight: 78)
-        .plinxFocusSurface(isSelected: false, isFocused: isFocused)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.white.opacity(0.08))
+        )
+        .plinxFocusSurface(
+            isSelected: false,
+            isFocused: isFocused,
+            style: .tvSettings(cornerRadius: 18)
+        )
     }
 }
 
@@ -679,7 +693,8 @@ private struct TvSettingsToggleRow: View {
                 trailingValue: localizedValue
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PlinkButtonStyle())
+        .focusEffectDisabled()
         .accessibilityValue(localizedValue)
         .accessibilityAddTraits(isOn ? .isSelected : [])
     }
@@ -704,6 +719,7 @@ private struct TvVolumeSettingsRow: View {
                     .frame(width: 72, height: 64)
             }
             .buttonStyle(TvSettingsAdjustmentButtonStyle())
+            .focusEffectDisabled()
             .accessibilityLabel(Text("settings.safety.maxVolume.decrease", tableName: "Plinx"))
 
             Button(action: onIncrease) {
@@ -712,6 +728,7 @@ private struct TvVolumeSettingsRow: View {
                     .frame(width: 72, height: 64)
             }
             .buttonStyle(TvSettingsAdjustmentButtonStyle())
+            .focusEffectDisabled()
             .accessibilityLabel(Text("settings.safety.maxVolume.increase", tableName: "Plinx"))
         }
         .padding(.trailing, 14)
@@ -735,7 +752,11 @@ private struct TvSettingsAdjustmentButtonBody: View {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .fill(Color.white.opacity(0.08))
             )
-            .plinxFocusSurface(isSelected: false, isFocused: isFocused)
+            .plinxFocusSurface(
+                isSelected: false,
+                isFocused: isFocused,
+                style: .tvSettings(cornerRadius: 18)
+            )
     }
 }
 
@@ -760,7 +781,8 @@ private struct TvRatingChooser: View {
                     } label: {
                         TvRatingChoiceRow(rating: rating, isSelected: selection == rating)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(PlinkButtonStyle())
+                    .focusEffectDisabled()
                     .focused($focusedRating, equals: rating)
                     .accessibilityIdentifier("settings.rating.choice.\(rating)")
                 }
@@ -797,7 +819,11 @@ private struct TvRatingChoiceRow: View {
         .padding(.horizontal, 24)
         .frame(minHeight: 76)
         .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Color.white.opacity(0.07)))
-        .plinxFocusSurface(isSelected: isSelected, isFocused: isFocused)
+        .plinxFocusSurface(
+            isSelected: isSelected,
+            isFocused: isFocused,
+            style: .tvSettings(cornerRadius: 20)
+        )
     }
 }
 #endif

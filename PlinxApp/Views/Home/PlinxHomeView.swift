@@ -383,10 +383,14 @@ struct PlinxHomeView: View {
         let card = mediaCard(item, layout: layout, sectionKey: sectionKey, index: index)
 
         #if os(tvOS)
-        card
-            .focused($focusedCard, equals: .card(row: rowIndex, item: index))
-            .focusable()
+        Button {
+            onSelectMedia(item)
+        } label: {
+            card
+        }
+            .buttonStyle(PlinkButtonStyle())
             .focusEffectDisabled()
+            .focused($focusedCard, equals: .card(row: rowIndex, item: index))
             .onChange(of: focusedCard) { _, newTarget in
                 guard newTarget == .card(row: rowIndex, item: index),
                       let playableItem = item.playableItem
@@ -394,7 +398,6 @@ struct PlinxHomeView: View {
                 selectHeroMedia(playableItem)
                 tvFocusCoordinator.rememberContentTarget(item.id, in: .home)
             }
-            .onTapGesture { onSelectMedia(item) }
             .plinxQuickActionLongPress { onLongPressMedia(item) }
             .onMoveCommand { direction in
                 handleMoveCommand(direction, fromRow: rowIndex, rowCount: rowCount)
@@ -579,6 +582,7 @@ private struct HomeMediaCardBody: View {
     let imageViewModel: MediaImageViewModel
 
     @Environment(\.isFocused) private var isFocused
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var thumbHeight: CGFloat { cardWidth / ratio }
 
@@ -660,15 +664,14 @@ private struct HomeMediaCardBody: View {
                     }
             }
             .frame(width: cardWidth, height: thumbHeight)
-            .scaleEffect(isFocused ? 1.08 : 1.0)
             .overlay {
                 RoundedRectangle(
-                    cornerRadius: isFocused ? artworkCornerRadius * 1.08 : artworkCornerRadius,
+                    cornerRadius: artworkCornerRadius,
                     style: .continuous
                 )
                 .stroke(Color.accentColor, lineWidth: isFocused ? 4 : 0)
-                .scaleEffect(isFocused ? 1.08 : 1.0)
             }
+            .scaleEffect(isFocused && !reduceMotion ? 1.08 : 1.0)
             .shadow(color: isFocused ? Color.accentColor.opacity(0.58) : .clear, radius: isFocused ? 10 : 0)
             .shadow(color: isFocused ? Color.accentColor.opacity(0.22) : .clear, radius: isFocused ? 18 : 0)
             .frame(width: cardWidth + (focusHaloInset * 2), height: thumbHeight + (focusHaloInset * 2))
@@ -690,9 +693,6 @@ private struct HomeMediaCardBody: View {
             }
         }
         .frame(width: cardWidth + (focusHaloInset * 2), alignment: .leading)
-        #if os(tvOS)
-        .focusEffectDisabled()
-        #endif
         .accessibilityIdentifier("home.card.\(sectionKey).\(index)")
     }
 }
@@ -749,10 +749,11 @@ struct SharedTvBrowsePageLayout<NavigationContent: View, FilterContent: View, Ro
 
                 VStack(spacing: 0) {
                     heroSection(
-                        availableWidth: proxy.size.width
+                        availableWidth: proxy.size.width,
+                        topSafeAreaInset: proxy.safeAreaInsets.top
                     )
                         .frame(height: heroHeight)
-                        .background(Color.appBackground)
+                        .background(Color.appBackground.ignoresSafeArea(edges: [.top, .horizontal]))
 
                     ScrollView {
                         VStack(alignment: .leading, spacing: 18) {
@@ -774,10 +775,11 @@ struct SharedTvBrowsePageLayout<NavigationContent: View, FilterContent: View, Ro
                 .frame(width: proxy.size.width - leadingShift, alignment: .leading)
                 .background(Color.appBackground.ignoresSafeArea())
             }
+            .ignoresSafeArea(edges: .top)
         }
     }
 
-    private func heroSection(availableWidth: CGFloat) -> some View {
+    private func heroSection(availableWidth: CGFloat, topSafeAreaInset: CGFloat) -> some View {
         ZStack(alignment: .topLeading) {
             if let heroMedia {
                 TvPinnedHeroBackdrop(media: heroMedia)
@@ -797,7 +799,7 @@ struct SharedTvBrowsePageLayout<NavigationContent: View, FilterContent: View, Ro
                 }
             }
             .padding(.horizontal, heroMetrics.contentHorizontalPadding)
-            .padding(.top, heroMetrics.contentTopPadding)
+            .padding(.top, topSafeAreaInset + heroMetrics.contentTopPadding)
         }
         .clipped()
     }

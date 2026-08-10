@@ -117,6 +117,7 @@ private struct LibraryViewSectionsConfigurationView: View {
                                 }
                             }
                             .buttonStyle(PlinxSettingsActionButtonStyle())
+                            .focusEffectDisabled()
                             .disabled(index == 0)
                             .accessibilityLabel(Text("settings.actions.moveUp", tableName: "Plinx"))
                             Button { moveSection(at: index, by: 1) } label: {
@@ -127,6 +128,7 @@ private struct LibraryViewSectionsConfigurationView: View {
                                 }
                             }
                             .buttonStyle(PlinxSettingsActionButtonStyle())
+                            .focusEffectDisabled()
                             .disabled(index == sections.count - 1)
                             .accessibilityLabel(Text("settings.actions.moveDown", tableName: "Plinx"))
                         }

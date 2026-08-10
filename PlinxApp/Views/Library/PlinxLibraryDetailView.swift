@@ -261,6 +261,7 @@ struct PlinxLibraryDetailView: View {
                     .frame(minWidth: 68, minHeight: 64)
             }
             .buttonStyle(TvPillButtonStyle(isSelected: false))
+            .focusEffectDisabled()
             .focused($isBackFocused)
             .accessibilityIdentifier("library.detail.back")
             .onMoveCommand { direction in
@@ -285,7 +286,7 @@ struct PlinxLibraryDetailView: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 24)
-        .padding(.top, 12)
+        .padding(.top, PlinxTVShellMetrics.contentClearance + 12)
     }
 
     private var tvFilterRow: some View {
@@ -312,6 +313,7 @@ struct PlinxLibraryDetailView: View {
         }
         .focused($focusedLibraryFilterTab, equals: tab)
         .buttonStyle(TvPillButtonStyle(isSelected: selectedTab == tab))
+        .focusEffectDisabled()
         .accessibilityIdentifier("library.detail.filter.\(tab.rawValue)")
         .onMoveCommand { direction in
             guard direction == .up else { return }

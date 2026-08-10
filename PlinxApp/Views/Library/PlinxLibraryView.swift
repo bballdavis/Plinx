@@ -125,15 +125,24 @@ struct PlinxLibraryView: View {
         )
 
         #if os(tvOS)
-        tileBody
-            .focused($focusedLibraryID, equals: library.id)
-            .focusable(interactions: .activate)
+        Button {
+            onSelectLibrary(library)
+        } label: {
+            tileBody
+        }
+            .buttonStyle(PlinkButtonStyle())
             .focusEffectDisabled()
+            .focused($focusedLibraryID, equals: library.id)
             .plinxFocusSurface(
                 isSelected: false,
-                isFocused: focusedLibraryID == library.id
+                isFocused: focusedLibraryID == library.id,
+                style: PlinxFocusSurfaceStyle(
+                    focusedScale: 1.05,
+                    focusedShadowRadius: 30,
+                    cornerRadius: 22
+                )
             )
-            .onTapGesture { onSelectLibrary(library) }
+            .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             .onMoveCommand { direction in
                 handleMoveCommand(direction, fromRow: rowIndex)
             }
@@ -361,8 +370,6 @@ private struct LibraryTileBody<Placeholder: View, Artwork: View>: View {
     let placeholder: (Library) -> Placeholder
     let adaptiveArtwork: ([URL], CGSize) -> Artwork
 
-    @Environment(\.isFocused) private var isFocused
-
     var body: some View {
         ZStack(alignment: .bottom) {
             GeometryReader { proxy in
@@ -401,12 +408,6 @@ private struct LibraryTileBody<Placeholder: View, Artwork: View>: View {
         .frame(maxWidth: .infinity)
         .frame(height: tileHeight)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .stroke(isFocused ? Color.accentColor : .clear, lineWidth: isFocused ? 3 : 0)
-        )
-        .shadow(color: isFocused ? Color.accentColor.opacity(0.65) : .clear, radius: isFocused ? 30 : 0)
-        .scaleEffect(isFocused ? 1.05 : 1.0)
         .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .task(id: artworkRefreshToken) {
             await ensureArtwork(library, bannerArtworkDisplayCount)
