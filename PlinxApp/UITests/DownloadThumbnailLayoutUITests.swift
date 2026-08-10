@@ -5,6 +5,7 @@ final class DownloadThumbnailLayoutUITests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
         app.launchArguments += ["--ui-testing", "--disable-animations"]
         app.launchEnvironment["PLINX_UI_TEST_SCREEN"] = "downloadsGrid"
         app.launchEnvironment["PLINX_UI_TEST_SEED"] = "17"

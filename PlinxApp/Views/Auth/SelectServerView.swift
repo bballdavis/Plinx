@@ -58,7 +58,9 @@ struct SelectServerView: View {
         if viewModel.isLoading, viewModel.servers.isEmpty {
             PlinxBrandedLoadingView(
                 context: .content,
-                titleKey: "serverSelection.loading"
+                titleKey: LocalizedStringResource(
+                    "serverSelection.loading"
+                )
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if viewModel.servers.isEmpty {

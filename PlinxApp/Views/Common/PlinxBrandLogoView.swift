@@ -20,17 +20,16 @@ enum PlinxBrandingSemantics {
 }
 
 enum PlinxBrandLayoutMetrics {
-    static let signInCompactLogoWidth: CGFloat = 280
+    static let signInCompactLogoWidth: CGFloat = 320
     static let signInExpandedLogoWidth: CGFloat = 380
     static let signInCompactTitleSize: CGFloat = 34
     static let signInExpandedTitleSize: CGFloat = 44
     static let homeHeaderLogoGapReductionFactor: CGFloat = 0.5
 
-    private static let homeHeaderLogoCanvasHeight: CGFloat = 320
     private static let homeHeaderMarkX: CGFloat = 47.40579710144927
     private static let homeHeaderMarkScale: CGFloat = 0.2898550724637681
     private static let homeHeaderMarkWidth: CGFloat = 839 * homeHeaderMarkScale
-    private static let homeHeaderMarkHeight: CGFloat = 897 * homeHeaderMarkScale
+    static let homeHeaderMarkHeight: CGFloat = 897 * homeHeaderMarkScale
     private static let homeHeaderWordmarkX: CGFloat = 501.2623574144487
     private static let homeHeaderWordmarkScale: CGFloat = 0.3193916349809886
     private static let homeHeaderWordmarkWidth: CGFloat = 1520 * homeHeaderWordmarkScale
@@ -41,11 +40,13 @@ enum PlinxBrandLayoutMetrics {
         return originalGap
             * homeHeaderLogoGapReductionFactor
             * logoHeight
-            / homeHeaderLogoCanvasHeight
+            / homeHeaderMarkHeight
     }
 
     static func homeHeaderMarkSize(logoHeight: CGFloat) -> CGSize {
-        let scale = logoHeight / homeHeaderLogoCanvasHeight
+        // Scale by the visible mark bounds rather than the source canvas so
+        // the lockup actually fills the same row as its chrome controls.
+        let scale = logoHeight / homeHeaderMarkHeight
         return CGSize(
             width: homeHeaderMarkWidth * scale,
             height: homeHeaderMarkHeight * scale
@@ -53,7 +54,7 @@ enum PlinxBrandLayoutMetrics {
     }
 
     static func homeHeaderWordmarkSize(logoHeight: CGFloat) -> CGSize {
-        let scale = logoHeight / homeHeaderLogoCanvasHeight
+        let scale = logoHeight / homeHeaderMarkHeight
         return CGSize(
             width: homeHeaderWordmarkWidth * scale,
             height: homeHeaderWordmarkHeight * scale
@@ -127,7 +128,7 @@ struct PlinxHomeHeaderLogoView: View {
                 .scaledToFit()
                 .frame(width: wordmarkSize.width, height: wordmarkSize.height)
         }
-        .padding(.leading, logoHeight * 47.40579710144927 / 320)
+        .padding(.leading, logoHeight * 47.40579710144927 / PlinxBrandLayoutMetrics.homeHeaderMarkHeight)
         .frame(
             width: min(
                 maxWidth,

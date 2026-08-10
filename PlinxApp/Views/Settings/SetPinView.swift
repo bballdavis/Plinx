@@ -107,6 +107,7 @@ struct SetPinView: View {
         .scrollContentBackground(.hidden)
         #endif
         .background(Color.appBackground.ignoresSafeArea())
+        .plinxSettingsChrome()
         .navigationTitle(Text("settings.parentalPIN.navigationTitle", tableName: "Plinx"))
         .onAppear {
             step = parentalAccessCoordinator.hasPIN ? .verifyCurrent : .enter

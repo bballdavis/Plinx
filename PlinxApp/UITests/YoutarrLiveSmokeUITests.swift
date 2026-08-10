@@ -9,6 +9,7 @@ final class YoutarrLiveSmokeUITests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
         let environment = ProcessInfo.processInfo.environment
         guard environment["PLINX_YOUTARR_LIVE"] == "1",
               environment["PLINX_YOUTARR_URL"]?.isEmpty == false,

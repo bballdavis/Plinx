@@ -284,6 +284,14 @@ Builds a signed archive for App Store Connect and validates the packaged app bun
 
 # Build with explicit version and build number
 ./scripts/build_release_archive.sh --marketing-version 1.0 --build-number 4
+
+# Deliberately submit an internal-only TestFlight build with an App Store
+# Connect API key kept outside the repository.
+./scripts/build_release_archive.sh \
+  --upload-testflight \
+  --api-key-path /secure/path/AuthKey_ABC123.p8 \
+  --api-key-id ABC123 \
+  --api-key-issuer-id YOUR-ISSUER-ID
 ```
 
 **What it does:**
@@ -292,6 +300,10 @@ Builds a signed archive for App Store Connect and validates the packaged app bun
 - Overrides `CURRENT_PROJECT_VERSION` with a unique build number by default
 - Applies the pinned Strimr patch, generates the project, and runs `scripts/tests/validate_testflight_archive.sh`
 - Validates version/build overrides, signing, architecture, launch assets, privacy manifest, and forbidden telemetry artifacts
+- With `--upload-testflight`, exports with `app-store-connect` settings and submits an internal-only TestFlight build using the supplied API key
+
+The GitHub Actions delivery path runs this command only after a successful push
+to `dev-testflight`; see [internal TestFlight delivery](../docs/development/testflight-delivery.md).
 
 ### `validate_testflight_archive.sh` — Validate Archive Contents
 

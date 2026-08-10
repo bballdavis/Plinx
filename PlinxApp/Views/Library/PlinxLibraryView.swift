@@ -17,13 +17,21 @@ struct PlinxLibraryView: View {
     @Environment(\.safetyPolicy) private var safetyPolicy
     @Environment(SettingsManager.self) private var settingsManager
     #if os(tvOS)
+    @EnvironmentObject private var tvFocusCoordinator: PlinxTVFocusCoordinator
     @FocusState private var focusedLibraryID: String?
     #endif
 
     var body: some View {
         Group {
             if viewModel.isLoading && viewModel.libraries.isEmpty {
-                PlinxBrandedLoadingView(titleKey: "library.loading.plinx")
+                PlinxLoadingStateView(
+                    role: .content,
+                    label: LocalizedStringResource(
+                        "library.loading.plinx",
+                        table: "Plinx"
+                    ),
+                    accessibilityIdentifier: "library.loading"
+                )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let error = viewModel.errorMessage, viewModel.libraries.isEmpty {
                 PlinxErrorView(message: error) {
@@ -39,17 +47,30 @@ struct PlinxLibraryView: View {
             if hotReloadLibraryArtwork {
                 artworkRefreshToken = UUID()
             }
-            #if os(tvOS)
-            focusedLibraryID = focusedLibraryID ?? viewModel.libraries.first?.id
-            #endif
         }
         #if os(tvOS)
-        .onChange(of: viewModel.libraries.map(\.id)) { _, ids in
-            guard focusedLibraryID == nil else { return }
-            focusedLibraryID = ids.first
+        .onChange(of: viewModel.libraries.map(\.id)) { oldIDs, ids in
+            guard focusedLibraryID != nil else { return }
+            focusedLibraryID = PlinxTVFocusCoordinator.resolvedContentID(
+                currentID: focusedLibraryID,
+                previousIDs: oldIDs,
+                availableIDs: ids
+            )
         }
         .onChange(of: contentFocusRequest) { _, _ in
-            focusedLibraryID = viewModel.libraries.first?.id
+            let ids = viewModel.libraries.map(\.id)
+            focusedLibraryID = PlinxTVFocusCoordinator.resolvedContentID(
+                currentID: focusedLibraryID,
+                availableIDs: ids,
+                preferredID: tvFocusCoordinator.rememberedContentTarget(
+                    in: .library,
+                    availableIDs: ids
+                )
+            )
+        }
+        .onChange(of: focusedLibraryID) { _, id in
+            guard let id else { return }
+            tvFocusCoordinator.rememberContentTarget(id, in: .library)
         }
         #endif
         .onChange(of: safetyPolicy) { _, newPolicy in
@@ -108,19 +129,10 @@ struct PlinxLibraryView: View {
             .focused($focusedLibraryID, equals: library.id)
             .focusable(interactions: .activate)
             .focusEffectDisabled()
-            .scaleEffect(focusedLibraryID == library.id ? 1.04 : 1.0)
-            .shadow(
-                color: focusedLibraryID == library.id ? Color.accentColor.opacity(0.66) : .clear,
-                radius: focusedLibraryID == library.id ? 20 : 0
+            .plinxFocusSurface(
+                isSelected: false,
+                isFocused: focusedLibraryID == library.id
             )
-            .overlay {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(
-                        focusedLibraryID == library.id ? Color.accentColor.opacity(0.85) : .clear,
-                        lineWidth: focusedLibraryID == library.id ? 2.2 : 0
-                    )
-            }
-            .animation(.easeOut(duration: 0.14), value: focusedLibraryID == library.id)
             .onTapGesture { onSelectLibrary(library) }
             .onMoveCommand { direction in
                 handleMoveCommand(direction, fromRow: rowIndex)

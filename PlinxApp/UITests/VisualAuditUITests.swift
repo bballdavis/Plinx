@@ -8,6 +8,7 @@ final class VisualAuditUITests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
         app = XCUIApplication()
         app.launchArguments += ["--ui-testing", "--disable-animations"]
     }
@@ -81,7 +82,11 @@ final class VisualAuditUITests: XCTestCase {
 
     func test_capturePlayerSettings() {
         launch(screen: "playerSettings")
-        XCTAssertTrue(app.buttons["English"].waitForExistence(timeout: 12))
+        XCTAssertTrue(
+            app.buttons.matching(
+                NSPredicate(format: "label BEGINSWITH %@", "English")
+            ).firstMatch.waitForExistence(timeout: 12)
+        )
         attachScreenshot(name: "player-settings")
     }
 

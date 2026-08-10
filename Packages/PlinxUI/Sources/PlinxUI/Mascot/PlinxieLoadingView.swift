@@ -15,6 +15,7 @@ extension EnvironmentValues {
 public enum PlinxLoadingSize: Sendable, Equatable {
     case compact
     case regular
+    case playback
     case hero
 
     var dimension: CGFloat {
@@ -22,13 +23,15 @@ public enum PlinxLoadingSize: Sendable, Equatable {
         switch self {
         case .compact: 30
         case .regular: 84
-        case .hero: 320
+        case .playback: 148
+        case .hero: 280
         }
         #else
         switch self {
         case .compact: 20
         case .regular: 56
-        case .hero: 260
+        case .playback: 96
+        case .hero: 184
         }
         #endif
     }
@@ -37,6 +40,7 @@ public enum PlinxLoadingSize: Sendable, Equatable {
         switch self {
         case .compact: 5
         case .regular: 11
+        case .playback: 22
         case .hero: 32
         }
     }
@@ -45,6 +49,7 @@ public enum PlinxLoadingSize: Sendable, Equatable {
         switch self {
         case .compact: 0
         case .regular: dimension * 0.64
+        case .playback: dimension * 0.56
         case .hero: dimension * 0.58
         }
     }
@@ -53,6 +58,7 @@ public enum PlinxLoadingSize: Sendable, Equatable {
         switch self {
         case .compact: 2
         case .regular: 3.5
+        case .playback: 3.5
         case .hero: 3
         }
     }
@@ -61,6 +67,7 @@ public enum PlinxLoadingSize: Sendable, Equatable {
         switch self {
         case .compact: 4
         case .regular: 8
+        case .playback: 14
         case .hero: 18
         }
     }
@@ -69,6 +76,12 @@ public enum PlinxLoadingSize: Sendable, Equatable {
         switch self {
         case .compact: .caption2.weight(.semibold)
         case .regular: .callout.weight(.semibold)
+        case .playback:
+            #if os(tvOS)
+            .title2.weight(.semibold)
+            #else
+            .headline.weight(.semibold)
+            #endif
         case .hero:
             #if os(tvOS)
             .title.weight(.semibold)
@@ -99,8 +112,10 @@ public enum PlinxLoadingSurface: Sendable, Equatable {
 public struct PlinxLoadingIndicator: View {
     public let size: PlinxLoadingSize
     public let surface: PlinxLoadingSurface
-    public let label: LocalizedStringKey?
-    public let accessibilityLabelText: LocalizedStringKey?
+    /// A caller-owned localization resource for the visible loading message.
+    public let label: LocalizedStringResource?
+    /// A caller-owned localization resource for the spoken loading message.
+    public let accessibilityLabelText: LocalizedStringResource?
     public let accessibilityIdentifier: String
 
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
@@ -113,8 +128,8 @@ public struct PlinxLoadingIndicator: View {
     public init(
         size: PlinxLoadingSize = .compact,
         surface: PlinxLoadingSurface = .transparent,
-        label: LocalizedStringKey? = nil,
-        accessibilityLabel: LocalizedStringKey? = nil,
+        label: LocalizedStringResource? = nil,
+        accessibilityLabel: LocalizedStringResource? = nil,
         accessibilityIdentifier: String = "plinx.loading.indicator"
     ) {
         self.size = size
@@ -261,7 +276,7 @@ public struct PlinxLoadingIndicator: View {
         if let label {
             return Text(label)
         }
-        return Text("Loading")
+        return Text("plinx.loading.default", bundle: .module)
     }
 }
 

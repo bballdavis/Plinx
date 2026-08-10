@@ -1,18 +1,5 @@
 import SwiftUI
 
-enum PlinxPlayerOverlayLayout {
-    static let emphasisScale: CGFloat = 1.5
-    static let baseHeaderButtonSize: CGFloat = 42
-    static let baseHeaderIconSize: CGFloat = 17
-    static let baseHeaderCornerRadius: CGFloat = 14
-    static let baseTitleSize: CGFloat = 20
-
-    static let headerButtonSize = baseHeaderButtonSize * emphasisScale
-    static let headerIconSize = baseHeaderIconSize * emphasisScale
-    static let headerCornerRadius = baseHeaderCornerRadius * emphasisScale
-    static let titleSize = baseTitleSize * emphasisScale
-}
-
 struct PlayerIconButton: View {
     let systemName: String
     var accessibilityLabel: String?
@@ -110,12 +97,12 @@ struct PlayerSettingsButton: View {
     let action: () -> Void
 
     @ScaledMetric(relativeTo: .headline) private var iconSize =
-        PlinxPlayerOverlayLayout.headerIconSize
+        PlinxPlayerControlLayout.headerIconSize
 
     var body: some View {
         Button(action: action) {
             let chrome = RoundedRectangle(
-                cornerRadius: PlinxPlayerOverlayLayout.headerCornerRadius,
+                cornerRadius: PlinxPlayerControlLayout.headerCornerRadius,
                 style: .continuous
             )
             Image(systemName: "gearshape")
@@ -127,8 +114,8 @@ struct PlayerSettingsButton: View {
                 )
                 .foregroundStyle(.white)
                 .frame(
-                    width: PlinxPlayerOverlayLayout.headerButtonSize,
-                    height: PlinxPlayerOverlayLayout.headerButtonSize
+                    width: PlinxPlayerControlLayout.headerButtonSize,
+                    height: PlinxPlayerControlLayout.headerButtonSize
                 )
                 .background(chrome.fill(Color.brandPrimary.opacity(0.14)))
                 .overlay(

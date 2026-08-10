@@ -16,6 +16,7 @@ final class LibraryTabUITests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
         app.launchArguments += ["--ui-testing", "--disable-animations"]
         app.launch()
     }

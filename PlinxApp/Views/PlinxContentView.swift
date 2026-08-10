@@ -1,4 +1,5 @@
 import PlinxUI
+import Foundation
 import SwiftUI
 
 struct PlinxContentView: View {
@@ -6,6 +7,11 @@ struct PlinxContentView: View {
     @Environment(PlexAPIContext.self) private var plexApiContext
     @Environment(\.safetyPolicy) private var safetyPolicy
     @EnvironmentObject private var mainCoordinator: MainCoordinator
+    @StateObject private var playbackLaunchCoordinator = PlaybackLaunchCoordinator()
+
+    private struct PlaybackPresentationToken: Identifiable {
+        let id = "plinx.playback.presentation"
+    }
 
     private var uiTestScreenOverride: String? {
         guard ProcessInfo.processInfo.arguments.contains("--ui-testing") else {
@@ -26,20 +32,10 @@ struct PlinxContentView: View {
 
             rootContent
         }
-        .fullScreenCover(item: $mainCoordinator.selectedPlayQueue) { playQueue in
-            PlinxPlayerPlaybackView(
-                viewModel: PlayerViewModel(
-                    playQueue: playQueue,
-                    context: plexApiContext,
-                    shouldResumeFromOffset: mainCoordinator.shouldResumeFromOffset
-                ),
-                onExit: {
-                    mainCoordinator.resetPlayer()
-                },
-                isPlaybackAuthorized: { item in
-                    PlinxContentAuthorization.isAllowed(item, policy: safetyPolicy)
-                }
-            )
+        .environmentObject(playbackLaunchCoordinator)
+        .fullScreenCover(item: playbackPresentationBinding) { _ in
+            PlinxPlaybackPresentationView()
+                .environmentObject(playbackLaunchCoordinator)
         }
         .onAppear {
             Task { @MainActor in
@@ -49,16 +45,29 @@ struct PlinxContentView: View {
         }
     }
 
+    private var playbackPresentationBinding: Binding<PlaybackPresentationToken?> {
+        Binding(
+            get: {
+                guard playbackLaunchCoordinator.pendingLaunch != nil
+                    || mainCoordinator.selectedPlayQueue != nil else {
+                    return nil
+                }
+                return PlaybackPresentationToken()
+            },
+            set: { newValue in
+                guard newValue == nil else { return }
+                playbackLaunchCoordinator.cancelPendingLaunch()
+                mainCoordinator.resetPlayer()
+            }
+        )
+    }
+
     @ViewBuilder
     private var rootContent: some View {
         if let uiTestScreenOverride {
             switch uiTestScreenOverride {
             case "parentalGate":
-                #if os(tvOS)
                 ParentalGateUITestHarness()
-                #else
-                ParentalGateView(onAllowed: {})
-                #endif
             case "signIn":
                 SignInView(
                     viewModel: PlinxSignInViewModel(
@@ -80,6 +89,8 @@ struct PlinxContentView: View {
                 homeHeaderPreview
             case "playerBuffering":
                 playerBufferingPreview
+            case "playerLoading":
+                PlinxPlaybackLoadingView(onExit: {})
             case "refreshLoading":
                 refreshLoadingPreview
             case "settings":
@@ -87,6 +98,8 @@ struct PlinxContentView: View {
                     PlinxSettingsView(isUnlocked: true)
                 }
             #if os(tvOS)
+            case "settingsNavigation":
+                AppleTVSettingsNavigationUITestHarness()
             case "appleTVBrowseFocus":
                 AppleTVBrowseFocusUITestHarness(scenario: .root(hasContent: true))
             case "appleTVBrowseFocusEmpty":
@@ -319,7 +332,10 @@ struct PlinxContentView: View {
     private var contentLoadingPreview: some View {
         PlinxBrandedLoadingView(
             context: .content,
-            titleKey: "library.loading.plinx"
+            titleKey: LocalizedStringResource(
+                "library.loading.plinx",
+                table: "Plinx"
+            )
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.appBackground.ignoresSafeArea())
@@ -438,20 +454,44 @@ struct PlinxContentView: View {
     }
 }
 
-#if os(tvOS)
 private struct ParentalGateUITestHarness: View {
     @State private var isAllowed = false
+    @State private var parentalAccessCoordinator: ParentalAccessCoordinator
+
+    init() {
+        let suiteName = "com.bballdavis.plinx.ui-tests.parental-gate"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defaults.removePersistentDomain(forName: suiteName)
+        _parentalAccessCoordinator = State(
+            initialValue: ParentalAccessCoordinator(
+                store: EmptyParentalPINStore(),
+                legacyDefaults: defaults
+            )
+        )
+    }
 
     var body: some View {
-        if isAllowed {
-            NavigationStack {
-                PlinxSettingsView(isUnlocked: true)
-            }
-        } else {
-            ParentalGateView {
-                isAllowed = true
+        Group {
+            if isAllowed {
+                #if os(tvOS)
+                NavigationStack {
+                    PlinxSettingsView(isUnlocked: true)
+                }
+                #else
+                EmptyView()
+                #endif
+            } else {
+                ParentalGateView {
+                    isAllowed = true
+                }
             }
         }
+        .environment(parentalAccessCoordinator)
     }
 }
-#endif
+
+private struct EmptyParentalPINStore: ParentalPINStoring {
+    func readPIN() throws -> String? { nil }
+    func writePIN(_ pin: String) throws {}
+    func deletePIN() throws {}
+}

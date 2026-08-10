@@ -1,5 +1,6 @@
 import SwiftUI
 import PlinxCore
+import PlinxUI
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HomeScreenSettingsView
@@ -88,6 +89,39 @@ struct HomeScreenSettingsView: View {
 
             // MARK: Section order
             Section {
+                #if os(tvOS)
+                ForEach(Array(orderedSections.enumerated()), id: \.element) { index, sectionId in
+                    HStack {
+                        Label {
+                            Text(LocalizedStringKey(sectionDisplayKey(sectionId)), tableName: "Plinx")
+                        } icon: {
+                            Image(systemName: sectionIconName(sectionId))
+                        }
+                        Spacer()
+                        Button { moveSection(at: index, by: -1) } label: {
+                            Label {
+                                Text("settings.actions.moveUp", tableName: "Plinx")
+                            } icon: {
+                                Image(systemName: "arrow.up")
+                            }
+                        }
+                        .buttonStyle(PlinxSettingsActionButtonStyle())
+                        .disabled(index == 0)
+                        .accessibilityLabel(Text("settings.actions.moveUp", tableName: "Plinx"))
+
+                        Button { moveSection(at: index, by: 1) } label: {
+                            Label {
+                                Text("settings.actions.moveDown", tableName: "Plinx")
+                            } icon: {
+                                Image(systemName: "arrow.down")
+                            }
+                        }
+                        .buttonStyle(PlinxSettingsActionButtonStyle())
+                        .disabled(index == orderedSections.count - 1)
+                        .accessibilityLabel(Text("settings.actions.moveDown", tableName: "Plinx"))
+                    }
+                }
+                #else
                 ForEach(orderedSections, id: \.self) { sectionId in
                     Label {
                         Text(LocalizedStringKey(sectionDisplayKey(sectionId)), tableName: "Plinx")
@@ -99,6 +133,7 @@ struct HomeScreenSettingsView: View {
                     orderedSections.move(fromOffsets: indices, toOffset: newOffset)
                     sectionOrderJson = encodeStringArray(orderedSections)
                 }
+                #endif
             } header: {
                 Text("settings.homescreen.sections.title", tableName: "Plinx")
             } footer: {
@@ -142,6 +177,7 @@ struct HomeScreenSettingsView: View {
         .scrollContentBackground(.hidden)
         #endif
         .background(Color.appBackground.ignoresSafeArea())
+        .plinxSettingsChrome()
         .task {
             if libraryStore.libraries.isEmpty {
                 try? await libraryStore.loadLibraries()
@@ -231,6 +267,13 @@ struct HomeScreenSettingsView: View {
             ids.insert(library.id)
         }
         hiddenIdsJson = encodeStringArray(Array(ids).sorted())
+    }
+
+    private func moveSection(at index: Int, by offset: Int) {
+        let destination = index + offset
+        guard orderedSections.indices.contains(index), orderedSections.indices.contains(destination) else { return }
+        orderedSections.swapAt(index, destination)
+        sectionOrderJson = encodeStringArray(orderedSections)
     }
 
 }

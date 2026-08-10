@@ -2,6 +2,12 @@ import XCTest
 
 final class BrandingUITests: XCTestCase {
 
+    override func setUp() {
+        super.setUp()
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+    }
+
     func test_parentalGate_showsBrandLogoAndAccentSemanticTitle() {
         let app = launch(screen: "parentalGate")
 
@@ -105,11 +111,15 @@ final class BrandingUITests: XCTestCase {
     func test_playerSettings_usesBrandedSelectionRows_withoutPlaybackSpeed() {
         let app = launch(screen: "playerSettings")
 
-        let englishRow = app.buttons["English"]
+        let englishRow = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "English")
+        ).firstMatch
         XCTAssertTrue(englishRow.waitForExistence(timeout: 8), "Expected branded audio row to render")
         XCTAssertEqual(englishRow.value as? String, "selected", "Selected track row should expose selected state")
 
-        let spanishRow = app.buttons["Spanish"]
+        let spanishRow = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Spanish")
+        ).firstMatch
         XCTAssertTrue(spanishRow.waitForExistence(timeout: 8), "Expected secondary audio row to render")
         XCTAssertEqual(spanishRow.value as? String, "not selected", "Unselected track row should expose not selected state")
 
@@ -157,6 +167,18 @@ final class BrandingUITests: XCTestCase {
             0,
             "Player buffering should not render the native activity indicator"
         )
+    }
+
+    func test_playerLoading_usesPlaybackIndicatorAndLargeBackButton() {
+        let app = launch(screen: "playerLoading")
+
+        let loader = app.descendants(matching: .any)["player.loading.plinx"]
+        XCTAssertTrue(loader.waitForExistence(timeout: 8))
+
+        let backButton = app.buttons["player.back"]
+        XCTAssertTrue(backButton.waitForExistence(timeout: 8))
+        XCTAssertGreaterThan(backButton.frame.width, 66)
+        XCTAssertEqual(app.activityIndicators.count, 0)
     }
 
     private func launch(screen: String) -> XCUIApplication {

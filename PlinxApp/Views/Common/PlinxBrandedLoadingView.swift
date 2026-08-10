@@ -12,11 +12,11 @@ enum PlinxBrandedLoadingContext: Sendable {
 
 struct PlinxBrandedLoadingView: View {
     var context: PlinxBrandedLoadingContext
-    var titleKey: LocalizedStringKey?
+    var titleKey: LocalizedStringResource?
 
     init(
         context: PlinxBrandedLoadingContext = .content,
-        titleKey: LocalizedStringKey? = nil
+        titleKey: LocalizedStringResource? = nil
     ) {
         self.context = context
         self.titleKey = titleKey
@@ -38,20 +38,12 @@ struct PlinxBrandedLoadingView: View {
     }
 
     private var contentLoading: some View {
-        VStack(spacing: 18) {
-            PlinxLoadingIndicator(
-                size: .regular,
-                surface: .glass,
-                accessibilityIdentifier: "plinx.loading.content"
-            )
-
-            if let titleKey {
-                Text(titleKey)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-        }
+        PlinxLoadingStateView(
+            role: .content,
+            label: titleKey,
+            accessibilityLabel: titleKey,
+            accessibilityIdentifier: "plinx.loading.content"
+        )
     }
 
     private var heroIdentityContent: some View {
@@ -59,7 +51,10 @@ struct PlinxBrandedLoadingView: View {
             PlinxLoadingIndicator(
                 size: .hero,
                 surface: .glass,
-                accessibilityLabel: "Loading",
+                accessibilityLabel: LocalizedStringResource(
+                    "common.status.loading",
+                    table: "Plinx"
+                ),
                 accessibilityIdentifier: "plinx.loading.heroBeacon"
             )
 
@@ -71,16 +66,18 @@ struct PlinxBrandedLoadingView: View {
             .accessibilityHidden(true)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Loading")
+        .accessibilityLabel(
+            Text(LocalizedStringResource("common.status.loading", table: "Plinx"))
+        )
         .accessibilityValue(PlinxBrandingSemantics.heroLoadingStyleValue)
         .accessibilityIdentifier("plinx.loading.branded")
     }
 
     private var heroWordmarkWidth: CGFloat {
         #if os(tvOS)
-        260
+        240
         #else
-        180
+        150
         #endif
     }
 }

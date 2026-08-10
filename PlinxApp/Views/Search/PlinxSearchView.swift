@@ -4,12 +4,15 @@ import PlinxUI
 struct PlinxSearchView: View {
     @State var viewModel: SafeSearchViewModel
     var topContent: AnyView? = nil
+    var onRequestShellNavigationFocus: () -> Void = {}
+    var contentFocusRequest: Int = 0
     var onSelectMedia: (MediaDisplayItem) -> Void
     var onLongPressMedia: (MediaDisplayItem) -> Void = { _ in }
 
     @Environment(PlexAPIContext.self) private var plexApiContext
     @FocusState private var searchFocused: Bool
     #if os(tvOS)
+    @EnvironmentObject private var tvFocusCoordinator: PlinxTVFocusCoordinator
     @FocusState private var focusedResultID: String?
     #endif
     @Environment(\.safetyPolicy) private var safetyPolicy
@@ -38,6 +41,23 @@ struct PlinxSearchView: View {
         .onChange(of: safetyPolicy) { _, newPolicy in
             viewModel.updatePolicy(newPolicy)
         }
+        #if os(tvOS)
+        .onChange(of: contentFocusRequest) { _, _ in
+            restoreContentFocus()
+        }
+        .onChange(of: viewModel.items.map(\.id)) { oldIDs, ids in
+            guard focusedResultID != nil else { return }
+            focusedResultID = PlinxTVFocusCoordinator.resolvedContentID(
+                currentID: focusedResultID,
+                previousIDs: oldIDs,
+                availableIDs: ids
+            )
+        }
+        .onChange(of: focusedResultID) { _, id in
+            guard let id else { return }
+            tvFocusCoordinator.rememberContentTarget(id, in: .search)
+        }
+        #endif
     }
 
     private var bottomContentPadding: CGFloat {
@@ -85,6 +105,14 @@ struct PlinxSearchView: View {
                         .stroke(.white.opacity(0.2), lineWidth: 1)
                 )
         )
+        #if os(tvOS)
+        .plinxFocusSurface(isSelected: false, isFocused: searchFocused)
+        .onMoveCommand { direction in
+            guard direction == .up else { return }
+            searchFocused = false
+            onRequestShellNavigationFocus()
+        }
+        #endif
     }
 
     // MARK: - Results
@@ -96,10 +124,16 @@ struct PlinxSearchView: View {
         } else if viewModel.shouldShowTypingPrompt {
             liveSearchPrompt
         } else if viewModel.isLoading && viewModel.items.isEmpty {
-            ProgressView()
+            PlinxLoadingStateView(
+                role: .content,
+                accessibilityLabel: LocalizedStringResource(
+                    "search.loading",
+                    table: "Plinx"
+                ),
+                accessibilityIdentifier: "search.loading"
+            )
                 .frame(maxWidth: .infinity)
                 .padding(.top, 24)
-                .tint(searchAccentColor)
         } else if viewModel.items.isEmpty {
             Text("search.no_results \(viewModel.query)", tableName: "Plinx")
                 .font(.subheadline)
@@ -150,6 +184,12 @@ struct PlinxSearchView: View {
                     onLongPress: { onLongPressMedia(item) }
                 )
                 .focused($focusedResultID, equals: item.id)
+                .onMoveCommand { direction in
+                    guard direction == .up,
+                          item.id == viewModel.items.first?.id else { return }
+                    focusedResultID = nil
+                    searchFocused = true
+                }
                 #else
                 resultRow(item)
                     .plinxMediaCardInteraction(
@@ -208,6 +248,27 @@ struct PlinxSearchView: View {
         .padding(.vertical, 12)
         .contentShape(Rectangle())
     }
+
+    #if os(tvOS)
+    private func restoreContentFocus() {
+        let ids = viewModel.items.map(\.id)
+        let remembered: String? = tvFocusCoordinator.rememberedContentTarget(
+            in: .search,
+            availableIDs: ids
+        )
+        if let resolved = PlinxTVFocusCoordinator.resolvedContentID(
+            currentID: focusedResultID,
+            availableIDs: ids,
+            preferredID: remembered
+        ), !viewModel.query.isEmpty {
+            searchFocused = false
+            focusedResultID = resolved
+        } else {
+            focusedResultID = nil
+            searchFocused = true
+        }
+    }
+    #endif
 }
 
 #if os(tvOS)
@@ -264,12 +325,7 @@ private struct SearchResultButton: View {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .fill(isFocused ? Color.white.opacity(0.12) : Color.clear)
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(isFocused ? Color.accentColor.opacity(0.9) : Color.clear, lineWidth: 2)
-            )
-            .scaleEffect(isFocused ? 1.025 : 1)
-            .animation(.easeOut(duration: 0.14), value: isFocused)
+            .plinxFocusSurface(isSelected: false, isFocused: isFocused)
         }
         .buttonStyle(.plain)
         .plinxQuickActionLongPress(onLongPress)

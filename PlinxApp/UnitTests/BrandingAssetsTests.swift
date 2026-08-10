@@ -37,7 +37,7 @@ final class BrandingAssetsTests: XCTestCase {
     }
 
     func test_brandHierarchyMetrics_keepSignInAndHomeIdentityProminent() {
-        XCTAssertEqual(PlinxBrandLayoutMetrics.signInCompactLogoWidth, 280)
+        XCTAssertEqual(PlinxBrandLayoutMetrics.signInCompactLogoWidth, 320)
         XCTAssertEqual(PlinxBrandLayoutMetrics.signInExpandedLogoWidth, 380)
         XCTAssertLessThan(
             PlinxBrandLayoutMetrics.signInExpandedTitleSize,
@@ -59,7 +59,7 @@ final class BrandingAssetsTests: XCTestCase {
         XCTAssertEqual(PlinxBrandLayoutMetrics.homeHeaderLogoGapReductionFactor, 0.5)
         XCTAssertEqual(
             PlinxBrandLayoutMetrics.homeHeaderLogoGap(logoHeight: 52),
-            17.117,
+            21.067,
             accuracy: 0.01
         )
     }

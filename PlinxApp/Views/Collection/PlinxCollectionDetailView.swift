@@ -1,16 +1,27 @@
 import SwiftUI
 import PlinxUI
 
+#if os(tvOS)
+private enum PlinxCollectionFocusTarget: Hashable {
+    case back
+    case item(String)
+}
+#endif
+
 struct PlinxCollectionDetailView: View {
     @State var viewModel: SafeCollectionDetailViewModel
     var onSelectMedia: (MediaDisplayItem) -> Void
     var onLongPressMedia: (MediaDisplayItem) -> Void = { _ in }
+    var onRequestShellNavigationFocus: () -> Void = {}
+    var contentFocusRequest: Int = 0
 
+    @Environment(\.dismiss) private var dismiss
     @Environment(PlexAPIContext.self) private var plexApiContext
     @Environment(\.safetyPolicy) private var safetyPolicy
     @Environment(\.preferredLandscapeArtworkKind) private var preferredLandscapeArtworkKind
     #if os(tvOS)
-    @FocusState private var focusedItemID: String?
+    @FocusState private var focusedTarget: PlinxCollectionFocusTarget?
+    @State private var previousItemIDs: [String] = []
     #endif
 
     private var columns: [GridItem] {
@@ -26,44 +37,48 @@ struct PlinxCollectionDetailView: View {
     }
 
     var body: some View {
-        Group {
-            if viewModel.isLoading && viewModel.items.isEmpty {
-                PlinxBrandedLoadingView()
+        VStack(spacing: 0) {
+            #if os(tvOS)
+            contextRow
+            #endif
+
+            Group {
+                if viewModel.isLoading && viewModel.items.isEmpty {
+                    PlinxBrandedLoadingView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if let error = viewModel.errorMessage, viewModel.items.isEmpty {
+                    PlinxErrorView(message: error) {
+                        Task { await viewModel.load() }
+                    }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let error = viewModel.errorMessage, viewModel.items.isEmpty {
-                PlinxErrorView(message: error) {
-                    Task { await viewModel.load() }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if viewModel.items.isEmpty {
-                ContentUnavailableView(
-                    "common.empty.nothingToShow",
-                    systemImage: "rectangle.stack",
-                    description: Text("media.collection.empty", tableName: "Plinx")
-                )
-            } else {
-                ScrollView {
-                    if let years = viewModel.yearsText ?? viewModel.elementsCountText {
-                        Text(years)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 16)
-                            .padding(.top, 8)
-                    }
-                    LazyVGrid(columns: columns, spacing: 12) {
-                        ForEach(viewModel.items, id: \.id) { item in
-                            collectionItem(item)
+                } else if viewModel.items.isEmpty {
+                    ContentUnavailableView(
+                        "common.empty.nothingToShow",
+                        systemImage: "rectangle.stack",
+                        description: Text("media.collection.empty", tableName: "Plinx")
+                    )
+                } else {
+                    ScrollView {
+                        if let years = viewModel.yearsText ?? viewModel.elementsCountText {
+                            Text(years)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 16)
+                                .padding(.top, 8)
                         }
+                        LazyVGrid(columns: columns, spacing: 12) {
+                            ForEach(viewModel.items, id: \.id) { item in
+                                collectionItem(item)
+                            }
+                        }
+                        .padding(collectionGridPadding)
                     }
-                    .padding(collectionGridPadding)
                 }
             }
         }
+        #if !os(tvOS)
         .navigationTitle(viewModel.collection.title)
-        #if os(tvOS)
-        .toolbarTitleDisplayMode(.inline)
-        #else
         .toolbarTitleDisplayMode(.inlineLarge)
         #endif
         .toolbarBackground(.hidden, for: .navigationBar)
@@ -71,6 +86,25 @@ struct PlinxCollectionDetailView: View {
         .onChange(of: safetyPolicy) { _, newPolicy in
             viewModel.updatePolicy(newPolicy)
         }
+        #if os(tvOS)
+        .onAppear {
+            previousItemIDs = viewModel.items.map(\.id)
+            focusedTarget = .back
+        }
+        .onChange(of: contentFocusRequest) { _, _ in
+            restoreContentFocus()
+        }
+        .onChange(of: viewModel.items.map(\.id)) { oldIDs, newIDs in
+            defer { previousItemIDs = newIDs }
+            guard case let .item(currentID) = focusedTarget else { return }
+            let resolved = PlinxTVFocusCoordinator.resolvedContentID(
+                currentID: currentID,
+                previousIDs: oldIDs,
+                availableIDs: newIDs
+            )
+            focusedTarget = resolved.map(PlinxCollectionFocusTarget.item) ?? .back
+        }
+        #endif
     }
 
     private var collectionGridPadding: CGFloat {
@@ -82,6 +116,54 @@ struct PlinxCollectionDetailView: View {
     }
 
     #if os(tvOS)
+    private var contextRow: some View {
+        HStack(spacing: 24) {
+            Button {
+                dismiss()
+            } label: {
+                Label {
+                    Text("common.actions.back", tableName: "Plinx")
+                } icon: {
+                    Image(systemName: "chevron.left")
+                }
+                .font(.system(size: 28, weight: .semibold, design: .rounded))
+                .padding(.horizontal, 24)
+                .frame(minHeight: 70)
+                .background(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(Color.white.opacity(0.08))
+                )
+                .plinxFocusSurface(
+                    isSelected: false,
+                    isFocused: focusedTarget == .back
+                )
+            }
+            .buttonStyle(.plain)
+            .focused($focusedTarget, equals: .back)
+            .onMoveCommand { direction in
+                switch direction {
+                case .up:
+                    focusedTarget = nil
+                    onRequestShellNavigationFocus()
+                case .down:
+                    restoreContentFocus(preferFirstItem: true)
+                default:
+                    break
+                }
+            }
+
+            Text(viewModel.collection.title)
+                .font(.system(size: 38, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 42)
+        .padding(.vertical, 16)
+        .background(Color.black.opacity(0.18))
+    }
+
     private var usesLandscapeCollectionGrid: Bool {
         preferredLandscapeArtworkKind != nil || viewModel.items.contains { $0.type == .clip }
     }
@@ -94,7 +176,7 @@ struct PlinxCollectionDetailView: View {
     @ViewBuilder
     private func collectionItem(_ item: MediaDisplayItem) -> some View {
         #if os(tvOS)
-        let isFocused = focusedItemID == item.id
+        let isFocused = focusedTarget == .item(item.id)
         let aspectRatio = usesLandscapeCard(for: item) ? (16.0 / 9.0) : (2.0 / 3.0)
         Button {
             onSelectMedia(item)
@@ -108,16 +190,15 @@ struct PlinxCollectionDetailView: View {
             )
             .aspectRatio(aspectRatio, contentMode: .fit)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(isFocused ? Color.accentColor.opacity(0.9) : Color.clear, lineWidth: 3)
-            )
-            .shadow(color: isFocused ? Color.accentColor.opacity(0.65) : .clear, radius: isFocused ? 22 : 0)
-            .scaleEffect(isFocused ? 1.06 : 1)
-            .animation(.easeOut(duration: 0.14), value: isFocused)
+            .plinxFocusSurface(isSelected: false, isFocused: isFocused)
         }
         .buttonStyle(.plain)
-        .focused($focusedItemID, equals: item.id)
+        .focused($focusedTarget, equals: .item(item.id))
+        .onMoveCommand { direction in
+            guard direction == .up,
+                  item.id == viewModel.items.first?.id else { return }
+            focusedTarget = .back
+        }
         .plinxQuickActionLongPress {
             onLongPressMedia(item)
         }
@@ -138,4 +219,21 @@ struct PlinxCollectionDetailView: View {
         )
         #endif
     }
+
+    #if os(tvOS)
+    private func restoreContentFocus(preferFirstItem: Bool = false) {
+        let ids = viewModel.items.map(\.id)
+        let currentID: String?
+        if case let .item(id) = focusedTarget {
+            currentID = id
+        } else {
+            currentID = nil
+        }
+        let resolved = PlinxTVFocusCoordinator.resolvedContentID(
+            currentID: preferFirstItem ? nil : currentID,
+            availableIDs: ids
+        )
+        focusedTarget = resolved.map(PlinxCollectionFocusTarget.item) ?? .back
+    }
+    #endif
 }

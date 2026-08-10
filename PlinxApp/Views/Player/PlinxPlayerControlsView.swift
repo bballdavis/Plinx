@@ -160,15 +160,15 @@ private struct PlayerControlsHeader: View {
     var isSharePlay: Bool
 
     @ScaledMetric(relativeTo: .headline) private var iconSize =
-        PlinxPlayerOverlayLayout.headerIconSize
+        PlinxPlayerControlLayout.headerIconSize
     @ScaledMetric(relativeTo: .title3) private var titleSize =
-        PlinxPlayerOverlayLayout.titleSize
+        PlinxPlayerControlLayout.titleSize
 
     var body: some View {
         HStack(alignment: .center, spacing: 18) {
             Button(action: onDismiss) {
                 let chrome = RoundedRectangle(
-                    cornerRadius: PlinxPlayerOverlayLayout.headerCornerRadius,
+                    cornerRadius: PlinxPlayerControlLayout.headerCornerRadius,
                     style: .continuous
                 )
                 Image(systemName: "chevron.backward")
@@ -180,8 +180,8 @@ private struct PlayerControlsHeader: View {
                     )
                     .foregroundStyle(.white)
                     .frame(
-                        width: PlinxPlayerOverlayLayout.headerButtonSize,
-                        height: PlinxPlayerOverlayLayout.headerButtonSize
+                        width: PlinxPlayerControlLayout.headerButtonSize,
+                        height: PlinxPlayerControlLayout.headerButtonSize
                     )
                     .background(chrome.fill(.thinMaterial))
                     .overlay(

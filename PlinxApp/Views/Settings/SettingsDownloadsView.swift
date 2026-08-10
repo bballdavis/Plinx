@@ -1,4 +1,5 @@
 import SwiftUI
+import PlinxUI
 
 @MainActor
 struct SettingsDownloadsView: View {
@@ -45,5 +46,6 @@ struct SettingsDownloadsView: View {
         .listStyle(.insetGrouped)
         #endif
         .navigationTitle(Text("settings.downloads.title", tableName: "Plinx"))
+        .plinxSettingsChrome()
     }
 }

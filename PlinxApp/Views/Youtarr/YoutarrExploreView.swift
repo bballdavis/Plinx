@@ -700,11 +700,18 @@ struct YoutarrExploreView: View {
     @AppStorage(PlinxChromeButtonSizePreference.storageKey)
     private var chromeButtonSizeRaw = PlinxChromeButtonSizePreference.defaultValue.rawValue
     private let safetyPolicy: SafetyPolicy
+    private let onRequestShellNavigationFocus: () -> Void
+    private let contentFocusRequest: Int
+    #if os(tvOS)
+    @FocusState private var isSearchFocused: Bool
+    #endif
 
     init(
         configuration: YoutarrConfiguration,
         safetyPolicy: SafetyPolicy,
-        client: YoutarrClient? = nil
+        client: YoutarrClient? = nil,
+        onRequestShellNavigationFocus: @escaping () -> Void = {},
+        contentFocusRequest: Int = 0
     ) {
         _viewModel = StateObject(
             wrappedValue: YoutarrExploreViewModel(
@@ -714,6 +721,8 @@ struct YoutarrExploreView: View {
             )
         )
         self.safetyPolicy = safetyPolicy
+        self.onRequestShellNavigationFocus = onRequestShellNavigationFocus
+        self.contentFocusRequest = contentFocusRequest
     }
 
     var body: some View {
@@ -796,6 +805,11 @@ struct YoutarrExploreView: View {
             requestTasks.values.forEach { $0.cancel() }
             requestTasks = [:]
         }
+        #if os(tvOS)
+        .onChange(of: contentFocusRequest) { _, _ in
+            isSearchFocused = true
+        }
+        #endif
     }
 
     private var exploreHeader: some View {
@@ -836,6 +850,9 @@ struct YoutarrExploreView: View {
                 }
                 .submitLabel(.search)
                 .onSubmit(startReload)
+                #if os(tvOS)
+                .focused($isSearchFocused)
+                #endif
 
                 if !viewModel.searchText.isEmpty {
                     Button {
@@ -859,6 +876,14 @@ struct YoutarrExploreView: View {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .stroke(Color.accentColor.opacity(0.24), lineWidth: 1)
             }
+            #if os(tvOS)
+            .plinxFocusSurface(isSelected: false, isFocused: isSearchFocused)
+            .onMoveCommand { direction in
+                guard direction == .up else { return }
+                isSearchFocused = false
+                onRequestShellNavigationFocus()
+            }
+            #endif
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
@@ -1087,6 +1112,8 @@ struct YoutarrExploreTabContent: View {
     let safetyPolicy: SafetyPolicy
     let isActive: Bool
     var client: YoutarrClient?
+    var onRequestShellNavigationFocus: () -> Void = {}
+    var contentFocusRequest: Int = 0
 
     @ViewBuilder
     var body: some View {
@@ -1094,7 +1121,9 @@ struct YoutarrExploreTabContent: View {
             YoutarrExploreView(
                 configuration: configuration,
                 safetyPolicy: safetyPolicy,
-                client: client
+                client: client,
+                onRequestShellNavigationFocus: onRequestShellNavigationFocus,
+                contentFocusRequest: contentFocusRequest
             )
         } else {
             Color.clear
@@ -2020,7 +2049,10 @@ struct YoutarrExploreStateView: View {
             }
         } actions: {
             if showsProgress {
-                ProgressView()
+                PlinxLoadingStateView(
+                    role: .content,
+                    accessibilityIdentifier: "youtarr.loading"
+                )
                     .accessibilityLabel(Text(LocalizedStringKey(titleKey), tableName: "Plinx"))
             }
             if let retry {

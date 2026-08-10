@@ -22,6 +22,7 @@ import PackageDescription
 
 let package = Package(
     name: "PlinxUI",
+    defaultLocalization: "en",
     platforms: [
         .iOS(.v17),
         .tvOS(.v17),

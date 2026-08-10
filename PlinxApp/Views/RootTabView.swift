@@ -36,12 +36,14 @@ enum QuickActionFocusOrder {
 
 enum HeaderFocusOrder {
     static func returnTarget(
+        currentTab: MainCoordinator.Tab,
         visibleTabs: [KidsMainTabPicker.TabItem]
     ) -> MainCoordinator.Tab? {
-        visibleTabs
-            .compactMap(\.tab)
-            .first(where: { $0 == .home })
-            ?? visibleTabs.compactMap(\.tab).first
+        let tabs = visibleTabs.compactMap(\.tab)
+        if tabs.contains(currentTab) {
+            return currentTab
+        }
+        return tabs.first
     }
 }
 
@@ -63,6 +65,7 @@ struct RootTabView: View {
     @Environment(DownloadOwnershipStore.self) private var downloadOwnershipStore
     @Environment(SharePlayCoordinator.self) private var sharePlayCoordinator
     @EnvironmentObject private var mainCoordinator: MainCoordinator
+    @EnvironmentObject private var playbackLaunchCoordinator: PlaybackLaunchCoordinator
     @Environment(\.safetyPolicy) private var safetyPolicy
 
     @State private var showSettings = false
@@ -73,9 +76,16 @@ struct RootTabView: View {
     @State private var homeViewModel: SafeHomeViewModel?
     @State private var homeContentFocusRequest = 0
     @State private var libraryContentFocusRequest = 0
+    @State private var searchContentFocusRequest = 0
+    @State private var libraryDetailContentFocusRequest = 0
+    @State private var detailContentFocusRequest = 0
+    @State private var settingsContentFocusRequest = 0
+    @State private var exploreContentFocusRequest = 0
     #if os(tvOS)
     @State private var mediaFocusModel = MediaFocusModel()
-    @FocusState private var focusedHeaderTab: MainCoordinator.Tab?
+    @StateObject private var tvFocusCoordinator = PlinxTVFocusCoordinator()
+    @State private var settingsNavigationCoordinator = PlinxSettingsNavigationCoordinator()
+    @FocusState private var focusedShellTarget: PlinxTVShellFocusTarget?
     @FocusState private var focusedQuickActionID: String?
     #endif
     /// Local overrides for watched status, keyed by media item id.
@@ -214,15 +224,29 @@ struct RootTabView: View {
             .onAppear {
                 sharePlayCoordinator.configurePlaybackLauncher(launcher)
             }
+            .onChange(of: playbackLaunchCoordinator.lastResult) { _, result in
+                guard let result else { return }
+                handlePlaybackResult(result)
+            }
             #if os(tvOS)
             .allowsHitTesting(selectedQuickActionMedia == nil)
             #endif
             #if os(tvOS)
             .onAppear {
-                focusedHeaderTab = activeRootTab
+                tvFocusCoordinator.activate(contentRegion(for: activeRootTab))
+                focusedShellTarget = .tab(activeRootTab)
             }
             .onChange(of: activeRootTab) { _, newTab in
-                focusedHeaderTab = newTab
+                tvFocusCoordinator.activate(contentRegion(for: newTab))
+                focusedShellTarget = tvFocusCoordinator.preferredShellTarget(
+                    activeTab: newTab,
+                    showsSettings: showSettings,
+                    visibleTabs: visibleTabs
+                )
+            }
+            .onChange(of: focusedShellTarget) { _, newTarget in
+                guard let newTarget else { return }
+                tvFocusCoordinator.rememberShellTarget(newTarget, for: activeRootTab)
             }
             #endif
             .onChange(of: hasDownloadActivity) { _, hasDownloads in
@@ -250,13 +274,35 @@ struct RootTabView: View {
             .task {
                 refreshYoutarrConfigurationState()
             }
+            .onChange(of: showSettings) { _, isPresented in
+                if isPresented {
+                    #if os(tvOS)
+                    tvFocusCoordinator.beginModal(
+                        from: tvFocusCoordinator.activeContentRegion,
+                        shellTarget: focusedShellTarget ?? .tab(activeRootTab)
+                    )
+                    tvFocusCoordinator.activate(.settings)
+                    focusedShellTarget = .settings
+                    #endif
+                } else {
+                    parentalAccessCoordinator.lock()
+                    refreshYoutarrConfigurationState()
+                    #if os(tvOS)
+                    let restoration = tvFocusCoordinator.endModal()
+                    tvFocusCoordinator.activate(
+                        restoration?.contentRegion ?? contentRegion(for: activeRootTab)
+                    )
+                    focusedShellTarget = restoration?.shellTarget ?? .tab(activeRootTab)
+                    #endif
+                }
+            }
             .overlay(alignment: .bottom) {
                 if let item = selectedQuickActionMedia {
                     quickActionSheet(for: item)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
-            .animation(.spring(response: 0.25, dampingFraction: 0.86), value: selectedQuickActionMedia != nil)
+            .animation(.easeOut(duration: 0.2), value: selectedQuickActionMedia != nil)
             .alert(
                 Text("common.error.actionFailed", tableName: "Plinx"),
                 isPresented: Binding(
@@ -433,18 +479,29 @@ struct RootTabView: View {
 
     @ViewBuilder
     private var mainTabView: some View {
-        let base = tabContainer
+        let content = tabContainer
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .toolbar(.hidden, for: .tabBar)
             .environment(\.watchedOverrides, watchedOverrides)
             #if os(tvOS)
             .environment(mediaFocusModel)
+            .environmentObject(tvFocusCoordinator)
             #endif
 
         #if os(tvOS)
-        base
+        VStack(spacing: 0) {
+            tvOSShellHeader
+
+            if showSettings {
+                tvOSSettingsContent
+            } else {
+                content
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(PlinxAmbientBackground(intensity: .restrained))
         #else
-        base
+        content
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 KidsMainTabPicker(
                     tabs: visibleTabs,
@@ -456,7 +513,12 @@ struct RootTabView: View {
         #endif
     }
 
+    @ViewBuilder
     private var tabContainer: some View {
+        #if os(tvOS)
+        tabStack(for: activeRootTab)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        #else
         ZStack {
             tabStack(for: .home)
             tabStack(for: .search)
@@ -483,21 +545,79 @@ struct RootTabView: View {
                     }
                 }
             }
-            #if !os(tvOS)
             .presentationDetents([.large])
-            #else
-            .frame(width: 1_440, height: 900)
-            .background(Color.appBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 34, style: .continuous))
-            #endif
         }
-        .onChange(of: showSettings) { _, isPresented in
-            if !isPresented {
-                parentalAccessCoordinator.lock()
-                refreshYoutarrConfigurationState()
+        #endif
+    }
+
+    #if os(tvOS)
+    private var tvOSShellHeader: some View {
+        HStack(spacing: 30) {
+            PlinxHomeHeaderLogoView(
+                accessibilityIdentifier: "tv.shell.logo",
+                maxWidth: 230,
+                logoHeight: 62
+            )
+            .accessibilityHidden(true)
+
+            KidsMainTabPicker(
+                tabs: visibleTabs,
+                selectedTab: tabBinding,
+                focusedTarget: $focusedShellTarget,
+                onSelect: handleTabSelection,
+                onAction: handleBottomAction,
+                onMoveDown: requestFirstContentFocus,
+                placement: .header
+            )
+        }
+        .padding(.horizontal, 58)
+        .padding(.top, 18)
+        .padding(.bottom, 14)
+        .background(.ultraThinMaterial)
+        .overlay(alignment: .bottom) {
+            LinearGradient(
+                colors: [.clear, Color.accentColor.opacity(0.52), .clear],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .frame(height: 1)
+        }
+        .focusSection()
+        .accessibilityIdentifier("tv.shell.header")
+    }
+
+    @ViewBuilder
+    private var tvOSSettingsContent: some View {
+        Group {
+            if parentalAccessCoordinator.isUnlocked {
+                NavigationStack {
+                    PlinxSettingsView(
+                        contentFocusRequest: settingsContentFocusRequest,
+                        onRequestShellNavigationFocus: {
+                            focusedShellTarget = .settings
+                        }
+                    )
+                        .toolbar(.hidden, for: .navigationBar)
+                        .safeAreaInset(edge: .top, spacing: 0) {
+                            settingsHeaderRow
+                        }
+                }
+            } else {
+                ParentalGateView {
+                    tvFocusCoordinator.activate(.settings)
+                    settingsContentFocusRequest &+= 1
+                }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.appBackground)
+        .environment(\.plinxSettingsNavigationCoordinator, settingsNavigationCoordinator)
+        .onExitCommand {
+            guard !settingsNavigationCoordinator.dismissTopDestination() else { return }
+            closeSettings()
+        }
     }
+    #endif
 
     @ViewBuilder
     private func tabStack(for tab: MainCoordinator.Tab) -> some View {
@@ -545,6 +665,9 @@ struct RootTabView: View {
                 if homeViewModel == nil {
                     homeViewModel = viewModel
                 }
+                #if os(tvOS)
+                tvFocusCoordinator.activate(.home)
+                #endif
             }
 
         case .search:
@@ -559,6 +682,10 @@ struct RootTabView: View {
                         policy: safetyPolicy
                     ),
                     topContent: scrollingHeaderContent(title: "tabs.search", showsSettingsButton: false),
+                    onRequestShellNavigationFocus: {
+                        requestHeaderFocus(from: .search)
+                    },
+                    contentFocusRequest: searchContentFocusRequest,
                     onSelectMedia: { displayItem in
                         handlePrimarySelection(displayItem)
                     },
@@ -574,6 +701,11 @@ struct RootTabView: View {
             .opacity(activeRootTab == .search ? 1 : 0)
             .allowsHitTesting(activeRootTab == .search)
             .accessibilityHidden(activeRootTab != .search)
+            #if os(tvOS)
+            .onAppear {
+                tvFocusCoordinator.activate(.search)
+            }
+            #endif
 
         case .library:
             NavigationStack(path: mainCoordinator.pathBinding(for: .library)) {
@@ -605,7 +737,11 @@ struct RootTabView: View {
                         },
                         onLongPressMedia: { displayItem in
                             selectedQuickActionMedia = displayItem
-                        }
+                        },
+                        onRequestShellNavigationFocus: {
+                            requestHeaderFocus(from: .library)
+                        },
+                        contentFocusRequest: libraryDetailContentFocusRequest
                     )
                 }
                 .navigationDestination(for: MainCoordinator.Route.self) { route in
@@ -615,6 +751,11 @@ struct RootTabView: View {
             .opacity(activeRootTab == .library ? 1 : 0)
             .allowsHitTesting(activeRootTab == .library)
             .accessibilityHidden(activeRootTab != .library)
+            #if os(tvOS)
+            .onAppear {
+                tvFocusCoordinator.activate(.library)
+            }
+            #endif
 
         case .more:
             NavigationStack(path: mainCoordinator.pathBinding(for: .more)) {
@@ -644,7 +785,11 @@ struct RootTabView: View {
                     YoutarrExploreTabContent(
                         configuration: configuration,
                         safetyPolicy: safetyPolicy,
-                        isActive: activeRootTab == .seerrDiscover
+                        isActive: activeRootTab == .seerrDiscover,
+                        onRequestShellNavigationFocus: {
+                            requestHeaderFocus(from: .seerrDiscover)
+                        },
+                        contentFocusRequest: exploreContentFocusRequest
                     )
                 }
                 .id(youtarrStoredBaseURL)
@@ -659,7 +804,9 @@ struct RootTabView: View {
     }
 
     private func handleTabSelection(_ newValue: MainCoordinator.Tab) {
-        mainCoordinator.resetToRoot(for: newValue)
+        if activeRootTab == newValue {
+            mainCoordinator.resetToRoot(for: newValue)
+        }
         mainCoordinator.tab = newValue
     }
 
@@ -671,21 +818,60 @@ struct RootTabView: View {
         }
     }
 
+    private func closeSettings() {
+        showSettings = false
+    }
+
+    private func normalizedRootTab(_ tab: MainCoordinator.Tab) -> MainCoordinator.Tab {
+        if case .libraryDetail = tab { return .library }
+        return tab
+    }
+
+    #if os(tvOS)
+    private func contentRegion(for tab: MainCoordinator.Tab) -> PlinxTVContentRegion {
+        switch tab {
+        case .home:
+            .home
+        case .search:
+            .search
+        case .library, .libraryDetail:
+            .library
+        case .more, .seerrDiscover:
+            .other
+        }
+    }
+    #endif
+
     private func requestHeaderFocus(from currentTab: MainCoordinator.Tab) {
         #if os(tvOS)
-        focusedHeaderTab = HeaderFocusOrder.returnTarget(visibleTabs: visibleTabs) ?? currentTab
+        let normalizedTab = normalizedRootTab(currentTab)
+        let destination = HeaderFocusOrder.returnTarget(
+            currentTab: normalizedTab,
+            visibleTabs: visibleTabs
+        ) ?? normalizedTab
+        focusedShellTarget = .tab(destination)
+        tvFocusCoordinator.rememberShellTarget(.tab(destination), for: destination)
         #endif
     }
 
     private func requestFirstContentFocus() {
         #if os(tvOS)
-        switch activeRootTab {
+        tvFocusCoordinator.requestContentFocus()
+        switch tvFocusCoordinator.activeContentRegion {
         case .home:
             homeContentFocusRequest &+= 1
+        case .search:
+            searchContentFocusRequest &+= 1
         case .library:
             libraryContentFocusRequest &+= 1
-        default:
-            break
+        case .libraryDetail:
+            libraryDetailContentFocusRequest &+= 1
+        case .detail:
+            detailContentFocusRequest &+= 1
+        case .settings:
+            settingsContentFocusRequest &+= 1
+        case .other:
+            exploreContentFocusRequest &+= 1
         }
         #endif
     }
@@ -701,8 +887,9 @@ struct RootTabView: View {
                 .foregroundStyle(.white.opacity(0.95))
             Spacer()
             PlinxChromeButton(systemImage: "xmark") {
-                showSettings = false
+                closeSettings()
             }
+            .accessibilityIdentifier("settings.close")
         }
         #if os(tvOS)
         .padding(.horizontal, 42)
@@ -721,6 +908,9 @@ struct RootTabView: View {
         showsSearchButton: Bool = false,
         showsLogo: Bool = false
     ) -> AnyView? {
+        #if os(tvOS)
+        nil
+        #else
         AnyView(
             topTitleRow(
                 title: title,
@@ -729,34 +919,16 @@ struct RootTabView: View {
                 showsLogo: showsLogo
             )
         )
+        #endif
     }
 
+    #if !os(tvOS)
     private func topTitleRow(
         title: String,
         showsSettingsButton: Bool,
         showsSearchButton: Bool = false,
         showsLogo: Bool = false
     ) -> some View {
-        #if os(tvOS)
-        KidsMainTabPicker(
-            tabs: visibleTabs,
-            selectedTab: tabBinding,
-            focusedTab: $focusedHeaderTab,
-            onSelect: handleTabSelection,
-            onAction: handleBottomAction,
-            onMoveDown: requestFirstContentFocus,
-            placement: .header
-        )
-        .overlay(alignment: .leading) {
-            headerLeadingContent(title: title, showsLogo: showsLogo)
-                .frame(maxWidth: tvOSHeaderOverlayWidth, alignment: .leading)
-                .padding(.leading, tvOSHeaderOverlayLeadingPadding)
-                .allowsHitTesting(false)
-        }
-        .padding(.horizontal, 4)
-        .padding(.top, 1)
-        .padding(.bottom, 4)
-        #else
         PlinxScrollingHeaderRow(
             title: title,
             showsSettingsButton: showsSettingsButton,
@@ -769,32 +941,8 @@ struct RootTabView: View {
                 showSettings = true
             }
         )
-        #endif
     }
-
-    @ViewBuilder
-    private func headerLeadingContent(title: String, showsLogo: Bool) -> some View {
-        if showsLogo {
-            PlinxHomeHeaderLogoView(
-                accessibilityIdentifier: "home.header.logo",
-                maxWidth: 220,
-                logoHeight: 52
-            )
-        } else {
-            Text(title.plinxLocalized)
-                .font(.title3.weight(.bold))
-                .foregroundStyle(.white.opacity(0.95))
-                .lineLimit(1)
-        }
-    }
-
-    private var tvOSHeaderOverlayWidth: CGFloat {
-        320
-    }
-
-    private var tvOSHeaderOverlayLeadingPadding: CGFloat {
-        14
-    }
+    #endif
 
     private func refreshYoutarrConfigurationState() {
         if let testConfiguration = YoutarrLiveTestBootstrap.mainTabConfiguration() {
@@ -821,7 +969,7 @@ struct RootTabView: View {
     private func destination(for route: MainCoordinator.Route) -> some View {
         switch route {
         case let .mediaDetail(media):
-            PlinxMediaDetailView(
+            let view = PlinxMediaDetailView(
                 viewModel: SafeMediaDetailViewModel(
                     inner: MediaDetailViewModel(
                         media: media,
@@ -841,10 +989,15 @@ struct RootTabView: View {
                 },
                 onSelectParentSeries: { series in
                     mainCoordinator.returnToSeries(series)
-                }
+                },
+                onRequestShellNavigationFocus: {
+                    requestHeaderFocus(from: activeRootTab)
+                },
+                contentFocusRequest: detailContentFocusRequest
             )
+            tvDetailFocusRegion(view)
         case let .collectionDetail(collection):
-            PlinxCollectionDetailView(
+            let view = PlinxCollectionDetailView(
                 viewModel: SafeCollectionDetailViewModel(
                     inner: CollectionDetailViewModel(
                         collection: collection,
@@ -857,10 +1010,15 @@ struct RootTabView: View {
                 },
                 onLongPressMedia: { displayItem in
                     selectedQuickActionMedia = displayItem
-                }
+                },
+                onRequestShellNavigationFocus: {
+                    requestHeaderFocus(from: activeRootTab)
+                },
+                contentFocusRequest: detailContentFocusRequest
             )
+            tvDetailFocusRegion(view)
         case let .playlistDetail(playlist):
-            PlinxPlaylistDetailView(
+            let view = PlinxPlaylistDetailView(
                 viewModel: SafePlaylistDetailViewModel(
                     inner: PlaylistDetailViewModel(
                         playlist: playlist,
@@ -873,16 +1031,37 @@ struct RootTabView: View {
                 },
                 onPlay: { media in
                     startPlayback(ratingKey: media.id, type: media.type)
-                }
+                },
+                onRequestShellNavigationFocus: {
+                    requestHeaderFocus(from: activeRootTab)
+                },
+                contentFocusRequest: detailContentFocusRequest
             )
+            tvDetailFocusRegion(view)
         case let .hubDetail(hub):
-            HubDetailView(
+            let view = HubDetailView(
                 viewModel: makeHubDetailViewModel(hub: hub),
                 onSelectMedia: { displayItem in
                     mainCoordinator.showMediaDetail(displayItem)
                 }
             )
+            tvDetailFocusRegion(view)
         }
+    }
+
+    @ViewBuilder
+    private func tvDetailFocusRegion<Content: View>(_ content: Content) -> some View {
+        #if os(tvOS)
+        content
+            .onAppear {
+                tvFocusCoordinator.activate(.detail)
+            }
+            .onDisappear {
+                tvFocusCoordinator.activate(contentRegion(for: activeRootTab))
+            }
+        #else
+        content
+        #endif
     }
 
     private func makeHubDetailViewModel(hub: Hub) -> HubDetailViewModel {
@@ -911,29 +1090,33 @@ struct RootTabView: View {
         shuffle: Bool = false,
         shouldResumeFromOffset: Bool = true
     ) {
-        Task { @MainActor in
-            let result = await launcher.play(
+        playbackLaunchCoordinator.launch { [launcher] in
+            await launcher.play(
                 ratingKey: ratingKey,
                 type: type,
                 shuffle: shuffle,
-                shouldResumeFromOffset: shouldResumeFromOffset
+                shouldResumeFromOffset: shouldResumeFromOffset,
+                shouldContinue: { playbackLaunchCoordinator.isLaunching }
             )
-            switch result {
-            case .started:
-                break
-            case .blocked:
-                quickActionErrorMessage = NSLocalizedString(
-                    "playback.blockedByContentControls",
-                    tableName: "Plinx",
-                    comment: ""
-                )
-            case .failed:
-                quickActionErrorMessage = NSLocalizedString(
-                    "playback.unavailable",
-                    tableName: "Plinx",
-                    comment: ""
-                )
-            }
+        }
+    }
+
+    private func handlePlaybackResult(_ result: PlaybackLauncher.Result) {
+        switch result {
+        case .started:
+            break
+        case .blocked:
+            quickActionErrorMessage = NSLocalizedString(
+                "playback.blockedByContentControls",
+                tableName: "Plinx",
+                comment: ""
+            )
+        case .failed:
+            quickActionErrorMessage = NSLocalizedString(
+                "playback.unavailable",
+                tableName: "Plinx",
+                comment: ""
+            )
         }
     }
 

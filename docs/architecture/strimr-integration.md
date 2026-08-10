@@ -155,6 +155,14 @@ encode Plinx branding. The literal option is part of
 `STRIMR_REQUIRED_SEAMS`, so the quick integration contract fails if a paired
 Strimr revision drops it.
 
+Playback preparation is serialized in the Plinx-owned launch coordinator. A
+video tap presents the full-screen playback shell immediately, showing the
+hero Plinx loader while authorization and queue creation run. Additional taps
+are ignored until that launch finishes, and the shell's back action cancels the
+in-flight task. The launcher performs one final cancellation check before it
+hands the queue to the player, preventing a late network response from
+re-presenting playback after the child backs out.
+
 ## Home Catalog Loading
 
 Plinx does not use Strimr's promoted Home hubs for recently-added library

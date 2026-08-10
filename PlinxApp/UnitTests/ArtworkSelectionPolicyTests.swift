@@ -79,6 +79,20 @@ final class ArtworkSelectionPolicyTests: XCTestCase {
         XCTAssertNil(kind)
     }
 
+    func test_landscapeLibraryCardHonorsThumbnailPreference() {
+        XCTAssertEqual(
+            ArtworkSelectionPolicy.landscapeCardArtworkKind(preferredArtworkKind: .thumb),
+            .thumb
+        )
+    }
+
+    func test_landscapeLibraryCardDefaultsToBackdropArt() {
+        XCTAssertEqual(
+            ArtworkSelectionPolicy.landscapeCardArtworkKind(preferredArtworkKind: nil),
+            .art
+        )
+    }
+
     func test_continueWatchingClipsUsesThumbArtworkInLandscape() {
         let item = makeDisplayItem(id: "clip-1", type: .clip)
 

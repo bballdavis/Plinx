@@ -12,6 +12,7 @@ struct AppleTVBrowseFocusUITestHarness: View {
     private enum ContentTarget: Hashable {
         case homeCard(Int)
         case libraryTile(Int)
+        case detailBack
         case detailFilter
         case detailCard(Int)
     }
@@ -19,7 +20,7 @@ struct AppleTVBrowseFocusUITestHarness: View {
     let scenario: Scenario
 
     @State private var selectedTab: MainCoordinator.Tab = .home
-    @FocusState private var focusedHeaderTab: MainCoordinator.Tab?
+    @FocusState private var focusedShellTarget: PlinxTVShellFocusTarget?
     @FocusState private var focusedContent: ContentTarget?
 
     private var hasContent: Bool {
@@ -37,7 +38,7 @@ struct AppleTVBrowseFocusUITestHarness: View {
                     includeSettings: true
                 ),
                 selectedTab: $selectedTab,
-                focusedTab: $focusedHeaderTab,
+                focusedTarget: $focusedShellTarget,
                 onMoveDown: moveDownFromHeader,
                 placement: .header
             )
@@ -54,7 +55,7 @@ struct AppleTVBrowseFocusUITestHarness: View {
         .padding(70)
         .background(Color.appBackground.ignoresSafeArea())
         .onAppear {
-            focusedHeaderTab = scenario.isLibraryDetail ? .library : .home
+            focusedShellTarget = .tab(scenario.isLibraryDetail ? .library : .home)
         }
     }
 
@@ -67,13 +68,13 @@ struct AppleTVBrowseFocusUITestHarness: View {
                         .focused($focusedContent, equals: .libraryTile(0))
                         .onMoveCommand { direction in
                             guard direction == .up else { return }
-                            focusedHeaderTab = .home
+                            focusedShellTarget = .tab(.library)
                         }
                     fixtureButton("Library Two", identifier: "library.tile.1")
                         .focused($focusedContent, equals: .libraryTile(1))
                         .onMoveCommand { direction in
                             guard direction == .up else { return }
-                            focusedHeaderTab = .home
+                            focusedShellTarget = .tab(.library)
                         }
                 }
             } else {
@@ -82,13 +83,13 @@ struct AppleTVBrowseFocusUITestHarness: View {
                         .focused($focusedContent, equals: .homeCard(0))
                         .onMoveCommand { direction in
                             guard direction == .up else { return }
-                            focusedHeaderTab = .home
+                            focusedShellTarget = .tab(.home)
                         }
                     fixtureButton("Home Two", identifier: "home.card.fixture.1")
                         .focused($focusedContent, equals: .homeCard(1))
                         .onMoveCommand { direction in
                             guard direction == .up else { return }
-                            focusedHeaderTab = .home
+                            focusedShellTarget = .tab(.home)
                         }
                 }
             }
@@ -102,12 +103,25 @@ struct AppleTVBrowseFocusUITestHarness: View {
 
     private var libraryDetailContent: some View {
         VStack(spacing: 34) {
+            fixtureButton("Back", identifier: "library.detail.back")
+                .focused($focusedContent, equals: .detailBack)
+                .onMoveCommand { direction in
+                    switch direction {
+                    case .up:
+                        focusedShellTarget = .tab(.library)
+                    case .down:
+                        focusedContent = .detailFilter
+                    default:
+                        break
+                    }
+                }
+
             fixtureButton("Recommended", identifier: "library.detail.filter.recommended")
                 .focused($focusedContent, equals: .detailFilter)
                 .onMoveCommand { direction in
                     switch direction {
                     case .up:
-                        focusedHeaderTab = .home
+                        focusedContent = .detailBack
                     case .down where hasContent:
                         focusedContent = .detailCard(0)
                     default:
@@ -150,6 +164,32 @@ struct AppleTVBrowseFocusUITestHarness: View {
             focusedContent = selectedTab == .library ? .libraryTile(0) : .homeCard(0)
         case .libraryDetail:
             focusedContent = .detailFilter
+        }
+    }
+}
+
+/// Network-free wrapper that exercises the same nested Menu contract as the
+/// production gated Settings destination: one press pops a subpage, and only a
+/// press at the Settings root closes the experience.
+struct AppleTVSettingsNavigationUITestHarness: View {
+    @State private var isSettingsPresented = true
+    @State private var navigationCoordinator = PlinxSettingsNavigationCoordinator()
+
+    var body: some View {
+        if isSettingsPresented {
+            NavigationStack {
+                PlinxSettingsView(isUnlocked: true)
+            }
+            .environment(\.plinxSettingsNavigationCoordinator, navigationCoordinator)
+            .onExitCommand {
+                guard !navigationCoordinator.dismissTopDestination() else { return }
+                isSettingsPresented = false
+            }
+        } else {
+            Text("Settings closed")
+                .accessibilityIdentifier("settings.fixture.closed")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.appBackground.ignoresSafeArea())
         }
     }
 }

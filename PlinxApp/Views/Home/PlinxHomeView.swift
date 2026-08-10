@@ -64,6 +64,7 @@ struct PlinxHomeView: View {
     @State private var artworkRefreshToken = UUID()
     #if os(tvOS)
     @Environment(MediaFocusModel.self) private var mediaFocusModel
+    @EnvironmentObject private var tvFocusCoordinator: PlinxTVFocusCoordinator
     @FocusState private var focusedCard: HomeFocusTarget?
     @State private var selectedHeroMedia: MediaItem?
     #endif
@@ -115,7 +116,11 @@ struct PlinxHomeView: View {
             synchronizeHeroSelection()
         }
         .onChange(of: contentFocusRequest) { _, _ in
-            focusFirstContentIfAvailable()
+            restoreContentFocusIfAvailable()
+        }
+        .onChange(of: homeRows.map { "\($0.id):\($0.hub.items.count)" }) { _, _ in
+            guard focusedCard != nil else { return }
+            restoreContentFocusIfAvailable()
         }
         #endif
     }
@@ -255,9 +260,30 @@ struct PlinxHomeView: View {
         mediaFocusModel.focusedMedia = media
     }
 
-    private func focusFirstContentIfAvailable() {
-        guard let rowIndex = homeRows.firstIndex(where: { !$0.hub.items.isEmpty }) else { return }
-        focusedCard = .card(row: rowIndex, item: 0)
+    private func restoreContentFocusIfAvailable() {
+        let availableTargets = homeRows.enumerated().flatMap { rowIndex, row in
+            row.hub.items.indices.map { itemIndex in
+                HomeFocusTarget.card(row: rowIndex, item: itemIndex)
+            }
+        }
+        let preferredTarget = tvFocusCoordinator.rememberedContentTarget(
+            in: .home,
+            availableIDs: homeRows.flatMap { $0.hub.items.map(\.id) }
+        ).flatMap(focusTarget(forMediaID:))
+        focusedCard = PlinxTVFocusCoordinator.resolvedContentID(
+            currentID: focusedCard,
+            availableIDs: availableTargets,
+            preferredID: preferredTarget
+        )
+    }
+
+    private func focusTarget(forMediaID mediaID: String) -> HomeFocusTarget? {
+        for (rowIndex, row) in homeRows.enumerated() {
+            if let itemIndex = row.hub.items.firstIndex(where: { $0.id == mediaID }) {
+                return .card(row: rowIndex, item: itemIndex)
+            }
+        }
+        return nil
     }
     #endif
 
@@ -366,6 +392,7 @@ struct PlinxHomeView: View {
                       let playableItem = item.playableItem
                 else { return }
                 selectHeroMedia(playableItem)
+                tvFocusCoordinator.rememberContentTarget(item.id, in: .home)
             }
             .onTapGesture { onSelectMedia(item) }
             .plinxQuickActionLongPress { onLongPressMedia(item) }
@@ -722,11 +749,10 @@ struct SharedTvBrowsePageLayout<NavigationContent: View, FilterContent: View, Ro
 
                 VStack(spacing: 0) {
                     heroSection(
-                        availableWidth: proxy.size.width,
-                        topSafeAreaInset: proxy.safeAreaInsets.top
+                        availableWidth: proxy.size.width
                     )
                         .frame(height: heroHeight)
-                        .background(Color.appBackground.ignoresSafeArea(edges: [.top, .horizontal]))
+                        .background(Color.appBackground)
 
                     ScrollView {
                         VStack(alignment: .leading, spacing: 18) {
@@ -748,11 +774,10 @@ struct SharedTvBrowsePageLayout<NavigationContent: View, FilterContent: View, Ro
                 .frame(width: proxy.size.width - leadingShift, alignment: .leading)
                 .background(Color.appBackground.ignoresSafeArea())
             }
-            .ignoresSafeArea(edges: .top)
         }
     }
 
-    private func heroSection(availableWidth: CGFloat, topSafeAreaInset: CGFloat) -> some View {
+    private func heroSection(availableWidth: CGFloat) -> some View {
         ZStack(alignment: .topLeading) {
             if let heroMedia {
                 TvPinnedHeroBackdrop(media: heroMedia)
@@ -772,7 +797,7 @@ struct SharedTvBrowsePageLayout<NavigationContent: View, FilterContent: View, Ro
                 }
             }
             .padding(.horizontal, heroMetrics.contentHorizontalPadding)
-            .padding(.top, topSafeAreaInset + heroMetrics.contentTopPadding)
+            .padding(.top, heroMetrics.contentTopPadding)
         }
         .clipped()
     }

@@ -42,11 +42,14 @@ struct SignInView: View {
 
                 ScrollView {
                     let expandedLayout = proxy.size.width >= 700
+                    let portalMinHeight = expandedLayout
+                        ? max(680, proxy.size.height - 28)
+                        : max(680, min(820, proxy.size.height - 28))
 
                     guidedPortal(expandedLayout: expandedLayout)
                         .frame(
                             maxWidth: expandedLayout ? .infinity : 620,
-                            minHeight: max(680, proxy.size.height - 28)
+                            minHeight: portalMinHeight
                         )
                         .padding(.horizontal, expandedLayout ? 0 : 28)
                         .padding(.vertical, expandedLayout ? 0 : 14)

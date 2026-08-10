@@ -1,5 +1,6 @@
 import SwiftUI
 import PlinxCore
+import PlinxUI
 
 struct LibraryViewsSettingsView: View {
     @Environment(SettingsManager.self) private var settingsManager
@@ -43,6 +44,7 @@ struct LibraryViewsSettingsView: View {
         .scrollContentBackground(.hidden)
         #endif
         .background(Color.appBackground.ignoresSafeArea())
+        .plinxSettingsChrome()
         .task {
             if libraryStore.libraries.isEmpty {
                 try? await libraryStore.loadLibraries()
@@ -93,6 +95,43 @@ private struct LibraryViewSectionsConfigurationView: View {
                 }
             } else {
                 Section {
+                    #if os(tvOS)
+                    ForEach(Array(sections.enumerated()), id: \.element.id) { index, section in
+                        HStack {
+                            Toggle(
+                                isOn: Binding(
+                                    get: { !hiddenIds.contains(section.id) },
+                                    set: { isVisible in
+                                        settingsManager.plinxSetRecommendSectionHidden(!isVisible, libraryId: library.id, sectionId: section.id)
+                                    }
+                                )
+                            ) {
+                                Text(section.title)
+                            }
+                            Spacer()
+                            Button { moveSection(at: index, by: -1) } label: {
+                                Label {
+                                    Text("settings.actions.moveUp", tableName: "Plinx")
+                                } icon: {
+                                    Image(systemName: "arrow.up")
+                                }
+                            }
+                            .buttonStyle(PlinxSettingsActionButtonStyle())
+                            .disabled(index == 0)
+                            .accessibilityLabel(Text("settings.actions.moveUp", tableName: "Plinx"))
+                            Button { moveSection(at: index, by: 1) } label: {
+                                Label {
+                                    Text("settings.actions.moveDown", tableName: "Plinx")
+                                } icon: {
+                                    Image(systemName: "arrow.down")
+                                }
+                            }
+                            .buttonStyle(PlinxSettingsActionButtonStyle())
+                            .disabled(index == sections.count - 1)
+                            .accessibilityLabel(Text("settings.actions.moveDown", tableName: "Plinx"))
+                        }
+                    }
+                    #else
                     ForEach(sections) { section in
                         Toggle(
                             isOn: Binding(
@@ -106,6 +145,7 @@ private struct LibraryViewSectionsConfigurationView: View {
                         }
                     }
                     .onMove(perform: moveSections)
+                    #endif
                 } footer: {
                     Text("settings.libraryViews.description", tableName: "Plinx")
                         .font(.caption)
@@ -121,6 +161,7 @@ private struct LibraryViewSectionsConfigurationView: View {
         .listStyle(.insetGrouped)
         #endif
         .environment(\.editMode, .constant(.active))
+        .plinxSettingsChrome()
         .task {
             await loadSections()
         }
@@ -128,6 +169,13 @@ private struct LibraryViewSectionsConfigurationView: View {
 
     private func moveSections(from source: IndexSet, to destination: Int) {
         sections.move(fromOffsets: source, toOffset: destination)
+        settingsManager.plinxSetRecommendSectionOrder(sections.map(\.id), libraryId: library.id)
+    }
+
+    private func moveSection(at index: Int, by offset: Int) {
+        let destination = index + offset
+        guard sections.indices.contains(index), sections.indices.contains(destination) else { return }
+        sections.swapAt(index, destination)
         settingsManager.plinxSetRecommendSectionOrder(sections.map(\.id), libraryId: library.id)
     }
 

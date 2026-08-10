@@ -18,13 +18,41 @@ final class QuickActionMenuTests: XCTestCase {
     
     let app = XCUIApplication()
     
-    override func setUp() {
-        super.setUp()
+    override func setUpWithError() throws {
+        try super.setUpWithError()
         continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+
+        let environment = ProcessInfo.processInfo.environment
+        let serverURL = environment["PLINX_PLEX_SERVER_URL"] ?? ""
+        let hasToken = !(environment["PLINX_PLEX_TOKEN"] ?? "").isEmpty
+        let hasPassword = !(environment["PLINX_PLEX_USER"] ?? "").isEmpty
+            && !(environment["PLINX_PLEX_PASSWORD"] ?? "").isEmpty
+        let hasPIN = !(environment["PLINX_PLEX_PIN"] ?? "").isEmpty
+        guard !serverURL.isEmpty, hasToken || hasPassword || hasPIN else {
+            throw XCTSkip("Quick-action integration tests require an opt-in live Plex environment.")
+        }
+
+        app.launchArguments += ["--ui-testing", "--disable-animations"]
+        app.launchEnvironment["PLINX_UI_TEST_MODE"] = "live"
+        for key in [
+            "PLINX_PLEX_SERVER_URL",
+            "PLINX_PLEX_TOKEN",
+            "PLINX_PLEX_USER",
+            "PLINX_PLEX_PASSWORD",
+            "PLINX_PLEX_PIN",
+        ] {
+            if let value = environment[key], !value.isEmpty {
+                app.launchEnvironment[key] = value
+            }
+        }
         app.launch()
+
         // Wait for home screen to load
         let homeHubElement = app.otherElements["home.hub.continueWatching"]
-        XCTAssertTrue(homeHubElement.waitForExistence(timeout: 10), "Home screen failed to load")
+        guard homeHubElement.waitForExistence(timeout: 30) else {
+            throw XCTSkip("The live Plex profile has no Continue Watching quick-action fixture.")
+        }
     }
     
     override func tearDown() {

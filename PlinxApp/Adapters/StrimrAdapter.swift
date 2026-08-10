@@ -13,7 +13,17 @@ extension PlayQueueState: Identifiable {}
 
 extension MainCoordinator {
     func resetToRoot(for tab: Tab) {
-        let path = pathBinding(for: tab)
+        // Plinx presents a library detail inside the Library tab's stack. Treat
+        // Strimr's library-detail identity as that same root so reselecting the
+        // persistent Library destination always performs one predictable pop.
+        let rootTab: Tab
+        if case .libraryDetail = tab {
+            rootTab = .library
+        } else {
+            rootTab = tab
+        }
+
+        let path = pathBinding(for: rootTab)
         guard !path.wrappedValue.isEmpty else { return }
         path.wrappedValue = NavigationPath()
     }

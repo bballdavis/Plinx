@@ -22,6 +22,8 @@ When screenshots, old notes, or memory conflict with code, the code-backed sourc
 - `Packages/PlinxUI/Sources/PlinxUI/Brand/PlinxBrand.swift`
 - `Packages/PlinxUI/Sources/PlinxUI/LiquidGlass/LiquidGlassButton.swift`
 - `Packages/PlinxUI/Sources/PlinxUI/LiquidGlass/LiquidGlassModifiers.swift`
+- `Packages/PlinxUI/Sources/PlinxUI/LiquidGlass/PlinxFocusSurface.swift`
+- `Packages/PlinxUI/Sources/PlinxUI/Mascot/PlinxLoadingStateView.swift`
 - `PlinxApp/App/ThemeExtensions.swift`
 - `PlinxApp/App/AppearanceSetup.swift`
 - `PlinxApp/Views/Common/PlinxBrandLogoView.swift`
@@ -30,6 +32,8 @@ When screenshots, old notes, or memory conflict with code, the code-backed sourc
 - `PlinxApp/Views/ParentalGateView.swift`
 - `PlinxApp/Views/RootTabView.swift`
 - `PlinxApp/Views/KidsMainTabPicker.swift`
+- `PlinxApp/Views/PlinxTVFocusCoordinator.swift`
+- `PlinxApp/Views/Settings/PlinxSettingsChrome.swift`
 
 ### Canonical semantic hooks
 
@@ -73,7 +77,7 @@ Buttons and panels should feel touchable and slightly squishy. This comes from:
 - frosted material
 - bright edge highlights
 - depth shadows
-- spring animation
+- short, deterministic easing with a static Reduce Motion alternative
 - continuous-corner geometry
 
 ### 3. Friendly contrast
@@ -155,6 +159,56 @@ Default rule:
 
 - 220-280 pt max width for standard hero/logo moments on iPhone and iPad
 - larger only for dedicated onboarding, app-transition, or tvOS hero layouts
+
+The persistent tvOS shell uses a compact 230-point lockup capped at 62 points
+high. Child screens never repeat that root identity; detail screens use a
+secondary context row for Back, title, and local filters.
+
+## Loading hierarchy
+
+Loading is semantic rather than screen-specific. Use `PlinxLoadingStateView`
+and choose one role:
+
+| Role | Presentation |
+|---|---|
+| `appTransition` | Full identity beacon plus the canonical app-owned wordmark, reserved for launch/session hydration/first load |
+| `content` | Regular beacon inside an established page; delayed briefly to prevent flashes |
+| `inline` | Compact logo-free perimeter inside an existing action or row |
+| `playback` | High-contrast medium beacon on black video for preparation and buffering |
+
+Visible and spoken labels must arrive as caller-resolved
+`LocalizedStringResource` values. Never pass a localization key as ordinary
+display text. Indeterminate native full-screen spinners are not part of the
+Plinx language; determinate progress bars and genuinely compact action progress
+remain valid.
+
+Loading and focus transitions use 180-240 ms easing. Reduce Motion renders a
+static complete loading perimeter and suppresses focus scaling. Do not add
+random tilt, repeated bounce, or independently animated logo pieces.
+
+## Selection and focus
+
+Selection is persistent state; focus is the live remote target. They must be
+visually distinct:
+
+- selection uses an accent fill, indicator, or checkmark that remains visible
+- live focus adds the shared brighter gradient ring, restrained scale, and shadow
+- shape, ring, and/or icon changes accompany color so focus is never conveyed by color alone
+- exactly one element should be visibly focused after a tvOS screen settles
+
+The Apple TV root shell is persistent and owns the Plinx lockup, primary
+destinations, and Settings action. Moving focus across destinations does not
+switch screens; Select activates one. Only the active tab stack is mounted, so
+hidden content cannot remain a focus candidate.
+
+## Settings surfaces
+
+Settings remains parent-gated. iPhone and iPad keep touch-native grouped
+navigation over the ambient shell. tvOS uses large dark-glass rows with the
+shared focus surface, deterministic first-focus restoration, and explicit Move
+Up/Move Down actions instead of drag-only reordering. Legal, privacy, support,
+and source links stay inside this gated surface and never appear in kid-facing
+navigation.
 
 ### Clear-space rule
 

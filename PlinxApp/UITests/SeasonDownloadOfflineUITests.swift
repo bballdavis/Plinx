@@ -2,6 +2,7 @@ import XCTest
 
 final class SeasonDownloadOfflineUITests: XCTestCase {
     func test_seasonPickerListsOnlyCurrentSeasonAndSupportsSelectAll() {
+        XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
         app.launchArguments += ["--ui-testing", "--disable-animations"]
         app.launchEnvironment["PLINX_UI_TEST_SCREEN"] = "seasonDownloadOffline"

@@ -1,5 +1,6 @@
 import SwiftUI
 import PlinxCore
+import PlinxUI
 
 /// Shows a toggle for each library. Libraries toggled OFF are hidden from
 /// the Library tab AND excluded from the home-screen hub fetch.
@@ -24,6 +25,7 @@ struct VisibleLibrariesView: View {
                 }
             }
         }
+        .accessibilityIdentifier("settings.libraries.screen")
         .navigationTitle(Text("settings.libraries.title", tableName: "Plinx"))
         #if os(tvOS)
         .listStyle(.plain)
@@ -33,6 +35,7 @@ struct VisibleLibrariesView: View {
         .scrollContentBackground(.hidden)
         #endif
         .background(Color.appBackground.ignoresSafeArea())
+        .plinxSettingsChrome()
         .task {
             if libraryStore.libraries.isEmpty {
                 try? await libraryStore.loadLibraries()
