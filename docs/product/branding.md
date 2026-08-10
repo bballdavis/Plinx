@@ -831,17 +831,22 @@ Rules:
   identity: the 220 by 52-point lockup on Home or a single contextual title on
   every other destination. Do not leave empty glass or a separator spanning
   the hero.
-- On tvOS, hero artwork should overscan to the top-right edge and blend only on the left and bottom into the dark shell. Keep the clear-logo layer above those fades with no dark rectangular backing.
-- On tvOS, text metadata belongs in the leading safe area, sized to its content with continuous corners and a softly feathered dark edge. It must reserve the trailing logo area rather than overlap it.
+- On tvOS, hero artwork should overscan to the top-right edge and extend behind
+  the first content row. Blend it gradually on the left, then fade it through
+  that first row into the dark shell below. Keep the clear-logo layer above
+  those fades and anchored to the original hero content guide.
+- On tvOS, text metadata belongs in the leading safe area without a surrounding
+  panel. Reserve a fixed metadata row and four-line summary footprint so titles,
+  ratings, controls, and content rows do not move when descriptions vary. Use a
+  restrained text shadow for contrast and reserve the trailing logo area.
 - On tvOS library detail screens, Recommended/Browse/Collections controls sit below the hero metadata and before the first content section, never in front of the artwork.
 - The first library card column aligns with the leading text inside the hero
-  metadata panel. Adaptive grids use leading alignment and carousels do not add
+  metadata block. Adaptive grids use leading alignment and carousels do not add
   a second leading inset.
 - tvOS library detail screens do not add a local Back tile. Move Up from the
   local filter row returns focus to the persistent Library destination; Menu
   dismisses the detail screen.
-- On tvOS, hero artwork should overscan slightly past the top and right edges so the shell background never peeks through there.
-- On tvOS, the hero is a bounded pinned region: artwork reaches the physical top and right edges, metadata and artwork share one bottom guide, and vertical content clips at that guide instead of painting over the hero.
+- On tvOS, hero artwork should overscan slightly past the top and right edges so the shell background never peeks through there. The pinned artwork backdrop continues beyond the hero content guide while navigation, identity, and metadata keep their stable positions.
 - tvOS selected media tiles should scale up slightly and use a 4-point solid accent border around the scaled outer artwork bounds plus a short, fully fading accent glow. Reserve at least 24 points around horizontal carousels for the halo; only horizontal carousel clipping may be disabled.
 
 ## Settings

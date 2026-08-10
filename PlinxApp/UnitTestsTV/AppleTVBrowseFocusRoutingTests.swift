@@ -135,6 +135,27 @@ final class AppleTVBrowseFocusRoutingTests: XCTestCase {
         )
     }
 
+    func test_sharedHeroMetrics_extendBackdropWithoutMovingContentGuide() {
+        XCTAssertEqual(TvBrowseHeroMetrics.default.heightRatio, 0.408, accuracy: 0.0001)
+        XCTAssertEqual(TvBrowseHeroMetrics.home.heightRatio, 0.408, accuracy: 0.0001)
+        XCTAssertEqual(TvBrowseHeroMetrics.backdropHeightRatio, 0.68, accuracy: 0.0001)
+        XCTAssertGreaterThan(
+            TvBrowseHeroMetrics.backdropHeightRatio,
+            TvBrowseHeroMetrics.default.heightRatio
+        )
+        XCTAssertEqual(
+            TvBrowseHeroMetrics.default.backdropFadeStartLocation,
+            0.6,
+            accuracy: 0.0001
+        )
+    }
+
+    func test_sharedHeroMetadata_reservesFourLineFootprint() {
+        XCTAssertEqual(TvBrowseHeroMetrics.metadataRowHeight, 28)
+        XCTAssertEqual(TvBrowseHeroMetrics.summaryHeight, 112)
+        XCTAssertEqual(TvBrowseHeroMetrics.summaryLineLimit, 4)
+    }
+
     func test_removedFocusedItem_fallsBackToNearestSibling() {
         XCTAssertEqual(
             PlinxTVFocusCoordinator.resolvedContentID(
