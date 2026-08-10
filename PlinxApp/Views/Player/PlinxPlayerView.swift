@@ -4,10 +4,8 @@ import PlinxUI
 /// Plinx-styled player screen.
 ///
 /// Wraps Strimr's `PlayerWrapper` with kid-safe UI:
-/// - Top-left ✕ close button (YouTube-style)
-/// - Oversized centre play/pause (shown when paused)
-/// - Progress bar with fat-finger scrubber
-/// - Swipe-up "Related Videos" tray (Phase 3 — placeholder)
+/// - Plinx-sized player overlay header
+/// - Branded buffering presentation
 ///
 /// The core playback is still delegated to `PlayerWrapper`/`PlayerViewModel`
 /// from Strimr. A full bespoke player is planned for Phase 3.
@@ -15,7 +13,6 @@ struct PlinxPlayerView: View {
     @Binding var isPresented: Bool
     let viewModel: PlayerViewModel
 
-    @Environment(\.plinxTheme) private var theme
     @Environment(\.safetyPolicy) private var safetyPolicy
 
     var body: some View {
@@ -48,7 +45,6 @@ struct PlinxPlayerView: View {
     private var overlayControls: some View {
         VStack {
             HStack {
-                closeButton
                 Spacer()
                 contentRatingBadge
             }
@@ -57,29 +53,7 @@ struct PlinxPlayerView: View {
 
             Spacer()
         }
-    }
-
-    private var closeButton: some View {
-        Button {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                isPresented = false
-            }
-        } label: {
-            ZStack {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(.ultraThinMaterial)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .stroke(Color.brandPrimary.opacity(0.42), lineWidth: 1)
-                    )
-                    .frame(width: 66, height: 66)
-                Image(systemName: "xmark")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundStyle(.white)
-            }
-            .shadow(color: Color.brandPrimary.opacity(0.14), radius: 12, x: 0, y: 6)
-        }
-        .buttonStyle(.plain)
+        .allowsHitTesting(false)
     }
 
     private var contentRatingBadge: some View {

@@ -38,10 +38,10 @@ Before a play queue is shown, Plinx fetches current metadata and re-applies
 the active content policy. This protects direct actions, playlist playback,
 and supported SharePlay-initiated playback paths.
 
-The center rewind, play or pause, and fast-forward controls use high-contrast
-backgrounds over video. They grow to twice their base size on a full-size iPad
-and step down in compact or split-screen layouts so the complete control group
-remains easy to reach.
+The player overlay keeps the standard rewind, play or pause, and fast-forward
+controls centered over video. Its existing back and settings controls and the
+video title are 50% larger for easier reading and targeting without adding a
+second persistent back button over the video.
 
 ## Profiles and servers
 

@@ -107,9 +107,11 @@ targets:
           - "Settings/SettingsDownloadsView.swift"
           # Strimr's ContentView — replaced by PlinxContentView.swift
           - "ContentView.swift"
-          # Plinx uses larger, higher-contrast primary playback controls that
-          # scale for phone, split-screen, and full-size iPad layouts.
+          # Plinx preserves Strimr's player button types while enlarging only
+          # the existing settings control in the overlay header.
           - "Player/Controls/PlayerControlButtons.swift"
+          # Plinx enlarges only the existing player header controls and title.
+          - "Player/Controls/PlayerControlsView.swift"
 
     resources:
       # Privacy manifest (required for App Store)
@@ -248,6 +250,7 @@ targets:
         excludes:
           - "Downloads/**"
           - "Player/PlinxPlayerControlButtons.swift"
+          - "Player/PlinxPlayerControlsView.swift"
       - path: Decorators
       - path: Adapters
       - path: ViewModels

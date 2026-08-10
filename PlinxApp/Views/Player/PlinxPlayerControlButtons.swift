@@ -1,33 +1,16 @@
 import SwiftUI
 
-enum PlinxPlayerControlLayout {
-    static func scale(
-        horizontalSizeClass: UserInterfaceSizeClass?,
-        verticalSizeClass: UserInterfaceSizeClass?
-    ) -> CGFloat {
-        switch (horizontalSizeClass, verticalSizeClass) {
-        case (.regular, .regular):
-            2
-        case (.regular, .compact):
-            1.65
-        case (.compact, .compact):
-            1.45
-        default:
-            1.3
-        }
-    }
-}
+enum PlinxPlayerOverlayLayout {
+    static let emphasisScale: CGFloat = 1.5
+    static let baseHeaderButtonSize: CGFloat = 42
+    static let baseHeaderIconSize: CGFloat = 17
+    static let baseHeaderCornerRadius: CGFloat = 14
+    static let baseTitleSize: CGFloat = 20
 
-private struct PlinxPlayerControlMetrics {
-    let scale: CGFloat
-
-    var seekButtonSize: CGFloat { 58 * scale }
-    var seekIconSize: CGFloat { 20 * scale }
-    var seekCornerRadius: CGFloat { 22 * scale }
-    var playButtonSize: CGFloat { 72 * scale }
-    var playIconSize: CGFloat { 28 * scale }
-    var playCornerRadius: CGFloat { 26 * scale }
-    var borderWidth: CGFloat { max(2, scale) }
+    static let headerButtonSize = baseHeaderButtonSize * emphasisScale
+    static let headerIconSize = baseHeaderIconSize * emphasisScale
+    static let headerCornerRadius = baseHeaderCornerRadius * emphasisScale
+    static let titleSize = baseTitleSize * emphasisScale
 }
 
 struct PlayerIconButton: View {
@@ -35,43 +18,22 @@ struct PlayerIconButton: View {
     var accessibilityLabel: String?
     let action: () -> Void
 
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @Environment(\.verticalSizeClass) private var verticalSizeClass
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-
-    private var metrics: PlinxPlayerControlMetrics {
-        PlinxPlayerControlMetrics(
-            scale: PlinxPlayerControlLayout.scale(
-                horizontalSizeClass: horizontalSizeClass,
-                verticalSizeClass: verticalSizeClass
-            )
-        )
-    }
-
     var body: some View {
         Button(action: action) {
-            let chrome = RoundedRectangle(
-                cornerRadius: metrics.seekCornerRadius,
-                style: .continuous
-            )
+            let chrome = RoundedRectangle(cornerRadius: 22, style: .continuous)
             Image(systemName: systemName)
-                .font(.system(size: metrics.seekIconSize, weight: .bold))
+                .font(.title3.weight(.bold))
                 .foregroundStyle(.white)
-                .frame(width: metrics.seekButtonSize, height: metrics.seekButtonSize)
-                .background(
-                    chrome.fill(Color.black.opacity(reduceTransparency ? 1 : 0.84))
-                )
+                .frame(width: 58, height: 58)
+                .background(chrome.fill(.thinMaterial))
                 .overlay(
-                    chrome.stroke(
-                        Color.white.opacity(0.78),
-                        lineWidth: metrics.borderWidth
-                    )
+                    chrome.stroke(Color.brandPrimary.opacity(0.42), lineWidth: 1)
                 )
                 .shadow(
-                    color: Color.black.opacity(0.58),
-                    radius: 12 * metrics.scale,
+                    color: Color.brandPrimary.opacity(0.14),
+                    radius: 10,
                     x: 0,
-                    y: 6 * metrics.scale
+                    y: 6
                 )
         }
         .accessibilityLabel(accessibilityLabel ?? systemName)
@@ -83,50 +45,24 @@ struct PlayPauseButton: View {
     var isPaused: Bool
     let action: () -> Void
 
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @Environment(\.verticalSizeClass) private var verticalSizeClass
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-
-    private var metrics: PlinxPlayerControlMetrics {
-        PlinxPlayerControlMetrics(
-            scale: PlinxPlayerControlLayout.scale(
-                horizontalSizeClass: horizontalSizeClass,
-                verticalSizeClass: verticalSizeClass
-            )
-        )
-    }
-
     var body: some View {
         Button(action: action) {
-            let chrome = RoundedRectangle(
-                cornerRadius: metrics.playCornerRadius,
-                style: .continuous
-            )
+            let chrome = RoundedRectangle(cornerRadius: 26, style: .continuous)
             Image(systemName: isPaused ? "play.fill" : "pause.fill")
-                .font(.system(size: metrics.playIconSize, weight: .black))
+                .font(.title.weight(.black))
                 .foregroundStyle(.white)
-                .frame(width: metrics.playButtonSize, height: metrics.playButtonSize)
-                .background {
-                    ZStack {
-                        chrome.fill(
-                            Color.black.opacity(reduceTransparency ? 1 : 0.9)
-                        )
-                        chrome.fill(
-                            Color.brandPrimary.opacity(reduceTransparency ? 0.72 : 0.62)
-                        )
-                    }
-                }
+                .frame(width: 72, height: 72)
+                .background(
+                    chrome.fill(Color.brandPrimary.opacity(0.18))
+                )
                 .overlay(
-                    chrome.stroke(
-                        Color.white.opacity(0.88),
-                        lineWidth: metrics.borderWidth
-                    )
+                    chrome.stroke(Color.brandPrimary.opacity(0.52), lineWidth: 1)
                 )
                 .shadow(
-                    color: Color.black.opacity(0.62),
-                    radius: 14 * metrics.scale,
+                    color: Color.brandPrimary.opacity(0.18),
+                    radius: 12,
                     x: 0,
-                    y: 7 * metrics.scale
+                    y: 8
                 )
         }
         .accessibilityLabel(
@@ -173,13 +109,27 @@ struct SkipMarkerButton: View {
 struct PlayerSettingsButton: View {
     let action: () -> Void
 
+    @ScaledMetric(relativeTo: .headline) private var iconSize =
+        PlinxPlayerOverlayLayout.headerIconSize
+
     var body: some View {
         Button(action: action) {
-            let chrome = RoundedRectangle(cornerRadius: 14, style: .continuous)
+            let chrome = RoundedRectangle(
+                cornerRadius: PlinxPlayerOverlayLayout.headerCornerRadius,
+                style: .continuous
+            )
             Image(systemName: "gearshape")
-                .font(.headline.weight(.semibold))
+                .font(
+                    .system(
+                        size: iconSize,
+                        weight: .semibold
+                    )
+                )
                 .foregroundStyle(.white)
-                .frame(width: 42, height: 42)
+                .frame(
+                    width: PlinxPlayerOverlayLayout.headerButtonSize,
+                    height: PlinxPlayerOverlayLayout.headerButtonSize
+                )
                 .background(chrome.fill(Color.brandPrimary.opacity(0.14)))
                 .overlay(
                     chrome.stroke(Color.brandPrimary.opacity(0.42), lineWidth: 1)
