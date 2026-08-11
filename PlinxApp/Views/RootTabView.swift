@@ -137,7 +137,9 @@ struct PlinxTVShellHeader: View {
                 logoHeight: PlinxTVShellMetrics.logoHeight
             )
             .frame(maxWidth: 320, alignment: .leading)
-            .padding(.leading, 14)
+            // The hero and rows intentionally reclaim half the tvOS leading
+            // safe area. Pull the visible lockup onto that same content guide.
+            .padding(.leading, PlinxTVShellMetrics.homeBrandLeadingInset)
             .accessibilityHidden(true)
 
         case let .title(title):

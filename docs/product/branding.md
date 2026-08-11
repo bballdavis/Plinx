@@ -838,7 +838,13 @@ Rules:
 - On tvOS, text metadata belongs in the leading safe area without a surrounding
   panel. Reserve a fixed metadata row and four-line summary footprint so titles,
   ratings, controls, and content rows do not move when descriptions vary. Use a
-  restrained text shadow for contrast and reserve the trailing logo area.
+  restrained text shadow for contrast, align the block to the first content
+  column, and reserve the trailing logo area. Home accounts for its row focus
+  halo separately from library grids, and its shell lockup follows that same
+  visible leading guide.
+- Keep clear-logo title artwork fully inside the trailing safe region. Wide
+  artwork scales down within its identity frame instead of overflowing the
+  screen edge.
 - On tvOS library detail screens, Recommended/Browse/Collections controls sit below the hero metadata and before the first content section, never in front of the artwork.
 - The first library card column aligns with the leading text inside the hero
   metadata block. Adaptive grids use leading alignment and carousels do not add
@@ -868,6 +874,10 @@ Rules:
   30-point primary labels, and readable supporting copy. Do not add an X close
   control: the persistent main navigation is the primary exit, and Menu pops
   one Settings subpage or closes the Settings root.
+- Every focusable control in tvOS Settings and its subpages uses the shared
+  accent-ring Settings focus surface with no scale. Disable native white tvOS
+  focus plates for navigation rows, toggles, text fields, adjustment buttons,
+  and choice grids; persistent choices may retain the quieter selected ring.
 - Every tvOS Settings subpage reserves the persistent shell clearance and adds
   one visible Back action above its scrollable content. The inset must prevent
   titles and rows from scrolling under the Plinx lockup or navigation capsule.

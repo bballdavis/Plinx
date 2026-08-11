@@ -90,6 +90,9 @@ struct PlinxSettingsChrome: ViewModifier {
         content
             .background(PlinxAmbientBackground(intensity: .restrained))
             .tint(.accentColor)
+            .buttonStyle(PlinxSettingsListButtonStyle())
+            .toggleStyle(PlinxSettingsToggleStyle())
+            .textFieldStyle(PlinxSettingsTextFieldStyle())
     }
 
     private func settingsDestinationSurface(_ content: Content) -> some View {
@@ -154,6 +157,108 @@ extension PlinxFocusSurfaceStyle {
 struct PlinxSettingsActionButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         PlinxSettingsActionButtonBody(configuration: configuration)
+    }
+}
+
+/// Default row treatment for tvOS Settings destinations. Native tvOS List and
+/// Form controls otherwise introduce a bright white focus plate that conflicts
+/// with the accent ring used by the Settings root and rating chooser.
+struct PlinxSettingsListButtonStyle: ButtonStyle {
+    var isSelected = false
+    var cornerRadius: CGFloat = 18
+
+    func makeBody(configuration: Configuration) -> some View {
+        PlinxSettingsListButtonBody(
+            configuration: configuration,
+            isSelected: isSelected,
+            cornerRadius: cornerRadius
+        )
+    }
+}
+
+private struct PlinxSettingsListButtonBody: View {
+    let configuration: PlinxSettingsListButtonStyle.Configuration
+    let isSelected: Bool
+    let cornerRadius: CGFloat
+
+    @Environment(\.isFocused) private var isFocused
+
+    var body: some View {
+        configuration.label
+            .padding(.horizontal, 22)
+            .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(Color.white.opacity(0.07))
+            )
+            .plinxFocusSurface(
+                isSelected: isSelected,
+                isFocused: isFocused,
+                style: .tvSettings(cornerRadius: cornerRadius)
+            )
+            .focusEffectDisabled()
+            .opacity(configuration.isPressed ? 0.82 : 1)
+    }
+}
+
+struct PlinxSettingsTextFieldStyle: TextFieldStyle {
+    func _body(configuration: TextField<Self._Label>) -> some View {
+        PlinxSettingsTextFieldBody(configuration: configuration)
+    }
+}
+
+private struct PlinxSettingsTextFieldBody<Label: View>: View {
+    let configuration: TextField<Label>
+
+    @Environment(\.isFocused) private var isFocused
+
+    var body: some View {
+        configuration
+            .padding(.horizontal, 20)
+            .frame(minHeight: 68)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color.white.opacity(0.08))
+            )
+            .plinxFocusSurface(
+                isSelected: false,
+                isFocused: isFocused,
+                style: .tvSettings(cornerRadius: 16)
+            )
+            .focusEffectDisabled()
+    }
+}
+
+struct PlinxSettingsToggleStyle: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Button {
+            configuration.isOn.toggle()
+        } label: {
+            HStack(spacing: 18) {
+                configuration.label
+                Spacer(minLength: 18)
+                Image(systemName: configuration.isOn ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundStyle(configuration.isOn ? Color.accentColor : Color.white.opacity(0.58))
+            }
+        }
+        .buttonStyle(PlinxSettingsListButtonStyle(isSelected: configuration.isOn))
+        .focusEffectDisabled()
+        .accessibilityValue(
+            Text(configuration.isOn ? "common.status.on" : "common.status.off", tableName: "Plinx")
+        )
+    }
+}
+
+extension View {
+    func plinxSettingsListButton(isSelected: Bool = false, cornerRadius: CGFloat = 18) -> some View {
+        buttonStyle(
+            PlinxSettingsListButtonStyle(
+                isSelected: isSelected,
+                cornerRadius: cornerRadius
+            )
+        )
+        .focusEffectDisabled()
     }
 }
 

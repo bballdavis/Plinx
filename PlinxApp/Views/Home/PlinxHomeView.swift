@@ -732,6 +732,10 @@ private func decodeStringArray(_ json: String) -> [String] {
 struct TvBrowseHeroMetrics {
     /// Aligns library rows with the shared leading hero content guide.
     static let alignedContentInset: CGFloat = 16
+    /// Home rows include their row and focus-halo insets, so the hero copy
+    /// uses the same visible leading guide rather than the library guide.
+    static let homeAlignedContentInset: CGFloat = 42
+    static let identityTrailingSafeInset: CGFloat = 64
     static let backdropHeightRatio: CGFloat = 0.68
     static let metadataRowHeight: CGFloat = 28
     static let summaryHeight: CGFloat = 112
@@ -754,7 +758,7 @@ struct TvBrowseHeroMetrics {
     static let `default` = TvBrowseHeroMetrics(
         heightRatio: 0.408,
         leadingSafeAreaReduction: 0,
-        contentHorizontalPadding: 4,
+        contentHorizontalPadding: alignedContentInset,
         contentTopPadding: 1,
         metadataBottomPadding: 8
     )
@@ -762,7 +766,7 @@ struct TvBrowseHeroMetrics {
     static let home = TvBrowseHeroMetrics(
         heightRatio: 0.408,
         leadingSafeAreaReduction: 0.5,
-        contentHorizontalPadding: 4,
+        contentHorizontalPadding: homeAlignedContentInset,
         contentTopPadding: 0,
         metadataBottomPadding: 8
     )
@@ -838,10 +842,11 @@ struct SharedTvBrowsePageLayout<NavigationContent: View, FilterContent: View, Ro
 
                 if let heroMedia {
                     TvHeroMetadataPanel(media: heroMedia)
-                        .frame(maxWidth: availableWidth * 0.54, alignment: .leading)
+                        .frame(width: availableWidth * 0.54, alignment: .leading)
                         .padding(.bottom, heroMetrics.metadataBottomPadding)
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .padding(.horizontal, heroMetrics.contentHorizontalPadding)
             .padding(.top, topSafeAreaInset + heroMetrics.contentTopPadding)
         }
@@ -1280,7 +1285,7 @@ private struct TvPinnedHeroBackdrop: View {
 
                 heroIdentityOverlay
                     .frame(width: proxy.size.width * 0.34, alignment: .trailing)
-                    .padding(.trailing, 26)
+                    .padding(.trailing, TvBrowseHeroMetrics.identityTrailingSafeInset)
                     .padding(.bottom, 16)
                     .frame(maxWidth: .infinity, alignment: .trailing)
                     .frame(height: identityGuideHeight, alignment: .bottom)
@@ -1302,7 +1307,8 @@ private struct TvPinnedHeroBackdrop: View {
                         image
                             .resizable()
                             .scaledToFit()
-                            .frame(maxHeight: 185)
+                            .frame(maxWidth: .infinity, maxHeight: 185, alignment: .trailing)
+                            .clipped()
                     } else {
                         fallbackIdentityText
                     }

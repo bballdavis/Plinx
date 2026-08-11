@@ -63,6 +63,9 @@ struct AppearanceSettingsView: View {
                             .foregroundStyle(Color.accentColor)
                     }
                 }
+                #if os(tvOS)
+                .plinxSettingsListButton()
+                #endif
             } footer: {
                 Text("settings.appearance.description", tableName: "Plinx")
                     .font(.caption)
@@ -86,7 +89,8 @@ struct AppearanceSettingsView: View {
                         } label: {
                             Image(systemName: "minus.circle.fill")
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(PlinxSettingsActionButtonStyle())
+                        .focusEffectDisabled()
 
                         Text("settings.appearance.buttons.adjust", tableName: "Plinx")
                             .font(.caption)
@@ -98,7 +102,8 @@ struct AppearanceSettingsView: View {
                         } label: {
                             Image(systemName: "plus.circle.fill")
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(PlinxSettingsActionButtonStyle())
+                        .focusEffectDisabled()
                     }
                     #else
                     Slider(value: sliderBinding, in: 0...2, step: 1)
@@ -148,7 +153,8 @@ struct AppearanceSettingsView: View {
                         } label: {
                             Image(systemName: "minus.circle.fill")
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(PlinxSettingsActionButtonStyle())
+                        .focusEffectDisabled()
 
                         Text("settings.appearance.banners.adjust", tableName: "Plinx")
                             .font(.caption)
@@ -160,7 +166,8 @@ struct AppearanceSettingsView: View {
                         } label: {
                             Image(systemName: "plus.circle.fill")
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(PlinxSettingsActionButtonStyle())
+                        .focusEffectDisabled()
                     }
                     #else
                     Slider(value: bannerArtworkCountBinding, in: 1...Double(bannerArtworkMaximum), step: 1)
@@ -247,31 +254,75 @@ struct AccentColorSettingsView: View {
         return Button {
             accentColorName = option.rawValue
         } label: {
-            VStack(spacing: 8) {
-                ZStack {
-                    Circle()
-                        .fill(option.color)
-                        .frame(width: 48, height: 48)
-                    if isSelected {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundStyle(.white)
-                    }
-                }
-                .overlay(
-                    Circle()
-                        .stroke(
-                            isSelected ? option.color : Color.white.opacity(0.2),
-                            lineWidth: isSelected ? 3 : 1
-                        )
-                        .padding(-4)
-                )
-
-                Text(option.label)
-                    .font(.caption2)
-                    .foregroundStyle(isSelected ? option.color : .secondary)
-            }
+            TvAccentColorSwatch(option: option, isSelected: isSelected)
         }
         .buttonStyle(.plain)
+        .focusEffectDisabled()
     }
 }
+
+#if os(tvOS)
+private struct TvAccentColorSwatch: View {
+    let option: PlinxAccentColor
+    let isSelected: Bool
+
+    @Environment(\.isFocused) private var isFocused
+
+    var body: some View {
+        VStack(spacing: 8) {
+            ZStack {
+                Circle()
+                    .fill(option.color)
+                    .frame(width: 48, height: 48)
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+            }
+
+            Text(option.label)
+                .font(.caption2)
+                .foregroundStyle(isSelected ? option.color : .secondary)
+        }
+        .padding(12)
+        .plinxFocusSurface(
+            isSelected: isSelected,
+            isFocused: isFocused,
+            style: .tvSettings(cornerRadius: 18)
+        )
+    }
+}
+#else
+private struct TvAccentColorSwatch: View {
+    let option: PlinxAccentColor
+    let isSelected: Bool
+
+    var body: some View {
+        VStack(spacing: 8) {
+            ZStack {
+                Circle()
+                    .fill(option.color)
+                    .frame(width: 48, height: 48)
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+            }
+            .overlay(
+                Circle()
+                    .stroke(
+                        isSelected ? option.color : Color.white.opacity(0.2),
+                        lineWidth: isSelected ? 3 : 1
+                    )
+                    .padding(-4)
+            )
+
+            Text(option.label)
+                .font(.caption2)
+                .foregroundStyle(isSelected ? option.color : .secondary)
+        }
+    }
+}
+#endif

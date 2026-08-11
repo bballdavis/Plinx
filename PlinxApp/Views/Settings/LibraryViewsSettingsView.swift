@@ -32,6 +32,9 @@ struct LibraryViewsSettingsView: View {
                     } label: {
                         Label(library.title, systemImage: library.iconName)
                     }
+                    #if os(tvOS)
+                    .plinxSettingsListButton()
+                    #endif
                 }
             }
         }

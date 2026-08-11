@@ -35,6 +35,9 @@ struct SetPinView: View {
                             Image(systemName: "xmark.shield")
                         }
                     }
+                    #if os(tvOS)
+                    .plinxSettingsListButton()
+                    #endif
                 } header: {
                     Text("settings.parentalPIN.current", tableName: "Plinx")
                 }
@@ -84,8 +87,13 @@ struct SetPinView: View {
                         )
                             .frame(maxWidth: .infinity)
                     }
+                    #if os(tvOS)
+                    .buttonStyle(PlinxSettingsActionButtonStyle())
+                    .focusEffectDisabled()
+                    #else
                     .buttonStyle(.borderedProminent)
                     .tint(.accentColor)
+                    #endif
                     .disabled(activeEntryValue.count < 4)
                 }
                 .padding(.vertical, 4)

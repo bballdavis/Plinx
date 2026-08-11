@@ -154,6 +154,19 @@ final class AppleTVBrowseFocusRoutingTests: XCTestCase {
         XCTAssertEqual(TvBrowseHeroMetrics.metadataRowHeight, 28)
         XCTAssertEqual(TvBrowseHeroMetrics.summaryHeight, 112)
         XCTAssertEqual(TvBrowseHeroMetrics.summaryLineLimit, 4)
+        XCTAssertEqual(
+            TvBrowseHeroMetrics.default.contentHorizontalPadding,
+            TvBrowseHeroMetrics.alignedContentInset
+        )
+        XCTAssertEqual(
+            TvBrowseHeroMetrics.home.contentHorizontalPadding,
+            TvBrowseHeroMetrics.homeAlignedContentInset
+        )
+        XCTAssertGreaterThan(
+            TvBrowseHeroMetrics.homeAlignedContentInset,
+            TvBrowseHeroMetrics.alignedContentInset
+        )
+        XCTAssertGreaterThan(TvBrowseHeroMetrics.identityTrailingSafeInset, 26)
     }
 
     func test_removedFocusedItem_fallsBackToNearestSibling() {

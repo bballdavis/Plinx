@@ -82,7 +82,11 @@ struct DefaultServerSettingsView: View {
             }
             .opacity(viewModel.isSelecting && !isSelected ? 0.6 : 1)
         }
+        #if os(tvOS)
+        .plinxSettingsListButton(isSelected: isCurrent)
+        #else
         .buttonStyle(.plain)
+        #endif
         .disabled(viewModel.isSelecting)
     }
 }

@@ -107,11 +107,17 @@ struct YoutarrSettingsView: View {
                 Button(action: save) {
                     Text("youtarr.settings.save", tableName: "Plinx")
                 }
+                #if os(tvOS)
+                .plinxSettingsListButton()
+                #endif
                 .disabled(isWorking)
 
                 Button(action: testConnection) {
                     Text("youtarr.settings.test", tableName: "Plinx")
                 }
+                #if os(tvOS)
+                .plinxSettingsListButton()
+                #endif
                 .disabled(isWorking)
 
                 if isWorking {
@@ -171,6 +177,9 @@ struct YoutarrSettingsView: View {
                 Button(role: .destructive, action: removeConfiguration) {
                     Text("youtarr.settings.remove", tableName: "Plinx")
                 }
+                    #if os(tvOS)
+                    .plinxSettingsListButton()
+                    #endif
                     .disabled(isWorking || baseURL.isEmpty)
             } footer: {
                 Text("youtarr.settings.remove.help", tableName: "Plinx")

@@ -400,6 +400,7 @@ enum PlinxTVShellMetrics {
     static let cornerRadius: CGFloat = 16
     static let logoMaxWidth: CGFloat = 220
     static let logoHeight: CGFloat = 52
+    static let homeBrandLeadingInset: CGFloat = -27
     static let contentClearance: CGFloat = 76
 }
 #endif
