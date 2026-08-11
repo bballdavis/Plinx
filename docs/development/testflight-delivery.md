@@ -68,11 +68,12 @@ intentional action that queues a new internal TestFlight build.
 
 ## Export Compliance
 
-Plinx declares `ITSAppUsesNonExemptEncryption` as `false` in both
-`PlinxApp/project.yml` and the source `Info.plist`. This matches the current
-binary assessment: the app uses standard platform and network encryption and
-does not implement non-exempt cryptography. The archive validator checks the
-final built plist before an upload proceeds.
+Plinx declares `ITSAppUsesNonExemptEncryption` as `false` for both the iOS and
+tvOS targets in `PlinxApp/project.yml` and their source plists
+(`Info.plist` and `Info-tvOS.plist`). This matches the current binary
+assessment: the app uses standard platform and network encryption and does not
+implement non-exempt cryptography. The archive validator checks the final
+built plist before an upload proceeds.
 
 Reassess this declaration before adding cryptographic code, a cryptography
 library, or a dependency that changes the final binary’s encryption behavior.

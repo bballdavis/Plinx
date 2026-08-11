@@ -304,6 +304,7 @@ targets:
         CFBundleDisplayName: Plinx
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        ITSAppUsesNonExemptEncryption: false
         PlinxBuildConfiguration: $(CONFIGURATION)
         NSLocalNetworkUsageDescription: Plinx connects to Plex Media Servers on your local network when you choose a local server connection.
         NSAppTransportSecurity:

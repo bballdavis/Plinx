@@ -33,15 +33,35 @@ struct YoutarrSettingsView: View {
     var body: some View {
         Form {
             Section {
+                #if os(tvOS)
+                PlinxTVTextEntry(
+                    text: $baseURL,
+                    placeholder: YoutarrStrings.value("youtarr.settings.baseURL"),
+                    showsSurface: true
+                )
+                .plinxSettingsTextEntry()
+                .accessibilityIdentifier("youtarr.settings.baseURL.field")
+                #else
                 TextField(text: $baseURL) {
                     Text("youtarr.settings.baseURL", tableName: "Plinx")
                 }
-                #if os(iOS)
                     .textInputAutocapitalization(.never)
                     .keyboardType(.URL)
                     .autocorrectionDisabled()
                 #endif
 
+                #if os(tvOS)
+                PlinxTVTextEntry(
+                    text: $apiKey,
+                    placeholder: hasSavedAPIKey
+                        ? "••••••••"
+                        : YoutarrStrings.value("youtarr.settings.apiKey"),
+                    isSecure: true,
+                    showsSurface: true
+                )
+                .plinxSettingsTextEntry()
+                .accessibilityIdentifier("youtarr.settings.apiKey.field")
+                #else
                 SecureField(
                     text: $apiKey,
                     prompt: Text(
@@ -50,11 +70,10 @@ struct YoutarrSettingsView: View {
                 ) {
                     Text("youtarr.settings.apiKey", tableName: "Plinx")
                 }
-                #if os(iOS)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+                    .accessibilityLabel(Text("youtarr.settings.apiKey", tableName: "Plinx"))
                 #endif
-                .accessibilityLabel(Text("youtarr.settings.apiKey", tableName: "Plinx"))
             } header: {
                 Text("youtarr.settings.connection", tableName: "Plinx")
             } footer: {
@@ -67,16 +86,37 @@ struct YoutarrSettingsView: View {
                 Toggle(isOn: $isAdditionalHeaderEnabled) {
                     Text("youtarr.settings.additionalHeader.enabled", tableName: "Plinx")
                 }
+                #if os(tvOS)
+                .plinxSettingsSingleSurfaceRow()
+                #endif
 
                 if isAdditionalHeaderEnabled {
+                    #if os(tvOS)
+                    PlinxTVTextEntry(
+                        text: $additionalHeaderName,
+                        placeholder: YoutarrStrings.value("youtarr.settings.additionalHeader.name"),
+                        showsSurface: true
+                    )
+                    .plinxSettingsTextEntry()
+                    #else
                     TextField(text: $additionalHeaderName) {
                         Text("youtarr.settings.additionalHeader.name", tableName: "Plinx")
                     }
-                    #if os(iOS)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                     #endif
 
+                    #if os(tvOS)
+                    PlinxTVTextEntry(
+                        text: $additionalHeaderValue,
+                        placeholder: hasSavedAdditionalHeader
+                            ? "••••••••"
+                            : YoutarrStrings.value("youtarr.settings.additionalHeader.value"),
+                        isSecure: true,
+                        showsSurface: true
+                    )
+                    .plinxSettingsTextEntry()
+                    #else
                     SecureField(
                         text: $additionalHeaderValue,
                         prompt: Text(
@@ -87,13 +127,12 @@ struct YoutarrSettingsView: View {
                     ) {
                         Text("youtarr.settings.additionalHeader.value", tableName: "Plinx")
                     }
-                    #if os(iOS)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+                        .accessibilityLabel(
+                            Text("youtarr.settings.additionalHeader.value", tableName: "Plinx")
+                        )
                     #endif
-                    .accessibilityLabel(
-                        Text("youtarr.settings.additionalHeader.value", tableName: "Plinx")
-                    )
                 }
             } header: {
                 Text("youtarr.settings.additionalHeader.section", tableName: "Plinx")
@@ -109,6 +148,7 @@ struct YoutarrSettingsView: View {
                 }
                 #if os(tvOS)
                 .plinxSettingsListButton()
+                .plinxSettingsSingleSurfaceRow()
                 #endif
                 .disabled(isWorking)
 
@@ -117,6 +157,7 @@ struct YoutarrSettingsView: View {
                 }
                 #if os(tvOS)
                 .plinxSettingsListButton()
+                .plinxSettingsSingleSurfaceRow()
                 #endif
                 .disabled(isWorking)
 
@@ -141,6 +182,9 @@ struct YoutarrSettingsView: View {
                         Image(systemName: "sparkles")
                     }
                 }
+                #if os(tvOS)
+                .plinxSettingsSingleSurfaceRow()
+                #endif
                 .disabled(!isConfigured)
                 .accessibilityIdentifier("youtarr.settings.explore.enabled")
             } header: {
@@ -179,6 +223,7 @@ struct YoutarrSettingsView: View {
                 }
                     #if os(tvOS)
                     .plinxSettingsListButton()
+                    .plinxSettingsSingleSurfaceRow()
                     #endif
                     .disabled(isWorking || baseURL.isEmpty)
             } footer: {

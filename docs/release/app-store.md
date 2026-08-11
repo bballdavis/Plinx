@@ -117,7 +117,9 @@ mask or transparency to the iOS icon sources; the system supplies the mask.
 The `AppIconTV` catalog uses a large horizontal Plinx lockup on the transparent
 foreground layer and the canonical ambient shell on the opaque background
 layer. Both the 400×240 regular stack and 1280×768 App Store stack are generated
-from the same manifest, along with standard and wide Top Shelf artwork.
+from the same manifest, along with standard and wide Top Shelf artwork. The
+wide Top Shelf set includes both the 2320×720 1× rendition and the required
+4640×1440 2× rendition for App Store delivery.
 
 ## Release Gates
 

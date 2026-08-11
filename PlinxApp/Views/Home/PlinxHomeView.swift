@@ -282,7 +282,9 @@ struct PlinxHomeView: View {
             availableIDs: availableTargets,
             preferredID: preferredTarget
         ) else {
+            contentFocusGeneration &+= 1
             focusedCard = nil
+            isContentFocusPending = false
             return
         }
 
@@ -453,6 +455,7 @@ struct PlinxHomeView: View {
 
         switch route {
         case .navigation:
+            contentFocusGeneration &+= 1
             onRequestHomeNavigationFocus()
         case let .card(row, item):
             focusedCard = .card(row: row, item: item)

@@ -1,4 +1,5 @@
 import SwiftUI
+import PlinxUI
 
 enum PlinxBrandAsset: String, CaseIterable {
     case markColor = "BrandMarkColor"
@@ -9,12 +10,30 @@ enum PlinxBrandAsset: String, CaseIterable {
     case lockupOnDark = "BrandLockupOnDark"
     case lockupWhite = "BrandLockupWhite"
     case stackedOnGradient = "BrandLockupStackedOnGradient"
+    case stackedOnLight = "BrandLockupStackedOnLight"
+
+    var sourceAssetName: String {
+        switch self {
+        case .stackedOnLight:
+            // The on-light variant deliberately reuses the canonical stacked
+            // vector as a template so its geometry cannot drift from the
+            // white treatment.
+            PlinxBrandAsset.stackedOnGradient.rawValue
+        default:
+            rawValue
+        }
+    }
+
+    var usesTemplateRendering: Bool {
+        self == .stackedOnLight
+    }
 }
 
 enum PlinxBrandingSemantics {
     static let fullColorLogoAssetName = PlinxBrandAsset.lockupOnDark.rawValue
     static let parentalGateTitleColorValue = "darkOnBrandGradient"
     static let parentalGateUnlockStyleValue = "greenBrandPrimary"
+    static let parentalGateTVUnlockStyleValue = "darkBrandPrimaryWithGradientBorder"
     static let heroLoadingStyleValue = "heroAnimatedBeaconWithWordmark"
     static let signInPrimaryButtonStyleValue = "liquidGlassPrimary"
 }
@@ -86,10 +105,12 @@ struct PlinxBrandLogoView: View {
     }
 
     var body: some View {
-        Image(asset.rawValue)
+        Image(asset.sourceAssetName)
+            .renderingMode(asset.usesTemplateRendering ? .template : .original)
             .resizable()
             .scaledToFit()
             .frame(maxWidth: maxWidth)
+            .foregroundStyle(asset.usesTemplateRendering ? PlinxBrand.shell : Color.primary)
             .accessibilityLabel("Plinx")
             .accessibilityIdentifier(accessibilityIdentifier)
             .accessibilityValue(asset.rawValue)

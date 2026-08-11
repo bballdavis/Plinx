@@ -18,15 +18,18 @@ struct ParentalGateView: View {
 
     var onAllowed: () -> Void
     var onRequestShellNavigationFocus: () -> Void
+    var contentFocusRequest: Int
 
     init(
         onAllowed: @escaping () -> Void,
-        onRequestShellNavigationFocus: @escaping () -> Void = {}
+        onRequestShellNavigationFocus: @escaping () -> Void = {},
+        contentFocusRequest: Int = 0
     ) {
         var rng = SystemRandomNumberGenerator()
         _challenge = State(initialValue: mathGate.makeChallenge(rng: &rng))
         self.onAllowed = onAllowed
         self.onRequestShellNavigationFocus = onRequestShellNavigationFocus
+        self.contentFocusRequest = contentFocusRequest
     }
 
     private var usePIN: Bool { parentalAccessCoordinator.hasPIN }
@@ -36,7 +39,7 @@ struct ParentalGateView: View {
     var body: some View {
         VStack(spacing: 24) {
             PlinxBrandLogoView(
-                asset: .stackedOnGradient,
+                asset: parentalGateLogoAsset,
                 accessibilityIdentifier: "parentalGate.logo",
                 maxWidth: 176
             )
@@ -54,6 +57,14 @@ struct ParentalGateView: View {
             PlinxBrand.gradient
                 .ignoresSafeArea()
         }
+    }
+
+    private var parentalGateLogoAsset: PlinxBrandAsset {
+        #if os(tvOS)
+        .stackedOnLight
+        #else
+        .stackedOnGradient
+        #endif
     }
 
     // MARK: - PIN gate
@@ -78,6 +89,7 @@ struct ParentalGateView: View {
                         comment: ""
                     ),
                     onRequestShellNavigationFocus: onRequestShellNavigationFocus,
+                    contentFocusRequest: contentFocusRequest,
                     onSubmit: submitPin
                 )
                 #else
@@ -143,6 +155,7 @@ struct ParentalGateView: View {
                     comment: ""
                 ),
                 onRequestShellNavigationFocus: onRequestShellNavigationFocus,
+                contentFocusRequest: contentFocusRequest,
                 onSubmit: submitMathAnswer
             )
             #else
@@ -230,9 +243,11 @@ private struct TvParentalNumberPad: View {
     let maximumDigits: Int
     let accessibilityLabel: String
     let onRequestShellNavigationFocus: () -> Void
+    let contentFocusRequest: Int
     let onSubmit: () -> Void
 
     @FocusState private var focusedKey: Key?
+    @State private var contentFocusGeneration = 0
 
     private let columns = Array(repeating: GridItem(.fixed(150), spacing: 14), count: 3)
     private let keys: [Key] = (1...9).map(Key.digit) + [.delete, .digit(0), .unlock]
@@ -257,6 +272,16 @@ private struct TvParentalNumberPad: View {
         }
         .onAppear {
             focusedKey = .digit(1)
+        }
+        .onChange(of: contentFocusRequest) { _, _ in
+            contentFocusGeneration &+= 1
+            let generation = contentFocusGeneration
+            focusedKey = nil
+            Task { @MainActor in
+                await Task.yield()
+                guard generation == contentFocusGeneration else { return }
+                focusedKey = .digit(1)
+            }
         }
     }
 
@@ -289,12 +314,12 @@ private struct TvParentalNumberPad: View {
         .focused($focusedKey, equals: key)
         .onMoveCommand { direction in
             guard direction == .up, isTopRow(key) else { return }
-            focusedKey = nil
+            contentFocusGeneration &+= 1
             onRequestShellNavigationFocus()
         }
         .accessibilityIdentifier(accessibilityIdentifier(for: key))
         .accessibilityValue(
-            key == .unlock ? PlinxBrandingSemantics.parentalGateUnlockStyleValue : ""
+            key == .unlock ? PlinxBrandingSemantics.parentalGateTVUnlockStyleValue : ""
         )
     }
 
@@ -347,17 +372,34 @@ private struct TvParentalKeyBody: View {
     @Environment(\.isFocused) private var isFocused
 
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
+
         configuration.label
-            .foregroundStyle(isUnlock ? Color.white : PlinxBrand.shell)
+            .foregroundStyle(isUnlock ? Color.white.opacity(0.96) : PlinxBrand.shell)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(isUnlock ? Color.accentColor : Color.white.opacity(isFocused ? 0.98 : 0.78))
+                shape.fill(
+                    isUnlock
+                        ? PlinxBrand.shell
+                        : Color.white.opacity(isFocused ? 0.98 : 0.78)
+                )
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(isFocused ? PlinxBrand.shell : Color.clear, lineWidth: 4)
+            .overlay {
+                if isUnlock {
+                    shape.stroke(
+                        PlinxBrand.gradient,
+                        lineWidth: isFocused ? 4 : 2
+                    )
+                    .opacity(isFocused ? 1 : 0.78)
+                } else if isFocused {
+                    shape.stroke(PlinxBrand.shell, lineWidth: 4)
+                }
+            }
+            .shadow(
+                color: isFocused
+                    ? (isUnlock ? PlinxBrand.lime.opacity(0.42) : PlinxBrand.shell.opacity(0.32))
+                    : .clear,
+                radius: 14
             )
-            .shadow(color: isFocused ? PlinxBrand.shell.opacity(0.32) : .clear, radius: 14)
             .scaleEffect(isFocused ? 1.06 : 1)
             .animation(.easeOut(duration: 0.12), value: isFocused)
     }

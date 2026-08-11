@@ -22,6 +22,7 @@ struct PlinxCollectionDetailView: View {
     #if os(tvOS)
     @FocusState private var focusedTarget: PlinxCollectionFocusTarget?
     @State private var previousItemIDs: [String] = []
+    @State private var contentFocusGeneration = 0
     #endif
 
     private var columns: [GridItem] {
@@ -92,7 +93,7 @@ struct PlinxCollectionDetailView: View {
             focusedTarget = .back
         }
         .onChange(of: contentFocusRequest) { _, _ in
-            restoreContentFocus()
+            restoreContentFocus(forceTransfer: true)
         }
         .onChange(of: viewModel.items.map(\.id)) { oldIDs, newIDs in
             defer { previousItemIDs = newIDs }
@@ -145,7 +146,7 @@ struct PlinxCollectionDetailView: View {
             .onMoveCommand { direction in
                 switch direction {
                 case .up:
-                    focusedTarget = nil
+                    contentFocusGeneration &+= 1
                     onRequestShellNavigationFocus()
                 case .down:
                     restoreContentFocus(preferFirstItem: true)
@@ -229,7 +230,10 @@ struct PlinxCollectionDetailView: View {
     }
 
     #if os(tvOS)
-    private func restoreContentFocus(preferFirstItem: Bool = false) {
+    private func restoreContentFocus(
+        preferFirstItem: Bool = false,
+        forceTransfer: Bool = false
+    ) {
         let ids = viewModel.items.map(\.id)
         let currentID: String?
         if case let .item(id) = focusedTarget {
@@ -241,7 +245,20 @@ struct PlinxCollectionDetailView: View {
             currentID: preferFirstItem ? nil : currentID,
             availableIDs: ids
         )
-        focusedTarget = resolved.map(PlinxCollectionFocusTarget.item) ?? .back
+        let target = resolved.map(PlinxCollectionFocusTarget.item) ?? .back
+        guard forceTransfer else {
+            focusedTarget = target
+            return
+        }
+
+        contentFocusGeneration &+= 1
+        let generation = contentFocusGeneration
+        focusedTarget = nil
+        Task { @MainActor in
+            await Task.yield()
+            guard generation == contentFocusGeneration else { return }
+            focusedTarget = target
+        }
     }
     #endif
 }

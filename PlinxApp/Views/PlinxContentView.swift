@@ -117,6 +117,8 @@ struct PlinxContentView: View {
                 AppleTVBrowseFocusUITestHarness(scenario: .root(hasContent: false))
             case "appleTVLibraryDetailFocus":
                 AppleTVBrowseFocusUITestHarness(scenario: .libraryDetail(hasContent: true))
+            case "appleTVSearchFocus":
+                AppleTVBrowseFocusUITestHarness(scenario: .search)
             #endif
             case AppStoreScreenshotBootstrap.mediaDetailScreen:
                 AppStoreMediaDetailScreenshotHarness()
@@ -468,6 +470,12 @@ struct PlinxContentView: View {
 private struct ParentalGateUITestHarness: View {
     @State private var isAllowed = false
     @State private var parentalAccessCoordinator: ParentalAccessCoordinator
+    #if os(tvOS)
+    @State private var selectedTab: MainCoordinator.Tab = .home
+    @State private var contentFocusRequest = 0
+    @State private var shellFocusHistory: [String] = []
+    @FocusState private var focusedShellTarget: PlinxTVShellFocusTarget?
+    #endif
 
     init() {
         let suiteName = "com.bballdavis.plinx.ui-tests.parental-gate"
@@ -482,15 +490,13 @@ private struct ParentalGateUITestHarness: View {
     }
 
     var body: some View {
+        #if os(tvOS)
+        tvContent
+            .environment(parentalAccessCoordinator)
+        #else
         Group {
             if isAllowed {
-                #if os(tvOS)
-                NavigationStack {
-                    PlinxSettingsView(isUnlocked: true)
-                }
-                #else
                 EmptyView()
-                #endif
             } else {
                 ParentalGateView {
                     isAllowed = true
@@ -498,7 +504,84 @@ private struct ParentalGateUITestHarness: View {
             }
         }
         .environment(parentalAccessCoordinator)
+        #endif
     }
+
+    #if os(tvOS)
+    private var tvContent: some View {
+        ZStack(alignment: .top) {
+            if isAllowed {
+                NavigationStack {
+                    PlinxSettingsView(
+                        isUnlocked: true,
+                        contentFocusRequest: contentFocusRequest,
+                        onRequestShellNavigationFocus: {
+                            focusedShellTarget = .settings
+                        }
+                    )
+                }
+            } else {
+                ParentalGateView(
+                    onAllowed: {
+                        isAllowed = true
+                    },
+                    onRequestShellNavigationFocus: {
+                        focusedShellTarget = .settings
+                    },
+                    contentFocusRequest: contentFocusRequest
+                )
+            }
+
+            PlinxTVShellHeader(
+                tabs: KidsMainTabPicker.TabItem.mainTabs(
+                    showSearchInMainNavigation: true,
+                    includeSettings: true
+                ),
+                selectedTab: $selectedTab,
+                selectedAction: .settings,
+                leadingIdentity: .title("Settings"),
+                focusedTarget: $focusedShellTarget,
+                onSelect: { destination in
+                    selectedTab = destination
+                    focusedShellTarget = .tab(destination)
+                },
+                onAction: { _ in
+                    focusedShellTarget = .settings
+                },
+                onMoveDown: {
+                    contentFocusRequest &+= 1
+                },
+                appearance: isAllowed ? .standard : .onBrightBrandSurface
+            )
+
+            Text(shellFocusHistory.joined(separator: ","))
+                .font(.system(size: 1))
+                .opacity(0.001)
+                .accessibilityIdentifier("focus.fixture.shellHistory")
+                .accessibilityValue(shellFocusHistory.joined(separator: ","))
+        }
+        .onChange(of: focusedShellTarget) { _, target in
+            guard let target else { return }
+            switch target {
+            case let .tab(tab):
+                switch tab {
+                case .home:
+                    shellFocusHistory.append("home")
+                case .library, .libraryDetail:
+                    shellFocusHistory.append("library")
+                case .search:
+                    shellFocusHistory.append("search")
+                case .more:
+                    shellFocusHistory.append("more")
+                case .seerrDiscover:
+                    shellFocusHistory.append("explore")
+                }
+            case .settings:
+                shellFocusHistory.append("settings")
+            }
+        }
+    }
+    #endif
 }
 
 private struct EmptyParentalPINStore: ParentalPINStoring {

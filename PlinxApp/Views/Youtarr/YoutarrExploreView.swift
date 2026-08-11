@@ -704,6 +704,7 @@ struct YoutarrExploreView: View {
     private let contentFocusRequest: Int
     #if os(tvOS)
     @FocusState private var isSearchFocused: Bool
+    @State private var contentFocusGeneration = 0
     #endif
 
     init(
@@ -807,7 +808,14 @@ struct YoutarrExploreView: View {
         }
         #if os(tvOS)
         .onChange(of: contentFocusRequest) { _, _ in
-            isSearchFocused = true
+            contentFocusGeneration &+= 1
+            let generation = contentFocusGeneration
+            isSearchFocused = false
+            Task { @MainActor in
+                await Task.yield()
+                guard generation == contentFocusGeneration else { return }
+                isSearchFocused = true
+            }
         }
         #endif
     }
@@ -884,7 +892,7 @@ struct YoutarrExploreView: View {
             )
             .onMoveCommand { direction in
                 guard direction == .up else { return }
-                isSearchFocused = false
+                contentFocusGeneration &+= 1
                 onRequestShellNavigationFocus()
             }
             #endif

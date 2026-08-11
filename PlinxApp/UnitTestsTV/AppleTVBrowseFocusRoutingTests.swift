@@ -42,6 +42,40 @@ final class AppleTVBrowseFocusRoutingTests: XCTestCase {
         XCTAssertFalse(settings.isSelected(selectedTab: .home, selectedAction: nil))
     }
 
+    @MainActor
+    func test_shellFocusAlwaysResolvesFromActiveDestination() {
+        let coordinator = PlinxTVFocusCoordinator()
+        let tabs = KidsMainTabPicker.TabItem.mainTabs(
+            showSearchInMainNavigation: true,
+            includeSettings: true
+        )
+
+        XCTAssertEqual(
+            coordinator.shellTarget(
+                activeTab: .home,
+                showsSettings: false,
+                visibleTabs: tabs
+            ),
+            .tab(.home)
+        )
+        XCTAssertEqual(
+            coordinator.shellTarget(
+                activeTab: .library,
+                showsSettings: false,
+                visibleTabs: tabs
+            ),
+            .tab(.library)
+        )
+        XCTAssertEqual(
+            coordinator.shellTarget(
+                activeTab: .home,
+                showsSettings: true,
+                visibleTabs: tabs
+            ),
+            .settings
+        )
+    }
+
     func test_contentFocusFallback_isNilWhenARegionHasNoFocusableItems() {
         XCTAssertNil(
             PlinxTVFocusCoordinator.resolvedContentID(

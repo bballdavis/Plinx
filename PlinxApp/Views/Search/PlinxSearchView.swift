@@ -14,6 +14,7 @@ struct PlinxSearchView: View {
     #if os(tvOS)
     @EnvironmentObject private var tvFocusCoordinator: PlinxTVFocusCoordinator
     @FocusState private var focusedResultID: String?
+    @State private var contentFocusGeneration = 0
     #endif
     @Environment(\.safetyPolicy) private var safetyPolicy
 
@@ -76,16 +77,29 @@ struct PlinxSearchView: View {
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(searchAccentColor)
 
-            TextField(text: $viewModel.query) {
-                    Text("search.placeholder", tableName: "Plinx")
-                }
-                .font(.body)
-                .foregroundStyle(.white)
-                .tint(searchAccentColor)
+            #if os(tvOS)
+            PlinxTVTextEntry(
+                text: $viewModel.query,
+                placeholder: String(localized: "search.placeholder", table: "Plinx"),
+                submitKind: .search,
+                onTextChange: viewModel.queryDidChange,
+                onSubmit: viewModel.submitSearch
+            )
                 .focused($searchFocused)
-                .submitLabel(.search)
-                .onSubmit { viewModel.submitSearch() }
-                .onChange(of: viewModel.query) { _, _ in viewModel.queryDidChange() }
+            #else
+            TextField(text: $viewModel.query) {
+                Text("search.placeholder", tableName: "Plinx")
+                    .foregroundStyle(.white.opacity(0.52))
+            }
+            .textFieldStyle(.plain)
+            .font(.body)
+            .foregroundStyle(.white)
+            .tint(searchAccentColor)
+            .focused($searchFocused)
+            .submitLabel(.search)
+            .onSubmit { viewModel.submitSearch() }
+            .onChange(of: viewModel.query) { _, _ in viewModel.queryDidChange() }
+            #endif
 
             if !viewModel.query.isEmpty {
                 Button(action: viewModel.clear) {
@@ -99,17 +113,13 @@ struct PlinxSearchView: View {
         .padding(.vertical, 12)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(.white.opacity(0.2), lineWidth: 1)
-                )
+                .fill(PlinxBrand.surface.opacity(0.98))
         )
         #if os(tvOS)
         .plinxFocusSurface(isSelected: false, isFocused: searchFocused)
         .onMoveCommand { direction in
             guard direction == .up else { return }
-            searchFocused = false
+            contentFocusGeneration &+= 1
             onRequestShellNavigationFocus()
         }
         #endif
@@ -256,16 +266,26 @@ struct PlinxSearchView: View {
             in: .search,
             availableIDs: ids
         )
-        if let resolved = PlinxTVFocusCoordinator.resolvedContentID(
+        let resultTarget = PlinxTVFocusCoordinator.resolvedContentID(
             currentID: focusedResultID,
             availableIDs: ids,
             preferredID: remembered
-        ), !viewModel.query.isEmpty {
-            searchFocused = false
-            focusedResultID = resolved
-        } else {
-            focusedResultID = nil
-            searchFocused = true
+        )
+        let focusesSearchField = resultTarget == nil || viewModel.query.isEmpty
+
+        contentFocusGeneration &+= 1
+        let generation = contentFocusGeneration
+        searchFocused = false
+        focusedResultID = nil
+
+        Task { @MainActor in
+            await Task.yield()
+            guard generation == contentFocusGeneration else { return }
+            if focusesSearchField {
+                searchFocused = true
+            } else {
+                focusedResultID = resultTarget
+            }
         }
     }
     #endif

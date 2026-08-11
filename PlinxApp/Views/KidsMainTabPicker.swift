@@ -24,6 +24,11 @@ struct KidsMainTabPicker: View {
         case inline
     }
 
+    enum SurfaceAppearance: Equatable {
+        case standard
+        case onBrightBrandSurface
+    }
+
     let tabs: [TabItem]
     @Binding var selectedTab: MainCoordinator.Tab
     var selectedAction: TabItem.Action? = nil
@@ -34,6 +39,7 @@ struct KidsMainTabPicker: View {
     var onAction: (TabItem.Action) -> Void = { _ in }
     var onMoveDown: () -> Void = {}
     var placement: Placement = .floating
+    var surfaceAppearance: SurfaceAppearance = .standard
 
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Namespace private var selectionAnimation
@@ -140,11 +146,31 @@ struct KidsMainTabPicker: View {
         if isInline {
             row
         } else {
-            row
-                .liquidGlassBackground()
+            pickerSurface(row)
                 .frame(maxWidth: isHeader ? .infinity : nil, alignment: .center)
                 .padding(.horizontal, containerHorizontalPadding)
                 .padding(.bottom, isHeader ? 0 : 1)
+        }
+    }
+
+    @ViewBuilder
+    private func pickerSurface<Content: View>(_ content: Content) -> some View {
+        switch surfaceAppearance {
+        case .standard:
+            content.liquidGlassBackground()
+        case .onBrightBrandSurface:
+            let shape = RoundedRectangle(
+                cornerRadius: PlinxTheme.Glass.default.cornerRadius,
+                style: .continuous
+            )
+            content
+                .background(
+                    shape
+                        .fill(PlinxBrand.shell.opacity(0.96))
+                        .overlay(shape.stroke(Color.white.opacity(0.24), lineWidth: 1))
+                        .shadow(color: Color.black.opacity(0.30), radius: 12, y: 7)
+                )
+                .clipShape(shape)
         }
     }
 
@@ -174,7 +200,8 @@ struct KidsMainTabPicker: View {
                 labelFont: labelFont,
                 cornerRadius: cornerRadius,
                 selectionAnimation: selectionAnimation,
-                placement: placement
+                placement: placement,
+                surfaceAppearance: surfaceAppearance
             )
         }
         .buttonStyle(PlinkButtonStyle())
@@ -193,7 +220,20 @@ struct KidsMainTabPicker: View {
             }
 
         if let focusedTarget {
-            focusableButton.focused(focusedTarget, equals: item.shellFocusTarget)
+            let restrictsEntryToSelectedDestination = isHeader
+                && focusedTarget.wrappedValue == nil
+                && !item.isSelected(
+                    selectedTab: selectedTab,
+                    selectedAction: selectedAction
+                )
+
+            if restrictsEntryToSelectedDestination {
+                focusableButton
+                    .focusable(false)
+                    .focused(focusedTarget, equals: item.shellFocusTarget)
+            } else {
+                focusableButton.focused(focusedTarget, equals: item.shellFocusTarget)
+            }
         } else {
             focusableButton
         }
@@ -327,6 +367,7 @@ private struct TabButtonContent: View {
     let cornerRadius: CGFloat
     let selectionAnimation: Namespace.ID
     let placement: KidsMainTabPicker.Placement
+    let surfaceAppearance: KidsMainTabPicker.SurfaceAppearance
 
     @Environment(\.isFocused) private var isFocused
 
@@ -388,7 +429,7 @@ private struct TabButtonContent: View {
         if isSelected {
             return .accentColor
         }
-        return .white.opacity(0.72)
+        return .white.opacity(surfaceAppearance == .onBrightBrandSurface ? 0.92 : 0.72)
     }
 }
 

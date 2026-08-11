@@ -13,6 +13,7 @@ struct PlinxPlaylistDetailView: View {
     @Environment(\.safetyPolicy) private var safetyPolicy
     #if os(tvOS)
     @FocusState private var isBackFocused: Bool
+    @State private var contentFocusGeneration = 0
     #endif
 
     var body: some View {
@@ -53,7 +54,14 @@ struct PlinxPlaylistDetailView: View {
             isBackFocused = true
         }
         .onChange(of: contentFocusRequest) { _, _ in
-            isBackFocused = true
+            contentFocusGeneration &+= 1
+            let generation = contentFocusGeneration
+            isBackFocused = false
+            Task { @MainActor in
+                await Task.yield()
+                guard generation == contentFocusGeneration else { return }
+                isBackFocused = true
+            }
         }
         #endif
     }
@@ -111,7 +119,7 @@ struct PlinxPlaylistDetailView: View {
             .focused($isBackFocused)
             .onMoveCommand { direction in
                 guard direction == .up else { return }
-                isBackFocused = false
+                contentFocusGeneration &+= 1
                 onRequestShellNavigationFocus()
             }
 

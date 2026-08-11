@@ -51,24 +51,39 @@ struct SetPinView: View {
                         .foregroundStyle(.secondary)
 
                     HStack {
+                        Group {
+                        #if os(tvOS)
+                        PlinxTVTextEntry(
+                            text: activeEntryBinding,
+                            placeholder: String(
+                                localized: "settings.parentalPIN.digits",
+                                table: "Plinx"
+                            ),
+                            isSecure: true,
+                            showsSurface: true
+                        )
+                        .plinxSettingsTextEntry()
+                        #else
                         SecureField(
                             String(localized: "settings.parentalPIN.digits", table: "Plinx"),
                             text: activeEntryBinding
                         )
                             .keyboardType(.numberPad)
                             .font(.title2.monospacedDigit())
-                            .onChange(of: activeEntryValue) { _, newVal in
-                                entryError = false
-                                // Limit to 6 digits
-                                let digits = newVal.filter { $0.isNumber }
-                                if step == .verifyCurrent {
-                                    currentEntry = String(digits.prefix(6))
-                                } else if step == .enter {
-                                    firstEntry = String(digits.prefix(6))
-                                } else {
-                                    secondEntry = String(digits.prefix(6))
-                                }
+                        #endif
+                        }
+                        .onChange(of: activeEntryValue) { _, newVal in
+                            entryError = false
+                            // Limit to 6 digits
+                            let digits = newVal.filter { $0.isNumber }
+                            if step == .verifyCurrent {
+                                currentEntry = String(digits.prefix(6))
+                            } else if step == .enter {
+                                firstEntry = String(digits.prefix(6))
+                            } else {
+                                secondEntry = String(digits.prefix(6))
                             }
+                        }
                     }
 
                     if entryError {

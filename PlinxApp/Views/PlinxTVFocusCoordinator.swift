@@ -1,5 +1,10 @@
 import Combine
 import Foundation
+#if os(tvOS)
+import PlinxUI
+import SwiftUI
+import UIKit
+#endif
 
 /// Every focusable destination in the persistent Apple TV shell.
 ///
@@ -35,7 +40,6 @@ final class PlinxTVFocusCoordinator: ObservableObject {
     @Published private(set) var activeContentRegion: PlinxTVContentRegion = .home
     @Published private(set) var contentFocusRequest = 0
 
-    private(set) var lastShellTargetByTab: [MainCoordinator.Tab: PlinxTVShellFocusTarget] = [:]
     private var lastContentTargetByRegion: [PlinxTVContentRegion: AnyHashable] = [:]
     private var modalRestorationStack: [PlinxTVFocusRestoration] = []
 
@@ -45,10 +49,6 @@ final class PlinxTVFocusCoordinator: ObservableObject {
 
     func requestContentFocus() {
         contentFocusRequest &+= 1
-    }
-
-    func rememberShellTarget(_ target: PlinxTVShellFocusTarget, for tab: MainCoordinator.Tab) {
-        lastShellTargetByTab[tab] = target
     }
 
     func rememberContentTarget<ID: Hashable>(_ target: ID, in region: PlinxTVContentRegion) {
@@ -76,7 +76,7 @@ final class PlinxTVFocusCoordinator: ObservableObject {
         modalRestorationStack.popLast()
     }
 
-    func preferredShellTarget(
+    func shellTarget(
         activeTab: MainCoordinator.Tab,
         showsSettings: Bool,
         visibleTabs: [KidsMainTabPicker.TabItem]
@@ -84,11 +84,6 @@ final class PlinxTVFocusCoordinator: ObservableObject {
         if showsSettings,
            visibleTabs.contains(where: { $0.action == .settings }) {
             return .settings
-        }
-
-        if let remembered = lastShellTargetByTab[activeTab],
-           Self.isVisible(remembered, in: visibleTabs) {
-            return remembered
         }
 
         if visibleTabs.contains(where: { $0.tab == activeTab }) {
@@ -144,16 +139,182 @@ final class PlinxTVFocusCoordinator: ObservableObject {
             preferredID: preferredID
         )
     }
+}
 
-    private static func isVisible(
-        _ target: PlinxTVShellFocusTarget,
-        in tabs: [KidsMainTabPicker.TabItem]
-    ) -> Bool {
-        switch target {
-        case let .tab(tab):
-            tabs.contains(where: { $0.tab == tab })
-        case .settings:
-            tabs.contains(where: { $0.action == .settings })
+#if os(tvOS)
+/// A deliberately unstyled tvOS text control. SwiftUI's tvOS `TextField`
+/// paints an opaque white editing plate even when `.plain` and
+/// `focusEffectDisabled()` are applied. Hosting `UITextField` directly lets
+/// Plinx own the one visible rounded surface around the entry control.
+struct PlinxTVTextEntry: View {
+    enum SubmitKind {
+        case done
+        case search
+    }
+
+    @Binding var text: String
+    let placeholder: String
+    var isSecure = false
+    var submitKind: SubmitKind = .done
+    var showsSurface = false
+    var onTextChange: () -> Void = {}
+    var onSubmit: () -> Void = {}
+
+    @State private var isNativeFocused = false
+
+    var body: some View {
+        if showsSurface {
+            entryContent
+                .padding(.horizontal, 20)
+                .frame(minHeight: 68)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(PlinxBrand.surface.opacity(0.98))
+                )
+                .plinxFocusSurface(
+                    isSelected: false,
+                    isFocused: isNativeFocused,
+                    style: PlinxFocusSurfaceStyle(
+                        selectionOpacity: 0.72,
+                        focusRingOpacity: 0.98,
+                        focusedScale: 1,
+                        focusedShadowRadius: 10,
+                        cornerRadius: 16,
+                        focusedFillOpacity: 0.14
+                    )
+                )
+        } else {
+            entryContent
+        }
+    }
+
+    private var entryContent: some View {
+        ZStack(alignment: .leading) {
+            PlinxTVNativeTextEntry(
+                text: $text,
+                placeholder: placeholder,
+                isSecure: isSecure,
+                submitKind: submitKind,
+                onTextChange: onTextChange,
+                onSubmit: onSubmit,
+                onFocusChange: { isNativeFocused = $0 }
+            )
+            // UIKit excludes views at or below 0.01 alpha from geometric focus.
+            // This remains visually transparent while allowing Siri Remote
+            // navigation to discover the native keyboard control.
+            .opacity(0.011)
+
+            Text(displayText)
+                .font(.system(size: 30, weight: .medium))
+                .foregroundStyle(text.isEmpty ? .white.opacity(0.52) : .white)
+                .lineLimit(1)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+        .frame(maxWidth: .infinity, minHeight: 48, maxHeight: 48)
+    }
+
+    private var displayText: String {
+        guard !text.isEmpty else { return placeholder }
+        return isSecure ? String(repeating: "•", count: text.count) : text
+    }
+}
+
+private struct PlinxTVNativeTextEntry: UIViewRepresentable {
+    @Binding var text: String
+    let placeholder: String
+    let isSecure: Bool
+    let submitKind: PlinxTVTextEntry.SubmitKind
+    let onTextChange: () -> Void
+    let onSubmit: () -> Void
+    let onFocusChange: (Bool) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    func makeUIView(context: Context) -> ClearTVTextField {
+        let textField = ClearTVTextField()
+        textField.delegate = context.coordinator
+        textField.addTarget(
+            context.coordinator,
+            action: #selector(Coordinator.textDidChange(_:)),
+            for: .editingChanged
+        )
+        textField.onFocusChange = onFocusChange
+        configure(textField)
+        return textField
+    }
+
+    func updateUIView(_ textField: ClearTVTextField, context: Context) {
+        context.coordinator.parent = self
+        textField.onFocusChange = onFocusChange
+        if textField.text != text {
+            textField.text = text
+        }
+        configure(textField)
+    }
+
+    private func configure(_ textField: ClearTVTextField) {
+        textField.isSecureTextEntry = isSecure
+        textField.returnKeyType = submitKind == .search ? .search : .done
+        textField.textColor = .white
+        textField.tintColor = UIColor(PlinxBrand.teal)
+        textField.font = .systemFont(ofSize: 30, weight: .medium)
+        textField.attributedPlaceholder = NSAttributedString(
+            string: placeholder,
+            attributes: [.foregroundColor: UIColor.white.withAlphaComponent(0.52)]
+        )
+    }
+
+    final class Coordinator: NSObject, UITextFieldDelegate {
+        var parent: PlinxTVNativeTextEntry
+
+        init(parent: PlinxTVNativeTextEntry) {
+            self.parent = parent
+        }
+
+        @objc func textDidChange(_ textField: UITextField) {
+            parent.text = textField.text ?? ""
+            parent.onTextChange()
+        }
+
+        func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+            parent.onSubmit()
+            return true
         }
     }
 }
+
+final class ClearTVTextField: UITextField {
+    var onFocusChange: (Bool) -> Void = { _ in }
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        borderStyle = .none
+        background = nil
+        disabledBackground = nil
+        backgroundColor = .clear
+        layer.backgroundColor = UIColor.clear.cgColor
+        clearButtonMode = .never
+        autocorrectionType = .no
+        autocapitalizationType = .none
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func didUpdateFocus(
+        in context: UIFocusUpdateContext,
+        with coordinator: UIFocusAnimationCoordinator
+    ) {
+        super.didUpdateFocus(in: context, with: coordinator)
+        background = nil
+        backgroundColor = .clear
+        layer.backgroundColor = UIColor.clear.cgColor
+        onFocusChange(isFocused)
+    }
+}
+#endif

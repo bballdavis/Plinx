@@ -56,6 +56,7 @@ private struct SettingsBody: View {
     @State private var isPresentingProfileSwitcher = false
     #if os(tvOS)
     @FocusState private var isFirstSettingFocused: Bool
+    @State private var contentFocusGeneration = 0
     #endif
 
     private var maxVolumeBinding: Binding<Double> {
@@ -349,7 +350,7 @@ private struct SettingsBody: View {
                     .accessibilityIdentifier("settings.libraries")
                     .onMoveCommand { direction in
                         guard direction == .up else { return }
-                        isFirstSettingFocused = false
+                        contentFocusGeneration &+= 1
                         onRequestShellNavigationFocus()
                     }
                     tvNavigationLink(
@@ -367,6 +368,7 @@ private struct SettingsBody: View {
                         icon: "sparkles.tv",
                         destination: YoutarrSettingsView()
                     )
+                    .accessibilityIdentifier("settings.youtarr")
                     tvNavigationLink(
                         title: LocalizedStringKey("settings.server.default.title"),
                         icon: "server.rack",
@@ -540,7 +542,14 @@ private struct SettingsBody: View {
             }
         }
         .onChange(of: contentFocusRequest) { _, _ in
-            isFirstSettingFocused = true
+            contentFocusGeneration &+= 1
+            let generation = contentFocusGeneration
+            isFirstSettingFocused = false
+            Task { @MainActor in
+                await Task.yield()
+                guard generation == contentFocusGeneration else { return }
+                isFirstSettingFocused = true
+            }
         }
         .onAppear {
             isFirstSettingFocused = true
@@ -606,14 +615,9 @@ private struct TvSettingsSection<Content: View>: View {
                 .foregroundStyle(.white.opacity(0.92))
                 .padding(.leading, 18)
 
-            VStack(spacing: 2) {
+            VStack(spacing: 12) {
                 content()
             }
-            .padding(8)
-            .background(
-                RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .fill(Color.white.opacity(0.075))
-            )
 
             if let footer {
                 Text(footer, tableName: "Plinx")

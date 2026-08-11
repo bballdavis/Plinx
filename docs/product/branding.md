@@ -204,14 +204,23 @@ visually distinct:
 The Apple TV root shell is persistent and owns the Home-only Plinx lockup,
 contextual destination title, primary destinations, and Settings action.
 Moving focus across destinations does not switch screens; Select activates
-one. Only the active tab stack is mounted, so hidden content cannot remain a
-focus candidate. Its compact glass capsule is a top-layer overlay rather than
-a reserved full-width band: the capsule stays centered independently of the
-leading identity, while heroes and backgrounds can continue behind both.
+one. Header hover is transient: it never changes which content region receives
+a Down request, and selecting a destination immediately aligns the screen,
+selection styling, and live header focus on that destination. Moving Up from
+content returns to the owning active destination, including Library for its
+nested screens. Only the active tab stack is mounted, so hidden content cannot
+remain a focus candidate. Its compact glass capsule is a top-layer overlay
+rather than a reserved full-width band: the capsule stays centered
+independently of the leading identity, while heroes and backgrounds can
+continue behind both.
 Scrollable foreground content reserves only enough initial clearance to remain
 readable and focusable. A Down request from the shell must always reassert a
 real focus transfer into the visible content region, including immediately
 after switching from Library back to Home.
+Returning Up is one atomic focus handoff: the active page requests its owning
+header destination before releasing local focus. Never clear page-local focus
+first, because an unfocused frame lets tvOS briefly choose the geometrically
+nearest navigation item.
 
 Main-navigation selection never uses a title underline on iOS, iPadOS, or
 tvOS. Accent fill plus icon/text color and the shared ring provide the selected
@@ -229,6 +238,11 @@ and source links stay inside this gated surface and never appear in kid-facing
 navigation. Focused tvOS Settings controls remain at 1.0 scale with white
 content, a 14% accent tint, a 3-point accent-gradient ring, and a restrained
 shadow; do not layer the native bright focus plate over this treatment.
+tvOS Search and Settings text and secure-entry controls use one Plinx-owned
+dark rounded surface, white entered text, subdued light placeholders, and the
+shared gradient focus ring. Their native keyboard host remains visually
+transparent so the system white editing plate cannot appear. Never layer a
+Form row plate or a second field capsule behind that surface.
 
 ### Clear-space rule
 
@@ -793,11 +807,17 @@ Rules:
 Current parental gate language:
 
 - full lime-to-teal brand gradient
-- centered white stacked logo
+- centered white stacked logo on iPhone and iPad
+- shell-colored stacked logo on tvOS
 - dark shell-colored text for headings and challenge content
 - oversized challenge typography
 - `LiquidGlassButton(treatment: .brand)` for the green Unlock action, preserving
   the shared glass geometry, highlight/shadow tokens, haptics, and press motion
+- on tvOS, a shell-filled Unlock key with a persistent lime-to-teal border and
+  brighter focused border/glow
+- while the tvOS gate is locked, a near-opaque shell navigation capsule with
+  high-contrast labels and a shell-colored Settings context title; unlocked
+  Settings returns to the standard dark-shell header treatment
 
 Rules:
 
@@ -860,7 +880,7 @@ Rules:
 Current settings language:
 
 - dark shell
-- softened charcoal grouped panels
+- individual softened charcoal rows without a second enclosing panel
 - white text with muted gray support labels
 - accent icons and toggles
 - touch-only close controls on iOS and iPadOS
@@ -869,7 +889,8 @@ Rules:
 
 - Settings should feel parent-safe and serious, but still clearly part of Plinx.
 - Use accent for the actionable part of each setting, not as page wallpaper.
-- Group panels should feel soft and elevated, never harsh or sterile.
+- Section labels group controls; on tvOS, do not wrap already surfaced rows in
+  another tinted container.
 - On tvOS, use a near-full-screen parent modal with large grouped rows,
   30-point primary labels, and readable supporting copy. Do not add an X close
   control: the persistent main navigation is the primary exit, and Menu pops

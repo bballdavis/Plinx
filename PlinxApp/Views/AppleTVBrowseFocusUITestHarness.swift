@@ -8,6 +8,7 @@ struct AppleTVBrowseFocusUITestHarness: View {
     enum Scenario {
         case root(hasContent: Bool)
         case libraryDetail(hasContent: Bool)
+        case search
     }
 
     private enum ContentTarget: Hashable {
@@ -15,12 +16,17 @@ struct AppleTVBrowseFocusUITestHarness: View {
         case libraryTile(Int)
         case detailFilter
         case detailCard(Int)
+        case searchField
     }
 
     let scenario: Scenario
     var reduceMotion = false
 
     @State private var selectedTab: MainCoordinator.Tab = .home
+    @StateObject private var focusCoordinator = PlinxTVFocusCoordinator()
+    @State private var contentFocusGeneration = 0
+    @State private var searchQuery = ""
+    @State private var shellFocusHistory: [String] = []
     @FocusState private var focusedShellTarget: PlinxTVShellFocusTarget?
     @FocusState private var focusedContent: ContentTarget?
 
@@ -28,6 +34,8 @@ struct AppleTVBrowseFocusUITestHarness: View {
         switch scenario {
         case let .root(hasContent), let .libraryDetail(hasContent):
             hasContent
+        case .search:
+            true
         }
     }
 
@@ -43,6 +51,8 @@ struct AppleTVBrowseFocusUITestHarness: View {
                     rootContent
                 case .libraryDetail:
                     libraryDetailContent
+                case .search:
+                    searchContent
                 }
 
                 Spacer(minLength: 0)
@@ -56,17 +66,44 @@ struct AppleTVBrowseFocusUITestHarness: View {
                 selectedAction: nil,
                 leadingIdentity: shellLeadingIdentity,
                 focusedTarget: $focusedShellTarget,
-                onSelect: {
-                    selectedTab = $0
+                onSelect: { destination in
+                    focusCoordinator.activate(contentRegion(for: destination))
+                    focusedShellTarget = .tab(destination)
+                    selectedTab = destination
                     focusedContent = nil
                 },
                 onAction: { _ in },
                 onMoveDown: moveDownFromHeader
             )
+
+            Text(shellFocusHistory.joined(separator: ","))
+                .font(.system(size: 1))
+                .opacity(0.001)
+                .accessibilityIdentifier("focus.fixture.shellHistory")
+                .accessibilityValue(shellFocusHistory.joined(separator: ","))
         }
         .background(Color.appBackground.ignoresSafeArea())
         .onAppear {
-            focusedShellTarget = .tab(scenario.isLibraryDetail ? .library : .home)
+            let destination = scenario.initialTab
+            selectedTab = destination
+            focusCoordinator.activate(
+                scenario.isLibraryDetail ? .libraryDetail : contentRegion(for: destination)
+            )
+            Task { @MainActor in
+                await Task.yield()
+                focusedShellTarget = .tab(destination)
+            }
+        }
+        .onChange(of: selectedTab) { _, destination in
+            focusedShellTarget = focusCoordinator.shellTarget(
+                activeTab: destination,
+                showsSettings: false,
+                visibleTabs: fixtureTabs
+            )
+        }
+        .onChange(of: focusedShellTarget) { _, target in
+            guard let target else { return }
+            shellFocusHistory.append(target.fixtureID)
         }
     }
 
@@ -191,6 +228,39 @@ struct AppleTVBrowseFocusUITestHarness: View {
         }
     }
 
+    private var searchContent: some View {
+        HStack(spacing: 14) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 26, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+
+            PlinxTVTextEntry(
+                text: $searchQuery,
+                placeholder: "Search movies, shows…",
+                submitKind: .search
+            )
+            .focused($focusedContent, equals: .searchField)
+            .accessibilityIdentifier("search.fixture.field")
+        }
+        .padding(.horizontal, 24)
+        .frame(maxWidth: .infinity, minHeight: 82)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(PlinxBrand.surface.opacity(0.98))
+        )
+        .plinxFocusSurface(
+            isSelected: false,
+            isFocused: focusedContent == .searchField,
+            style: PlinxFocusSurfaceStyle(cornerRadius: 16)
+        )
+        .focusEffectDisabled()
+        .onMoveCommand { direction in
+            guard direction == .up else { return }
+            contentFocusGeneration &+= 1
+            focusedShellTarget = .tab(.search)
+        }
+    }
+
     private func fixtureButton(
         _ title: String,
         identifier: String,
@@ -206,11 +276,40 @@ struct AppleTVBrowseFocusUITestHarness: View {
 
     private func moveDownFromHeader() {
         guard hasContent else { return }
+        let target: ContentTarget
         switch scenario {
         case .root:
-            focusedContent = selectedTab == .library ? .libraryTile(0) : .homeCard(0)
+            if selectedTab == .search {
+                target = .searchField
+            } else {
+                target = selectedTab == .library ? .libraryTile(0) : .homeCard(0)
+            }
         case .libraryDetail:
-            focusedContent = .detailFilter
+            target = .detailFilter
+        case .search:
+            target = .searchField
+        }
+
+        contentFocusGeneration &+= 1
+        let generation = contentFocusGeneration
+        focusedContent = nil
+        Task { @MainActor in
+            await Task.yield()
+            guard generation == contentFocusGeneration else { return }
+            focusedContent = target
+        }
+    }
+
+    private func contentRegion(for tab: MainCoordinator.Tab) -> PlinxTVContentRegion {
+        switch tab {
+        case .home:
+            .home
+        case .library, .libraryDetail:
+            .library
+        case .search:
+            .search
+        case .more, .seerrDiscover:
+            .other
         }
     }
 }
@@ -356,6 +455,28 @@ private extension AppleTVBrowseFocusUITestHarness.Scenario {
     var isLibraryDetail: Bool {
         if case .libraryDetail = self { return true }
         return false
+    }
+
+    var initialTab: MainCoordinator.Tab {
+        switch self {
+        case .root:
+            .home
+        case .libraryDetail:
+            .library
+        case .search:
+            .search
+        }
+    }
+}
+
+private extension PlinxTVShellFocusTarget {
+    var fixtureID: String {
+        switch self {
+        case let .tab(tab):
+            tab.fixtureID
+        case .settings:
+            "settings"
+        }
     }
 }
 #endif

@@ -34,6 +34,7 @@ struct PlinxLibraryDetailView: View {
     #if os(tvOS)
     @State private var tvHeroMedia: MediaItem?
     @FocusState private var focusedLibraryFilterTab: LibraryDetailTab?
+    @State private var contentFocusGeneration = 0
     #endif
 
     // MARK: - Body
@@ -75,10 +76,25 @@ struct PlinxLibraryDetailView: View {
             tvFocusCoordinator.activate(.libraryDetail)
             focusedLibraryFilterTab = selectedTab
         }
+        .onDisappear {
+            // Tab selection updates focus ownership before this view leaves.
+            // Only restore the Library root when this detail still owns it.
+            guard tvFocusCoordinator.activeContentRegion == .libraryDetail else { return }
+            tvFocusCoordinator.activate(.library)
+        }
         .onChange(of: contentFocusRequest) { _, _ in
-            focusedLibraryFilterTab = availableTabs.contains(selectedTab)
+            let target = availableTabs.contains(selectedTab)
                 ? selectedTab
                 : availableTabs.first
+            contentFocusGeneration &+= 1
+            let generation = contentFocusGeneration
+            focusedLibraryFilterTab = nil
+            guard let target else { return }
+            Task { @MainActor in
+                await Task.yield()
+                guard generation == contentFocusGeneration else { return }
+                focusedLibraryFilterTab = target
+            }
         }
         .onExitCommand {
             dismiss()
@@ -278,7 +294,7 @@ struct PlinxLibraryDetailView: View {
         .accessibilityIdentifier("library.detail.filter.\(tab.rawValue)")
         .onMoveCommand { direction in
             guard direction == .up else { return }
-            focusedLibraryFilterTab = nil
+            contentFocusGeneration &+= 1
             onRequestShellNavigationFocus()
         }
     }

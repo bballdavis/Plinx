@@ -18,11 +18,19 @@ final class BrandingAssetsTests: XCTestCase {
             PlinxBrandAsset.stackedOnGradient.rawValue,
             "BrandLockupStackedOnGradient"
         )
+        XCTAssertEqual(
+            PlinxBrandAsset.stackedOnLight.rawValue,
+            "BrandLockupStackedOnLight"
+        )
     }
 
     func test_parentalGateSemantics_useDarkTextAndGreenActionOnBrandGradient() {
         XCTAssertEqual(PlinxBrandingSemantics.parentalGateTitleColorValue, "darkOnBrandGradient")
         XCTAssertEqual(PlinxBrandingSemantics.parentalGateUnlockStyleValue, "greenBrandPrimary")
+        XCTAssertEqual(
+            PlinxBrandingSemantics.parentalGateTVUnlockStyleValue,
+            "darkBrandPrimaryWithGradientBorder"
+        )
     }
 
     func test_heroLoadingSemantic_usesAnimatedMarkAndWordmark() {

@@ -105,6 +105,7 @@ struct PlinxTVShellHeader: View {
     let onSelect: (MainCoordinator.Tab) -> Void
     let onAction: (KidsMainTabPicker.TabItem.Action) -> Void
     let onMoveDown: () -> Void
+    var appearance: KidsMainTabPicker.SurfaceAppearance = .standard
 
     var body: some View {
         KidsMainTabPicker(
@@ -115,7 +116,8 @@ struct PlinxTVShellHeader: View {
             onSelect: onSelect,
             onAction: onAction,
             onMoveDown: onMoveDown,
-            placement: .header
+            placement: .header,
+            surfaceAppearance: appearance
         )
         .overlay(alignment: .leading) {
             leadingIdentityView
@@ -145,12 +147,21 @@ struct PlinxTVShellHeader: View {
         case let .title(title):
             Text(title)
                 .font(.system(size: 44, weight: .bold, design: .rounded))
-                .foregroundStyle(.white.opacity(0.96))
+                .foregroundStyle(
+                    appearance == .onBrightBrandSurface
+                        ? PlinxBrand.shell
+                        : Color.white.opacity(0.96)
+                )
                 .lineLimit(1)
                 .minimumScaleFactor(0.68)
                 .frame(width: 520, alignment: .leading)
                 .padding(.leading, 28)
                 .accessibilityIdentifier("tv.shell.context.title")
+                .accessibilityValue(
+                    appearance == .onBrightBrandSurface
+                        ? "darkOnBrandGradient"
+                        : "lightOnDarkShell"
+                )
                 .accessibilityAddTraits(.isHeader)
         }
     }
@@ -350,15 +361,11 @@ struct RootTabView: View {
             }
             .onChange(of: activeRootTab) { _, newTab in
                 tvFocusCoordinator.activate(contentRegion(for: newTab))
-                focusedShellTarget = tvFocusCoordinator.preferredShellTarget(
+                focusedShellTarget = tvFocusCoordinator.shellTarget(
                     activeTab: newTab,
                     showsSettings: showSettings,
                     visibleTabs: visibleTabs
                 )
-            }
-            .onChange(of: focusedShellTarget) { _, newTarget in
-                guard let newTarget else { return }
-                tvFocusCoordinator.rememberShellTarget(newTarget, for: activeRootTab)
             }
             #endif
             .onChange(of: hasDownloadActivity) { _, hasDownloads in
@@ -683,7 +690,10 @@ struct RootTabView: View {
             focusedTarget: $focusedShellTarget,
             onSelect: handleTabSelection,
             onAction: handleBottomAction,
-            onMoveDown: requestFirstContentFocus
+            onMoveDown: requestFirstContentFocus,
+            appearance: showSettings && !parentalAccessCoordinator.isUnlocked
+                ? .onBrightBrandSurface
+                : .standard
         )
     }
 
@@ -704,12 +714,16 @@ struct RootTabView: View {
                         }
                 }
             } else {
-                ParentalGateView {
-                    tvFocusCoordinator.activate(.settings)
-                    settingsContentFocusRequest &+= 1
-                } onRequestShellNavigationFocus: {
-                    focusedShellTarget = .settings
-                }
+                ParentalGateView(
+                    onAllowed: {
+                        tvFocusCoordinator.activate(.settings)
+                        settingsContentFocusRequest &+= 1
+                    },
+                    onRequestShellNavigationFocus: {
+                        focusedShellTarget = .settings
+                    },
+                    contentFocusRequest: settingsContentFocusRequest
+                )
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -749,7 +763,7 @@ struct RootTabView: View {
                         selectedQuickActionMedia = displayItem
                     },
                     onRequestHomeNavigationFocus: {
-                        requestHeaderFocus(from: .home)
+                        requestHeaderFocus()
                     },
                     contentFocusRequest: homeContentFocusRequest,
                     isItemWatched: { displayItem in
@@ -786,7 +800,7 @@ struct RootTabView: View {
                     ),
                     topContent: scrollingHeaderContent(title: "tabs.search", showsSettingsButton: false),
                     onRequestShellNavigationFocus: {
-                        requestHeaderFocus(from: .search)
+                        requestHeaderFocus()
                     },
                     contentFocusRequest: searchContentFocusRequest,
                     onSelectMedia: { displayItem in
@@ -829,8 +843,8 @@ struct RootTabView: View {
                         #endif
                         mainCoordinator.libraryPath.append(library)
                     },
-                    onRequestHomeNavigationFocus: {
-                        requestHeaderFocus(from: .library)
+                    onRequestShellNavigationFocus: {
+                        requestHeaderFocus()
                     },
                     contentFocusRequest: libraryContentFocusRequest
                 )
@@ -845,7 +859,7 @@ struct RootTabView: View {
                             selectedQuickActionMedia = displayItem
                         },
                         onRequestShellNavigationFocus: {
-                            requestHeaderFocus(from: .library)
+                            requestHeaderFocus()
                         },
                         contentFocusRequest: libraryDetailContentFocusRequest
                     )
@@ -898,7 +912,7 @@ struct RootTabView: View {
                         safetyPolicy: safetyPolicy,
                         isActive: activeRootTab == .seerrDiscover,
                         onRequestShellNavigationFocus: {
-                            requestHeaderFocus(from: .seerrDiscover)
+                            requestHeaderFocus()
                         },
                         contentFocusRequest: exploreContentFocusRequest
                     )
@@ -925,6 +939,7 @@ struct RootTabView: View {
         if decision.closesSettings {
             settingsExitDestination = decision.destination
             tvFocusCoordinator.activate(contentRegion(for: decision.destination))
+            focusedShellTarget = .tab(decision.destination)
             showSettings = false
             mainCoordinator.tab = decision.destination
             return
@@ -934,6 +949,7 @@ struct RootTabView: View {
         // onChange callback leaves a small window where Down can still be
         // routed to the previously visible Library region.
         tvFocusCoordinator.activate(contentRegion(for: decision.destination))
+        focusedShellTarget = .tab(decision.destination)
         #endif
 
         if decision.resetsNavigationStack {
@@ -976,17 +992,23 @@ struct RootTabView: View {
             .other
         }
     }
+
+    private var visibleContentRegion: PlinxTVContentRegion {
+        if activeRootTab == .library, !mainCoordinator.libraryPath.isEmpty {
+            return .libraryDetail
+        }
+        return contentRegion(for: activeRootTab)
+    }
     #endif
 
-    private func requestHeaderFocus(from currentTab: MainCoordinator.Tab) {
+    private func requestHeaderFocus() {
         #if os(tvOS)
-        let normalizedTab = normalizedRootTab(currentTab)
+        let normalizedTab = normalizedRootTab(activeRootTab)
         let destination = HeaderFocusOrder.returnTarget(
             currentTab: normalizedTab,
             visibleTabs: visibleTabs
         ) ?? normalizedTab
         focusedShellTarget = .tab(destination)
-        tvFocusCoordinator.rememberShellTarget(.tab(destination), for: destination)
         #endif
     }
 
@@ -1127,7 +1149,7 @@ struct RootTabView: View {
                     mainCoordinator.returnToSeries(series)
                 },
                 onRequestShellNavigationFocus: {
-                    requestHeaderFocus(from: activeRootTab)
+                    requestHeaderFocus()
                 },
                 contentFocusRequest: detailContentFocusRequest
             )
@@ -1148,7 +1170,7 @@ struct RootTabView: View {
                     selectedQuickActionMedia = displayItem
                 },
                 onRequestShellNavigationFocus: {
-                    requestHeaderFocus(from: activeRootTab)
+                    requestHeaderFocus()
                 },
                 contentFocusRequest: detailContentFocusRequest
             )
@@ -1169,7 +1191,7 @@ struct RootTabView: View {
                     startPlayback(ratingKey: media.id, type: media.type)
                 },
                 onRequestShellNavigationFocus: {
-                    requestHeaderFocus(from: activeRootTab)
+                    requestHeaderFocus()
                 },
                 contentFocusRequest: detailContentFocusRequest
             )
@@ -1203,7 +1225,7 @@ struct RootTabView: View {
                 tvFocusCoordinator.activate(.detail)
             }
             .onDisappear {
-                tvFocusCoordinator.activate(contentRegion(for: activeRootTab))
+                tvFocusCoordinator.activate(visibleContentRegion)
             }
         #else
         content

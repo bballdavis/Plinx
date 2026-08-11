@@ -182,21 +182,28 @@ final class HeaderFocusOrderTests: XCTestCase {
     }
 
     @MainActor
-    func test_focusCoordinator_restoresPerTabAndModalFocus() {
+    func test_focusCoordinator_resolvesActiveDestinationAndRestoresModalFocus() {
         let coordinator = PlinxTVFocusCoordinator()
         let tabs = KidsMainTabPicker.TabItem.mainTabs(
             showSearchInMainNavigation: true,
             includeSettings: true
         )
 
-        coordinator.rememberShellTarget(.tab(.library), for: .library)
         XCTAssertEqual(
-            coordinator.preferredShellTarget(
+            coordinator.shellTarget(
                 activeTab: .library,
                 showsSettings: false,
                 visibleTabs: tabs
             ),
             .tab(.library)
+        )
+        XCTAssertEqual(
+            coordinator.shellTarget(
+                activeTab: .home,
+                showsSettings: true,
+                visibleTabs: tabs
+            ),
+            .settings
         )
 
         coordinator.beginModal(from: .library, shellTarget: .tab(.library))

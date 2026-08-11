@@ -73,9 +73,38 @@ final class AppleTVInteractionUITests: XCTestCase {
         XCUIRemote.shared.press(.left)
         assertFocused(home)
         XCUIRemote.shared.press(.select)
+        assertFocused(home)
         XCTAssertFalse(shellTitle.exists, "Only Home should render the Plinx brand in the shell's leading slot")
         XCUIRemote.shared.press(.down)
         assertFocused(firstHomeCard)
+    }
+
+    func test_repeatedTabSwitches_keepSelectionFocusAndVisibleContentAligned() {
+        let app = launch(screen: "appleTVBrowseFocus")
+        let home = app.buttons["main.tab.home"]
+        let library = app.buttons["main.tab.library"]
+        let firstHomeCard = app.buttons["home.card.fixture.0"]
+        let firstLibrary = app.buttons["library.tile.0"]
+
+        for _ in 0..<2 {
+            XCUIRemote.shared.press(.right)
+            assertFocused(library)
+            XCUIRemote.shared.press(.select)
+            assertFocused(library)
+            XCUIRemote.shared.press(.down)
+            assertFocused(firstLibrary)
+            XCUIRemote.shared.press(.up)
+            assertFocused(library)
+
+            XCUIRemote.shared.press(.left)
+            assertFocused(home)
+            XCUIRemote.shared.press(.select)
+            assertFocused(home)
+            XCUIRemote.shared.press(.down)
+            assertFocused(firstHomeCard)
+            XCUIRemote.shared.press(.up)
+            assertFocused(home)
+        }
     }
 
     func test_emptyBrowse_downStaysInHeader() {
@@ -85,7 +114,7 @@ final class AppleTVInteractionUITests: XCTestCase {
         assertFocused(home)
         XCUIRemote.shared.press(.down)
         assertFocused(home)
-        XCTAssertTrue(app.staticTexts["browse.fixture.empty"].exists)
+        XCTAssertTrue(app.staticTexts["browse.fixture.empty"].waitForExistence(timeout: 5))
     }
 
     func test_libraryDetail_downVisitsFilterThenMedia_andUpReversesRoute() {
@@ -119,11 +148,54 @@ final class AppleTVInteractionUITests: XCTestCase {
         assertFocused(firstHomeCard)
     }
 
+    func test_search_upTargetsSearchWithoutLibraryIntermediate_andDownRestoresField() {
+        let app = launch(screen: "appleTVSearchFocus")
+        let search = app.buttons["main.tab.search"]
+        let library = app.buttons["main.tab.library"]
+        let field = app.textFields["search.fixture.field"]
+        let history = app.staticTexts["focus.fixture.shellHistory"]
+
+        assertFocused(search)
+        XCUIRemote.shared.press(.down)
+        assertFocused(field)
+        capture(name: "tvOS-4K-search-dark-field")
+        XCUIRemote.shared.press(.up)
+        assertFocused(search)
+        XCTAssertFalse(library.hasFocus)
+        XCTAssertTrue(history.waitForExistence(timeout: 2))
+        XCTAssertFalse(
+            ((history.value as? String) ?? history.label).contains("library"),
+            "Search-to-header handoff must not expose Library as an intermediate focus target: \(history.value ?? history.label)"
+        )
+
+        XCUIRemote.shared.press(.down)
+        assertFocused(field)
+    }
+
     func test_settings_hasDeterministicFirstFocus() {
         let app = launch(screen: "settings")
         assertFocused(app.buttons["settings.libraries"], timeout: 8)
         XCTAssertFalse(app.buttons["settings.close"].exists)
         capture(name: "tvOS-4K-settings-focused-row")
+    }
+
+    func test_youtarrSettings_usesDarkSingleSurfaceEntryRows() {
+        let app = launch(screen: "settings")
+        let libraries = app.buttons["settings.libraries"]
+        assertFocused(libraries, timeout: 8)
+
+        move(.down, count: 3)
+        let youtarr = app.buttons["settings.youtarr"]
+        assertFocused(youtarr)
+        XCUIRemote.shared.press(.select)
+
+        let baseURL = app.textFields["youtarr.settings.baseURL.field"]
+        XCTAssertTrue(baseURL.waitForExistence(timeout: 8))
+        if !baseURL.hasFocus {
+            XCUIRemote.shared.press(.down)
+        }
+        assertFocused(baseURL)
+        capture(name: "tvOS-4K-youtarr-dark-single-surface-fields")
     }
 
     func test_settings_upAndDownMovesBetweenContentAndPersistentHeader() {
@@ -209,10 +281,31 @@ final class AppleTVInteractionUITests: XCTestCase {
         let app = launch(screen: "parentalGate")
         let entry = app.staticTexts["parentalGate.numberEntry"]
         let one = app.buttons["parentalGate.key.1"]
+        let settings = app.buttons["main.tab.settings"]
+        let library = app.buttons["main.tab.library"]
+        let history = app.staticTexts["focus.fixture.shellHistory"]
+        let logo = app.images["parentalGate.logo"]
+        let shellTitle = app.staticTexts["tv.shell.context.title"]
+        let unlock = app.buttons["parentalGate.unlock"]
 
         XCTAssertTrue(one.waitForExistence(timeout: 8))
         XCTAssertTrue(entry.waitForExistence(timeout: 8))
+        XCTAssertEqual(logo.value as? String, "BrandLockupStackedOnLight")
+        XCTAssertEqual(shellTitle.value as? String, "darkOnBrandGradient")
+        XCTAssertEqual(unlock.value as? String, "darkBrandPrimaryWithGradientBorder")
         XCTAssertTrue(one.hasFocus, "The first digit should receive deterministic initial focus")
+        capture(name: "tvOS-4K-parental-gate-high-contrast")
+
+        XCUIRemote.shared.press(.up)
+        assertFocused(settings)
+        XCTAssertFalse(library.hasFocus)
+        XCTAssertTrue(history.waitForExistence(timeout: 2))
+        XCTAssertFalse(
+            ((history.value as? String) ?? history.label).contains("library"),
+            "Parental-gate handoff must go directly to Settings"
+        )
+        XCUIRemote.shared.press(.down)
+        assertFocused(one)
 
         XCUIRemote.shared.press(.select)
         XCTAssertEqual(entry.value as? String, "1")

@@ -139,8 +139,17 @@ capture when the simulator is otherwise ready.
 - on Home, Search, Library, and Explore, pressing up from the first local region
   returns focus to that screen's selected header item instead of always jumping
   to Home
-- pressing down from the header restores the last valid object for that screen,
-  then falls back to the nearest sibling, first content item, or selected header
+- moving left or right in the header changes live focus only; it does not change
+  the active screen or the content region used by Down
+- selecting a header destination synchronizes the visible screen, persistent
+  selection, and live focus; a hover remembered from another screen must never
+  survive that transition
+- pressing down from any header item restores the last valid object for the
+  active screen, then falls back to the nearest sibling, first content item, or
+  selected header
+- returning up from content assigns the owning header target atomically; the
+  focus trace must not contain an intermediate Library target when another page
+  owns the visible content
 - library, collection, playlist, and media details use a secondary Back/title/filter
   context row; Menu pops exactly one local level
 - empty and loading states must leave focus in the header until a real destination exists; content arrival must not steal focus
@@ -160,22 +169,28 @@ capture when the simulator is otherwise ready.
   empty content, and Library detail.
 
 Pure focus-state tests cover action-item selection, per-shape focus geometry,
-no-scale Settings focus, per-tab restoration, modal restoration, removed items,
-content fallback, nearest-sibling fallback, and Settings-to-tab transition
-policy. The network-free tvOS harness uses the production shell header and
-production-style plain-button cards. Current Remote tests cover Home Down/Up,
-visible Library focus, populated and empty browse states, Library drill-down,
+no-scale Settings focus, active-destination resolution, modal restoration,
+removed items, content fallback, nearest-sibling fallback, and Settings-to-tab
+transition policy. The network-free tvOS harness uses the production shell
+header, coordinator transition policy, and production-style plain-button cards.
+Current Remote tests cover Home Down/Up, repeated Home/Library switching,
+header hover without selection, visible Library focus, populated and empty
+browse states, Library drill-down, Search field Down/Up with shell-focus trace,
 Settings Down/Up, navigation-based Settings exit and focus restoration,
-absence of `settings.close`, the parental gate, Settings root and subpage Menu
-behavior, the rating chooser, and playback preparation. Search keyboard/results, Settings reordering,
+absence of `settings.close`, the high-contrast parental gate, Settings root and
+subpage Menu behavior, Youtarr dark single-surface entry focus, the rating
+chooser, and playback preparation. Search keyboard/results beyond the field
+handoff, Settings reordering,
 optional Explore states, and playback buffering/failure/exit remain required
 parts of the manual release-candidate navigation matrix until deterministic
 fixtures are added for those flows.
 
-The Home artwork, Library tile, and Settings row Remote tests attach 4K focus
+The Home artwork, Library tile, Search field, Youtarr entry, and Settings row Remote tests attach 4K focus
 captures named `tvOS-4K-home-focused-artwork`,
 `tvOS-4K-home-focused-artwork-reduce-motion`,
-`tvOS-4K-library-focused-tile`, and `tvOS-4K-settings-focused-row`. Inspect
+`tvOS-4K-library-focused-tile`, `tvOS-4K-search-dark-field`,
+`tvOS-4K-youtarr-dark-single-surface-fields`, and
+`tvOS-4K-settings-focused-row`. Inspect
 them for one aligned outer ring, readable white content, no shell overlap, and
 reclaimed header space. With Reduce Motion enabled, focused media must retain
 its ring/fill cue while its scale remains 1.0.

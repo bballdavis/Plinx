@@ -92,7 +92,6 @@ struct PlinxSettingsChrome: ViewModifier {
             .tint(.accentColor)
             .buttonStyle(PlinxSettingsListButtonStyle())
             .toggleStyle(PlinxSettingsToggleStyle())
-            .textFieldStyle(PlinxSettingsTextFieldStyle())
     }
 
     private func settingsDestinationSurface(_ content: Content) -> some View {
@@ -197,35 +196,8 @@ private struct PlinxSettingsListButtonBody: View {
                 style: .tvSettings(cornerRadius: cornerRadius)
             )
             .focusEffectDisabled()
+            .listRowBackground(Color.clear)
             .opacity(configuration.isPressed ? 0.82 : 1)
-    }
-}
-
-struct PlinxSettingsTextFieldStyle: TextFieldStyle {
-    func _body(configuration: TextField<Self._Label>) -> some View {
-        PlinxSettingsTextFieldBody(configuration: configuration)
-    }
-}
-
-private struct PlinxSettingsTextFieldBody<Label: View>: View {
-    let configuration: TextField<Label>
-
-    @Environment(\.isFocused) private var isFocused
-
-    var body: some View {
-        configuration
-            .padding(.horizontal, 20)
-            .frame(minHeight: 68)
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color.white.opacity(0.08))
-            )
-            .plinxFocusSurface(
-                isSelected: false,
-                isFocused: isFocused,
-                style: .tvSettings(cornerRadius: 16)
-            )
-            .focusEffectDisabled()
     }
 }
 
@@ -259,6 +231,19 @@ extension View {
             )
         )
         .focusEffectDisabled()
+    }
+
+    /// Keeps a tvOS Settings control to one Plinx-owned rounded surface rather
+    /// than layering it over the native Form row plate.
+    func plinxSettingsSingleSurfaceRow() -> some View {
+        listRowBackground(Color.clear)
+    }
+
+    /// Supplies the one visible surface for the transparent native keyboard
+    /// host used by tvOS Settings text entry.
+    func plinxSettingsTextEntry() -> some View {
+        focusEffectDisabled()
+            .listRowBackground(Color.clear)
     }
 }
 

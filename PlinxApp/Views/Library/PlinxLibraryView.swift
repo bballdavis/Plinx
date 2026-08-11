@@ -6,7 +6,7 @@ struct PlinxLibraryView: View {
     @State var viewModel: SafeLibraryViewModel
     var topContent: AnyView? = nil
     var onSelectLibrary: (Library) -> Void
-    var onRequestHomeNavigationFocus: () -> Void = {}
+    var onRequestShellNavigationFocus: () -> Void = {}
     var contentFocusRequest: Int = 0
     @State private var artworkRefreshToken = UUID()
     @AppStorage(LibraryCardLayoutPolicy.hotReloadLibraryArtworkStorageKey)
@@ -19,6 +19,7 @@ struct PlinxLibraryView: View {
     #if os(tvOS)
     @EnvironmentObject private var tvFocusCoordinator: PlinxTVFocusCoordinator
     @FocusState private var focusedLibraryID: String?
+    @State private var contentFocusGeneration = 0
     #endif
 
     var body: some View {
@@ -58,15 +59,7 @@ struct PlinxLibraryView: View {
             )
         }
         .onChange(of: contentFocusRequest) { _, _ in
-            let ids = viewModel.libraries.map(\.id)
-            focusedLibraryID = PlinxTVFocusCoordinator.resolvedContentID(
-                currentID: focusedLibraryID,
-                availableIDs: ids,
-                preferredID: tvFocusCoordinator.rememberedContentTarget(
-                    in: .library,
-                    availableIDs: ids
-                )
-            )
+            requestContentFocus()
         }
         .onChange(of: focusedLibraryID) { _, id in
             guard let id else { return }
@@ -155,11 +148,35 @@ struct PlinxLibraryView: View {
     }
 
     #if os(tvOS)
+    private func requestContentFocus() {
+        let ids = viewModel.libraries.map(\.id)
+        let target = PlinxTVFocusCoordinator.resolvedContentID(
+            currentID: focusedLibraryID,
+            availableIDs: ids,
+            preferredID: tvFocusCoordinator.rememberedContentTarget(
+                in: .library,
+                availableIDs: ids
+            )
+        )
+
+        contentFocusGeneration &+= 1
+        let generation = contentFocusGeneration
+        focusedLibraryID = nil
+        guard let target else { return }
+
+        Task { @MainActor in
+            await Task.yield()
+            guard generation == contentFocusGeneration else { return }
+            focusedLibraryID = target
+        }
+    }
+
     private func handleMoveCommand(_ direction: MoveCommandDirection, fromRow rowIndex: Int) {
         switch direction {
         case .up:
             if rowIndex == 0 {
-                onRequestHomeNavigationFocus()
+                contentFocusGeneration &+= 1
+                onRequestShellNavigationFocus()
             } else {
                 focusedLibraryID = viewModel.libraries[rowIndex - 1].id
             }
