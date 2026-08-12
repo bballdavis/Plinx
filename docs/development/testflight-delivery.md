@@ -1,11 +1,25 @@
 # Internal TestFlight Delivery
 
-`dev` is CI-only. Push the exact `dev` commit you want testers to receive to
-`dev-testflight`; `.github/workflows/build.yml` then runs its package,
-integration, and Xcode checks. When they pass, the `testflight-internal` job
-archives the exact pinned source tree and submits it to App Store Connect. The
-archive gets a UTC-timestamp build number, so each submitted build is unique
-and increasing.
+Xcode Cloud is currently the primary delivery path. The GitHub-hosted delivery
+path below is retained as a dormant runbook, but `.github/workflows/build.yml`
+is manual-only and its push-gated `testflight-internal` job cannot run until
+the automatic `dev-testflight` push trigger is deliberately restored.
+
+For the active Xcode Cloud workflow, select
+`PlinxApp/Plinx.xcodeproj` as the Project or Workspace, Xcode 26.5 as the
+toolchain, and `Plinx-iOS` as the Archive scheme. The project must first be
+merged into the repository branch App Store Connect scans. Xcode Cloud then
+runs `PlinxApp/ci_scripts/ci_post_clone.sh` to fetch the exact pinned Strimr
+source before the archive. See
+[Xcode Cloud monitoring and management](xcode-cloud-monitoring.md) for API-key
+setup, workflow-path updates, manual build starts, and failure diagnostics.
+
+When that trigger is enabled, `dev` is CI-only. Push the exact `dev` commit you
+want testers to receive to `dev-testflight`; the workflow then runs its
+package, integration, and Xcode checks. When they pass, the
+`testflight-internal` job archives the exact pinned source tree and submits it
+to App Store Connect. The archive gets a UTC-timestamp build number, so each
+submitted build is unique and increasing.
 
 The delivery uses Xcode's App Store Connect API-key support for automatic
 provisioning and upload. Its export options mark every `dev` build as
@@ -18,6 +32,8 @@ the build asynchronously, so check the TestFlight build status and any
 processing email before treating it as ready for testers.
 
 ## One-Time Account Setup
+
+This setup applies only if the dormant GitHub delivery path is re-enabled.
 
 1. In App Store Connect, request API access if it is not already enabled, then
    create a dedicated team API key that can access the Plinx app and the
@@ -53,6 +69,9 @@ gate between ordinary development work and TestFlight distribution.
 
 ## Promote A Build To TestFlight
 
+This promotion procedure applies only after the GitHub workflow's automatic
+`dev-testflight` push trigger has been restored.
+
 After `dev` has the exact commit you want to test, fast-forward the dedicated
 delivery branch from it:
 
@@ -62,9 +81,9 @@ git push origin origin/dev:refs/heads/dev-testflight
 ```
 
 This creates `dev-testflight` on first use and subsequently advances it only
-when `dev` is a fast-forward update. Do not force-push the delivery branch. A
-push to `dev` alone only runs CI; the ref update to `dev-testflight` is the
-intentional action that queues a new internal TestFlight build.
+when `dev` is a fast-forward update. Do not force-push the delivery branch.
+With the GitHub delivery trigger enabled, the ref update to `dev-testflight`
+is the intentional action that queues a new internal TestFlight build.
 
 ## Export Compliance
 

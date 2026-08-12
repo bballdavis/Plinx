@@ -13,7 +13,7 @@
 | `assets/branding/` | Canonical reference assets | Marketing/reference logos and app-store artwork |
 | `screenshots/` | Reference material | Product screenshots for docs and release assets |
 | `README.md`, `PRIVACY_POLICY.md`, `LICENSE`, `AGENTS.md` | Canonical root docs | Minimal root-level documentation set |
-| `.vscode/`, `test_creds.yaml`, `DerivedData/`, `.build/`, `build/`, generated `Plinx.xcodeproj/` | Local/generated artifacts | Never the source of truth |
+| `.vscode/`, `test_creds.yaml`, `DerivedData/`, `.build/`, `build/` | Local/generated artifacts | Never the source of truth |
 
 ## Ownership Guidance
 
@@ -28,7 +28,9 @@ Use this for:
 - app resources and localized strings
 - app-specific unit/UI tests
 
-Do not treat `PlinxApp/build/` or the generated `Plinx.xcodeproj/` as canonical.
+`PlinxApp/project.yml` remains canonical for project structure. The checked-in
+`PlinxApp/Plinx.xcodeproj/` is its generated deployment mirror so Xcode Cloud
+can discover the project and shared schemes before running custom scripts.
 
 ### `Packages/`
 
@@ -78,7 +80,6 @@ Keep root docs intentionally small:
 
 The following must never become the source of truth:
 
-- `PlinxApp/Plinx.xcodeproj/`
 - `PlinxApp/build/`
 - `Packages/*/.build/`
 - `Packages/*/build/`
@@ -86,3 +87,8 @@ The following must never become the source of truth:
 - `DerivedData/`
 - local `test_creds.yaml`
 - simulator result bundles under `/tmp`
+
+`PlinxApp/Plinx.xcodeproj/` is committed but remains derived from
+`PlinxApp/project.yml`. Regenerate and commit it with every project-structure
+change, including its shared `Plinx-iOS` and `Plinx-tvOS` schemes; never edit
+the generated project file as the canonical configuration.

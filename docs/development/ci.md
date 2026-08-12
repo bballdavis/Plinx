@@ -15,23 +15,42 @@ runtime together.
 
 ## Build Workflow
 
-The main CI workflow lives in `.github/workflows/build.yml`.
+Xcode Cloud is currently the primary Apple-platform CI service. Automatic
+GitHub runs of `.github/workflows/build.yml` are paused to avoid consuming
+GitHub-hosted macOS minutes. The workflow remains available through manual
+dispatch for deliberate parity checks; its TestFlight delivery job is dormant
+because that job still requires a push to `dev-testflight`.
 
-It currently enforces:
+See [Xcode Cloud monitoring and management](xcode-cloud-monitoring.md) for the
+local App Store Connect client, checked-in project requirement, credential
+boundary, explicit management operations, and scheduled monitoring setup.
+
+Xcode Cloud must use the checked-in `PlinxApp/Plinx.xcodeproj`, Xcode 26.5,
+and the shared `Plinx-iOS` and `Plinx-tvOS` schemes. Its post-clone script
+fetches and verifies the exact pinned sibling Strimr source before a build or
+archive action begins.
+
+The checked-in deployment mirror intentionally includes both build schemes at
+`PlinxApp/Plinx.xcodeproj/xcshareddata/xcschemes/Plinx-iOS.xcscheme` and
+`PlinxApp/Plinx.xcodeproj/xcshareddata/xcschemes/Plinx-tvOS.xcscheme` so Xcode
+Cloud can use both platform build plans. Regenerate them from
+`PlinxApp/project.yml` with XcodeGen whenever either scheme definition changes.
+
+When manually dispatched, it enforces:
 
 - documentation and repository-structure guardrails
 - the full Plinx↔Strimr contract after checking out the configured branch at
   the exact pinned commit
 - `PlinxCore` package tests, including safety behavior
 - `PlinxUI` package tests
-- Xcode project generation
+- deterministic checked-in Xcode project verification
 - iPhone and iPad app builds, including compilation of app unit/UI test targets
 
-Pull requests targeting `dev` or `main` run the verification jobs. Pushes to
-`dev` and `dev-testflight` run those same verification jobs. Only a push to
-`dev-testflight`, after every check passes, submits a new internal-only
-TestFlight build. The delivery job never runs for `dev`, pull requests, or a
-manual workflow dispatch.
+Before the pause, pull requests targeting `dev` or `main` and pushes to `dev`
+or `dev-testflight` ran these verification jobs automatically. Only a push to
+`dev-testflight`, after every check passed, submitted an internal-only
+TestFlight build. Restore those triggers deliberately if GitHub-hosted Apple
+CI or GitHub-based TestFlight delivery becomes necessary again.
 
 See [TestFlight delivery](testflight-delivery.md) for the one-time App Store
 Connect and GitHub secret setup, scope, and failure handling.
@@ -90,7 +109,7 @@ parse generated coverage reports or enforce a tool-specific percentage gate.
 CI also:
 
 1. installs XcodeGen
-2. generates the Xcode project
+2. regenerates the checked-in Xcode project and fails on drift
 3. installs/verifies the pinned iOS runtime and creates iPhone/iPad devices
 4. builds `Plinx-iOS` for both simulator form factors
 5. runs the unit and UI suites on both destinations
@@ -126,6 +145,9 @@ Run those locally when the change affects playback, real-data rendering, safety 
 ```bash
 gh workflow run build.yml --ref your-branch
 ```
+
+This command consumes GitHub Actions minutes. Use it only when a GitHub-side
+parity run is intentional.
 
 ## When CI Docs Must Change
 

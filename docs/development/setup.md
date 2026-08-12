@@ -37,7 +37,7 @@ This guide covers local development, project generation, and the sibling depende
    brew install xcodegen
    ```
 
-4. Generate the Xcode project:
+4. Regenerate the checked-in Xcode project to verify the local XcodeGen output:
 
    ```bash
    cd PlinxApp
@@ -87,12 +87,20 @@ Or use the repo scripts:
 ## Project Generation Rules
 
 - Treat `PlinxApp/project.yml` as the source of truth.
-- Treat the generated `Plinx.xcodeproj` as disposable local output.
-- If you change targets, dependencies, resources, or build settings, regenerate the project.
+- Treat the checked-in `Plinx.xcodeproj` as a generated deployment mirror, not
+  the source of truth. It must remain in Git so Xcode Cloud can discover it.
+- If you change targets, dependencies, resources, or build settings, regenerate
+  and commit the project alongside `project.yml`.
 
 ```bash
 cd PlinxApp
 xcodegen generate
+```
+
+In a clean checkout, verify the committed mirror with:
+
+```bash
+./scripts/generate_xcodeproj.sh --check
 ```
 
 ## Testing

@@ -2,7 +2,10 @@
 
 ## Source Of Truth
 
-`PlinxApp/project.yml` is the source of truth for the generated Xcode project. The checked-in `Plinx.xcodeproj` is local output and may be regenerated at any time.
+`PlinxApp/project.yml` is the source of truth for the generated Xcode project.
+`PlinxApp/Plinx.xcodeproj` is a checked-in, deterministic deployment mirror so
+Xcode Cloud can discover the project plus the shared `Plinx-iOS` and
+`Plinx-tvOS` build schemes.
 
 ## Build Composition
 
@@ -41,8 +44,16 @@ When adding another exclusion, document:
 ## Generated Project Expectations
 
 - Run `xcodegen generate` from `PlinxApp/` or use `scripts/generate_xcodeproj.sh`.
-- Treat `PlinxApp/project.yml` as canonical and `PlinxApp/Plinx.xcodeproj/` as generated local output.
-- CI regenerates the project before building or testing.
+- Treat `PlinxApp/project.yml` as canonical and the checked-in
+  `PlinxApp/Plinx.xcodeproj/` as its generated deployment mirror.
+- Commit regenerated project output with every `project.yml` change, including
+  both shared scheme files and the nested workspace descriptor. Never commit
+  `xcuserdata` or other per-user state.
+- Use `scripts/generate_xcodeproj.sh --check` in a clean checkout to verify the
+  committed project matches a fresh generation after Xcode applies its current
+  shared-scheme normalization.
+- Xcode Cloud runs `PlinxApp/ci_scripts/ci_post_clone.sh` to fetch the exact
+  pinned sibling Strimr revision before Xcode resolves the project sources.
 
 ## Resource Patching
 

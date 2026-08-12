@@ -24,9 +24,9 @@ remove_tree() {
     fi
 }
 
-# These are generated outputs only. Source, Git metadata, credentials, the
-# sibling Strimr checkout, and user-created files are intentionally excluded.
-remove_tree "$PROJECT_ROOT/PlinxApp/Plinx.xcodeproj"
+# These are disposable outputs only. Source, Git metadata, credentials, the
+# checked-in Xcode Cloud project, the sibling Strimr checkout, and user-created
+# files are intentionally excluded.
 remove_tree "$PROJECT_ROOT/build"
 remove_tree "$PROJECT_ROOT/Packages/PlinxCore/.build"
 remove_tree "$PROJECT_ROOT/Packages/PlinxCore/build"
@@ -43,4 +43,4 @@ remove_tree "$PROJECT_ROOT/website/.generated"
 remove_tree "$PLINX_XCODE_DERIVED_DATA_PATH"
 remove_tree "$PLINX_SWIFTPM_SCRATCH_ROOT"
 
-echo "Plinx generated artifacts and shared caches removed."
+echo "Plinx disposable artifacts and shared caches removed."

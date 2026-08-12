@@ -1,19 +1,8 @@
-name: Build & Test
+name: Build & Test (manual only)
 
+# Automatic runs are paused while Xcode Cloud is the primary Apple-platform CI.
+# Keep manual dispatch available for deliberate GitHub-side parity checks.
 on:
-  push:
-    branches:
-      - dev
-      - dev-testflight
-  pull_request:
-    branches:
-      - main
-      - dev
-    types:
-      - opened
-      - synchronize
-      - reopened
-      - ready_for_review
   workflow_dispatch:
 
 concurrency:
@@ -120,9 +109,8 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      - name: Generate Xcode project
-        run: xcodegen generate
-        working-directory: PlinxApp
+      - name: Verify checked-in Xcode project
+        run: ./scripts/generate_xcodeproj.sh --check
 
       - name: Install and verify pinned simulator runtime
         run: |
@@ -193,6 +181,8 @@ jobs:
 
   testflight-internal:
     name: Internal TestFlight delivery (dev-testflight)
+    # This job remains dormant while the workflow is manual-only because a
+    # workflow_dispatch event can never satisfy this push-only condition.
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev-testflight'
     needs:
       - swift-packages

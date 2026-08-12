@@ -80,6 +80,12 @@ localizations, and privacy manifest. The iOS phase also compiles the launch
 storyboard. Do not replace the target-owned phases with a shared build phase;
 Xcode may then omit resources from one platform bundle.
 
+The generated `PlinxApp/Plinx.xcodeproj` is committed as Xcode Cloud's stable
+project input while `PlinxApp/project.yml` remains canonical. After changing
+the project specification, regenerate and commit both. In a clean checkout,
+`./scripts/generate_xcodeproj.sh --check` verifies that generation produces no
+project diff after Xcode applies its current shared-scheme normalization.
+
 ### `strimr/run_ipad_sim.sh` — Build & Run Strimr Branch on iPad Simulator
 
 Builds and runs the **active branch of the sibling `../strimr` checkout** on an iPad simulator. Use this to test feature branches you want to feed back upstream before they become part of Plinx.
@@ -302,8 +308,9 @@ Builds a signed archive for App Store Connect and validates the packaged app bun
 - Validates version/build overrides, signing, architecture, launch assets, privacy manifest, and forbidden telemetry artifacts
 - With `--upload-testflight`, exports with `app-store-connect` settings and submits an internal-only TestFlight build using the supplied API key
 
-The GitHub Actions delivery path runs this command only after a successful push
-to `dev-testflight`; see [internal TestFlight delivery](../docs/development/testflight-delivery.md).
+The dormant GitHub Actions delivery path runs this command only after a
+successful push to `dev-testflight` when that automatic trigger is enabled;
+see [internal TestFlight delivery](../docs/development/testflight-delivery.md).
 
 ### `validate_testflight_archive.sh` — Validate Archive Contents
 
@@ -488,3 +495,22 @@ For CI, consider:
 - Pre-installing the iOS Simulator runtime
 - Using `build_only.sh` (no GUI simulator needed for pure builds)
 - Caching the shared `PLINX_XCODE_DERIVED_DATA_PATH` and SwiftPM scratch roots between runs
+
+---
+
+### `xcode_cloud_monitor.py` — Monitor And Manage Xcode Cloud
+
+Reads recent Xcode Cloud build runs and structured failure issues through
+App Store Connect. Explicit workflow-path, enable/disable, and build-start
+operations are supported with a dry run by default and require `--apply` to
+change Xcode Cloud. The `.p8` key and local config must remain outside the
+repository.
+
+```bash
+./scripts/xcode_cloud_monitor.py
+./scripts/xcode_cloud_monitor.py --details
+./scripts/xcode_cloud_monitor.py --details --json --fail-on-failure
+```
+
+See [Xcode Cloud monitoring and management](../docs/development/xcode-cloud-monitoring.md)
+for secure setup, management commands, and scheduled-monitor guidance.

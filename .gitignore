@@ -1,10 +1,12 @@
 # Local-only
 .vscode/
 .venv/
+__pycache__/
 
 # Xcode / Swift
 .DS_Store
 *.xcuserstate
+xcuserdata/
 *.xccheckout
 *.xcscmblueprint
 *.xcuserdata/
@@ -26,6 +28,8 @@ Carthage/Build/
 
 # Local Environment Variables (Never commit)
 test_creds.yaml
+xcode-cloud.env
+*.p8
 
 # Build outputs
 build/
@@ -43,6 +47,5 @@ fastlane/test_output/
 # Derived data (usually outside repo, but ignore just in case)
 DerivedData/
 
-# Ignore generated Xcode project (created by xcodegen)
-PlinxApp/Plinx.xcodeproj/
-PlinxApp/Plinx.xcodeproj/project.pbxproj
+# PlinxApp/Plinx.xcodeproj is a checked-in Xcode Cloud input. Machine-specific
+# state inside it remains ignored by the global *.xcuserdata rules above.
