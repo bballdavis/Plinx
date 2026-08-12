@@ -780,6 +780,12 @@ Required traits:
 - white foreground labels/icons
 - accent stroke or accent fill at low opacity
 
+On tvOS, holding Select on a Plex media card opens the Plinx quick-action
+surface without also activating the card. Home, Search, Library, Collection,
+and Playlist cards share this behavior. The sheet uses dark rounded actions,
+white labels, and the shared gradient focus ring; downloads remain absent on
+tvOS. Menu dismisses the sheet and returns focus to the originating card.
+
 ## Key Screen Rules
 
 ## Sign-in
@@ -919,13 +925,27 @@ Current profile-switcher language:
 - fixed-height profile tiles for every account state
 - green outline and soft glow for the active profile
 - subtle glass or charcoal tile fill, never a full bright selection box
-- compact native destructive logout icon in the authentication toolbar
+- dark Plinx logout control with a restrained red destructive cue and the
+  shared gradient focus ring
 
 Rules:
 
 - Keep every profile tile the same height, even when a profile has no username or email.
-- Use the active-state border and glow to indicate selection, not tile scaling or oversized fill.
-- Keep logout compact and clearly destructive; it should not inherit the oversized home-shell chrome treatment.
+- Use the active-state ring and glow to indicate selection separately from the
+  brighter live-focus treatment; never expose the native white focus plate.
+- Keep logout compact and clearly destructive; it should not inherit the
+  oversized home-shell chrome treatment or the standard system button plate.
+- On tvOS, profile cards, PIN display cells, number/delete keys, Cancel, and
+  Retry all retain dark Plinx surfaces with readable white content and the
+  shared focus ring.
+
+## Player controls
+
+On tvOS, transport, jump, Skip Intro/Ending, audio, subtitle, and track-choice
+controls use app-owned dark rounded surfaces. Live focus adds the shared
+lime-to-teal ring, restrained glow, and optional scale; persistent track
+selection remains visible as a quieter checkmark/ring. Never allow the native
+white tvOS focus plate to replace these surfaces.
 
 ## Content Cards And Media Tiles
 

@@ -386,6 +386,98 @@ final class AppleTVInteractionUITests: XCTestCase {
         )
     }
 
+    func test_profileSwitcher_usesDarkFocusSurfaces_andThemesEveryPINControl() {
+        let app = launch(screen: "profileSwitcher")
+        let kids = app.buttons["profileSwitcher.profile.fixture-kids"]
+        let logout = app.buttons["profileSwitcher.logout"]
+
+        assertFocused(kids, timeout: 8)
+        XCTAssertEqual(kids.value as? String, "profilePlinxSurface")
+        XCTAssertEqual(logout.value as? String, "darkPlinxDestructiveWithGradientFocus")
+        capture(name: "tvOS-4K-profile-switcher-dark-focus")
+
+        XCUIRemote.shared.press(.select)
+        XCTAssertTrue(app.descendants(matching: .any)["profileSwitcher.pin.sheet"].waitForExistence(timeout: 8))
+        assertFocused(app.buttons["profileSwitcher.pin.key.1"])
+        XCTAssertTrue(app.buttons["profileSwitcher.pin.delete"].exists)
+        XCTAssertEqual(app.buttons["Cancel"].value as? String, "darkPlinxPINCancel")
+        capture(name: "tvOS-4K-profile-pin-dark-controls")
+    }
+
+    func test_profileSwitcherModal_keepsReadableDarkCardFocus() {
+        let app = launch(screen: "profileSwitcherModal")
+        let kids = app.buttons["profileSwitcher.profile.fixture-kids"]
+
+        assertFocused(kids, timeout: 8)
+        XCTAssertEqual(kids.value as? String, "profilePlinxSurface")
+        XCTAssertEqual(
+            app.buttons["profileSwitcher.logout"].value as? String,
+            "darkPlinxDestructiveWithGradientFocus"
+        )
+        capture(name: "tvOS-4K-profile-switcher-modal-dark-focus")
+    }
+
+    func test_playerControls_andTrackSelection_suppressNativeWhiteFocusPlate() {
+        var app = launch(screen: "playerControls")
+        let playPause = app.buttons["player.control.playPause"]
+
+        assertFocused(playPause, timeout: 8)
+        XCTAssertEqual(playPause.value as? String, "darkPlinxPrimaryPlayerControl")
+        XCTAssertEqual(
+            app.buttons["player.control.skipMarker"].value as? String,
+            "darkPlinxSkipMarkerControl"
+        )
+        XCTAssertEqual(
+            app.buttons["player.control.audio"].value as? String,
+            "darkPlinxPlayerSettingControl"
+        )
+        capture(name: "tvOS-4K-player-dark-controls")
+
+        app.terminate()
+        app = launch(screen: "playerTracks")
+        let off = app.buttons["player.track.off"]
+        assertFocused(off, timeout: 8)
+        XCTAssertEqual(off.value as? String, "selectedPlinxTrack")
+        capture(name: "tvOS-4K-player-dark-track-selection")
+    }
+
+    func test_longSelect_opensThemedQuickActions_withoutActivatingCard() {
+        let app = launch(screen: "quickActions")
+        let card = app.buttons["quickAction.fixture.card"]
+        assertFocused(card, timeout: 8)
+
+        XCUIRemote.shared.press(.select, forDuration: 0.7)
+        XCTAssertTrue(app.descendants(matching: .any)["quickAction.sheet"].waitForExistence(timeout: 5))
+        assertFocused(app.buttons["quickAction.option.play"])
+        XCTAssertEqual(
+            app.staticTexts["quickAction.fixture.shortActivationCount"].value as? String,
+            "0",
+            "Long Select must not also run the card's normal action"
+        )
+        XCTAssertTrue(app.buttons["quickAction.option.toggle-watched"].exists)
+        XCTAssertTrue(app.buttons["quickAction.option.go-details"].exists)
+        XCTAssertFalse(
+            app.buttons.matching(NSPredicate(format: "identifier CONTAINS[c] 'download'")).firstMatch.exists
+        )
+        capture(name: "tvOS-4K-quick-actions-dark-focus")
+
+        XCUIRemote.shared.press(.menu)
+        assertFocused(card)
+        XCTAssertFalse(app.descendants(matching: .any)["quickAction.sheet"].exists)
+    }
+
+    func test_libraryLoadingFixture_usesLocalizedCopyNotRawTokens() {
+        let app = launch(screen: "libraryLoading")
+        let recommended = app.descendants(matching: .any)["library.loading.recommended"]
+        let browse = app.descendants(matching: .any)["library.loading.browse"]
+        let filters = app.descendants(matching: .any)["library.loading.filters"]
+        XCTAssertTrue(recommended.waitForExistence(timeout: 8))
+        XCTAssertEqual(recommended.label, "Loading recommendations…")
+        XCTAssertEqual(browse.label, "Loading library…")
+        XCTAssertEqual(filters.label, "Loading filters…")
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'library.'")).firstMatch.exists)
+    }
+
     private func capture(name: String) {
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = name

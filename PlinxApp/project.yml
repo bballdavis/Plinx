@@ -282,6 +282,10 @@ targets:
           - "Tab/**"
           # Plinx uses its own sign-in and does not need Strimr's tvOS sign-in view.
           - "Auth/SignInTVView.swift"
+          # Plinx owns the visible player focus treatment and suppresses the
+          # native bright tvOS focus plate while retaining upstream actions.
+          - "Player/Controls/PlayerControlButtonsTV.swift"
+          - "Player/Controls/PlayerTrackSelectionView.swift"
 
       # ── Strimr tvOS shared UI components ────────────────────────────────
       - path: ../../strimr/Strimr-tvOS/Shared

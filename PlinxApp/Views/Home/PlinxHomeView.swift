@@ -593,7 +593,10 @@ extension View {
     @ViewBuilder
     func plinxQuickActionLongPress(_ action: @escaping () -> Void) -> some View {
         #if os(tvOS)
-        self
+        highPriorityGesture(
+            LongPressGesture(minimumDuration: 0.5)
+                .onEnded { _ in action() }
+        )
         #else
         highPriorityGesture(
             LongPressGesture(minimumDuration: 0.5, maximumDistance: 24)

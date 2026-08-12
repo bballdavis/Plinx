@@ -251,6 +251,66 @@
         }
       }
     },
+    "library.recommended.loading" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading recommendations…"
+          }
+        }
+      }
+    },
+    "library.browse.loading" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading library…"
+          }
+        }
+      }
+    },
+    "library.browse.filters.loading" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading filters…"
+          }
+        }
+      }
+    },
+    "quickActions.markWatched" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mark as Watched"
+          }
+        }
+      }
+    },
+    "quickActions.markUnwatched" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mark as Unwatched"
+          }
+        }
+      }
+    },
+    "quickActions.moreInfo" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More Info"
+          }
+        }
+      }
+    },
     "search.placeholder" : {
       "localizations" : {
         "en" : {

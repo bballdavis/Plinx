@@ -455,6 +455,11 @@ struct RootTabView: View {
                 }
 
             VStack(alignment: .leading, spacing: 12) {
+                Color.clear
+                    .frame(width: 1, height: 1)
+                    .accessibilityElement()
+                    .accessibilityIdentifier("quickAction.sheet")
+
                 Text(item.title)
                     .font(.headline.weight(.semibold))
                     .foregroundStyle(.white)
@@ -470,7 +475,6 @@ struct RootTabView: View {
             .liquidGlassBackground(style: PlinxTheme.Glass(cornerRadius: quickActionCornerRadius))
             .padding(.horizontal, 16)
             .padding(.bottom, 16)
-            .accessibilityIdentifier("quickAction.sheet")
             #if os(tvOS)
             .focusSection()
             #endif
@@ -513,15 +517,17 @@ struct RootTabView: View {
                 .frame(maxWidth: .infinity, minHeight: quickActionCancelMinHeight)
                 .background(
                     RoundedRectangle(cornerRadius: quickActionCornerRadius, style: .continuous)
-                        .fill(Color.white.opacity(isFocused ? 0.15 : 0.08))
+                        .fill(PlinxBrand.surface.opacity(isFocused ? 1 : 0.9))
                 )
-                .overlay(
-                    RoundedRectangle(cornerRadius: quickActionCornerRadius, style: .continuous)
-                        .stroke(isFocused ? Color.accentColor.opacity(0.92) : .clear, lineWidth: isFocused ? 3 : 0)
+                .plinxFocusSurface(
+                    isSelected: false,
+                    isFocused: isFocused,
+                    style: PlinxFocusSurfaceStyle(cornerRadius: quickActionCornerRadius)
                 )
         }
         .buttonStyle(.plain)
         #if os(tvOS)
+        .focusEffectDisabled()
         .focused($focusedQuickActionID, equals: QuickActionFocusOrder.cancelID)
         #endif
         .accessibilityIdentifier("quickAction.cancel")
@@ -549,15 +555,21 @@ struct RootTabView: View {
             .frame(maxWidth: .infinity, minHeight: quickActionOptionMinHeight)
             .background(
                 RoundedRectangle(cornerRadius: quickActionCornerRadius, style: .continuous)
-                    .fill(Color.accentColor.opacity(isFocused ? 0.26 : 0.18))
+                    .fill(PlinxBrand.surface.opacity(isFocused ? 1 : 0.94))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: quickActionCornerRadius, style: .continuous)
-                    .stroke(Color.accentColor.opacity(isFocused ? 0.96 : 0.32), lineWidth: isFocused ? 3 : 1)
+                    .stroke(Color.accentColor.opacity(0.32), lineWidth: 1)
+            )
+            .plinxFocusSurface(
+                isSelected: false,
+                isFocused: isFocused,
+                style: PlinxFocusSurfaceStyle(cornerRadius: quickActionCornerRadius)
             )
         }
         .buttonStyle(PlinkButtonStyle())
         #if os(tvOS)
+        .focusEffectDisabled()
         .focused($focusedQuickActionID, equals: option.id)
         #endif
         .accessibilityIdentifier("quickAction.option.\(option.id)")
@@ -1190,6 +1202,9 @@ struct RootTabView: View {
                 onPlay: { media in
                     startPlayback(ratingKey: media.id, type: media.type)
                 },
+                onLongPressMedia: { displayItem in
+                    selectedQuickActionMedia = displayItem
+                },
                 onRequestShellNavigationFocus: {
                     requestHeaderFocus()
                 },
@@ -1303,7 +1318,9 @@ struct RootTabView: View {
                 ),
                 QuickActionOption(
                     id: "toggle-watched",
-                    title: isWatched(media) ? "Mark as unwatched" : "Mark as watched",
+                    title: isWatched(media)
+                        ? String(localized: "quickActions.markUnwatched", table: "Plinx")
+                        : String(localized: "quickActions.markWatched", table: "Plinx"),
                     systemImage: isWatched(media) ? "checkmark.circle.fill" : "checkmark.circle",
                     role: nil,
                     action: {
@@ -1394,7 +1411,7 @@ struct RootTabView: View {
             actions.append(
                 QuickActionOption(
                     id: "go-details",
-                    title: "Go to details",
+                    title: String(localized: "quickActions.moreInfo", table: "Plinx"),
                     systemImage: "info.circle",
                     role: nil,
                     action: {
@@ -1409,7 +1426,7 @@ struct RootTabView: View {
             return [
                 QuickActionOption(
                     id: "collection-details-\(collection.id)",
-                    title: "Go to details",
+                    title: String(localized: "quickActions.moreInfo", table: "Plinx"),
                     systemImage: "info.circle",
                     role: nil,
                     action: {
@@ -1431,7 +1448,7 @@ struct RootTabView: View {
                 ),
                 QuickActionOption(
                     id: "playlist-details-\(playlist.id)",
-                    title: "Go to details",
+                    title: String(localized: "quickActions.moreInfo", table: "Plinx"),
                     systemImage: "info.circle",
                     role: nil,
                     action: {

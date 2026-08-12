@@ -119,17 +119,30 @@ struct PlinxContentView: View {
                 AppleTVBrowseFocusUITestHarness(scenario: .libraryDetail(hasContent: true))
             case "appleTVSearchFocus":
                 AppleTVBrowseFocusUITestHarness(scenario: .search)
+            case "profileSwitcherModal":
+                AppleTVProfileSwitcherUITestHarness(
+                    context: plexApiContext,
+                    sessionManager: sessionManager,
+                    modal: true
+                )
+            case "playerControls":
+                AppleTVPlayerControlsUITestHarness()
+            case "playerTracks":
+                AppleTVPlayerTracksUITestHarness()
+            case "quickActions":
+                AppleTVQuickActionUITestHarness()
+            case "libraryLoading":
+                AppleTVLibraryLoadingUITestHarness()
             #endif
             case AppStoreScreenshotBootstrap.mediaDetailScreen:
                 AppStoreMediaDetailScreenshotHarness()
             case "profileSwitcher":
                 NavigationStack {
                     #if os(tvOS)
-                    ProfileSwitcherTVView(
-                        viewModel: ProfileSwitcherViewModel(
-                            context: plexApiContext,
-                            sessionManager: sessionManager
-                        )
+                    AppleTVProfileSwitcherUITestHarness(
+                        context: plexApiContext,
+                        sessionManager: sessionManager,
+                        modal: false
                     )
                     #else
                     ProfileSwitcherView(
@@ -418,7 +431,7 @@ struct PlinxContentView: View {
         case .needsProfileSelection:
             NavigationStack {
                 #if os(tvOS)
-                ProfileSwitcherTVView(
+                PlinxProfileSwitcherTVView(
                     viewModel: ProfileSwitcherViewModel(
                         context: plexApiContext,
                         sessionManager: sessionManager,

@@ -67,6 +67,11 @@ the app also receives `--ui-testing`:
 - `parentalGate`
 - `settings`
 - `profileSwitcher`
+- `profileSwitcherModal`
+- `playerControls`
+- `playerTracks`
+- `quickActions`
+- `libraryLoading`
 - `selectServer`
 - `playerSettings`
 - `downloadsGrid`
@@ -134,6 +139,12 @@ capture when the simulator is otherwise ready.
 - Home cards and Library tiles are real plain Buttons with one custom focus
   surface; disable the native focus plate and never stack a second ring or
   independently scaled outline inside the artwork
+- Profile selection, its modal presentation, profile PIN controls, logout,
+  player controls, track choices, and quick actions must likewise suppress the
+  native white focus plate and preserve readable white content on dark surfaces
+- holding Select on a Plex card opens quick actions without firing the card's
+  normal action; Menu dismisses the sheet and restores the originating focus,
+  and Download is never exposed in the tvOS sheet
 - keep retry and refresh affordances focusable when they are part of the recovery path
 - verify the default focus path for any screen that has a single primary action
 - on Home, Search, Library, and Explore, pressing up from the first local region
@@ -179,7 +190,8 @@ browse states, Library drill-down, Search field Down/Up with shell-focus trace,
 Settings Down/Up, navigation-based Settings exit and focus restoration,
 absence of `settings.close`, the high-contrast parental gate, Settings root and
 subpage Menu behavior, Youtarr dark single-surface entry focus, the rating
-chooser, and playback preparation. Search keyboard/results beyond the field
+chooser, playback preparation, profile/PIN focus surfaces, player controls,
+Plex-card long-press quick actions, and localized library loading copy. Search keyboard/results beyond the field
 handoff, Settings reordering,
 optional Explore states, and playback buffering/failure/exit remain required
 parts of the manual release-candidate navigation matrix until deterministic

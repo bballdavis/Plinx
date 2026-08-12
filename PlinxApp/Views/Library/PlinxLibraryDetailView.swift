@@ -876,7 +876,7 @@ private struct PlinxLibraryCollectionsContentView: View {
 }
 #endif
 
-private struct PlinxLibraryPortraitMediaCard: View {
+struct PlinxLibraryPortraitMediaCard: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     let media: MediaDisplayItem

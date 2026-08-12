@@ -76,6 +76,9 @@
 
 /* Library */
 "library.loading.plinx" = "Loading your libraries…";
+"library.recommended.loading" = "Loading recommendations…";
+"library.browse.loading" = "Loading library…";
+"library.browse.filters.loading" = "Loading filters…";
 
 /* Search */
 "search.placeholder" = "Search movies, shows…";
@@ -341,6 +344,11 @@
 "player.status.buffering" = "Buffering video";
 "playback.blockedByContentControls" = "Playback was blocked by the current parent-managed content controls.";
 "playback.unavailable" = "This item could not be prepared for playback.";
+
+/* Quick Actions */
+"quickActions.markWatched" = "Mark as Watched";
+"quickActions.markUnwatched" = "Mark as Unwatched";
+"quickActions.moreInfo" = "More Info";
 
 /* Authentication */
 "auth.signIn.qr.instructions" = "Scan this QR code with your phone to sign in to Plex.";

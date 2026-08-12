@@ -188,3 +188,12 @@ second persistent dismiss control over the player. The upstream
 `PlayerControlsView(` call remains an integration-contract seam so signature
 drift is caught during a Strimr upgrade. Plinx does not add a persistent
 content-rating chip over the playback surface.
+
+tvOS follows the same ownership boundary for the visible controls. Plinx
+excludes Strimr's tvOS button and track-selection implementations, then supplies
+same-module replacements while retaining Strimr's player controller, overlay
+layout, commands, and track actions. Rewind, play/pause, forward, marker-skip,
+audio, subtitle, and track-row focus therefore use dark Plinx surfaces and the
+shared gradient ring without the native white focus plate. The upstream calls
+to `PlayerSettingButton(`, `SkipMarkerButton(`, and
+`PlayerTrackSelectionView(` are required integration-contract seams.

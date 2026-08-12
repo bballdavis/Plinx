@@ -6,6 +6,7 @@ struct PlinxPlaylistDetailView: View {
     @State var viewModel: SafePlaylistDetailViewModel
     let onSelectMedia: (MediaDisplayItem) -> Void
     let onPlay: (MediaItem) -> Void
+    var onLongPressMedia: (MediaDisplayItem) -> Void = { _ in }
     var onRequestShellNavigationFocus: () -> Void = {}
     var contentFocusRequest: Int = 0
 
@@ -69,12 +70,7 @@ struct PlinxPlaylistDetailView: View {
     @ViewBuilder
     private var playlistContent: some View {
         #if os(tvOS)
-        PlaylistDetailTVView(
-            viewModel: viewModel.rawViewModel,
-            onSelectMedia: onSelectMedia,
-            onPlay: { _ in play(shuffled: false) },
-            onShuffle: { _ in play(shuffled: true) }
-        )
+        tvPlaylistContent
         #else
         PlaylistDetailView(
             viewModel: viewModel.rawViewModel,
@@ -91,6 +87,73 @@ struct PlinxPlaylistDetailView: View {
     }
 
     #if os(tvOS)
+    private var tvPlaylistContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 34) {
+                HStack(spacing: 18) {
+                    playlistActionButton(
+                        title: String(localized: "common.actions.play"),
+                        systemImage: "play.fill",
+                        accessibilityID: "playlist.play"
+                    ) {
+                        play(shuffled: false)
+                    }
+
+                    playlistActionButton(
+                        title: String(localized: "common.actions.shuffle"),
+                        systemImage: "shuffle",
+                        accessibilityID: "playlist.shuffle"
+                    ) {
+                        play(shuffled: true)
+                    }
+                }
+
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: 210, maximum: 230), spacing: 32)],
+                    alignment: .leading,
+                    spacing: 38
+                ) {
+                    ForEach(viewModel.items, id: \.id) { media in
+                        PlinxLibraryPortraitMediaCard(
+                            media: media,
+                            width: 220,
+                            showsLabels: true
+                        ) {
+                            onSelectMedia(media)
+                        }
+                        .plinxQuickActionLongPress {
+                            onLongPressMedia(media)
+                        }
+                        .accessibilityIdentifier("playlist.item.\(media.id)")
+                    }
+                }
+            }
+            .padding(.horizontal, 54)
+            .padding(.vertical, 34)
+        }
+    }
+
+    private func playlistActionButton(
+        title: String,
+        systemImage: String,
+        accessibilityID: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.system(size: 27, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 28)
+                .frame(minHeight: 70)
+                .background(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(PlinxBrand.surface.opacity(0.96))
+                )
+        }
+        .plinxTVFocusButton(style: PlinxFocusSurfaceStyle(cornerRadius: 18))
+        .accessibilityIdentifier(accessibilityID)
+    }
+
     private var contextRow: some View {
         HStack(spacing: 24) {
             Button {

@@ -556,7 +556,7 @@ private struct SettingsBody: View {
         }
         .sheet(isPresented: $isPresentingProfileSwitcher) {
             NavigationStack {
-                ProfileSwitcherView(
+                PlinxProfileSwitcherTVView(
                     viewModel: ProfileSwitcherViewModel(
                         context: plexApiContext,
                         sessionManager: sessionManager
