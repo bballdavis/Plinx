@@ -1,15 +1,8 @@
 name: Build & Test
 
+# Automatic GitHub CI is intentionally disabled while builds run in Xcode Cloud.
+# Keep workflow_dispatch so this workflow can still be run manually if needed.
 on:
-  pull_request:
-    branches:
-      - main
-      - dev
-    types:
-      - opened
-      - synchronize
-      - reopened
-      - ready_for_review
   workflow_dispatch:
 
 concurrency:
