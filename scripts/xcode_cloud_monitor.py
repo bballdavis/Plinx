@@ -497,7 +497,7 @@ def run_monitor(args: argparse.Namespace) -> int:
         ).get("data", [])
         builds = client.get(
             f"/v1/ciProducts/{product_id}/buildRuns",
-            {"limit": args.limit, "sort": "-createdDate"},
+            {"limit": args.limit, "sort": "-number"},
         ).get("data", [])
         summaries = []
         for build in builds:

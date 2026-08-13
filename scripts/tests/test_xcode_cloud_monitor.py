@@ -77,6 +77,37 @@ class ConfigTests(unittest.TestCase):
 
 
 class BuildTests(unittest.TestCase):
+    def test_monitor_requests_newest_build_number_first(self) -> None:
+        class FakeClient:
+            calls = []
+
+            def get(self, path, query=None):
+                self.calls.append((path, query))
+                if path == "/v1/ciProducts":
+                    return {"data": [{"id": "product-1", "attributes": {"name": "Plinx"}}]}
+                if path.endswith("/workflows"):
+                    return {"data": []}
+                if path.endswith("/buildRuns"):
+                    return {"data": []}
+                raise AssertionError(path)
+
+        fake_client = FakeClient()
+        config = {
+            "PLINX_ASC_KEY_ID": "KEY123",
+            "PLINX_ASC_ISSUER_ID": "00000000-0000-0000-0000-000000000000",
+            "PLINX_ASC_KEY_PATH": "/tmp/AuthKey_KEY123.p8",
+        }
+        args = monitor.parse_args(["--limit", "1"])
+        with (
+            mock.patch.object(monitor, "resolved_config", return_value=config),
+            mock.patch.object(monitor, "AppStoreConnectClient", return_value=fake_client),
+            mock.patch("builtins.print"),
+        ):
+            self.assertEqual(monitor.run_monitor(args), 0)
+
+        build_call = next(call for call in fake_client.calls if call[0].endswith("/buildRuns"))
+        self.assertEqual(build_call[1], {"limit": 1, "sort": "-number"})
+
     def test_build_classification(self) -> None:
         self.assertEqual(
             monitor.classify_build(

@@ -52,6 +52,8 @@ by a group or other users.
 On the first run, omit `PLINX_XCODE_CLOUD_PRODUCT_ID` to list every accessible
 Xcode Cloud product, workflow ID, project/workspace path, and recent build.
 Copy the Plinx product ID into the local config afterward.
+Build runs are requested in descending build-number order so `--limit 1`
+returns the newest run supported by Apple's product build-runs endpoint.
 
 Fetch structured issues for failed actions:
 
