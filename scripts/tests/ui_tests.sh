@@ -29,6 +29,7 @@ set -o pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$PROJECT_ROOT/scripts/build_environment.sh"
+source "$PROJECT_ROOT/scripts/test_credentials.sh"
 
 # Ansi color codes
 GREEN='\033[0;32m'
@@ -53,29 +54,6 @@ MODE="${1:-all}"
 # ─────────────────────────────────────────────────────────────────────────────
 # Helper functions
 # ─────────────────────────────────────────────────────────────────────────────
-
-load_env_yaml() {
-    local env_file="$PROJECT_ROOT/test_creds.yaml"
-    if [ -f "$env_file" ]; then
-        log_info "Loading test credentials from test_creds.yaml..."
-        # Extract keys and values from YAML (supports 'Key: Value' and 'Key: "Value"')
-        # Note: This is a simple bash-only YAML parser for flat files.
-        while IFS=": " read -r key value; do
-            # Skip comments and empty lines
-            [[ "$key" =~ ^#.*$ || -z "$key" ]] && continue
-            
-            # Clean quotes if present
-            value=$(echo "$value" | sed -e 's/^"//' -e 's/"$//' -e 's/^\x27//' -e 's/\x27$//')
-            
-            # Export if key is uppercase (standard env var naming)
-            if [[ "$key" =~ ^[A-Z_]+$ ]]; then
-                export "$key"="$value"
-            fi
-        done < "$env_file"
-    else
-        log_warning "No test_creds.yaml found (copied from .example for you if it was missing). Run with your Plex vars for live tests."
-    fi
-}
 
 log_section() {
     echo ""
@@ -110,7 +88,7 @@ run_core_tests() {
     echo ""
     
     cd "$PROJECT_ROOT"
-    if swift test \
+    if "${PLINX_SWIFT_COMMAND:-swift}" test \
         --package-path Packages/PlinxCore \
         --scratch-path "$PLINX_SWIFTPM_SCRATCH_ROOT/PlinxCore" \
         2>&1 | tee /tmp/core_test.log; then
@@ -130,17 +108,16 @@ run_ui_tests() {
     echo ""
     
     cd "$PROJECT_ROOT"
-    if swift build \
+    if "${PLINX_SWIFT_COMMAND:-swift}" test \
         --package-path Packages/PlinxUI \
         --scratch-path "$PLINX_SWIFTPM_SCRATCH_ROOT/PlinxUI" \
-        --target PlinxUITests \
         2>&1 | tee /tmp/ui_test.log; then
         UI_RESULT="✓ PASS"
-        log_success "PlinxUI tests compiled"
+        log_success "PlinxUI tests passed"
         return 0
     else
         UI_RESULT="✗ FAIL"
-        log_failure "PlinxUI tests failed to compile"
+        log_failure "PlinxUI tests failed"
         return 1
     fi
 }
@@ -209,19 +186,22 @@ run_snapshot_tests() {
 run_live_ui_tests() {
     log_section "Live UI Smoke Tests"
     
-    # Load env from yaml before starting
-    load_env_yaml
+    # Load ignored credentials into this process only.
+    if ! load_plinx_test_credentials "$PROJECT_ROOT/test_creds.yaml"; then
+        log_failure "Live Plex credentials are not configured"
+        return 1
+    fi
     
     log_info "Running app-level UI smoke checks with live/simulated Plex data..."
     echo ""
     echo "Plex Auth Configuration:"
-    if [ -n "$PLINX_PLEX_SERVER_URL" ]; then
-        echo "  URL: $PLINX_PLEX_SERVER_URL"
+    if [ -n "${PLINX_PLEX_SERVER_URL:-}" ]; then
+        echo "  Server: [CONFIGURED]"
     else
-        echo "  URL: [NOT CONFIGURED]"
+        echo "  Server: [NOT CONFIGURED]"
     fi
     
-    if [ -n "$PLINX_PLEX_TOKEN" ]; then
+    if [ -n "${PLINX_PLEX_TOKEN:-}" ]; then
         echo "  Token: [LOADED]"
     else
         echo "  Token: [NOT CONFIGURED]"
@@ -231,25 +211,34 @@ run_live_ui_tests() {
     cd "$PROJECT_ROOT/PlinxApp"
 
     bash "$PROJECT_ROOT/scripts/generate_xcodeproj.sh" >/tmp/plinx_xcodegen.log 2>&1
-    rm -rf /tmp/Plinx_live_ui.xcresult
+    local live_temp live_status
+    live_temp="$(mktemp -d "${TMPDIR:-/tmp}/plinx-live-ui.XXXXXX")"
 
     if xcodebuild test \
         -project Plinx.xcodeproj \
         -scheme Plinx-iOS \
         -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' \
-        -derivedDataPath "$PLINX_XCODE_DERIVED_DATA_PATH" \
-        -resultBundlePath "/tmp/Plinx_live_ui.xcresult" \
+        -derivedDataPath "$live_temp/DerivedData" \
+        -resultBundlePath "$live_temp/Plinx_live_ui.xcresult" \
         -only-testing:Plinx-iOS-UITests/LaunchSmokeUITests \
         -only-testing:Plinx-iOS-UITests/LiveRenderSmokeUITests \
-        2>&1 | tee /tmp/live_ui.log | grep -E "error:|passed|failed" | head -10; then
+        2>&1 | tee /tmp/live_ui.log; then
+        live_status=0
+    else
+        live_status=1
+    fi
+    grep -E "error:|passed|failed" /tmp/live_ui.log | head -10 || true
+    rm -rf "$live_temp"
+
+    if [ "$live_status" -eq 0 ]; then
         LIVE_RESULT="✓ PASS"
         log_success "Live UI smoke tests passed"
         return 0
-    else
-        LIVE_RESULT="✗ FAIL"
-        log_failure "Live UI smoke tests failed (see /tmp/Plinx_live_ui.xcresult/)"
-        return 1
     fi
+
+    LIVE_RESULT="✗ FAIL"
+    log_failure "Live UI smoke tests failed; private result artifacts were removed"
+    return 1
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -275,9 +264,9 @@ main() {
             TEST_STATUS=$?
             ;;
         all|"")
-            run_core_tests || true
-            run_ui_tests || true
-            TEST_STATUS=0  # Summary at the end regardless
+            TEST_STATUS=0
+            run_core_tests || TEST_STATUS=1
+            run_ui_tests || TEST_STATUS=1
             ;;
         -h|--help)
             echo "Usage:"

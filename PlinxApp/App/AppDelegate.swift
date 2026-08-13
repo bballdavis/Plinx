@@ -2,7 +2,7 @@ import UIKit
 
 final class AppDelegate: NSObject, UIApplicationDelegate {
     override init() {
-        if ProcessInfo.processInfo.arguments.contains("--app-store-landscape") {
+        if AppStoreScreenshotBootstrap.requestsLandscape() {
             Self.orientationLock = .landscapeLeft
             UIDevice.current.setValue(
                 UIInterfaceOrientation.landscapeLeft.rawValue,

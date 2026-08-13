@@ -42,6 +42,15 @@ struct PlinxSearchView: View {
         .onChange(of: safetyPolicy) { _, newPolicy in
             viewModel.updatePolicy(newPolicy)
         }
+        .onAppear {
+            guard ReleaseScreenshotCaptureMode.isActive(),
+                  let query = ReleaseScreenshotCaptureMode.searchQuery(),
+                  viewModel.query != query else {
+                return
+            }
+            viewModel.query = query
+            viewModel.submitSearch()
+        }
         #if os(tvOS)
         .onChange(of: contentFocusRequest) { _, _ in
             restoreContentFocus()

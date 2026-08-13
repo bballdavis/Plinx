@@ -21,13 +21,13 @@ xcuserdata/
 .swiftpm/xcode/package.xcworkspace/
 .swiftpm/configuration/
 Packages/*/.swiftpm/
-Packages/StrimrEngine/
 
 # Carthage
 Carthage/Build/
 
 # Local Environment Variables (Never commit)
 test_creds.yaml
+screenshot_capture.yaml
 xcode-cloud.env
 *.p8
 

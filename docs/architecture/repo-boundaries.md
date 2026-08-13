@@ -23,21 +23,6 @@ Keep Plinx code in Plinx and Strimr engine code in Strimr. Do not let wrappers, 
 - session/store infrastructure
 - fixes that still make sense without the Plinx product
 
-## What `Packages/StrimrEngine` Is Allowed To Be
-
-`Packages/StrimrEngine` should remain a thin local wrapper around the sibling Strimr checkout.
-
-Allowed:
-
-- package manifests
-- exports and shims needed for validation or future migration
-- structure that mirrors sibling Strimr source layout
-
-Not allowed:
-
-- accumulating runtime feature work that actually belongs in the sibling Strimr checkout
-- becoming the assumed home for engine behavior just because it lives in the Plinx repo
-
 ## Decision Checklist
 
 Ask these in order:
@@ -56,14 +41,13 @@ Plinx still compiles parts of the sibling `../strimr` checkout directly into the
 That means:
 
 - the sibling Strimr repo is part of the effective runtime source tree
-- `Packages/StrimrEngine` is not the authoritative runtime implementation
-- editing only the wrapper package can create false confidence
+- there is no local shadow `StrimrEngine` package
+- Strimr-owned changes must be made and accounted for in the paired checkout
 
 ## Working Policy
 
 Use this policy until the architecture is simplified further:
 
 1. Treat `../strimr` as the canonical home for Strimr-owned logic.
-2. Treat `Packages/StrimrEngine` as a wrapper, validation aid, and migration tool.
-3. Keep Plinx-specific changes out of the Strimr repo unless they are the smallest safe patch needed to unblock Plinx.
-4. When a Strimr-side change is necessary for Plinx, document why it could not live in Plinx-owned layers.
+2. Keep Plinx-specific changes out of the Strimr repo unless they are the smallest safe patch needed to unblock Plinx.
+3. When a Strimr-side change is necessary for Plinx, document why it could not live in Plinx-owned layers.

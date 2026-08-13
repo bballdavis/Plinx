@@ -13,13 +13,7 @@ final class LiveRenderSmokeUITests: XCTestCase {
         app.launchEnvironment["PLINX_UI_TEST_MODE"] = "live"
 
         // Forward live Plex vars from test runner env → app env (if provided)
-        let keys = [
-            "PLINX_PLEX_SERVER_URL",
-            "PLINX_PLEX_TOKEN",
-            "PLINX_PLEX_USER",
-            "PLINX_PLEX_PASSWORD",
-            "PLINX_PLEX_PIN"
-        ]
+        let keys = ["PLINX_PLEX_SERVER_URL", "PLINX_PLEX_TOKEN"]
         for key in keys {
             if let value = resolvedCredential(named: key), !value.isEmpty {
                 app.launchEnvironment[key] = value
@@ -177,78 +171,11 @@ final class LiveRenderSmokeUITests: XCTestCase {
     private var isLiveEnvironmentConfigured: Bool {
         let hasServer = !(resolvedCredential(named: "PLINX_PLEX_SERVER_URL") ?? "").isEmpty
         let hasToken = !(resolvedCredential(named: "PLINX_PLEX_TOKEN") ?? "").isEmpty
-        let hasUserPass = !(resolvedCredential(named: "PLINX_PLEX_USER") ?? "").isEmpty
-            && !(resolvedCredential(named: "PLINX_PLEX_PASSWORD") ?? "").isEmpty
-        let hasPin = !(resolvedCredential(named: "PLINX_PLEX_PIN") ?? "").isEmpty
-        return hasServer && (hasToken || hasUserPass || hasPin)
+        return hasServer && hasToken
     }
 
     private func resolvedCredential(named key: String) -> String? {
-        let env = ProcessInfo.processInfo.environment
-        if let value = env[key], !value.isEmpty {
-            return value
-        }
-        return yamlCredential(named: key)
-    }
-
-    private func yamlCredential(named key: String) -> String? {
-        guard
-            let yamlPath = locateTestCredsYAML(),
-            let content = try? String(contentsOfFile: yamlPath, encoding: .utf8)
-        else {
-            return nil
-        }
-
-        for rawLine in content.split(whereSeparator: \.isNewline) {
-            let line = rawLine.trimmingCharacters(in: .whitespaces)
-            guard !line.isEmpty, !line.hasPrefix("#") else { continue }
-            guard let separator = line.firstIndex(of: ":") else { continue }
-
-            let parsedKey = line[..<separator].trimmingCharacters(in: .whitespaces)
-            guard parsedKey == key else { continue }
-
-            var value = line[line.index(after: separator)...].trimmingCharacters(in: .whitespaces)
-            if value.hasPrefix("\""), value.hasSuffix("\""), value.count >= 2 {
-                value.removeFirst()
-                value.removeLast()
-            } else if value.hasPrefix("'"), value.hasSuffix("'"), value.count >= 2 {
-                value.removeFirst()
-                value.removeLast()
-            }
-            return value.isEmpty ? nil : value
-        }
-        return nil
-    }
-
-    private func locateTestCredsYAML() -> String? {
-        if let bundledPath = Bundle(for: Self.self)
-            .url(forResource: "test_creds", withExtension: "yaml")?
-            .path {
-            return bundledPath
-        }
-
-        let fm = FileManager.default
-        var current = URL(fileURLWithPath: fm.currentDirectoryPath)
-
-        for _ in 0..<6 {
-            let candidate = current.appendingPathComponent("test_creds.yaml").path
-            if fm.fileExists(atPath: candidate) {
-                return candidate
-            }
-            current.deleteLastPathComponent()
-        }
-
-        // Fallback from source path:
-        // <repo>/PlinxApp/UITests/LiveRenderSmokeUITests.swift
-        // -> <repo>/test_creds.yaml
-        var sourceURL = URL(fileURLWithPath: #filePath)
-        for _ in 0..<4 { sourceURL.deleteLastPathComponent() }
-        let sourceCandidate = sourceURL.appendingPathComponent("test_creds.yaml").path
-        if fm.fileExists(atPath: sourceCandidate) {
-            return sourceCandidate
-        }
-
-        return nil
+        LiveTestCredentials.value(named: key)
     }
 
     private func waitForAny(_ elements: [XCUIElement], timeout: TimeInterval) -> Bool {

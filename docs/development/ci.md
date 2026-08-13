@@ -21,6 +21,14 @@ GitHub-hosted macOS minutes. The workflow remains available through manual
 dispatch for deliberate parity checks; its TestFlight delivery job is dormant
 because that job still requires a push to `dev-testflight`.
 
+The separate `.github/workflows/xcode-project.yml` workflow is still automatic.
+It runs on an Ubuntu runner when app project inputs change, builds the pinned
+XcodeGen release, regenerates `PlinxApp/Plinx.xcodeproj`, and fails if the
+checked-in deployment mirror differs. It also checks out the pinned Strimr
+revision because the generated project contains references to that sibling
+source tree. The XcodeGen build directory is cached between runs; this check
+does not compile Plinx, start a simulator, or consume a macOS runner.
+
 See [Xcode Cloud monitoring and management](xcode-cloud-monitoring.md) for the
 local App Store Connect client, checked-in project requirement, credential
 boundary, explicit management operations, and scheduled monitoring setup.
@@ -45,6 +53,15 @@ When manually dispatched, it enforces:
 - `PlinxUI` package tests
 - deterministic checked-in Xcode project verification
 - iPhone and iPad app builds, including compilation of app unit/UI test targets
+
+Use the same portable freshness check locally with:
+
+```bash
+./scripts/generate_xcodeproj.sh --check-portable
+```
+
+The existing `--check` mode additionally asks Xcode to normalize the generated
+shared schemes and therefore remains macOS-only.
 
 Before the pause, pull requests targeting `dev` or `main` and pushes to `dev`
 or `dev-testflight` ran these verification jobs automatically. Only a push to

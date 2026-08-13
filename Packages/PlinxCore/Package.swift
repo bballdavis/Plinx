@@ -11,13 +11,12 @@ import PackageDescription
 //   • PlinxRating / PlinxMediaItem — public model types (bridge types)
 //   • HapticManager — tactile feedback
 //   • PlaybackCoordinator + PlaybackPolicy — lifecycle management
-//   • PlexClient protocol — abstract Plex API surface
 //
 // Module Boundary:
 //   PlinxCore does not import Strimr directly.
 //   Instead, PlinxCore defines its own public model types. The PlinxApp target
-//   bridges between sibling Strimr source and PlinxCore's public types via
-//   adapters and decorators.
+//   bridges sibling Strimr source into those types through adapters and
+//   decorators.
 //
 // ─────────────────────────────────────────────────────────────────────────────
 

@@ -1,8 +1,8 @@
 # Privacy Policy
 
-Effective date: July 25, 2026
+Effective date: August 12, 2026
 
-Plinx is an independent, parent-managed client for Plex Media Server. This policy explains what the Plinx developer does not collect, what the app stores locally, and when the app communicates with Plex services and servers selected by the user.
+Plinx is an independent, parent-managed client for Plex Media Server with an optional connection to a parent-configured Youtarr service. This policy explains what the Plinx developer does not collect, what the app stores locally, and when the app communicates with services selected by the user.
 
 ## Plinx Developer Collection
 
@@ -23,11 +23,18 @@ Those communications can include Plex account/profile identifiers, authenticatio
 
 Plinx is not affiliated with or endorsed by Plex.
 
+## Optional Youtarr Service
+
+A parent can configure a separate Youtarr service in the protected Settings area. When enabled, Plinx communicates directly with that parent-selected service to load its catalog, metadata, and artwork and to submit requests chosen in the app. Those communications can include the configured service address, API key or additional authorization header, catalog queries, media identifiers, and request details.
+
+The Youtarr operator processes that information under the operator's own configuration and policies. Plinx does not route the communication through the Plinx developer and does not provide or operate a Youtarr service.
+
 ## Information Stored on the Device
 
 Plinx stores only information needed to provide app features:
 
-- Plex authentication tokens, connection details, and the parental PIN in the system Keychain;
+- Plex authentication tokens, Youtarr API credentials or additional authorization header, and the parental PIN in the system Keychain;
+- Plex and optional Youtarr connection details in app-local settings;
 - content-control, appearance, playback, library, and download preferences in app-local settings;
 - downloaded media, artwork, playback progress, and an app-local server/profile ownership record for offline access.
 
@@ -35,11 +42,11 @@ The ownership record prevents a download created under one Plex server/profile f
 
 ## Local Network
 
-Plinx requests local-network access so it can find and communicate with Plex Media Servers on the same network. Denying access can prevent local servers from loading; remote Plex connections may still work when available.
+Plinx requests local-network access so it can communicate with Plex Media Servers and an optional parent-configured Youtarr service on the same network. Denying access can prevent local services from loading; remote connections may still work when available.
 
 ## Retention and Deletion
 
-Settings and downloaded files remain on the device until they are changed or deleted. Signing out removes the stored Plex authentication token and default-server selection, but it does not silently delete downloads. Downloads from a different or unidentified profile are hidden and can be removed from parent-authorized download management.
+Settings and downloaded files remain on the device until they are changed or deleted. Signing out removes the stored Plex authentication token and default-server selection, but it does not silently delete downloads or the separately parent-configured Youtarr connection. Downloads from a different or unidentified profile are hidden and can be removed from parent-authorized download management. A parent can remove or replace the Youtarr configuration from protected Settings.
 
 Uninstalling Plinx removes its app container and downloaded files. The operating system controls Keychain retention; reinstalling may preserve Keychain items unless they are explicitly replaced or the device is erased.
 

@@ -19,6 +19,7 @@ struct PlinxProfileSwitcherTVView: View {
     @FocusState private var focusedProfileID: String?
     @FocusState private var isLogoutFocused: Bool
     @FocusState private var pinFocusTarget: PinFocusTarget?
+    @Namespace private var profileFocusNamespace
     private let loadsUsersOnAppear: Bool
 
     private let profileColumns = [
@@ -81,6 +82,7 @@ struct PlinxProfileSwitcherTVView: View {
             submitPinIfComplete()
         }
         .accessibilityIdentifier("profileSwitcher.tv")
+        .focusScope(profileFocusNamespace)
     }
 
     private var header: some View {
@@ -197,6 +199,7 @@ struct PlinxProfileSwitcherTVView: View {
             )
         }
         .focused($focusedProfileID, equals: user.uuid)
+        .prefersDefaultFocus(user.uuid == preferredProfileID, in: profileFocusNamespace)
         .onMoveCommand { direction in
             guard direction == .up else { return }
             isLogoutFocused = true

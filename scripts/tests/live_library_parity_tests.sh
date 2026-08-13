@@ -9,6 +9,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$PROJECT_ROOT/scripts/build_environment.sh"
+source "$PROJECT_ROOT/scripts/test_credentials.sh"
 
 MODE="ios"
 if [[ "${1:-}" == "--appletv" || "${1:-}" == "--tvos" ]]; then
@@ -22,6 +23,7 @@ fi
 CREDENTIALS_FILE="$PROJECT_ROOT/test_creds.yaml"
 LOG_PATH="/tmp/plinx_live_library_parity_${MODE}.log"
 RESULT_BUNDLE="/tmp/Plinx_live_library_parity_${MODE}.xcresult"
+LIVE_DERIVED_DATA="$(mktemp -d "${TMPDIR:-/tmp}/plinx-live-parity-derived.XXXXXX")"
 RED=$'\033[0;31m'
 GREEN=$'\033[0;32m'
 BLUE=$'\033[0;34m'
@@ -33,22 +35,10 @@ warn() { echo "${YELLOW}[warn]${NC} $*"; }
 pass() { echo "${GREEN}[pass]${NC} $*"; }
 fail() { echo "${RED}[fail]${NC} $*"; }
 
-trim() {
-  local s="$1"
-  s="${s#"${s%%[![:space:]]*}"}"
-  s="${s%"${s##*[![:space:]]}"}"
-  printf '%s' "$s"
+cleanup() {
+  rm -rf "$RESULT_BUNDLE" "$LIVE_DERIVED_DATA"
 }
-
-strip_quotes() {
-  local s="$1"
-  if [[ "$s" == \"*\" && "$s" == *\" && ${#s} -ge 2 ]]; then
-    s="${s:1:${#s}-2}"
-  elif [[ "$s" == \'*\' && ${#s} -ge 2 ]]; then
-    s="${s:1:${#s}-2}"
-  fi
-  printf '%s' "$s"
-}
+trap cleanup EXIT
 
 discover_appletv_destination() {
   python3 - <<'PY'
@@ -152,74 +142,12 @@ else
   REQUIRED_TEST_CASE="${PLINX_REQUIRED_TEST_CASE:-test_liveHomeRecentlyAdded_otherVideoHubVisibleUnderStrictPolicy}"
 fi
 
-# Bundle ID for simulator defaults injection. Can be overridden but should
-# match the app's PRODUCT_BUNDLE_IDENTIFIER in project.yml.
-APP_BUNDLE_ID="${PLINX_APP_BUNDLE_ID:-com.bballdavis.plinx}"
-
 load_credentials() {
-  if [[ ! -f "$CREDENTIALS_FILE" ]]; then
-    fail "Missing $CREDENTIALS_FILE"
-    return 1
-  fi
-
-  info "Loading credentials from $CREDENTIALS_FILE"
-  while IFS= read -r raw || [[ -n "$raw" ]]; do
-    local line key value
-    line="$(trim "$raw")"
-    [[ -z "$line" || "$line" == \#* ]] && continue
-    [[ "$line" != *:* ]] && continue
-
-    key="$(trim "${line%%:*}")"
-    value="$(trim "${line#*:}")"
-    value="$(strip_quotes "$value")"
-
-    if [[ "$key" =~ ^[A-Z_][A-Z0-9_]*$ ]]; then
-      export "$key=$value"
-    fi
-  done < "$CREDENTIALS_FILE"
-
-  if [[ -z "${PLINX_PLEX_SERVER_URL:-}" || -z "${PLINX_PLEX_TOKEN:-}" ]]; then
+  if ! load_plinx_test_credentials "$CREDENTIALS_FILE"; then
     fail "PLINX_PLEX_SERVER_URL and PLINX_PLEX_TOKEN must be set in test_creds.yaml"
     return 1
   fi
-
-  export SIMCTL_CHILD_PLINX_PLEX_SERVER_URL="$PLINX_PLEX_SERVER_URL"
-  export SIMCTL_CHILD_PLINX_PLEX_TOKEN="$PLINX_PLEX_TOKEN"
-
   pass "Credentials loaded"
-}
-
-extract_simulator_id() {
-  if [[ "$DESTINATION" =~ id=([^,]+) ]]; then
-    printf '%s' "${BASH_REMATCH[1]}"
-    return 0
-  fi
-  return 1
-}
-
-configure_simulator_defaults() {
-  local sim_id
-  sim_id="$(extract_simulator_id || true)"
-  if [[ -z "$sim_id" ]]; then
-    warn "Destination does not include a simulator id; skipping simulator defaults injection"
-    return 0
-  fi
-
-  info "Booting simulator $sim_id (if needed)"
-  if ! xcrun simctl boot "$sim_id" >/dev/null 2>&1; then
-    if ! xcrun simctl list devices | grep -q "$sim_id"; then
-      warn "Simulator $sim_id was not found; skipping simulator defaults injection"
-      return 0
-    fi
-  fi
-  if ! xcrun simctl bootstatus "$sim_id" -b >/dev/null; then
-    warn "Simulator $sim_id did not boot; skipping simulator defaults injection"
-    return 0
-  fi
-
-  info "Writing Plex credentials to simulator defaults for $APP_BUNDLE_ID"
-  xcrun simctl spawn "$sim_id" defaults write "$APP_BUNDLE_ID" PLINX_PLEX_SERVER_URL "$PLINX_PLEX_SERVER_URL"
-  xcrun simctl spawn "$sim_id" defaults write "$APP_BUNDLE_ID" PLINX_PLEX_TOKEN "$PLINX_PLEX_TOKEN"
 }
 
 run_tests() {
@@ -229,24 +157,8 @@ run_tests() {
     bash "$PROJECT_ROOT/scripts/generate_xcodeproj.sh" >/tmp/plinx_xcodegen_live_parity.log 2>&1
   )
 
-  APP_BUNDLE_ID=$(xcodebuild -project "$PROJECT_ROOT/PlinxApp/Plinx.xcodeproj" \
-                   -scheme "$SCHEME" -showBuildSettings \
-                   2>/dev/null \
-                   | grep PRODUCT_BUNDLE_IDENTIFIER \
-                   | head -1 \
-                   | awk -F" = " '{print $2}' || true)
-  if [[ -z "$APP_BUNDLE_ID" ]]; then
-    APP_BUNDLE_ID=$(awk -F': *' '/PRODUCT_BUNDLE_IDENTIFIER:/ { print $2; exit }' "$PROJECT_ROOT/PlinxApp/project.yml" || true)
-  fi
-  if [[ -z "$APP_BUNDLE_ID" ]]; then
-    fail "unable to read PRODUCT_BUNDLE_IDENTIFIER from Xcode project"
-    exit 1
-  fi
-  info "Bundle ID: $APP_BUNDLE_ID"
   info "Scheme: $SCHEME"
   info "Mode: $MODE"
-
-  configure_simulator_defaults
 
   rm -rf "$RESULT_BUNDLE"
   : >"$LOG_PATH"
@@ -261,7 +173,7 @@ run_tests() {
       -project PlinxApp/Plinx.xcodeproj \
       -scheme "$SCHEME" \
       -destination "$DESTINATION" \
-      -derivedDataPath "$PLINX_XCODE_DERIVED_DATA_PATH" \
+      -derivedDataPath "$LIVE_DERIVED_DATA" \
       -resultBundlePath "$RESULT_BUNDLE" \
       -only-testing:"$TEST_TARGET"
   ) 2>&1 | tee "$LOG_PATH"

@@ -4,11 +4,11 @@ sidebar_position: 1
 
 # Platform status
 
-Plinx is coming soon for **iPhone and iPad**. The first public App Store
-release is planned for iOS and iPadOS.
+Plinx 2026.08 is coming soon for **iPhone, iPad, and Apple TV**. The public
+release ships iOS, iPadOS, and tvOS.
 
-The repository also contains Apple TV development and test targets. Those are
-not presented as a released consumer product yet.
+Downloads and offline playback are available on iPhone and iPad. Apple TV is
+for streaming playback and does not show download controls.
 
 ## What you need
 

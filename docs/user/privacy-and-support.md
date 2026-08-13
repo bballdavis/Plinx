@@ -10,7 +10,7 @@ Plinx does not collect analytics, crash reports, or usage telemetry. It stores
 the settings needed for the app to work on the device and communicates directly
 with Plex and any parent-configured local service.
 
-Read the full [Privacy Policy](https://github.com/bballdavis/Plinx/blob/main/PRIVACY_POLICY.md)
+Read the full [Privacy Policy](privacy-policy.md)
 for details about local storage, Plex communication, children and families, and
 retention.
 

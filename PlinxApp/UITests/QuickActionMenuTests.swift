@@ -26,22 +26,13 @@ final class QuickActionMenuTests: XCTestCase {
         let environment = ProcessInfo.processInfo.environment
         let serverURL = environment["PLINX_PLEX_SERVER_URL"] ?? ""
         let hasToken = !(environment["PLINX_PLEX_TOKEN"] ?? "").isEmpty
-        let hasPassword = !(environment["PLINX_PLEX_USER"] ?? "").isEmpty
-            && !(environment["PLINX_PLEX_PASSWORD"] ?? "").isEmpty
-        let hasPIN = !(environment["PLINX_PLEX_PIN"] ?? "").isEmpty
-        guard !serverURL.isEmpty, hasToken || hasPassword || hasPIN else {
+        guard !serverURL.isEmpty, hasToken else {
             throw XCTSkip("Quick-action integration tests require an opt-in live Plex environment.")
         }
 
         app.launchArguments += ["--ui-testing", "--disable-animations"]
         app.launchEnvironment["PLINX_UI_TEST_MODE"] = "live"
-        for key in [
-            "PLINX_PLEX_SERVER_URL",
-            "PLINX_PLEX_TOKEN",
-            "PLINX_PLEX_USER",
-            "PLINX_PLEX_PASSWORD",
-            "PLINX_PLEX_PIN",
-        ] {
+        for key in ["PLINX_PLEX_SERVER_URL", "PLINX_PLEX_TOKEN"] {
             if let value = environment[key], !value.isEmpty {
                 app.launchEnvironment[key] = value
             }

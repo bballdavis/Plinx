@@ -11,7 +11,6 @@ import PackageDescription
 //   • BabyLockOverlay — touch-absorbing parental protection
 //   • PlinxieLoadingView — mascot loading animation
 //   • PlinxMediaCard / PlinxErrorView — reusable view components
-//   • PlinxViewFactory — protocol for view resolution (implemented in PlinxApp)
 //
 // Module Boundary:
 //   PlinxUI imports PlinxCore (for HapticManager and model types).

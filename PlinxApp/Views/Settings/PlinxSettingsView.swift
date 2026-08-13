@@ -46,7 +46,9 @@ private struct SettingsBody: View {
     @Environment(SessionManager.self) private var sessionManager
     @Environment(PlexAPIContext.self) private var plexApiContext
 
+    #if !os(tvOS)
     @AppStorage("plinx.babyLockEnabled") private var babyLockEnabled = false
+    #endif
     @AppStorage("plinx.maxMovieRating") private var maxMovieRatingRaw = PlinxRating.g.rawValue
     @AppStorage("plinx.maxTVRating")    private var maxTVRatingRaw    = PlinxRating.tvY.rawValue
     @AppStorage("plinx.excludeUnrated") private var excludeUnrated    = true
@@ -279,7 +281,7 @@ private struct SettingsBody: View {
                 }
                 .foregroundStyle(.primary)
 
-                Link(destination: URL(string: "https://github.com/bballdavis/Plinx/blob/main/PRIVACY_POLICY.md")!) {
+                Link(destination: URL(string: "https://bballdavis.github.io/Plinx/docs/user/privacy-policy")!) {
                     Label {
                         Text("settings.about.privacy", tableName: "Plinx")
                     } icon: {
@@ -460,20 +462,13 @@ private struct SettingsBody: View {
                     )
                 }
 
-                TvSettingsSection(
-                    title: LocalizedStringKey("settings.safety.touchlock.section"),
-                    footer: LocalizedStringKey("settings.safety.touchlock.description")
-                ) {
-                    TvSettingsToggleRow(
-                        title: LocalizedStringKey("settings.safety.touchlock.title"),
-                        icon: "lock.fill",
-                        isOn: $babyLockEnabled
-                    )
+                TvSettingsSection(title: LocalizedStringKey("settings.parentalPIN.title")) {
                     tvNavigationLink(
                         title: LocalizedStringKey("settings.parentalPIN.title"),
                         icon: "key.fill",
                         destination: SetPinView()
                     )
+                    .accessibilityIdentifier("settings.parentalPIN")
                 }
 
                 TvSettingsSection(title: LocalizedStringKey("settings.profile.section")) {
@@ -507,7 +502,7 @@ private struct SettingsBody: View {
                     tvExternalLink(
                         title: LocalizedStringKey("settings.about.privacy"),
                         icon: "hand.raised.fill",
-                        url: URL(string: "https://github.com/bballdavis/Plinx/blob/main/PRIVACY_POLICY.md")!
+                        url: URL(string: "https://bballdavis.github.io/Plinx/docs/user/privacy-policy")!
                     )
                     tvExternalLink(
                         title: LocalizedStringKey("settings.about.support"),

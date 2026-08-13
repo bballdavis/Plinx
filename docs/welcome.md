@@ -9,12 +9,14 @@ Plinx is a parent-managed Plex client for family media. It helps families browse
 watch, and download the media they have chosen while keeping controls clear and
 protected.
 
-Plinx is currently **coming soon for iPhone and iPad**. Until the App Store
-release is available, contributors can build it from source.
+Plinx 2026.08 is coming soon for **iPhone, iPad, and Apple TV**. Downloads are
+available on iPhone and iPad; Apple TV is for streaming playback. Until the App
+Store release is available, contributors can build it from source.
 
 ## Start here
 
 - Parents and families: [get started with Plinx](user/getting-started.md)
+- Apple TV households: [use Plinx on Apple TV](user/apple-tv.md)
 - Learn the safety and control model: [parent guide](user/parent-guide.md)
 - Contributors: [set up a development checkout](development/setup.md)
 - Maintainers: [view the current pinned dependencies](maintenance/current-dependencies.mdx)

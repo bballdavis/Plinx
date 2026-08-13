@@ -38,8 +38,10 @@ Use:
 
 - `Packages/PlinxCore/` for safety/domain logic
 - `Packages/PlinxUI/` for shared UI/theme components
-- `Packages/PlinxTestSupport/` for reusable test helpers
-- `Packages/StrimrEngine/` only as a wrapper/migration aid, not the active runtime engine
+
+Test-only helpers stay next to the app or package test targets that execute
+them. Strimr-owned runtime code remains in the paired `../strimr` checkout;
+there is no local shadow package.
 
 Ignore local package artifacts such as `.build/`, `build/`, and `.swiftpm/`.
 

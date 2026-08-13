@@ -52,6 +52,9 @@ When adding another exclusion, document:
 - Use `scripts/generate_xcodeproj.sh --check` in a clean checkout to verify the
   committed project matches a fresh generation after Xcode applies its current
   shared-scheme normalization.
+- Use `scripts/generate_xcodeproj.sh --check-portable` for the same generated
+  project drift gate without Xcode normalization; GitHub runs this mode on
+  Ubuntu whenever project inputs change.
 - Xcode Cloud runs `PlinxApp/ci_scripts/ci_post_clone.sh` to fetch the exact
   pinned sibling Strimr revision before Xcode resolves the project sources.
 

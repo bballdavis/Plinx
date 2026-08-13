@@ -70,7 +70,7 @@ jobs:
             --scratch-path "$RUNNER_TEMP/plinx-swiftpm/PlinxUI"
 
   xcode-build-and-test:
-    name: Xcode Build
+    name: Xcode Build & Test (iOS + tvOS)
     runs-on: macos-26
     needs: docs-guard
     steps:
@@ -112,7 +112,12 @@ jobs:
       - name: Verify checked-in Xcode project
         run: ./scripts/generate_xcodeproj.sh --check
 
-      - name: Install and verify pinned simulator runtime
+      - name: Test release archive tooling
+        run: |
+          bash ./scripts/tests/test_build_release_archive_cli.sh
+          bash ./scripts/tests/test_validate_release_archive.sh
+
+      - name: Install and verify pinned simulator runtimes
         run: |
           set -euo pipefail
           xcodebuild -version
@@ -120,6 +125,10 @@ jobs:
             xcodebuild -downloadPlatform iOS -buildVersion 26.5
           fi
           xcrun simctl list runtimes | grep -F "iOS 26.5"
+          if ! xcrun simctl list runtimes | grep -F "tvOS 26.5" | grep -v "unavailable"; then
+            xcodebuild -downloadPlatform tvOS -buildVersion 26.5
+          fi
+          xcrun simctl list runtimes | grep -F "tvOS 26.5"
           if ! xcrun simctl list devices available | grep -F "Plinx iPhone 17 Pro (26.5)"; then
             xcrun simctl create \
               "Plinx iPhone 17 Pro (26.5)" \
@@ -137,6 +146,12 @@ jobs:
               "Plinx iPad Pro 13-inch (26.5)" \
               com.apple.CoreSimulator.SimDeviceType.iPad-Pro-13-inch-M5-12GB \
               com.apple.CoreSimulator.SimRuntime.iOS-26-5
+          fi
+          if ! xcrun simctl list devices available | grep -F "Plinx Apple TV 4K (26.5)"; then
+            xcrun simctl create \
+              "Plinx Apple TV 4K (26.5)" \
+              com.apple.CoreSimulator.SimDeviceType.Apple-TV-4K-3rd-generation-4K \
+              com.apple.CoreSimulator.SimRuntime.tvOS-26-5
           fi
 
       - name: Build Plinx-iOS for iPhone and iPad
@@ -171,6 +186,27 @@ jobs:
             -only-testing:Plinx-iOS-UnitTests/YoutarrExploreTests \
             -only-testing:Plinx-iOS-UnitTests/YoutarrRequestTests \
             -only-testing:Plinx-iOS-UITests/SeasonDownloadOfflineUITests \
+            CODE_SIGNING_ALLOWED=NO \
+            -quiet
+
+      - name: Build and test Plinx-tvOS
+        run: |
+          xcodebuild build-for-testing \
+            -project PlinxApp/Plinx.xcodeproj \
+            -scheme Plinx-tvOS \
+            -destination "platform=tvOS Simulator,name=Plinx Apple TV 4K (26.5),OS=26.5" \
+            -configuration Debug \
+            -derivedDataPath "$RUNNER_TEMP/plinx-derived-data" \
+            CODE_SIGNING_ALLOWED=NO \
+            -quiet
+          xcodebuild test-without-building \
+            -project PlinxApp/Plinx.xcodeproj \
+            -scheme Plinx-tvOS \
+            -destination "platform=tvOS Simulator,name=Plinx Apple TV 4K (26.5),OS=26.5" \
+            -derivedDataPath "$RUNNER_TEMP/plinx-derived-data" \
+            -only-testing:Plinx-tvOS-UnitTests/AppleTVBrowseFocusRoutingTests \
+            -only-testing:Plinx-tvOS-UnitTests/AppleTVOtherVideoArtworkPolicyTests \
+            -only-testing:Plinx-tvOS-UITests/AppleTVInteractionUITests \
             CODE_SIGNING_ALLOWED=NO \
             -quiet
 
@@ -247,9 +283,10 @@ jobs:
         run: |
           set -euo pipefail
           bash ./scripts/build_release_archive.sh \
+            --platform ios \
+            --distribution testflight-internal \
             --archive-path "$RUNNER_TEMP/Plinx.xcarchive" \
             --export-path "$RUNNER_TEMP/Plinx-TestFlight-export" \
-            --upload-testflight \
             --api-key-path "$APP_STORE_CONNECT_API_KEY_PATH" \
             --api-key-id "$APP_STORE_CONNECT_API_KEY_ID" \
             --api-key-issuer-id "$APP_STORE_CONNECT_API_ISSUER_ID"

@@ -109,8 +109,10 @@ Use `docs/development/testing.md` as the canonical test index and `docs/developm
 
 ## Documentation Site
 
-The Docusaurus site renders the repository's `docs/` directory directly. From
-the repository root, install and preview it with:
+The Docusaurus site renders a generated copy of the repository's canonical
+`docs/` directory. The build also generates a documentation route from the
+root `PRIVACY_POLICY.md`, without making a second policy source. From the
+repository root, install and preview it with:
 
 ```bash
 npm ci --prefix website

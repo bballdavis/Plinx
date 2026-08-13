@@ -20,7 +20,9 @@ struct PlinxMediaDetailView: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            if viewModel.isBlocked {
+            if viewModel.isBlocked || !ReleaseScreenshotCaptureMode.allowsDetail(
+                ratingKey: viewModel.media.id
+            ) {
                 blockedView
             } else {
                 #if os(tvOS)

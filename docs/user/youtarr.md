@@ -8,12 +8,6 @@ Youtarr is an optional, parent-configured local service. It is disabled by
 default and its full-screen Explore tab only appears in the main navigation
 after a parent saves a connection and explicitly enables Explore.
 
-<img
-  src="/Plinx/app-store/ipad-13/07-youtarr.png"
-  alt="Plinx Youtarr Explore screen on a landscape 13-inch iPad with fictional parent-approved TV-G and TV-PG videos"
-  width="720"
-/>
-
 ## Safety and access
 
 Plinx checks Youtarr capabilities before showing catalog or request features.

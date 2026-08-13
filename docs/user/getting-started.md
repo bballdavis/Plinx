@@ -28,6 +28,13 @@ The first setup screen is intentionally a grown-up step. Once configured,
 children see the Plinx browsing experience rather than account-management
 choices.
 
+## Choose a device
+
+Plinx 2026.08 supports iPhone, iPad, and Apple TV. Use iPhone or iPad to
+download approved media for offline playback. On Apple TV, use the Siri Remote
+to browse and stream; download actions are intentionally unavailable. See the
+[Apple TV guide](apple-tv.md) for remote navigation and troubleshooting.
+
 ## If a server is missing
 
 Confirm that the account can see the server in Plex, that the server is online,

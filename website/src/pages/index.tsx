@@ -25,21 +25,16 @@ export default function Home() {
           />
           <div className={styles.heroContent}>
             <img className={styles.logo} src={useBaseUrl('plinx-lockup-on-dark.svg')} alt="Plinx" />
-            <p className={styles.eyebrow}>Coming soon for iPhone, iPad, and Apple TV</p>
+            <p className={styles.eyebrow}>For iPhone, iPad, and Apple TV</p>
             <h1>Family media, thoughtfully managed.</h1>
             <p className={styles.lede}>
-              Plinx is a parent-managed Plex client for browsing, watching, and downloading the media your family chooses, with optional Youtarr video discovery and requests.
+              Plinx is a parent-managed Plex client for browsing and watching the media your family chooses, with iPhone/iPad downloads and optional Youtarr video discovery and requests.
             </p>
             <div className={styles.actions}>
               <Link className="button button--primary button--lg" to="/docs/user/getting-started">Explore the guide</Link>
               <Link className="button button--secondary button--lg" to="/docs/development/setup">Build from source</Link>
             </div>
           </div>
-          <img
-            className={styles.heroScreenshot}
-            src={useBaseUrl('app-store/ipad-13/03-home.png')}
-            alt="Plinx home screen on a landscape 13-inch iPad"
-          />
         </section>
 
         <section className={styles.section}>
@@ -65,11 +60,6 @@ export default function Home() {
             </p>
             <Link to="/docs/user/youtarr">Explore the Youtarr guide →</Link>
           </div>
-          <img
-            className={styles.featureImage}
-            src={useBaseUrl('app-store/ipad-13/07-youtarr.png')}
-            alt="Youtarr Explore showing fictional parent-approved videos on a landscape 13-inch iPad"
-          />
         </section>
 
         <section className={`${styles.section} ${styles.split}`}>

@@ -4,7 +4,9 @@
 
 `ParentalAccessCoordinator` is the single authorization state for settings and other parent-only surfaces. Content flows through Plinx decorators for display and through `SafePlaybackAuthorizing` again immediately before queue launch. Playlists are reduced to authorized entries, and offline items require both current content-policy approval and a matching server/profile ownership record.
 
-The first App Store release exposes only iOS/iPadOS product routes. Seerr discovery/request navigation is disabled until it can use the same authorization boundaries.
+The 2026.08 App Store release ships iOS, iPadOS, and tvOS product routes.
+Downloads remain limited to iOS and iPadOS. Seerr discovery/request navigation
+is disabled until it can use the same authorization boundaries.
 
 ## Product Model
 
@@ -62,22 +64,6 @@ Owns the Plinx design system:
 - reusable kid-facing components
 - loading, lock, and interaction affordances
 - presentation-layer abstractions that do not import Strimr
-
-### `Packages/PlinxTestSupport/`
-
-Owns reusable test helpers and fixtures shared across test targets.
-
-### `Packages/StrimrEngine/`
-
-This is not the runtime source of truth today.
-
-It exists as a local wrapper and migration aid used for:
-
-- documenting package relationships
-- validating sibling Strimr source layout
-- preparing for a future state where Strimr exposes more usable public seams
-
-If app behavior changes, edits only in `Packages/StrimrEngine/` are usually insufficient.
 
 ### `../strimr`
 

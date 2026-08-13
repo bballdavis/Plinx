@@ -335,8 +335,8 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
     // MARK: - Helpers
 
     private func makeLiveContextOrSkip() async throws -> PlexAPIContext {
-        let serverRaw = credential(named: "PLINX_PLEX_SERVER_URL")
-        let token = credential(named: "PLINX_PLEX_TOKEN")
+        let serverRaw = LiveTestCredentials.value(named: "PLINX_PLEX_SERVER_URL")
+        let token = LiveTestCredentials.value(named: "PLINX_PLEX_TOKEN")
 
         guard let serverRaw, !serverRaw.isEmpty,
               let token, !token.isEmpty else {
@@ -346,7 +346,7 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
         guard let serverURL = URL(string: serverRaw),
               let host = serverURL.host,
               let scheme = serverURL.scheme else {
-            XCTFail("Invalid PLINX_PLEX_SERVER_URL: \(serverRaw)")
+            XCTFail("PLINX_PLEX_SERVER_URL is not a valid absolute URL")
             throw XCTSkip("Cannot run live parity tests with invalid server URL.")
         }
 
@@ -374,82 +374,10 @@ final class LibraryFilteringParityLiveTests: XCTestCase {
         do {
             try await context.selectServer(resource)
         } catch {
-            throw XCTSkip("Failed to connect to Plex server for live parity tests: \(error.localizedDescription)")
+            throw XCTSkip("Failed to connect to the configured Plex server for live parity tests.")
         }
 
         return context
-    }
-
-    private func credential(named key: String) -> String? {
-        let env = ProcessInfo.processInfo.environment
-        if let direct = env[key], !direct.isEmpty {
-            return direct
-        }
-        let simctlKey = "SIMCTL_CHILD_\(key)"
-        if let simctl = env[simctlKey], !simctl.isEmpty {
-            return simctl
-        }
-        if let stored = UserDefaults.standard.string(forKey: key), !stored.isEmpty {
-            return stored
-        }
-        return yamlCredential(named: key)
-    }
-
-    private func yamlCredential(named key: String) -> String? {
-        guard let yamlPath = locateTestCredsYAML(),
-              let content = try? String(contentsOfFile: yamlPath, encoding: .utf8) else {
-            return nil
-        }
-
-        for rawLine in content.split(whereSeparator: \.isNewline) {
-            let line = rawLine.trimmingCharacters(in: .whitespaces)
-            guard !line.isEmpty, !line.hasPrefix("#") else { continue }
-            guard let separator = line.firstIndex(of: ":") else { continue }
-
-            let parsedKey = line[..<separator].trimmingCharacters(in: .whitespaces)
-            guard parsedKey == key else { continue }
-
-            var value = line[line.index(after: separator)...].trimmingCharacters(in: .whitespaces)
-            if value.hasPrefix("\""), value.hasSuffix("\""), value.count >= 2 {
-                value.removeFirst()
-                value.removeLast()
-            } else if value.hasPrefix("'"), value.hasSuffix("'"), value.count >= 2 {
-                value.removeFirst()
-                value.removeLast()
-            }
-            return value.isEmpty ? nil : value
-        }
-        return nil
-    }
-
-    private func locateTestCredsYAML() -> String? {
-        let fm = FileManager.default
-
-        // Most reliable path when running inside the iOS Simulator: the file is
-        // bundled as a resource of the unit-test target, accessible via the bundle.
-        if let bundlePath = Bundle(for: Self.self).path(forResource: "test_creds", ofType: "yaml") {
-            return bundlePath
-        }
-
-        // macOS fallback: walk up from the working directory.
-        var current = URL(fileURLWithPath: fm.currentDirectoryPath)
-        for _ in 0..<5 {
-            let candidate = current.appendingPathComponent("test_creds.yaml").path
-            if fm.fileExists(atPath: candidate) {
-                return candidate
-            }
-            current.deleteLastPathComponent()
-        }
-
-        // Last resort: resolve from this source file path.
-        var sourceURL = URL(fileURLWithPath: #filePath)
-        for _ in 0..<4 { sourceURL.deleteLastPathComponent() }
-        let sourceCandidate = sourceURL.appendingPathComponent("test_creds.yaml").path
-        if fm.fileExists(atPath: sourceCandidate) {
-            return sourceCandidate
-        }
-
-        return nil
     }
 
     private func pickLibraries(type: PlexItemType, context: PlexAPIContext) async throws -> [Library] {

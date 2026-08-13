@@ -26,13 +26,12 @@ import UIKit
 //   └───────────────┘     └──────────────┘    └──────┬───────┘
 //                                                     │
 //   ┌──────────────┐     ┌──────────────────┐  ┌─────┴────────┐
-//   │MainCoordinator│    │PlaybackCoordinator│  │ViewFactory   │
-//   │ (Strimr)      │    │ (PlinxCore)       │  │(PlinxApp)    │
-//   └───────────────┘    └──────────────────┘  └──────────────┘
+//   │MainCoordinator│    │PlaybackCoordinator│
+//   │ (Strimr)      │    │ (PlinxCore)       │
+//   └───────────────┘    └──────────────────┘
 //
 // All Strimr services are @Observable and injected via SwiftUI Environment.
 // Plinx-specific state (safety, theme, playback) is layered on top.
-// The ViewFactory bridges between Strimr internals and Plinx views.
 //
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -81,7 +80,9 @@ struct PlinxApp: App {
     @State private var theme = PlinxTheme()
 
     // ── Plinx Safety Hardening ──────────────────────────────────────────
+    #if !os(tvOS)
     @AppStorage("plinx.babyLockEnabled") private var babyLockEnabled = false
+    #endif
 
     // ── Plinx Accent Color ──────────────────────────────────────────────
     @AppStorage("plinx.accentColorName") private var accentColorName = PlinxAccentColor.green.rawValue
@@ -94,6 +95,7 @@ struct PlinxApp: App {
 
     init() {
         let processEnvironment = ProcessInfo.processInfo.environment
+        ReleaseScreenshotCaptureMode.installNetworkMutationBlockerIfNeeded()
         LivePlexUITestBootstrap.primeCredentialsIfNeeded(environment: processEnvironment)
 
         // Layer 1: Strimr infrastructure (no Plinx knowledge)
@@ -129,7 +131,6 @@ struct PlinxApp: App {
         _downloadOwnershipStore = State(initialValue: DownloadOwnershipStore())
 
         // Layer 2: Plinx safety + theming are initialized via property defaults.
-        // The ViewFactory is created in `body` since it needs the live state refs.
     }
 
     // MARK: - Scene
@@ -151,7 +152,6 @@ struct PlinxApp: App {
                 // ── Plinx layer injection ───────────────────────────
                 .environment(\.plinxTheme, theme)
                 .environment(\.safetyPolicy, safetyPolicy)
-                .environment(\.viewFactory, makeViewFactory())
                 .environmentObject(playbackCoordinator)
                 // ── Global configuration ────────────────────────────
                 .preferredColorScheme(.dark)
@@ -185,25 +185,11 @@ struct PlinxApp: App {
                     mainCoordinator: mainCoordinator
                 )
                 #endif
-                // ── Baby lock overlay ───────────────────────────────
+                #if !os(tvOS)
+                // ── Touch-only baby lock overlay ───────────────────
                 .babyLock(isEnabled: $babyLockEnabled)
+                #endif
         }
     }
 
-    // MARK: - Factory Construction
-
-    /// Creates the ViewFactory with all current service references.
-    /// Called each time the scene body is re-evaluated (which is fine —
-    /// the factory is a lightweight value holder).
-    @MainActor
-    private func makeViewFactory() -> PlinxViewFactoryImpl {
-        PlinxViewFactoryImpl(
-            plexApiContext: plexApiContext,
-            sessionManager: sessionManager,
-            settingsManager: settingsManager,
-            libraryStore: libraryStore,
-            mainCoordinator: mainCoordinator,
-            safetyPolicy: safetyPolicy
-        )
-    }
 }

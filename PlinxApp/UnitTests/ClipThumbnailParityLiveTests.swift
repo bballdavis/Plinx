@@ -169,8 +169,8 @@ final class ClipThumbnailParityLiveTests: XCTestCase {
     // MARK: - Helpers (shared with LibraryFilteringParityLiveTests)
 
     private func makeLiveContextOrSkip() async throws -> PlexAPIContext {
-        let serverRaw = credential(named: "PLINX_PLEX_SERVER_URL")
-        let token = credential(named: "PLINX_PLEX_TOKEN")
+        let serverRaw = LiveTestCredentials.value(named: "PLINX_PLEX_SERVER_URL")
+        let token = LiveTestCredentials.value(named: "PLINX_PLEX_TOKEN")
 
         guard let serverRaw, !serverRaw.isEmpty,
               let token, !token.isEmpty else {
@@ -179,7 +179,7 @@ final class ClipThumbnailParityLiveTests: XCTestCase {
         guard let serverURL = URL(string: serverRaw),
               let host = serverURL.host,
               let scheme = serverURL.scheme else {
-            XCTFail("Invalid PLINX_PLEX_SERVER_URL: \(serverRaw)")
+            XCTFail("PLINX_PLEX_SERVER_URL is not a valid absolute URL")
             throw XCTSkip("Cannot run without valid server URL.")
         }
 
@@ -205,53 +205,9 @@ final class ClipThumbnailParityLiveTests: XCTestCase {
         do {
             try await context.selectServer(resource)
         } catch {
-            throw XCTSkip("Failed to connect to Plex server: \(error.localizedDescription)")
+            throw XCTSkip("Failed to connect to the configured Plex server.")
         }
         return context
-    }
-
-    private func credential(named key: String) -> String? {
-        let env = ProcessInfo.processInfo.environment
-        if let v = env[key], !v.isEmpty { return v }
-        if let v = env["SIMCTL_CHILD_\(key)"], !v.isEmpty { return v }
-        if let v = UserDefaults.standard.string(forKey: key), !v.isEmpty { return v }
-        return yamlCredential(named: key)
-    }
-
-    private func yamlCredential(named key: String) -> String? {
-        guard let yamlPath = locateTestCredsYAML(),
-              let content = try? String(contentsOfFile: yamlPath, encoding: .utf8) else { return nil }
-        for rawLine in content.split(whereSeparator: \.isNewline) {
-            let line = rawLine.trimmingCharacters(in: .whitespaces)
-            guard !line.isEmpty, !line.hasPrefix("#"), let sep = line.firstIndex(of: ":") else { continue }
-            let parsedKey = line[..<sep].trimmingCharacters(in: .whitespaces)
-            guard parsedKey == key else { continue }
-            var value = line[line.index(after: sep)...].trimmingCharacters(in: .whitespaces)
-            if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
-               (value.hasPrefix("'") && value.hasSuffix("'")), value.count >= 2 {
-                value.removeFirst(); value.removeLast()
-            }
-            return value.isEmpty ? nil : value
-        }
-        return nil
-    }
-
-    private func locateTestCredsYAML() -> String? {
-        let fm = FileManager.default
-        // Most reliable in the iOS Simulator: the file is bundled as a test resource.
-        if let bundlePath = Bundle(for: Self.self).path(forResource: "test_creds", ofType: "yaml") {
-            return bundlePath
-        }
-        var current = URL(fileURLWithPath: fm.currentDirectoryPath)
-        for _ in 0..<5 {
-            let candidate = current.appendingPathComponent("test_creds.yaml").path
-            if fm.fileExists(atPath: candidate) { return candidate }
-            current.deleteLastPathComponent()
-        }
-        var sourceURL = URL(fileURLWithPath: #filePath)
-        for _ in 0..<4 { sourceURL.deleteLastPathComponent() }
-        let sourceCandidate = sourceURL.appendingPathComponent("test_creds.yaml").path
-        return fm.fileExists(atPath: sourceCandidate) ? sourceCandidate : nil
     }
 
     private func pickOtherVideoLibraries(context: PlexAPIContext) async throws -> [Library] {

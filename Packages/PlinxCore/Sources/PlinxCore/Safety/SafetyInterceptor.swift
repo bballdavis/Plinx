@@ -30,7 +30,7 @@
 public struct SafetyInterceptor: Sendable {
     public let policy: SafetyPolicy
 
-    public init(policy: SafetyPolicy = SafetyPolicy()) {
+    public init(policy: SafetyPolicy = .ratingOnly()) {
         self.policy = policy
     }
 

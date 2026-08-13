@@ -103,7 +103,8 @@ inside, the outlined white wordmark beneath it, and no visible loading caption.
 `refreshLoading` provides a deterministic pull-to-refresh surface for visual
 inspection of the branded refresh indicator and hidden native spinner.
 
-The App Store and documentation inventory is captured by
+The deterministic visual-regression inventory is captured under
+`screenshots/fixtures/app-store/` by
 `scripts/capture_app_store_screenshots.sh`. A localhost fixture service returns
 fictional Plex and Youtarr data plus original abstract artwork, while the app
 renders its production views and behavior. The only screenshot-specific

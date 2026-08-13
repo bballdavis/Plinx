@@ -1,0 +1,34 @@
+# Local-only release screenshot selection. Copy to screenshot_capture.yaml; never
+# put a real server URL, token, profile name, or private-library data in this file.
+schema_version: 1
+locale: en_US
+maximum_movie_rating: PG
+maximum_tv_rating: TV-PG
+exclude_unrated: true
+detail_rating_key: "approved-movie-001"
+playback_rating_key: "approved-movie-001"
+search_query: "approved family title"
+
+# These identifiers refer only to the dedicated, rights-cleared capture server.
+approved_libraries:
+  - id: "sample-movies"
+    title: "Sample Movies"
+  - id: "sample-shows"
+    title: "Sample Shows"
+
+# Every real-media screen must resolve one of these approved identifiers.
+# `artwork_kind` is the expected visible artwork geometry for the chosen screen.
+approved_items:
+  - rating_key: "approved-movie-001"
+    library_id: "sample-movies"
+    content_rating: PG
+    artwork_kind: portrait
+  - rating_key: "approved-show-001"
+    library_id: "sample-shows"
+    content_rating: TV-PG
+    artwork_kind: landscape
+
+# Fail before capture when any of these strings are visible in approved metadata.
+forbidden_strings:
+  - "replace-with-private-name"
+  - "private server"

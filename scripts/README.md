@@ -85,6 +85,9 @@ project input while `PlinxApp/project.yml` remains canonical. After changing
 the project specification, regenerate and commit both. In a clean checkout,
 `./scripts/generate_xcodeproj.sh --check` verifies that generation produces no
 project diff after Xcode applies its current shared-scheme normalization.
+`./scripts/generate_xcodeproj.sh --check-portable` performs the generation and
+diff without invoking Xcode, so the automatic project-freshness workflow can
+run on an Ubuntu runner.
 
 ### `strimr/run_ipad_sim.sh` — Build & Run Strimr Branch on iPad Simulator
 
@@ -338,15 +341,17 @@ Validates the app bundle inside an `.xcarchive` before you upload it.
 `scripts/capture_app_store_screenshots.sh` generates the Xcode project, builds
 the app once, starts the credential-free Plex and Youtarr fixture service,
 resets the simulators, and captures the seven production surfaces. It validates
-fixture density and artwork geometry before building:
+fixture density and artwork geometry before building. These deterministic
+images stay under `screenshots/fixtures/app-store/`; they are not public
+release media:
 
 ```bash
 ./scripts/capture_app_store_screenshots.sh
 ./scripts/capture_app_store_screenshots.sh --only home,youtarr
-./scripts/tests/validate_app_store_screenshots.sh
+./scripts/tests/validate_app_store_screenshots.sh screenshots/fixtures/app-store
 ```
 
-The validator requires exactly 14 opaque PNG files:
+For that fixture directory, the validator requires exactly 14 opaque PNG files:
 
 - seven iPhone 6.9-inch files at `1320x2868` portrait;
 - seven iPad 13-inch files at `2732x2048` landscape.
@@ -357,9 +362,11 @@ television, excludes unrated content, and includes an Other Videos Home row
 with landscape thumbnails. The `--only` form keeps the existing validated
 inventory and refreshes only the named production screens.
 
-Use `scripts/flatten_screenshot_alpha.sh INPUT.png OUTPUT.png` for an individual
-manual capture. Do not promote the legacy `screenshots/` files; they fail the
-current inventory, dimensions, or alpha checks.
+Use `scripts/capture_release_screenshots.sh` and the private curated Plex
+selection for public release media, then validate the promoted 22-file
+`screenshots/app-store/` inventory with `--require-tvos`. Use
+`scripts/flatten_screenshot_alpha.sh INPUT.png OUTPUT.png` only for an
+individual manual diagnostic capture.
 
 ### `build_compliance_bundle.sh` — Package Corresponding Source
 

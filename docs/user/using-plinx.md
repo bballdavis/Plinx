@@ -4,6 +4,8 @@ sidebar_position: 4
 
 # Using Plinx
 
+For a quick cross-device feature overview, see the [product tour](product-tour.md).
+
 ## Home and libraries
 
 The home screen loads recently added media from the same Plex library catalogs

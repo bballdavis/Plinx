@@ -5,26 +5,26 @@ import XCTest
 final class SafetyInterceptorTests: XCTestCase {
     func test_rejectsWhenMissingKidsLabel() {
         let item = PlinxMediaItem(id: "1", title: "Test", labels: ["Family"], rating: .g)
-        let sut = SafetyInterceptor(policy: SafetyPolicy(requiredLabel: "Kids", maxRating: .g))
+        let sut = SafetyInterceptor(policy: kidsOnlyPolicy())
         XCTAssertFalse(sut.isAllowed(item))
     }
 
     func test_rejectsWhenRatingTooHigh() {
         let item = PlinxMediaItem(id: "2", title: "Test", labels: ["Kids"], rating: .pg13)
-        let sut = SafetyInterceptor(policy: SafetyPolicy(requiredLabel: "Kids", maxRating: .g))
+        let sut = SafetyInterceptor(policy: kidsOnlyPolicy())
         XCTAssertFalse(sut.isAllowed(item))
     }
 
     func test_allowsWhenKidsLabelAndRatingWithinLimit() {
         let item = PlinxMediaItem(id: "3", title: "Test", labels: ["Kids"], rating: .g)
-        let sut = SafetyInterceptor(policy: SafetyPolicy(requiredLabel: "Kids", maxRating: .g))
+        let sut = SafetyInterceptor(policy: kidsOnlyPolicy())
         XCTAssertTrue(sut.isAllowed(item))
     }
 
     func test_filterReturnsOnlyAllowedItems() {
         let allowed = PlinxMediaItem(id: "4", title: "Allowed", labels: ["Kids"], rating: .g)
         let blocked = PlinxMediaItem(id: "5", title: "Blocked", labels: ["Kids"], rating: .pg13)
-        let sut = SafetyInterceptor(policy: SafetyPolicy(requiredLabel: "Kids", maxRating: .g))
+        let sut = SafetyInterceptor(policy: kidsOnlyPolicy())
 
         XCTAssertEqual(sut.filter([allowed, blocked]), [allowed])
     }
@@ -32,7 +32,7 @@ final class SafetyInterceptorTests: XCTestCase {
     func test_filterHubDropsEmptyHub() {
         let blocked = PlinxMediaItem(id: "6", title: "Blocked", labels: ["Kids"], rating: .pg13)
         let hub = PlinxHub(id: "hub-1", title: "Hub", items: [blocked])
-        let sut = SafetyInterceptor(policy: SafetyPolicy(requiredLabel: "Kids", maxRating: .g))
+        let sut = SafetyInterceptor(policy: kidsOnlyPolicy())
 
         XCTAssertNil(sut.filterHub(hub))
     }
@@ -42,7 +42,7 @@ final class SafetyInterceptorTests: XCTestCase {
         let blocked = PlinxMediaItem(id: "8", title: "Blocked", labels: ["Kids"], rating: .pg13)
         let keep = PlinxHub(id: "hub-keep", title: "Keep", items: [allowed, blocked])
         let drop = PlinxHub(id: "hub-drop", title: "Drop", items: [blocked])
-        let sut = SafetyInterceptor(policy: SafetyPolicy(requiredLabel: "Kids", maxRating: .g))
+        let sut = SafetyInterceptor(policy: kidsOnlyPolicy())
 
         XCTAssertEqual(sut.filterHubs([keep, drop]), [
             PlinxHub(id: "hub-keep", title: "Keep", items: [allowed]),
@@ -122,5 +122,13 @@ final class SafetyInterceptorTests: XCTestCase {
 
         XCTAssertFalse(sut.isAllowed(item))
     }
+}
+
+private func kidsOnlyPolicy() -> SafetyPolicy {
+    SafetyPolicy(
+        labelMatchMode: .required("Kids"),
+        maxMovieRating: .g,
+        maxTVRating: .tvY
+    )
 }
 #endif

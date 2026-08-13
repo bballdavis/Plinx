@@ -7,12 +7,19 @@ import UIKit
 enum AppStoreScreenshotBootstrap {
     static let mediaDetailScreen = "appStoreMediaDetail"
     private static let landscapeArgument = "--app-store-landscape"
+    private static let releaseLandscapeArgument = "--release-screenshot-landscape"
+
+    static func requestsLandscape(
+        arguments: [String] = ProcessInfo.processInfo.arguments
+    ) -> Bool {
+        arguments.contains(landscapeArgument) || arguments.contains(releaseLandscapeArgument)
+    }
 
     @MainActor
     static func applyRequestedOrientation(
         arguments: [String] = ProcessInfo.processInfo.arguments
     ) {
-        guard arguments.contains(landscapeArgument) else {
+        guard requestsLandscape(arguments: arguments) else {
             return
         }
         #if os(iOS)

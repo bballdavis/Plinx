@@ -1,6 +1,9 @@
 # App Store Release Metadata And Review Runbook
 
-This is the source of truth for the Plinx 2026.08.00 App Store submission. Version 2026.08.00 targets iOS and iPadOS only; do not add the tvOS build to this App Store version. Plinx uses calendar versioning; see the [versioning and release guide](../development/versioning-and-releases.md) for the promotion and tagging rules.
+This is the source of truth for the Plinx 2026.08.00 App Store submission.
+Version 2026.08.00 ships iOS, iPadOS, and tvOS. Downloads are limited to iOS
+and iPadOS; do not present download controls or offline playback on tvOS. Plinx
+uses calendar versioning; see the [versioning and release guide](../development/versioning-and-releases.md) for the promotion and tagging rules.
 
 ## Positioning
 
@@ -8,20 +11,21 @@ This is the source of truth for the Plinx 2026.08.00 App Store submission. Versi
 - **Subtitle:** Parent-managed Plex playback
 - **Primary category:** Entertainment
 - **Kids Category:** No
-- **Promotional text:** A focused Plex experience with parent-managed libraries, content ratings, offline playback, and an adjustable in-app playback level.
+- **Promotional text:** A focused Plex experience with parent-managed libraries, content ratings, and an adjustable in-app playback level.
 - **Keywords:** `plex,family,parental controls,video,media,offline,streaming,home server`
 
 ### Description
 
 Plinx is an independent, parent-managed client for an existing Plex account and Plex Media Server.
 
-Choose which libraries appear, set separate movie and television rating ceilings, exclude unrated media, and download authorized videos for offline playback. Plinx rechecks the current content controls before browsing and playback and keeps offline media scoped to the Plex server and profile that created it.
+Choose which libraries appear, set separate movie and television rating ceilings, and exclude unrated media. Plinx rechecks the current content controls before browsing and playback. On iPhone and iPad, parents can also download authorized videos for offline playback; offline media stays scoped to the Plex server and profile that created it.
 
 Features:
 
 - parent-authorized library and rating controls;
 - separate movie and television rating limits;
-- online and offline video playback;
+- online playback on iPhone, iPad, and Apple TV;
+- parent-authorized downloads and offline playback on iPhone and iPad;
 - search, playlists, collections, and Plex profile/server selection;
 - an adjustable maximum playback level for the Plinx player.
 
@@ -31,9 +35,9 @@ Plinx requires an existing Plex account and access to a Plex Media Server. Avail
 
 ## URLs And Ownership
 
-- **Privacy URL:** `https://github.com/bballdavis/Plinx/blob/main/PRIVACY_POLICY.md`
+- **Privacy URL:** `https://bballdavis.github.io/Plinx/docs/user/privacy-policy`
 - **Support URL:** `https://github.com/bballdavis/Plinx/issues`
-- **Marketing URL:** leave blank for version 1 unless a maintained public product page is created.
+- **Marketing URL:** `https://bballdavis.github.io/Plinx/`
 - **Copyright:** use the current calendar year and the legal name on the Apple Developer account.
 - **Content rights:** state that Plinx plays and downloads media from Plex servers the reviewer/user is authorized to access; Plinx does not provide a media catalog.
 - **Export compliance:** the final archive declares `ITSAppUsesNonExemptEncryption=false`, reflecting its standard platform/network encryption and absence of proprietary cryptography. Reassess this before changing the binary’s cryptographic behavior; complete Apple’s current process if the declaration no longer applies. Internal `dev-testflight` delivery validates this declaration before upload.
@@ -44,13 +48,13 @@ Answer the App Store Connect questionnaire from the app’s maximum capability, 
 
 ## App Privacy
 
-Declare no tracking and no data collected by the Plinx developer only after confirming the final archive and Xcode privacy report contain no analytics or reporting SDK. The privacy policy must continue to disclose communication with Plex and user-selected servers.
+Declare no tracking and no data collected by the Plinx developer only after confirming the final archive and Xcode privacy report contain no analytics or reporting SDK. The privacy policy must continue to disclose communication with Plex and an optional parent-configured Youtarr service.
 
 ## Reviewer Account
 
 Create a dedicated, non-personal Plex account, profile, and continuously available sample server. Do not commit credentials to this repository.
 
-The sample library must use fictional titles/artwork and include:
+The sample library must use rights-approved, non-personal titles and artwork and include:
 
 - allowed PG and TV-PG examples;
 - one blocked higher-rated example;
@@ -67,19 +71,21 @@ Review notes must provide:
 5. Steps to change rating limits and visible libraries.
 6. Steps to verify a mixed playlist hides blocked entries.
 7. Steps to change Maximum Playback Level and a warning that it is app-level only.
-8. Steps to download, go offline, and play the authorized sample.
-9. A contact who can restore reviewer access immediately.
+8. iPhone/iPad steps to download, go offline, and play the authorized sample; state explicitly that downloads are not a tvOS feature.
+9. Apple TV remote steps for Home, Library, Search, media detail, playback, the parental gate, and protected Settings.
+10. A contact who can restore reviewer access immediately.
 
 Test the instructions from a freshly installed physical device before submission.
 
 ## Screenshots
 
-Capture after the release UI/accessibility pass using only fictional media and account information:
+Capture after the release UI/accessibility pass using only the rights-approved dedicated Plex capture library and non-personal account information:
 
-- iPhone 6.9-inch portrait: production loading, Plex connection, Home, media detail, Settings, parental gate, and Youtarr Explore.
+- iPhone 6.9-inch portrait: production loading, Plex connection, live Home, live media detail, Settings, parental gate, and live Library browse.
 - iPad 13-inch landscape: the same seven-screen flow.
+- Apple TV 4K: live focused Home, Library root, live Library browse, live media detail, safety-filtered Search, authorized playback controls, parental gate, and content Settings. Do not include download UI, account details, or server details.
 
-Each file must be an Apple-accepted pixel size, flattened without alpha, and show current app UI. Do not submit old simulator captures, login-only screens, personal server names, or copyrighted promotional art that is not authorized for marketing.
+Each file must be an Apple-accepted pixel size, flattened without alpha, metadata-stripped, and show current app UI. Do not submit old simulator captures, personal server/profile names, or promotional art that is not authorized for marketing.
 
 Apple currently accepts `1320x2868` portrait captures for the 6.9-inch
 iPhone class. For the 13-inch iPad class it accepts `2752x2064` and
@@ -88,25 +94,28 @@ Recheck [Apple's screenshot specifications](https://developer.apple.com/help/app
 before each submission because accepted device classes can change.
 Store final captures in `screenshots/app-store/`, flatten alpha with
 `scripts/flatten_screenshot_alpha.sh`, and run
-`scripts/tests/validate_app_store_screenshots.sh` before upload. The legacy
-iPad captures are `2360x1640` and are not valid 13-inch submission assets.
+`scripts/tests/validate_app_store_screenshots.sh --require-tvos` before upload.
 
-The committed review inventory is generated by
-`scripts/capture_app_store_screenshots.sh`. Its local fixture service supplies
-only fictional Plex and Youtarr API data and original abstract artwork. The
-installed app renders the production loading, connection, navigation, view
-models, Home rows, details, Settings, parental gate, and Youtarr Explore
-surfaces. Movie and television limits are set to PG and TV-PG, unrated content
-is excluded, and the Home screen includes a fictional Other Videos library
-with landscape thumbnails below Recent Movies & TV. The fixtures contain
-enough items to fill a landscape iPad row, and Youtarr channel artwork is
-square. The capture command validates those fixture contracts before building.
+`scripts/capture_app_store_screenshots.sh` remains the deterministic,
+localhost-only regression fixture workflow. It writes only to
+`screenshots/fixtures/app-store/` and must not be used as the public
+release-media source. Public release captures use
+`scripts/capture_release_screenshots.sh`, an ignored local selection file, an
+ignored credential file, and an explicit staging directory outside the
+repository. The live preflight requires an exact allowlisted library and item
+inventory, PG/TV-PG ceilings, no unrated media, working artwork, the expected
+locale, and no forbidden metadata strings. It never mutates Plex watch state.
+The app's release-capture launch mode consumes the approved detail, playback,
+and search selectors and blocks Plex timeline, scrobble, and unscrobble
+requests. Capture still uses a dedicated non-personal account and ephemeral
+simulators as a second boundary.
 
-The fixture service listens only on localhost and uses placeholder
-credentials. No personal Plex account, server name, Youtarr key, external
-link, or third-party promotional artwork is used. Run the capture script, then
-inspect all 14 files and run `scripts/tests/validate_app_store_screenshots.sh`.
-Use `--only home,youtarr` when only fixture-driven library screens changed.
+Capture and review 7 iPhone, 7 iPad, and 8 tvOS files in private staging, then
+promote only individually approved images. Run
+`scripts/tests/validate_app_store_screenshots.sh --require-tvos` on the final
+22-file public inventory. Keep mock Youtarr imagery and any unapproved raw
+capture outside the public inventory; deterministic mock imagery belongs only
+under `screenshots/fixtures/`.
 
 The `AppIcon` catalog is generated from the approved Plink Loop identity with
 Any, Dark, and Tinted 1024-point sources. Run
@@ -124,7 +133,8 @@ wide Top Shelf set includes both the 2320×720 1× rendition and the required
 ## Release Gates
 
 - P0 parental, content, playlist, playback, and offline authorization tests pass.
-- Clean iPhone and iPad Release builds pass with the pinned Xcode/runtime.
+- Clean iPhone, iPad, and Apple TV Release builds pass with the pinned
+  Xcode/runtime.
 - Signed archive passes `scripts/tests/validate_testflight_archive.sh`.
 - Xcode privacy report is reviewed for the app, Strimr, AetherEngine, and
   embedded frameworks.

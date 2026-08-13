@@ -19,9 +19,8 @@ fi
 #   3. Installs the app on the specified Apple TV simulator
 #   4. Launches the app
 #
-# NOTE: This is a diagnostic build target. iOS-specific layers in Adapters/,
-#       Views/, and Decorators/ may produce compiler errors until tvOS
-#       adaptations are made. Build output is captured for triage.
+# This is the supported local build-and-run path for the Plinx tvOS target.
+# Build output is captured so release-candidate failures can be diagnosed.
 #
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -152,9 +151,8 @@ if [ "$BUILD_STATUS" -ne 0 ]; then
     grep -E "^.*error:.*$" "$BUILD_LOG" | grep -v "^note:" | head -40 || true
     echo "────────────────────────────────────────────────────────────────────"
     echo ""
-    echo "💡 iOS-specific APIs (UIKit orientation, UIColor.background etc.) in"
-    echo "   Adapters/ Views/ Decorators/ are expected to fail on tvOS until"
-    echo "   tvOS adaptations are made. See build log for full details."
+    echo "💡 The tvOS target is release-supported; treat compiler errors as"
+    echo "   regressions and inspect the full build log above."
     exit 1
 fi
 

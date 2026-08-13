@@ -7,7 +7,7 @@ SCHEME="Plinx-iOS"
 BUNDLE_ID="com.bballdavis.plinx"
 FIXTURE_PORT="${PLINX_FIXTURE_PORT:-8765}"
 FIXTURE_URL="http://127.0.0.1:$FIXTURE_PORT"
-OUTPUT_ROOT="$REPO_ROOT/screenshots/app-store"
+OUTPUT_ROOT="$REPO_ROOT/screenshots/fixtures/app-store"
 DERIVED_DATA="${PLINX_SCREENSHOT_DERIVED_DATA:-/tmp/plinx-app-store-derived}"
 TEMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/plinx-app-store.XXXXXX")"
 SERVER_PID=""
@@ -160,6 +160,7 @@ capture_opaque() {
     # framebuffer counter-clockwise to produce the App Store landscape bitmap.
     sips -r -90 "$destination" >/dev/null
   fi
+  python3 "$REPO_ROOT/scripts/strip_png_metadata.py" "$destination"
 }
 
 capture_loading() {
@@ -282,4 +283,4 @@ capture_device_set "$IPHONE_ID" "$OUTPUT_ROOT/iphone-6.9" "portrait"
 capture_device_set "$IPAD_ID" "$OUTPUT_ROOT/ipad-13" "landscape"
 
 "$REPO_ROOT/scripts/tests/validate_app_store_screenshots.sh" "$OUTPUT_ROOT"
-echo "Captured App Store screenshots in $OUTPUT_ROOT"
+echo "Captured deterministic screenshot fixtures in $OUTPUT_ROOT"

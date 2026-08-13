@@ -1,0 +1,83 @@
+name: Xcode Project Freshness
+
+on:
+  pull_request:
+    branches:
+      - main
+      - dev
+    paths:
+      - PlinxApp/**
+      - config/release-dependencies.env
+      - scripts/generate_xcodeproj.sh
+      - scripts/patch_resources.py
+      - .github/workflows/xcode-project.yml
+  push:
+    branches:
+      - main
+      - dev
+      - dev-testflight
+    paths:
+      - PlinxApp/**
+      - config/release-dependencies.env
+      - scripts/generate_xcodeproj.sh
+      - scripts/patch_resources.py
+      - .github/workflows/xcode-project.yml
+  workflow_dispatch:
+
+concurrency:
+  group: xcode-project-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  XCODEGEN_VERSION: 2.46.0
+
+jobs:
+  freshness:
+    name: Generated project is current
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Plinx
+        uses: actions/checkout@v4
+
+      - name: Fetch pinned Strimr source
+        env:
+          STRIMR_REPOSITORY: https://github.com/bballdavis/strimr.git
+        run: |
+          set -euo pipefail
+          source config/release-dependencies.env
+          git clone --filter=blob:none "$STRIMR_REPOSITORY" ../strimr
+          git -C ../strimr checkout --force --detach "$STRIMR_COMMIT"
+
+      - name: Fetch pinned XcodeGen source
+        run: |
+          set -euo pipefail
+          git clone \
+            --branch "$XCODEGEN_VERSION" \
+            --depth 1 \
+            https://github.com/yonaskolb/XcodeGen.git \
+            "$RUNNER_TEMP/xcodegen"
+
+      - name: Restore XcodeGen build cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/xcodegen/.build
+          key: xcodegen-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODEGEN_VERSION }}-v1
+
+      - name: Build XcodeGen
+        run: |
+          set -euo pipefail
+          swift build \
+            --configuration release \
+            --package-path "$RUNNER_TEMP/xcodegen" \
+            --product xcodegen
+          swift build \
+            --configuration release \
+            --package-path "$RUNNER_TEMP/xcodegen" \
+            --show-bin-path \
+            >> "$GITHUB_PATH"
+
+      - name: Verify checked-in Xcode project
+        run: ./scripts/generate_xcodeproj.sh --check-portable --quiet

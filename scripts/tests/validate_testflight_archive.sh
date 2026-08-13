@@ -2,11 +2,12 @@
 set -euo pipefail
 
 ARCHIVE_PATH="./build/Plinx.xcarchive"
+PLATFORM="ios"
 EXPECTED_BUILD=""
 EXPECTED_VERSION=""
 EXPECTED_BUNDLE_ID="com.bballdavis.plinx"
 EXPECTED_CONFIGURATION="Release"
-EXPECTED_MINIMUM_OS="17.5"
+EXPECTED_MINIMUM_OS=""
 
 if [[ $# -gt 0 && "$1" != --* ]]; then
   ARCHIVE_PATH="$1"
@@ -15,6 +16,10 @@ fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --platform)
+      PLATFORM="$2"
+      shift 2
+      ;;
     --expected-build)
       EXPECTED_BUILD="$2"
       shift 2
@@ -42,6 +47,23 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+case "$PLATFORM" in
+  ios)
+    EXPECTED_SUPPORTED_PLATFORM="iPhoneOS"
+    EXPECTED_DT_PLATFORM="iphoneos"
+    EXPECTED_MINIMUM_OS="${EXPECTED_MINIMUM_OS:-17.5}"
+    ;;
+  tvos)
+    EXPECTED_SUPPORTED_PLATFORM="AppleTVOS"
+    EXPECTED_DT_PLATFORM="appletvos"
+    EXPECTED_MINIMUM_OS="${EXPECTED_MINIMUM_OS:-17.0}"
+    ;;
+  *)
+    echo "Unsupported platform: $PLATFORM (expected ios or tvos)." >&2
+    exit 2
+    ;;
+esac
+
 APP_PATH="${ARCHIVE_PATH}/Products/Applications/Plinx.app"
 INFO_PLIST="${APP_PATH}/Info.plist"
 ARCHIVE_INFO="${ARCHIVE_PATH}/Info.plist"
@@ -67,6 +89,7 @@ executable_name=$(plist_value CFBundleExecutable "$INFO_PLIST")
 minimum_os=$(plist_value MinimumOSVersion "$INFO_PLIST")
 launch_storyboard_name=$(plist_value UILaunchStoryboardName "$INFO_PLIST")
 supported_platforms=$(plist_value CFBundleSupportedPlatforms "$INFO_PLIST")
+dt_platform_name=$(plist_value DTPlatformName "$INFO_PLIST")
 build_configuration=$(plist_value PlinxBuildConfiguration "$INFO_PLIST")
 uses_non_exempt_encryption=$(plist_value ITSAppUsesNonExemptEncryption "$INFO_PLIST")
 signing_identity=$(plist_value "ApplicationProperties:SigningIdentity" "$ARCHIVE_INFO")
@@ -82,7 +105,10 @@ archive_bundle_id=$(plist_value "ApplicationProperties:CFBundleIdentifier" "$ARC
 [[ "$minimum_os" == "$EXPECTED_MINIMUM_OS" ]] || fail "Expected minimum OS $EXPECTED_MINIMUM_OS, found $minimum_os"
 [[ "$build_configuration" == "$EXPECTED_CONFIGURATION" ]] || fail "Expected $EXPECTED_CONFIGURATION configuration, found $build_configuration"
 [[ "$uses_non_exempt_encryption" == "false" ]] || fail "ITSAppUsesNonExemptEncryption must be false for the declared exempt-encryption build"
-[[ "$supported_platforms" == *"iPhoneOS"* ]] || fail "Archive is not an iOS device build"
+[[ "$supported_platforms" == *"$EXPECTED_SUPPORTED_PLATFORM"* ]] \
+  || fail "Archive is not a $PLATFORM device build: $supported_platforms"
+[[ "$dt_platform_name" == "$EXPECTED_DT_PLATFORM" ]] \
+  || fail "Expected DTPlatformName $EXPECTED_DT_PLATFORM, found $dt_platform_name"
 [[ -n "$signing_identity" ]] || fail "Archive signing identity is missing"
 [[ -n "$executable_name" ]] || fail "CFBundleExecutable is missing"
 [[ -x "$APP_PATH/$executable_name" ]] || fail "Executable missing or not executable: $executable_name"
@@ -91,10 +117,27 @@ architectures=$(lipo -archs "$APP_PATH/$executable_name" 2>/dev/null || true)
 [[ "$architectures" == *"arm64"* ]] || fail "App executable does not contain arm64: $architectures"
 codesign --verify --deep --strict "$APP_PATH" >/dev/null 2>&1 || fail "Code signature verification failed"
 
-[[ -n "$launch_storyboard_name" ]] || fail "UILaunchStoryboardName is missing"
-[[ -d "$APP_PATH/${launch_storyboard_name}.storyboardc" ]] || fail "Compiled launch storyboard missing"
+if [[ "$PLATFORM" == "ios" ]]; then
+  [[ -n "$launch_storyboard_name" ]] || fail "UILaunchStoryboardName is missing"
+  [[ -d "$APP_PATH/${launch_storyboard_name}.storyboardc" ]] || fail "Compiled launch storyboard missing"
+fi
 [[ -f "$APP_PATH/PrivacyInfo.xcprivacy" ]] || fail "Privacy manifest missing"
 [[ -f "$APP_PATH/Assets.car" ]] || fail "Compiled asset catalog missing"
+
+if [[ "$PLATFORM" == "tvos" ]]; then
+  primary_icon=$(plist_value "CFBundleIcons:CFBundlePrimaryIcon" "$INFO_PLIST")
+  top_shelf=$(plist_value "TVTopShelfImage:TVTopShelfPrimaryImage" "$INFO_PLIST")
+  top_shelf_wide=$(plist_value "TVTopShelfImage:TVTopShelfPrimaryImageWide" "$INFO_PLIST")
+  [[ "$primary_icon" == "App Icon" ]] || fail "tvOS primary icon metadata is missing or unexpected: $primary_icon"
+  [[ "$top_shelf" == "Top Shelf Image" ]] || fail "tvOS Top Shelf image metadata is missing or unexpected: $top_shelf"
+  [[ "$top_shelf_wide" == "Top Shelf Image Wide" ]] || fail "tvOS wide Top Shelf image metadata is missing or unexpected: $top_shelf_wide"
+
+  asset_dump=$(xcrun assetutil --info "$APP_PATH/Assets.car" 2>/dev/null) \
+    || fail "Could not inspect compiled tvOS asset catalog"
+  [[ "$asset_dump" == *'"Name" : "App Icon"'* ]] || fail "Compiled tvOS App Icon rendition is missing"
+  [[ "$asset_dump" == *'"Name" : "Top Shelf Image"'* ]] || fail "Compiled tvOS Top Shelf rendition is missing"
+  [[ "$asset_dump" == *'"Name" : "Top Shelf Image Wide"'* ]] || fail "Compiled tvOS wide Top Shelf rendition is missing"
+fi
 
 privacy_tracking=$(plist_value NSPrivacyTracking "$APP_PATH/PrivacyInfo.xcprivacy")
 [[ "$privacy_tracking" == "false" ]] || fail "Privacy manifest must declare tracking disabled"
@@ -121,6 +164,7 @@ echo "Archive validation passed"
 echo "  Archive: $ARCHIVE_PATH"
 echo "  App: $APP_PATH"
 echo "  Bundle: $bundle_id"
+echo "  Platform: $PLATFORM ($supported_platforms)"
 echo "  Version: $short_version ($bundle_version)"
 echo "  Minimum OS: $minimum_os"
 echo "  Configuration: $build_configuration"

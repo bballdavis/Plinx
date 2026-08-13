@@ -14,7 +14,7 @@ const config: Config = {
   projectName: 'Plinx',
   trailingSlash: false,
   onBrokenLinks: 'throw',
-  staticDirectories: ['static', '../assets/branding', '../screenshots'],
+  staticDirectories: ['static', '../assets/branding'],
   markdown: {
     hooks: {
       onBrokenMarkdownLinks: 'throw',
@@ -29,7 +29,9 @@ const config: Config = {
           path: '.generated/docs',
           routeBasePath: 'docs',
           sidebarPath: './sidebars.ts',
-          editUrl: ({docPath}) => `https://github.com/bballdavis/Plinx/edit/main/docs/${docPath}`,
+          editUrl: ({docPath}) => docPath === 'user/privacy-policy.md'
+            ? 'https://github.com/bballdavis/Plinx/edit/main/PRIVACY_POLICY.md'
+            : `https://github.com/bballdavis/Plinx/edit/main/docs/${docPath}`,
           showLastUpdateAuthor: true,
           showLastUpdateTime: true,
         },
@@ -73,7 +75,7 @@ const config: Config = {
             {label: 'User guide', to: '/docs/user/getting-started'},
             {label: 'Parent guide', to: '/docs/user/parent-guide'},
             {label: 'Youtarr guide', to: '/docs/user/youtarr'},
-            {label: 'Coming soon', to: '/docs/user/platform-status'},
+            {label: 'Platform support', to: '/docs/user/platform-status'},
           ],
         },
         {
@@ -87,7 +89,7 @@ const config: Config = {
         {
           title: 'Project',
           items: [
-            {label: 'Privacy policy', href: 'https://github.com/bballdavis/Plinx/blob/main/PRIVACY_POLICY.md'},
+            {label: 'Privacy policy', to: '/docs/user/privacy-policy'},
             {label: 'License', href: 'https://github.com/bballdavis/Plinx/blob/main/LICENSE'},
             {label: 'Support', href: 'https://github.com/bballdavis/Plinx/issues'},
           ],

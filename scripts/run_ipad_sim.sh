@@ -20,7 +20,7 @@ fi
 #
 # ─────────────────────────────────────────────────────────────────────────────
 
-set -e  # Exit on error
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
@@ -29,9 +29,12 @@ source "$PROJECT_ROOT/scripts/build_environment.sh"
 source "$PROJECT_ROOT/scripts/sim_destination.sh"
 
 # Configuration
-DEVICE_NAME="${1:-iPad (10th generation)}"
+DEFAULT_DEVICE_NAME="iPad (10th generation)"
+DEVICE_NAME="${1:-$DEFAULT_DEVICE_NAME}"
 # bundle identifier will be read from the built product later
-# BUNDLE_ID="com.example.plinx"
+BUNDLE_ID=""
+UDID=""
+STATUS=""
 SCHEME="Plinx-iOS"
 DERIVED_DATA_PATH="${PLINX_SIM_DERIVED_DATA_PATH:-$PLINX_XCODE_DERIVED_DATA_PATH}"
 
@@ -39,18 +42,25 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "🚀 Plinx iPad Simulator Build & Run"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "Device: $DEVICE_NAME"
-echo "Bundle: $BUNDLE_ID"
+echo "Bundle: [read from built app]"
 echo ""
 
 # Step 1: Determine destination (supports generic keyword)
 echo "📱 Determining destination..."
 if [ "$DEVICE_NAME" = "generic" ]; then
-    echo "→ using generic iOS Simulator destination"
-    DEST="platform=iOS Simulator"
+    echo "→ using a generic build destination and the default available iPad for launch"
+    if ! select_simulator_destination "$DEFAULT_DEVICE_NAME"; then
+        echo "❌ No available iPad simulator was found."
+        exit 1
+    fi
+    DEST="generic/platform=iOS Simulator"
+    UDID="$SIM_UDID"
+    STATUS="$SIM_STATUS"
 else
     if select_simulator_destination "$DEVICE_NAME"; then
         DEST="$SIM_DESTINATION"
         UDID="$SIM_UDID"
+        STATUS="$SIM_STATUS"
         if [ "$SIM_NAME" = "$DEVICE_NAME" ]; then
             echo "✓ Found: $SIM_NAME ($UDID)"
         else
@@ -66,6 +76,12 @@ else
 fi
 
 echo ""
+
+if [ "${PLINX_SIM_RUNNER_PREFLIGHT:-0}" = "1" ]; then
+    [ -n "$DEST" ] && [ -n "$UDID" ] && [ -n "$STATUS" ]
+    echo "✓ Simulator runner preflight passed"
+    exit 0
+fi
 
 # Step 2: Boot simulator if not running
 echo "🔌 Checking simulator status..."
@@ -102,15 +118,18 @@ echo ""
 # Step 4: Build the app
 echo "🔨 Building Plinx-iOS..."
 BUILD_LOG="/tmp/plinx_build_ipad.log"
+set +e
 xcodebuild build \
     -project Plinx.xcodeproj \
     -scheme "$SCHEME" \
     -destination "$DEST" \
     -configuration Debug \
     -derivedDataPath "$DERIVED_DATA_PATH" \
-    2>&1 | tee "$BUILD_LOG" | grep -E "error:|warning:|Build succeeded|BUILD FAILED" || true
+    2>&1 | tee "$BUILD_LOG" | grep -E "error:|warning:|Build succeeded|BUILD FAILED"
+BUILD_STATUS=${PIPESTATUS[0]}
+set -e
 
-if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+if [ "$BUILD_STATUS" -ne 0 ]; then
     echo ""
     echo "❌ Build failed. Detailed errors:"
     grep -A 5 "error:" "$BUILD_LOG" | head -30
@@ -123,7 +142,7 @@ echo ""
 # Step 5: Find the built app
 APP_PATH="$DERIVED_DATA_PATH/Build/Products/Debug-iphonesimulator/Plinx.app"
 
-if [ -z "$APP_PATH" ]; then
+if [ ! -d "$APP_PATH" ]; then
     echo "❌ Could not find built Plinx.app in DerivedData"
     exit 1
 fi
@@ -141,13 +160,7 @@ echo "Bundle ID: $BUNDLE_ID"
 echo ""
 
 echo "🧹 Uninstalling previous version..."
-if [ -n "$UDID" ]; then
-    xcrun simctl uninstall "$UDID" "$BUNDLE_ID" 2>/dev/null || true
-else
-    for d in $(xcrun simctl list devices available | grep -oE '\([A-F0-9-]+\)' | tr -d '()'); do
-        xcrun simctl uninstall "$d" "$BUNDLE_ID" 2>/dev/null || true
-    done
-fi
+xcrun simctl uninstall "$UDID" "$BUNDLE_ID" 2>/dev/null || true
 
 # Step 7: Install app
 echo "📥 Installing app..."

@@ -19,13 +19,7 @@ final class HomeScreenSectionUITests: XCTestCase {
         app.launchArguments += ["--ui-testing", "--disable-animations"]
         app.launchEnvironment["PLINX_UI_TEST_MODE"] = "live"
 
-        let keys = [
-            "PLINX_PLEX_SERVER_URL",
-            "PLINX_PLEX_TOKEN",
-            "PLINX_PLEX_USER",
-            "PLINX_PLEX_PASSWORD",
-            "PLINX_PLEX_PIN",
-        ]
+        let keys = ["PLINX_PLEX_SERVER_URL", "PLINX_PLEX_TOKEN"]
         let env = ProcessInfo.processInfo.environment
         for key in keys where env[key] != nil {
             app.launchEnvironment[key] = env[key]

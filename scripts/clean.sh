@@ -12,9 +12,21 @@ source "$SCRIPT_DIR/build_environment.sh"
 
 remove_tree() {
     local target="$1"
+    local resolved_target resolved_project resolved_home
 
-    if [[ -z "$target" || "$target" == "/" || "$target" == "$PLINX_USER_HOME" ]]; then
+    if [[ -z "$target" || "$target" != /* || "$target" == "/" ]]; then
         echo "Refusing unsafe cleanup target: ${target:-<empty>}" >&2
+        exit 1
+    fi
+
+    resolved_target="$(cd "$(dirname "$target")" 2>/dev/null && pwd -P)/$(basename "$target")"
+    resolved_project="$(cd "$PROJECT_ROOT" && pwd -P)"
+    resolved_home="$(cd "$PLINX_USER_HOME" && pwd -P)"
+
+    if [[ "$resolved_target" == "$resolved_home" ||
+          "$resolved_target" == "$resolved_project" ||
+          "$resolved_project" == "$resolved_target"/* ]]; then
+        echo "Refusing cleanup target that contains source or user data: $resolved_target" >&2
         exit 1
     fi
 
@@ -31,8 +43,6 @@ remove_tree "$PROJECT_ROOT/build"
 remove_tree "$PROJECT_ROOT/Packages/PlinxCore/.build"
 remove_tree "$PROJECT_ROOT/Packages/PlinxCore/build"
 remove_tree "$PROJECT_ROOT/Packages/PlinxCore/.swiftpm"
-remove_tree "$PROJECT_ROOT/Packages/PlinxTestSupport/.build"
-remove_tree "$PROJECT_ROOT/Packages/StrimrEngine/.build"
 remove_tree "$PROJECT_ROOT/Packages/PlinxUI/.build"
 remove_tree "$PROJECT_ROOT/Packages/PlinxUI/build"
 remove_tree "$PROJECT_ROOT/Packages/PlinxUI/.swiftpm"

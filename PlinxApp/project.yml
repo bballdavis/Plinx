@@ -60,6 +60,7 @@ targets:
   Plinx-iOS:
     type: application
     platform: iOS
+    productName: Plinx
 
     sources:
       # ── Plinx application code ──────────────────────────────────────
@@ -140,7 +141,7 @@ targets:
         # delivery runbook before changing this compliance declaration.
         ITSAppUsesNonExemptEncryption: false
         PlinxBuildConfiguration: $(CONFIGURATION)
-        NSLocalNetworkUsageDescription: Plinx connects to Plex Media Servers and a parent-configured Youtarr server on your local network.
+        NSLocalNetworkUsageDescription: Plinx connects to Plex Media Servers and an optional parent-configured Youtarr service on your local network.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
         UILaunchStoryboardName: LaunchScreen
@@ -170,34 +171,15 @@ targets:
         # Remove once Strimr fixes its actor isolation (file upstream PR).
         OTHER_SWIFT_FLAGS: "-Xfrontend -strict-concurrency=minimal -Xfrontend -disable-dynamic-actor-isolation"
 
-    scheme:
-      shared: true
-      build:
-        targets:
-          Plinx-iOS: all
-      testTargets:
-        - Plinx-iOS-UITests
-        - Plinx-iOS-UnitTests
-      run:
-        config: Debug
-      test:
-        config: Debug
-
   Plinx-iOS-UnitTests:
     type: bundle.unit-test
     platform: iOS
+    productName: PlinxUnitTests
 
     sources:
       - path: UnitTests
 
-    # Bundle the live-test credentials file so tests running inside the iOS Simulator
-    # can load it via Bundle(for: Self.self) — the host filesystem is inaccessible
-    # from inside the simulator sandbox.
-    # The file is copied to PlinxApp/UnitTests/test_creds.yaml (gitignored)
-    # so XcodeGen can include it as an in-tree resource.
     resources:
-      - path: UnitTests/test_creds.yaml
-        optional: true
       - path: UnitTests/Fixtures/YoutarrExternalAPIV1
 
     dependencies:
@@ -218,13 +200,11 @@ targets:
   Plinx-iOS-UITests:
     type: bundle.ui-testing
     platform: iOS
+    productName: PlinxUITests
 
     sources:
       - path: UITests
-
-    resources:
-      - path: UITests/test_creds.yaml
-        optional: true
+      - path: UnitTests/LiveTestCredentials.swift
 
     dependencies:
       - target: Plinx-iOS
@@ -236,16 +216,16 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Apple TV target — diagnostic: surfaces what iOS-specific code needs tvOS
-# adaptation. First build may fail on Plinx-owned layers; errors are expected
-# and tracked as follow-up work.
+# Apple TV application target. It shares Plinx-owned policy and presentation
+# layers with iOS while compiling the paired Strimr tvOS implementation.
 # ─────────────────────────────────────────────────────────────────────────────
   Plinx-tvOS:
     type: application
     platform: tvOS
+    productName: Plinx
 
     sources:
-      # ── Plinx application code (iOS-specific layers included for diagnostics)
+      # ── Plinx application code ─────────────────────────────────────
       - path: App
         excludes:
           - "AppDelegate.swift"
@@ -311,7 +291,7 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         ITSAppUsesNonExemptEncryption: false
         PlinxBuildConfiguration: $(CONFIGURATION)
-        NSLocalNetworkUsageDescription: Plinx connects to Plex Media Servers on your local network when you choose a local server connection.
+        NSLocalNetworkUsageDescription: Plinx connects to Plex Media Servers and an optional parent-configured Youtarr service on your local network.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
 
@@ -323,29 +303,14 @@ targets:
         SWIFT_STRICT_CONCURRENCY: minimal
         OTHER_SWIFT_FLAGS: "-Xfrontend -strict-concurrency=minimal -Xfrontend -disable-dynamic-actor-isolation"
 
-    scheme:
-      shared: true
-      build:
-        targets:
-          Plinx-tvOS: all
-      testTargets:
-        - Plinx-tvOS-UnitTests
-        - Plinx-tvOS-UITests
-      run:
-        config: Debug
-      test:
-        config: Debug
-
   Plinx-tvOS-UnitTests:
     type: bundle.unit-test
     platform: tvOS
+    productName: PlinxTVUnitTests
 
     sources:
       - path: UnitTestsTV
-
-    resources:
-      - path: UnitTestsTV/test_creds.yaml
-        optional: true
+      - path: UnitTests/LiveTestCredentials.swift
 
     dependencies:
       - target: Plinx-tvOS
@@ -363,6 +328,7 @@ targets:
   Plinx-tvOS-UITests:
     type: bundle.ui-testing
     platform: tvOS
+    productName: PlinxTVUITests
 
     sources:
       - path: UITestsTV
@@ -375,3 +341,46 @@ targets:
         PRODUCT_NAME: PlinxTVUITests
         PRODUCT_BUNDLE_IDENTIFIER: com.bballdavis.plinx.tvos.uitests
         GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  Plinx-iOS:
+    shared: true
+    build:
+      targets:
+        Plinx-iOS: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - Plinx-iOS-UITests
+        - name: Plinx-iOS-UnitTests
+          parallelizable: false
+      environmentVariables:
+        - variable: PLINX_PLEX_SERVER_URL
+          value: $(PLINX_PLEX_SERVER_URL)
+        - variable: PLINX_PLEX_TOKEN
+          value: $(PLINX_PLEX_TOKEN)
+    archive:
+      config: Release
+
+  Plinx-tvOS:
+    shared: true
+    build:
+      targets:
+        Plinx-tvOS: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - name: Plinx-tvOS-UnitTests
+          parallelizable: false
+        - Plinx-tvOS-UITests
+      environmentVariables:
+        - variable: PLINX_PLEX_SERVER_URL
+          value: $(PLINX_PLEX_SERVER_URL)
+        - variable: PLINX_PLEX_TOKEN
+          value: $(PLINX_PLEX_TOKEN)
+    archive:
+      config: Release

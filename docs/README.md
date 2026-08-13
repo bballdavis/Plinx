@@ -29,6 +29,7 @@ Recommended reading order for most work:
 | Snapshot and UI test strategy details | `docs/development/ui-testing.md` |
 | CI behavior and documentation guardrails | `docs/development/ci.md` |
 | Automatic internal TestFlight delivery and credential setup | `docs/development/testflight-delivery.md` |
+| Read-only Xcode Cloud monitoring | `docs/development/xcode-cloud-monitoring.md` |
 | Calendar versioning, paired promotion, and release tags | `docs/development/versioning-and-releases.md` |
 | Brand assets, theme rules, and UI branding expectations | `docs/product/branding.md` |
 | Privacy, safety, secrets, and release validation rules | `docs/security/privacy-and-safety.md` |
@@ -44,15 +45,15 @@ Recommended reading order for most work:
 | `PlinxApp/` | Application shell, composition root, app tests, resources | Canonical |
 | `Packages/PlinxCore/` | Safety, playback policy, public bridge models, app-domain utilities | Canonical |
 | `Packages/PlinxUI/` | Plinx design system and reusable UI | Canonical |
-| `Packages/PlinxTestSupport/` | Shared test fixtures/helpers | Canonical |
-| `Packages/StrimrEngine/` | Local wrapper/migration aid around Strimr seams | Canonical, but not runtime source of truth |
+| `../strimr/` | Paired generic Plex/runtime implementation | Canonical for Strimr-owned code; pinned by release configuration |
 | `scripts/` | Build, simulator, validation, and test commands | Canonical |
 | `.github/workflows/` | CI enforcement and build automation | Canonical |
 | `assets/branding/` | Marketing/reference brand assets | Canonical reference assets |
 | `screenshots/` | Product screenshots for docs/store material | Reference material |
 | `docs/` | Engineering documentation | Canonical |
 | `website/` | Docusaurus renderer, navigation, and theme | Canonical presentation layer; not a second doc source |
-| `PlinxApp/Plinx.xcodeproj/`, `build/`, `.build/`, `.swiftpm/`, `DerivedData/` | Generated local artifacts | Never source of truth |
+| `PlinxApp/Plinx.xcodeproj/` | Generated deployment mirror for Xcode Cloud | Tracked, but generated from `project.yml` |
+| `build/`, `.build/`, `.swiftpm/`, `DerivedData/` | Generated local artifacts | Never source of truth |
 
 ## Change Matrix
 

@@ -6,7 +6,8 @@ sidebar_position: 5
 
 Plinx can download authorized movies and episodes for offline playback. Choose
 a download quality in protected settings to balance storage use and video
-quality.
+quality. Downloads are available on iPhone and iPad only; Apple TV does not
+offer download controls or offline playback.
 
 From a show's details, Download opens a season-and-episode picker. From a
 season's details, the same picker stays scoped to that season. Select All queues
