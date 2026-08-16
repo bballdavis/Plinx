@@ -1,6 +1,41 @@
 {
-  "originHash" : "1db26cf7594f0ee389f3067c7afc5d4275c54b6e04c95687a0ad825fc1607b26",
+  "originHash" : "69e7a0e0a259d1a462dd05f333d52c793334e6610f89d94313543fe61447e5d6",
   "pins" : [
+    {
+      "identity" : "aetherengine",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/wunax/AetherEngine",
+      "state" : {
+        "revision" : "d882f47811757f8ebbf44e791abf96416262b49a"
+      }
+    },
+    {
+      "identity" : "ffmpegbuild",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/superuser404notfound/FFmpegBuild",
+      "state" : {
+        "revision" : "e832f22c89909297b7abe3a94c05b2816414b054",
+        "version" : "2.2.0"
+      }
+    },
+    {
+      "identity" : "libdovi",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/superuser404notfound/LibDovi",
+      "state" : {
+        "revision" : "bebab0af0e3633b0002fcc7106ea6fc7ceea8277",
+        "version" : "1.0.2"
+      }
+    },
+    {
+      "identity" : "smbclient",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/kishikawakatsumi/SMBClient",
+      "state" : {
+        "revision" : "e636c2b2458930770932a36d311ec9d478575b90",
+        "version" : "0.3.1"
+      }
+    },
     {
       "identity" : "swift-custom-dump",
       "kind" : "remoteSourceControl",
