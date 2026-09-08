@@ -18,8 +18,8 @@ expect_failure() {
 
 bash -n "$REPO_ROOT/scripts/capture_release_screenshots.sh"
 bash -n "$REPO_ROOT/scripts/tests/validate_app_store_screenshots.sh"
-python3 -m py_compile "$REPO_ROOT/scripts/release_screenshot_preflight.py"
-python3 -m py_compile "$REPO_ROOT/scripts/strip_png_metadata.py"
+python3 -m py_compile "$REPO_ROOT/scripts/release/release_screenshot_preflight.py"
+python3 -m py_compile "$REPO_ROOT/scripts/release/strip_png_metadata.py"
 grep -q -- '--release-screenshot-capture' "$REPO_ROOT/scripts/capture_release_screenshots.sh" \
   || fail "capture launcher does not enable read-only release mode"
 grep -q 'shouldBlockWatchMutation' "$REPO_ROOT/PlinxApp/App/ReleaseScreenshotCaptureMode.swift" \
@@ -29,13 +29,13 @@ grep -q 'PLINX_RELEASE_CAPTURE_SEARCH_QUERY' "$REPO_ROOT/PlinxApp/App/ReleaseScr
 
 metadata_png="$TEMP_ROOT/metadata.png"
 cp "$REPO_ROOT/screenshots/fixtures/app-store/iphone-6.9/01-loading.png" "$metadata_png"
-python3 "$REPO_ROOT/scripts/strip_png_metadata.py" "$metadata_png"
+python3 "$REPO_ROOT/scripts/release/strip_png_metadata.py" "$metadata_png"
 [[ "$(sips -g pixelWidth -g pixelHeight "$metadata_png" | awk '/pixelWidth/{w=$2}/pixelHeight/{h=$2}END{print w "x" h}')" == "1320x2868" ]] \
   || fail "metadata stripping changed PNG dimensions"
 
 # The committed template is intentionally not executable until a release owner
 # replaces its sample selectors with a local, curated selection.
-expect_failure python3 "$REPO_ROOT/scripts/release_screenshot_preflight.py" \
+expect_failure python3 "$REPO_ROOT/scripts/release/release_screenshot_preflight.py" \
   --selection "$REPO_ROOT/screenshot_capture.yaml.example"
 
 selection="$TEMP_ROOT/selection.yaml"
@@ -46,12 +46,12 @@ sed \
   -e 's/approved-show-001/show-001/g' \
   -e 's/replace-with-private-name/blocked-private-label/g' \
   "$REPO_ROOT/screenshot_capture.yaml.example" >"$selection"
-python3 "$REPO_ROOT/scripts/release_screenshot_preflight.py" --selection "$selection" >/dev/null
-[[ "$(python3 "$REPO_ROOT/scripts/release_screenshot_preflight.py" --selection "$selection" --print-value locale)" == "en_US" ]] \
+python3 "$REPO_ROOT/scripts/release/release_screenshot_preflight.py" --selection "$selection" >/dev/null
+[[ "$(python3 "$REPO_ROOT/scripts/release/release_screenshot_preflight.py" --selection "$selection" --print-value locale)" == "en_US" ]] \
   || fail "validated locale was not available to the capture launcher"
 
 printf '\nunknown: value\n' >>"$selection"
-expect_failure python3 "$REPO_ROOT/scripts/release_screenshot_preflight.py" --selection "$selection"
+expect_failure python3 "$REPO_ROOT/scripts/release/release_screenshot_preflight.py" --selection "$selection"
 
 # Existing fixture/public inventory remains the default validation contract.
 bash "$REPO_ROOT/scripts/tests/validate_app_store_screenshots.sh" \
@@ -63,7 +63,7 @@ mkdir -p "$TEMP_ROOT/tvos-stage/tvos-4k"
 for name in 01-home 02-library-root 03-library-browse 04-media-detail 05-search 06-player-controls 07-parental-gate 08-content-settings; do
   sips -z 2160 3840 "$REPO_ROOT/screenshots/fixtures/app-store/ipad-13/01-loading.png" \
     --out "$TEMP_ROOT/tvos-stage/tvos-4k/$name.png" >/dev/null
-  python3 "$REPO_ROOT/scripts/strip_png_metadata.py" "$TEMP_ROOT/tvos-stage/tvos-4k/$name.png"
+  python3 "$REPO_ROOT/scripts/release/strip_png_metadata.py" "$TEMP_ROOT/tvos-stage/tvos-4k/$name.png"
 done
 bash "$REPO_ROOT/scripts/tests/validate_app_store_screenshots.sh" --tvos-only \
   "$TEMP_ROOT/tvos-stage" >/dev/null

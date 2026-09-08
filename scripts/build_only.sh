@@ -25,7 +25,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 PLINX_APP_DIR="$PROJECT_ROOT/PlinxApp"
 source "$PROJECT_ROOT/scripts/build_environment.sh"
-source "$PROJECT_ROOT/scripts/sim_destination.sh"
+source "$PROJECT_ROOT/scripts/support/sim_destination.sh"
 
 DEVICE_NAME="${1:-iPhone 17 Pro Max}"
 SCHEME="Plinx-iOS"

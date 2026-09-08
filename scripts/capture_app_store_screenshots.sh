@@ -153,14 +153,14 @@ capture_opaque() {
   local destination="$2"
   local raw="$TEMP_ROOT/$(basename "$destination" .png)-raw.png"
   xcrun simctl io "$device_id" screenshot "$raw" >/dev/null
-  "$REPO_ROOT/scripts/flatten_screenshot_alpha.sh" "$raw" "$destination" >/dev/null
+  "$REPO_ROOT/scripts/release/flatten_screenshot_alpha.sh" "$raw" "$destination" >/dev/null
   if [[ "$CAPTURE_LANDSCAPE" -eq 1 ]]; then
     # simctl returns the iPad display in its native portrait framebuffer even
     # after UIKit has laid out the app in landscape. Rotate the captured
     # framebuffer counter-clockwise to produce the App Store landscape bitmap.
     sips -r -90 "$destination" >/dev/null
   fi
-  python3 "$REPO_ROOT/scripts/strip_png_metadata.py" "$destination"
+  python3 "$REPO_ROOT/scripts/release/strip_png_metadata.py" "$destination"
 }
 
 capture_loading() {
@@ -242,9 +242,9 @@ if [[ -z "$IPHONE_ID" || -z "$IPAD_ID" ]]; then
 fi
 
 validate_capture_selection
-python3 "$REPO_ROOT/scripts/app_store_fixture_server.py" --validate
+python3 "$REPO_ROOT/scripts/release/app_store_fixture_server.py" --validate
 
-python3 "$REPO_ROOT/scripts/app_store_fixture_server.py" \
+python3 "$REPO_ROOT/scripts/release/app_store_fixture_server.py" \
   --port "$FIXTURE_PORT" >"$TEMP_ROOT/fixture-server.log" 2>&1 &
 SERVER_PID=$!
 

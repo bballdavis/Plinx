@@ -7,7 +7,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-source "$REPO_ROOT/scripts/test_credentials.sh"
+source "$REPO_ROOT/scripts/support/test_credentials.sh"
 PROJECT_PATH="$REPO_ROOT/PlinxApp/Plinx.xcodeproj"
 BUNDLE_ID="com.bballdavis.plinx"
 PLATFORM=""
@@ -148,9 +148,9 @@ capture_frame() {
   local rotate="$3"
   local raw="$TEMP_ROOT/$(basename "$destination" .png).raw.png"
   xcrun simctl io "$device" screenshot "$raw" >/dev/null
-  "$REPO_ROOT/scripts/flatten_screenshot_alpha.sh" "$raw" "$destination" >/dev/null
+  "$REPO_ROOT/scripts/release/flatten_screenshot_alpha.sh" "$raw" "$destination" >/dev/null
   [[ "$rotate" == "1" ]] && sips -r -90 "$destination" >/dev/null
-  python3 "$REPO_ROOT/scripts/strip_png_metadata.py" "$destination"
+  python3 "$REPO_ROOT/scripts/release/strip_png_metadata.py" "$destination"
 }
 
 capture_interactively() {
@@ -240,14 +240,14 @@ done
 [[ -n "$CREDENTIALS_FILE" && -n "$SELECTION_FILE" && -n "$OUTPUT_ROOT" ]] || { usage; fail "all required arguments are needed"; }
 is_ci && fail "release screenshot capture is local-only and refuses CI"
 require_absolute_safe_output
-python3 "$REPO_ROOT/scripts/release_screenshot_preflight.py" --selection "$SELECTION_FILE" --credentials "$CREDENTIALS_FILE" --verify-live
+python3 "$REPO_ROOT/scripts/release/release_screenshot_preflight.py" --selection "$SELECTION_FILE" --credentials "$CREDENTIALS_FILE" --verify-live
 load_credentials
-CAPTURE_LOCALE="$(python3 "$REPO_ROOT/scripts/release_screenshot_preflight.py" --selection "$SELECTION_FILE" --print-value locale)"
-MAXIMUM_MOVIE_RATING="$(python3 "$REPO_ROOT/scripts/release_screenshot_preflight.py" --selection "$SELECTION_FILE" --print-value maximum_movie_rating)"
-MAXIMUM_TV_RATING="$(python3 "$REPO_ROOT/scripts/release_screenshot_preflight.py" --selection "$SELECTION_FILE" --print-value maximum_tv_rating)"
-DETAIL_RATING_KEY="$(python3 "$REPO_ROOT/scripts/release_screenshot_preflight.py" --selection "$SELECTION_FILE" --print-value detail_rating_key)"
-PLAYBACK_RATING_KEY="$(python3 "$REPO_ROOT/scripts/release_screenshot_preflight.py" --selection "$SELECTION_FILE" --print-value playback_rating_key)"
-SEARCH_QUERY="$(python3 "$REPO_ROOT/scripts/release_screenshot_preflight.py" --selection "$SELECTION_FILE" --print-value search_query)"
+CAPTURE_LOCALE="$(python3 "$REPO_ROOT/scripts/release/release_screenshot_preflight.py" --selection "$SELECTION_FILE" --print-value locale)"
+MAXIMUM_MOVIE_RATING="$(python3 "$REPO_ROOT/scripts/release/release_screenshot_preflight.py" --selection "$SELECTION_FILE" --print-value maximum_movie_rating)"
+MAXIMUM_TV_RATING="$(python3 "$REPO_ROOT/scripts/release/release_screenshot_preflight.py" --selection "$SELECTION_FILE" --print-value maximum_tv_rating)"
+DETAIL_RATING_KEY="$(python3 "$REPO_ROOT/scripts/release/release_screenshot_preflight.py" --selection "$SELECTION_FILE" --print-value detail_rating_key)"
+PLAYBACK_RATING_KEY="$(python3 "$REPO_ROOT/scripts/release/release_screenshot_preflight.py" --selection "$SELECTION_FILE" --print-value playback_rating_key)"
+SEARCH_QUERY="$(python3 "$REPO_ROOT/scripts/release/release_screenshot_preflight.py" --selection "$SELECTION_FILE" --print-value search_query)"
 
 case "$PLATFORM" in
   ios) capture_ios; "$REPO_ROOT/scripts/tests/validate_app_store_screenshots.sh" "$OUTPUT_ROOT" ;;

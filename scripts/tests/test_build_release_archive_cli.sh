@@ -3,8 +3,8 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCRIPT="$REPO_ROOT/scripts/build_release_archive.sh"
-INTERNAL_EXPORT_OPTIONS="$REPO_ROOT/scripts/testflight_export_options.plist"
-APP_STORE_EXPORT_OPTIONS="$REPO_ROOT/scripts/app_store_export_options.plist"
+INTERNAL_EXPORT_OPTIONS="$REPO_ROOT/scripts/release/testflight_export_options.plist"
+APP_STORE_EXPORT_OPTIONS="$REPO_ROOT/scripts/release/app_store_export_options.plist"
 
 fail() {
   echo "Release archive CLI test failed: $1" >&2

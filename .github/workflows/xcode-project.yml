@@ -9,7 +9,7 @@ on:
       - PlinxApp/**
       - config/release-dependencies.env
       - scripts/generate_xcodeproj.sh
-      - scripts/patch_resources.py
+      - scripts/support/patch_resources.py
       - .github/workflows/xcode-project.yml
   push:
     branches:
@@ -20,7 +20,7 @@ on:
       - PlinxApp/**
       - config/release-dependencies.env
       - scripts/generate_xcodeproj.sh
-      - scripts/patch_resources.py
+      - scripts/support/patch_resources.py
       - .github/workflows/xcode-project.yml
   workflow_dispatch:
 

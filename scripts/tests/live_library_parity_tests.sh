@@ -9,7 +9,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$PROJECT_ROOT/scripts/build_environment.sh"
-source "$PROJECT_ROOT/scripts/test_credentials.sh"
+source "$PROJECT_ROOT/scripts/support/test_credentials.sh"
 
 MODE="ios"
 if [[ "${1:-}" == "--appletv" || "${1:-}" == "--tvos" ]]; then

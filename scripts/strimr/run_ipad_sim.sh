@@ -32,7 +32,7 @@ set -o pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLINX_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 STRIMR_ROOT="$(dirname "$PLINX_ROOT")/strimr"
-source "$PLINX_ROOT/scripts/sim_destination.sh"
+source "$PLINX_ROOT/scripts/support/sim_destination.sh"
 
 # ── Configuration ──────────────────────────────────────────────────────────
 DEVICE_NAME="${1:-iPad (10th generation)}"

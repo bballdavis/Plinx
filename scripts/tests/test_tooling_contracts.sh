@@ -38,7 +38,7 @@ printf '%s\n' \
   "PLINX_PLEX_TOKEN: 'secret-value'" \
   'UNRELATED_SECRET: must-not-load' >"$credentials"
 unset PLINX_PLEX_SERVER_URL PLINX_PLEX_TOKEN UNRELATED_SECRET || true
-source "$PROJECT_ROOT/scripts/test_credentials.sh"
+source "$PROJECT_ROOT/scripts/support/test_credentials.sh"
 load_plinx_test_credentials "$credentials" || fail "valid credentials were rejected"
 [[ "$PLINX_PLEX_SERVER_URL" == "https://plex.invalid:32400" ]] \
   || fail "server URL was parsed incorrectly"

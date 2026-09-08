@@ -6,6 +6,20 @@ re-enter through Bash before resolving repository-relative paths.
 
 Convenient shell scripts for building and running the Plinx iOS app on the simulator, plus UI/logic tests.
 
+## Directory Layout
+
+The root contains the supported developer and release entry points. Specialized
+implementation helpers live in focused subdirectories:
+
+- `support/` — sourced build/test helpers and the Xcode project resource patcher
+- `release/` — screenshot fixtures, release preflight/image helpers, and export options
+- `tests/` — test harnesses and their fixtures
+- `branding/` — deterministic brand asset generation
+- `strimr/` — tooling for the paired Strimr checkout
+
+Scripts in `support/` and `release/` are implementation details; invoke the
+documented root-level commands when one exists.
+
 ## Strimr Source Of Truth
 
 Build and test scripts build from local files only. It's your responsibility to ensure the sibling `../strimr` checkout is on the correct branch and in a clean state before running any build command.
@@ -365,7 +379,7 @@ inventory and refreshes only the named production screens.
 Use `scripts/capture_release_screenshots.sh` and the private curated Plex
 selection for public release media, then validate the promoted 22-file
 `screenshots/app-store/` inventory with `--require-tvos`. Use
-`scripts/flatten_screenshot_alpha.sh INPUT.png OUTPUT.png` only for an
+`scripts/release/flatten_screenshot_alpha.sh INPUT.png OUTPUT.png` only for an
 individual manual diagnostic capture.
 
 ### `build_compliance_bundle.sh` — Package Corresponding Source

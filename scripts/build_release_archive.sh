@@ -142,10 +142,10 @@ case "$DISTRIBUTION" in
     EXPORT_OPTIONS_PLIST=""
     ;;
   testflight-internal)
-    EXPORT_OPTIONS_PLIST="$SCRIPT_DIR/testflight_export_options.plist"
+    EXPORT_OPTIONS_PLIST="$SCRIPT_DIR/release/testflight_export_options.plist"
     ;;
   app-store)
-    EXPORT_OPTIONS_PLIST="$SCRIPT_DIR/app_store_export_options.plist"
+    EXPORT_OPTIONS_PLIST="$SCRIPT_DIR/release/app_store_export_options.plist"
     ;;
   *)
     echo "Unsupported distribution: $DISTRIBUTION (expected archive, testflight-internal, or app-store)." >&2

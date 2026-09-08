@@ -13,7 +13,7 @@ from pathlib import Path
 import re
 
 
-ROOT_DIR = Path(__file__).resolve().parent.parent
+ROOT_DIR = Path(__file__).resolve().parents[2]
 PBXPROJ = ROOT_DIR / "PlinxApp/Plinx.xcodeproj/project.pbxproj"
 
 FILE_REFS = {
