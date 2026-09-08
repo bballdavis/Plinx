@@ -1,6 +1,6 @@
-import SwiftUI
 import PlinxCore
 import PlinxUI
+import SwiftUI
 
 struct RootTabView: View {
     struct QuickActionOption: Identifiable {
@@ -12,6 +12,7 @@ struct RootTabView: View {
     }
 
     @Environment(SessionManager.self) var sessionManager
+    @Environment(PlinxSessionAccessCoordinator.self) var sessionAccessCoordinator
     @Environment(PlexAPIContext.self) var plexApiContext
     @Environment(SettingsManager.self) var settingsManager
     @Environment(LibraryStore.self) var libraryStore
@@ -123,7 +124,7 @@ struct RootTabView: View {
         switch mainCoordinator.tab {
         case .search:
             return .search
-        case .library, .libraryDetail(_):
+        case .library, .libraryDetail:
             return .library
         case .more:
             return .more
@@ -148,6 +149,12 @@ struct RootTabView: View {
 
     /// Tabs shown in the picker.
     var visibleTabs: [KidsMainTabPicker.TabItem] {
+        if sessionAccessCoordinator.isLocallyEnrolled, sessionManager.status != .ready {
+            return KidsMainTabPicker.TabItem.mainTabs(
+                includeDownloads: true,
+                showSearchInMainNavigation: false
+            ).filter { $0.tab == .more }
+        }
         #if os(tvOS)
         let showsSearch = true
         let includesSettings = true
@@ -180,102 +187,123 @@ struct RootTabView: View {
         mainTabView
             .onAppear {
                 sharePlayCoordinator.configurePlaybackLauncher(launcher)
+                configureDownloadEnrollment()
+            }
+            .onChange(of: sessionManager.plinxDownloadOwnerIdentity) { _, _ in
+                configureDownloadEnrollment()
+            }
+            .onChange(of: safetyPolicy) { _, _ in
+                configureDownloadEnrollment()
             }
             .onChange(of: playbackLaunchCoordinator.lastResult) { _, result in
                 guard let result else { return }
                 handlePlaybackResult(result)
             }
-            #if os(tvOS)
+        #if os(tvOS)
             .allowsHitTesting(selectedQuickActionMedia == nil)
-            #endif
-            #if os(tvOS)
+        #endif
+        #if os(tvOS)
             .onAppear {
-                tvFocusCoordinator.activate(contentRegion(for: activeRootTab))
-                focusedShellTarget = .tab(activeRootTab)
+            tvFocusCoordinator.activate(contentRegion(for: activeRootTab))
+            focusedShellTarget = .tab(activeRootTab)
+        }
+        .onChange(of: activeRootTab) { _, newTab in
+            tvFocusCoordinator.activate(contentRegion(for: newTab))
+            focusedShellTarget = tvFocusCoordinator.shellTarget(
+                activeTab: newTab,
+                showsSettings: showSettings,
+                visibleTabs: visibleTabs
+            )
+        }
+        #endif
+        .onChange(of: hasDownloadActivity) { _, hasDownloads in
+            guard !hasDownloads, activeRootTab == .more else { return }
+            mainCoordinator.resetToRoot(for: .more)
+            mainCoordinator.tab = .home
+        }
+        .onChange(of: showSearchInMainNavigation) { _, isVisible in
+            guard !isVisible, activeRootTab == .search else { return }
+            mainCoordinator.resetToRoot(for: .home)
+            mainCoordinator.tab = .home
+        }
+        .onChange(of: settingsManager.interface.hiddenLibraryIds) { _, _ in
+            mainCoordinator.resetToRoot(for: .library)
+            Task {
+                await homeViewModel?.reload()
             }
-            .onChange(of: activeRootTab) { _, newTab in
-                tvFocusCoordinator.activate(contentRegion(for: newTab))
-                focusedShellTarget = tvFocusCoordinator.shellTarget(
-                    activeTab: newTab,
-                    showsSettings: showSettings,
-                    visibleTabs: visibleTabs
+        }
+        .onChange(of: youtarrStoredBaseURL) { _, _ in
+            refreshYoutarrConfigurationState()
+        }
+        .onChange(of: isYoutarrExploreEnabled) { _, _ in
+            refreshYoutarrConfigurationState()
+        }
+        .task {
+            refreshYoutarrConfigurationState()
+        }
+        .onChange(of: showSettings) { _, isPresented in
+            if isPresented {
+                #if os(tvOS)
+                tvFocusCoordinator.beginModal(
+                    from: tvFocusCoordinator.activeContentRegion,
+                    shellTarget: focusedShellTarget ?? .tab(activeRootTab)
                 )
-            }
-            #endif
-            .onChange(of: hasDownloadActivity) { _, hasDownloads in
-                guard !hasDownloads, activeRootTab == .more else { return }
-                mainCoordinator.resetToRoot(for: .more)
-                mainCoordinator.tab = .home
-            }
-            .onChange(of: showSearchInMainNavigation) { _, isVisible in
-                guard !isVisible, activeRootTab == .search else { return }
-                mainCoordinator.resetToRoot(for: .home)
-                mainCoordinator.tab = .home
-            }
-            .onChange(of: settingsManager.interface.hiddenLibraryIds) { _, _ in
-                mainCoordinator.resetToRoot(for: .library)
-                Task {
-                    await homeViewModel?.reload()
-                }
-            }
-            .onChange(of: youtarrStoredBaseURL) { _, _ in
+                tvFocusCoordinator.activate(.settings)
+                focusedShellTarget = .settings
+                #endif
+            } else {
+                parentalAccessCoordinator.lock()
                 refreshYoutarrConfigurationState()
-            }
-            .onChange(of: isYoutarrExploreEnabled) { _, _ in
-                refreshYoutarrConfigurationState()
-            }
-            .task {
-                refreshYoutarrConfigurationState()
-            }
-            .onChange(of: showSettings) { _, isPresented in
-                if isPresented {
-                    #if os(tvOS)
-                    tvFocusCoordinator.beginModal(
-                        from: tvFocusCoordinator.activeContentRegion,
-                        shellTarget: focusedShellTarget ?? .tab(activeRootTab)
-                    )
-                    tvFocusCoordinator.activate(.settings)
-                    focusedShellTarget = .settings
-                    #endif
+                #if os(tvOS)
+                let restoration = tvFocusCoordinator.endModal()
+                if let destination = settingsExitDestination {
+                    settingsExitDestination = nil
+                    tvFocusCoordinator.activate(contentRegion(for: destination))
+                    focusedShellTarget = .tab(destination)
                 } else {
-                    parentalAccessCoordinator.lock()
-                    refreshYoutarrConfigurationState()
-                    #if os(tvOS)
-                    let restoration = tvFocusCoordinator.endModal()
-                    if let destination = settingsExitDestination {
-                        settingsExitDestination = nil
-                        tvFocusCoordinator.activate(contentRegion(for: destination))
-                        focusedShellTarget = .tab(destination)
-                    } else {
-                        tvFocusCoordinator.activate(
-                            restoration?.contentRegion ?? contentRegion(for: activeRootTab)
-                        )
-                        focusedShellTarget = restoration?.shellTarget ?? .tab(activeRootTab)
-                    }
-                    #endif
+                    tvFocusCoordinator.activate(
+                        restoration?.contentRegion ?? contentRegion(for: activeRootTab)
+                    )
+                    focusedShellTarget = restoration?.shellTarget ?? .tab(activeRootTab)
                 }
+                #endif
             }
-            .overlay(alignment: .bottom) {
+        }
+        .overlay(alignment: .bottom) {
+            ZStack(alignment: .bottom) {
                 if let item = selectedQuickActionMedia {
                     quickActionSheet(for: item)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
             .animation(.easeOut(duration: 0.2), value: selectedQuickActionMedia != nil)
-            .alert(
-                Text("common.error.actionFailed", tableName: "Plinx"),
-                isPresented: Binding(
+        }
+        .alert(
+            Text("common.error.actionFailed", tableName: "Plinx"),
+            isPresented: Binding(
                 get: { quickActionErrorMessage != nil },
-                set: { if !$0 { quickActionErrorMessage = nil } }
-            )) {
-                Button(
-                    String(localized: "common.actions.ok", table: "Plinx"),
-                    role: .cancel
-                ) {}
-            } message: {
-                Text(quickActionErrorMessage ?? "")
-            }
+                set: {
+                    if !$0 {
+                        quickActionErrorMessage = nil
+                    }
+                }
+            )
+        ) {
+            Button(
+                String(localized: "common.actions.ok", table: "Plinx"),
+                role: .cancel
+            ) {}
+        } message: {
+            Text(quickActionErrorMessage ?? "")
+        }
     }
 
-
+    private func configureDownloadEnrollment() {
+        downloadManager.configurePlinxEnrollment(
+            identity: sessionManager.plinxDownloadOwnerIdentity,
+            safetyPolicy: safetyPolicy,
+            ownershipStore: downloadOwnershipStore,
+            sessionManager: sessionManager
+        )
+    }
 }

@@ -1,6 +1,6 @@
-import SwiftUI
 import PlinxCore
 import PlinxUI
+import SwiftUI
 
 #if canImport(UIKit)
 import UIKit
@@ -49,16 +49,17 @@ struct PlinxApp: App {
     @State private var libraryStore: LibraryStore
     @StateObject private var mainCoordinator = MainCoordinator()
 
-    // SharePlay remains available to the playback stack for dependency
-    // compatibility, while its initiation controls are hidden in kid-facing UI.
+    /// SharePlay remains available to the playback stack for dependency
+    /// compatibility, while its initiation controls are hidden in kid-facing UI.
     @State private var sharePlayCoordinator: SharePlayCoordinator
 
-    //── Strimr DownloadManager (required by MediaDetailHeaderSection's @Environment) ──
+    // ── Strimr DownloadManager (required by MediaDetailHeaderSection's @Environment) ──
     // MediaDetailHeaderSection reads @Environment(DownloadManager.self). Without this
     // injection the app crashes with an assertion failure when navigating to media detail.
     @State private var downloadManager: DownloadManager
     @State private var parentalAccessCoordinator: ParentalAccessCoordinator
     @State private var downloadOwnershipStore: DownloadOwnershipStore
+    @State private var sessionAccessCoordinator: PlinxSessionAccessCoordinator
 
     // ── Plinx Safety Layer ──────────────────────────────────────────────
     @AppStorage("plinx.maxMovieRating") private var maxMovieRatingRaw = PlinxRating.g.rawValue
@@ -73,10 +74,10 @@ struct PlinxApp: App {
         return SafetyPolicy.ratingOnly(maxMovie: movieRating, maxTV: tvRating, allowUnrated: !excludeUnrated)
     }
 
-    // ── Plinx Playback / Lifecycle ──────────────────────────────────────
+    /// ── Plinx Playback / Lifecycle ──────────────────────────────────────
     @StateObject private var playbackCoordinator = PlaybackCoordinator()
 
-    // ── Plinx Theming ───────────────────────────────────────────────────
+    /// ── Plinx Theming ───────────────────────────────────────────────────
     @State private var theme = PlinxTheme()
 
     // ── Plinx Safety Hardening ──────────────────────────────────────────
@@ -84,7 +85,7 @@ struct PlinxApp: App {
     @AppStorage("plinx.babyLockEnabled") private var babyLockEnabled = false
     #endif
 
-    // ── Plinx Accent Color ──────────────────────────────────────────────
+    /// ── Plinx Accent Color ──────────────────────────────────────────────
     @AppStorage("plinx.accentColorName") private var accentColorName = PlinxAccentColor.green.rawValue
 
     private var accentColor: Color {
@@ -112,7 +113,7 @@ struct PlinxApp: App {
 
         _sharePlayCoordinator = State(initialValue: SharePlayCoordinator(
             sessionManager: session,
-            context: context,
+            context: context
         ))
 
         // DownloadManager: inject so MediaDetailHeaderSection's @Environment(DownloadManager.self)
@@ -128,7 +129,13 @@ struct PlinxApp: App {
         )
         _downloadManager = State(initialValue: downloads)
         _parentalAccessCoordinator = State(initialValue: ParentalAccessCoordinator())
-        _downloadOwnershipStore = State(initialValue: DownloadOwnershipStore())
+        _downloadOwnershipStore = State(
+            initialValue: DownloadOwnershipStore(
+                existingDownloadItems: downloads.items,
+                canMigrateExistingDownloads: downloads.persistedIndexState.permitsOwnershipMigration
+            )
+        )
+        _sessionAccessCoordinator = State(initialValue: PlinxSessionAccessCoordinator())
 
         // Layer 2: Plinx safety + theming are initialized via property defaults.
     }
@@ -148,6 +155,7 @@ struct PlinxApp: App {
                 .environment(downloadManager)
                 .environment(parentalAccessCoordinator)
                 .environment(downloadOwnershipStore)
+                .environment(sessionAccessCoordinator)
                 .environment(\.sharePlayPresentationPolicy, .hidden)
                 // ── Plinx layer injection ───────────────────────────
                 .environment(\.plinxTheme, theme)
@@ -169,27 +177,27 @@ struct PlinxApp: App {
                         parentalAccessCoordinator.lock()
                     }
                 }
-                // ── Lifecycle hardening ─────────────────────────────
-                #if !os(tvOS)
+            // ── Lifecycle hardening ─────────────────────────────
+            #if !os(tvOS)
                 .lifecycleHardening(
                     coordinator: playbackCoordinator,
                     mainCoordinator: mainCoordinator,
                     downloadManager: downloadManager,
                     plexApiContext: plexApiContext,
                     sessionManager: sessionManager,
+                    sessionAccessCoordinator: sessionAccessCoordinator,
                     downloadOwnershipStore: downloadOwnershipStore
                 )
-                #else
+            #else
                 .lifecycleHardening(
                     coordinator: playbackCoordinator,
                     mainCoordinator: mainCoordinator
                 )
-                #endif
-                #if !os(tvOS)
-                // ── Touch-only baby lock overlay ───────────────────
+            #endif
+            #if !os(tvOS)
+            // ── Touch-only baby lock overlay ───────────────────
                 .babyLock(isEnabled: $babyLockEnabled)
-                #endif
+            #endif
         }
     }
-
 }

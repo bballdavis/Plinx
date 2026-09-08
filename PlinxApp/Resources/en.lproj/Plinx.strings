@@ -49,6 +49,9 @@
 "search.live.minimum %lld" = "Type %lld more letter(s) to start live search.";
 
 /* Downloads */
+"offline.recovery.title" = "Connection unavailable";
+"offline.recovery.message" = "Your downloaded videos are still available offline.";
+"offline.recovery.retry" = "Try Again";
 "downloads.empty.title" = "No downloads";
 "downloads.empty.message" = "Downloaded content will appear here.";
 "downloads.status.queued" = "Queued";

@@ -1,11 +1,13 @@
-import SwiftUI
 import Foundation
+import SwiftUI
 
 #if canImport(UIKit)
 import UIKit
+
 private typealias PlatformImage = UIImage
 #elseif canImport(AppKit)
 import AppKit
+
 private typealias PlatformImage = NSImage
 #endif
 
@@ -16,6 +18,7 @@ struct PlinxDownloadsGridView: View {
     @Environment(DownloadManager.self) private var downloadManager
     @Environment(PlexAPIContext.self) private var context
     @Environment(SessionManager.self) private var sessionManager
+    @Environment(PlinxSessionAccessCoordinator.self) private var sessionAccessCoordinator
     @Environment(ParentalAccessCoordinator.self) private var parentalAccessCoordinator
     @Environment(DownloadOwnershipStore.self) private var downloadOwnershipStore
     @Environment(\.safetyPolicy) private var safetyPolicy
@@ -28,7 +31,7 @@ struct PlinxDownloadsGridView: View {
     private var accessPolicy: DownloadAccessPolicy {
         DownloadAccessPolicy(
             safetyPolicy: safetyPolicy,
-            currentIdentity: sessionManager.plinxDownloadOwnerIdentity,
+            currentIdentity: sessionManager.effectiveDownloadIdentity(using: sessionAccessCoordinator),
             ownershipStore: downloadOwnershipStore
         )
     }
@@ -176,11 +179,17 @@ struct PlinxDownloadsGridView: View {
             OfflineDownloadPlayerView(item: item)
         }
         .task(id: artworkReconciliationID) {
-            downloadOwnershipStore.prune(keeping: Set(downloadManager.items.map(\.id)))
-            downloadManager.resumePendingDownloads(
-                context: context,
-                eligibleDownloadIDs: Set(visibleDownloads.map(\.id))
-            )
+            if downloadManager.persistedIndexState.permitsOwnershipMigration {
+                downloadOwnershipStore.prune(keeping: Set(downloadManager.items.map(\.id)))
+            }
+            if let currentIdentity = accessPolicy.currentIdentity {
+                downloadManager.resumePendingDownloads(
+                    context: context,
+                    eligibleDownloadIDs: downloadOwnershipStore
+                        .downloadIDs(ownedBy: currentIdentity)
+                        .intersection(visibleDownloads.map(\.id))
+                )
+            }
             await downloadManager.reconcileArtworkMetadataIfNeeded(context: context)
         }
     }
@@ -270,8 +279,8 @@ struct PlinxDownloadsGridView: View {
         _ item: DownloadItem,
         poster: PlatformImage?,
         posterSize: CGSize,
-        posterWidth: CGFloat,
-        posterHeight: CGFloat,
+        posterWidth _: CGFloat,
+        posterHeight _: CGFloat,
         cardWidth: CGFloat
     ) -> some View {
         return Button {
@@ -412,7 +421,7 @@ struct PlinxDownloadsGridView: View {
                         ? "downloads.status.preparing %lld"
                         : "downloads.status.transcoding %lld",
                     tableName: "Plinx",
-                    comment: "",
+                    comment: ""
                 ),
                 Int64(((item.preparationProgress ?? 0) * 100).rounded())
             )
@@ -469,10 +478,10 @@ struct PlinxDownloadsGridView: View {
                             ? item.preparationProgress
                             : item.progress
                     )
-                        .progressViewStyle(.linear)
-                        .tint(Color.accentColor)
-                        .padding(.horizontal, 4)
-                        .padding(.bottom, 4)
+                    .progressViewStyle(.linear)
+                    .tint(Color.accentColor)
+                    .padding(.horizontal, 4)
+                    .padding(.bottom, 4)
                 }
             }
         }
@@ -548,15 +557,15 @@ struct PlinxDownloadsGridView: View {
     @ViewBuilder
     private func posterImageView(_ image: PlatformImage?) -> some View {
         if let image {
-#if canImport(UIKit)
+            #if canImport(UIKit)
             Image(uiImage: image)
                 .resizable()
                 .scaledToFill()
-#elseif canImport(AppKit)
+            #elseif canImport(AppKit)
             Image(nsImage: image)
                 .resizable()
                 .scaledToFill()
-#endif
+            #endif
         } else {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .fill(Color.gray.opacity(0.2))
@@ -597,13 +606,14 @@ struct PlinxDownloadsManageView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(DownloadManager.self) private var downloadManager
     @Environment(SessionManager.self) private var sessionManager
+    @Environment(PlinxSessionAccessCoordinator.self) private var sessionAccessCoordinator
     @Environment(DownloadOwnershipStore.self) private var downloadOwnershipStore
     @Environment(\.safetyPolicy) private var safetyPolicy
 
     private var visibleDownloads: [DownloadItem] {
         DownloadAccessPolicy(
             safetyPolicy: safetyPolicy,
-            currentIdentity: sessionManager.plinxDownloadOwnerIdentity,
+            currentIdentity: sessionManager.effectiveDownloadIdentity(using: sessionAccessCoordinator),
             ownershipStore: downloadOwnershipStore
         ).filter(downloadManager.sortedItems)
     }
@@ -666,7 +676,7 @@ struct PlinxDownloadsManageView: View {
                                     ? item.preparationProgress
                                     : item.progress
                             )
-                                .frame(width: 90)
+                            .frame(width: 90)
                         }
 
                         Button(role: .destructive) {
@@ -683,13 +693,13 @@ struct PlinxDownloadsManageView: View {
         #if os(tvOS)
         .listStyle(.plain)
         #endif
-            .safeAreaInset(edge: .top, spacing: 0) {
-                manageHeader
-            }
-            .toolbar(.hidden, for: .navigationBar)
-            .task {
-                await downloadManager.recheckNetworkStatus()
-            }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            manageHeader
+        }
+        .toolbar(.hidden, for: .navigationBar)
+        .task {
+            await downloadManager.recheckNetworkStatus()
+        }
     }
 
     private var manageHeader: some View {
@@ -784,7 +794,7 @@ private struct DownloadsAdaptiveFlowLayout: Layout {
     func sizeThatFits(
         proposal: ProposedViewSize,
         subviews: Subviews,
-        cache: inout ()
+        cache _: inout ()
     ) -> CGSize {
         let frames = arrangedFrames(for: subviews, in: proposal.width)
         guard let lastFrame = frames.last else {
@@ -800,9 +810,9 @@ private struct DownloadsAdaptiveFlowLayout: Layout {
 
     func placeSubviews(
         in bounds: CGRect,
-        proposal: ProposedViewSize,
+        proposal _: ProposedViewSize,
         subviews: Subviews,
-        cache: inout ()
+        cache _: inout ()
     ) {
         let frames = arrangedFrames(for: subviews, in: bounds.width)
 

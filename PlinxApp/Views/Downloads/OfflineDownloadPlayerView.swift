@@ -4,6 +4,7 @@ struct OfflineDownloadPlayerView: View {
     @Environment(DownloadManager.self) private var downloadManager
     @Environment(PlexAPIContext.self) private var context
     @Environment(SessionManager.self) private var sessionManager
+    @Environment(PlinxSessionAccessCoordinator.self) private var sessionAccessCoordinator
     @Environment(DownloadOwnershipStore.self) private var downloadOwnershipStore
     @Environment(\.safetyPolicy) private var safetyPolicy
     @Environment(\.dismiss) private var dismiss
@@ -12,7 +13,8 @@ struct OfflineDownloadPlayerView: View {
 
     var body: some View {
         if accessDecision == .allowed,
-           let localURL = downloadManager.localVideoURL(for: item) {
+           let localURL = downloadManager.localVideoURL(for: item)
+        {
             OfflineActivePlayerView(
                 item: item,
                 localMedia: downloadManager.localMediaItem(for: item),
@@ -66,11 +68,10 @@ struct OfflineDownloadPlayerView: View {
     private var accessDecision: DownloadAccessDecision {
         DownloadAccessPolicy(
             safetyPolicy: safetyPolicy,
-            currentIdentity: sessionManager.plinxDownloadOwnerIdentity,
+            currentIdentity: sessionManager.effectiveDownloadIdentity(using: sessionAccessCoordinator),
             ownershipStore: downloadOwnershipStore
         ).decision(for: item)
     }
-
 }
 
 private struct OfflineActivePlayerView: View {

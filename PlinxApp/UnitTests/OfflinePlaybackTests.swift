@@ -1,6 +1,6 @@
-import XCTest
-import PlinxCore
 @testable import Plinx
+import PlinxCore
+import XCTest
 
 final class OfflinePlaybackTests: XCTestCase {
     // MARK: - DownloadItem.localMediaItem
@@ -176,12 +176,72 @@ final class OfflinePlaybackTests: XCTestCase {
     }
 
     @MainActor
-    func test_legacyDownloadIsSharedWhenAllowedByCurrentPolicy() throws {
+    func test_legacySharedDownloadIsExcludedFromOwnedResumeIDs() throws {
+        let suite = "OfflinePlaybackTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let item = makeDownloadItem(id: "legacy", type: .movie, contentRating: "G")
+        let ownership = DownloadOwnershipStore(
+            defaults: defaults,
+            existingDownloadItems: [item]
+        )
+        let identity = DownloadOwnerIdentity(serverIdentifier: "server-a", profileIdentifier: "profile-a")
+
+        XCTAssertTrue(ownership.grandfatheredLegacyDownloadIDs.contains(item.id))
+        XCTAssertFalse(ownership.downloadIDs(ownedBy: identity).contains(item.id))
+    }
+
+    @MainActor
+    func test_enrollmentRollbackOnlyRemovesExpectedOwner() throws {
         let suite = "OfflinePlaybackTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         let ownership = DownloadOwnershipStore(defaults: defaults)
+        let owner = DownloadOwnerIdentity(serverIdentifier: "server-a", profileIdentifier: "profile-a")
+        let other = DownloadOwnerIdentity(serverIdentifier: "server-a", profileIdentifier: "profile-b")
+
+        try ownership.enroll("download", as: owner)
+        try ownership.removeEnrollment("download", expectedIdentity: other)
+        XCTAssertEqual(ownership.identity(for: "download"), owner)
+
+        try ownership.removeEnrollment("download", expectedIdentity: owner)
+        XCTAssertNil(ownership.identity(for: "download"))
+    }
+
+    func test_enrollmentAuthorizationRejectsChangedLiveIdentity() {
+        let profileA = DownloadOwnerIdentity(serverIdentifier: "server", profileIdentifier: "profile-a")
+        let profileB = DownloadOwnerIdentity(serverIdentifier: "server", profileIdentifier: "profile-b")
+
+        XCTAssertTrue(
+            PlinxDownloadEnrollmentAuthorization.permits(
+                capturedIdentity: profileA,
+                liveIdentity: profileA
+            )
+        )
+        XCTAssertFalse(
+            PlinxDownloadEnrollmentAuthorization.permits(
+                capturedIdentity: profileA,
+                liveIdentity: profileB
+            )
+        )
+        XCTAssertFalse(
+            PlinxDownloadEnrollmentAuthorization.permits(
+                capturedIdentity: profileA,
+                liveIdentity: nil
+            )
+        )
+    }
+
+    @MainActor
+    func test_legacyDownloadIsSharedWhenAllowedByCurrentPolicy() throws {
+        let suite = "OfflinePlaybackTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
         let item = makeDownloadItem(id: "legacy", type: .movie, contentRating: "G")
+        let ownership = DownloadOwnershipStore(
+            defaults: defaults,
+            existingDownloadItems: [item]
+        )
         let policy = DownloadAccessPolicy(
             safetyPolicy: .ratingOnly(maxMovie: .pg, maxTV: .tvPg, allowUnrated: false),
             currentIdentity: DownloadOwnerIdentity(
@@ -203,10 +263,72 @@ final class OfflinePlaybackTests: XCTestCase {
         let policy = DownloadAccessPolicy(
             safetyPolicy: .ratingOnly(maxMovie: .pg, maxTV: .tvPg, allowUnrated: false),
             currentIdentity: DownloadOwnerIdentity(serverIdentifier: "server-a", profileIdentifier: "profile-a"),
-            ownershipStore: DownloadOwnershipStore(defaults: defaults)
+            ownershipStore: DownloadOwnershipStore(
+                defaults: defaults,
+                existingDownloadItems: [item]
+            )
         )
 
         XCTAssertEqual(policy.decision(for: item), .blockedByContentPolicy)
+    }
+
+    @MainActor
+    func test_newOwnerlessDownloadFailsClosed() throws {
+        let suite = "OfflinePlaybackTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let item = makeDownloadItem(id: "unprovenanced", type: .movie, contentRating: "G")
+        let policy = DownloadAccessPolicy(
+            safetyPolicy: .ratingOnly(maxMovie: .pg, maxTV: .tvPg, allowUnrated: false),
+            currentIdentity: DownloadOwnerIdentity(
+                serverIdentifier: "server-a",
+                profileIdentifier: "profile-a"
+            ),
+            ownershipStore: DownloadOwnershipStore(defaults: defaults)
+        )
+
+        XCTAssertEqual(policy.decision(for: item), .missingOwner)
+    }
+
+    @MainActor
+    func test_corruptOwnershipStoreDoesNotGrandfatherDownloads() throws {
+        let suite = "OfflinePlaybackTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(Data("not-json".utf8), forKey: "plinx.downloadOwnership.v1")
+        let item = makeDownloadItem(id: "unknown", type: .movie, contentRating: "G")
+        let ownership = DownloadOwnershipStore(
+            defaults: defaults,
+            existingDownloadItems: [item]
+        )
+        let policy = DownloadAccessPolicy(
+            safetyPolicy: .ratingOnly(maxMovie: .pg, maxTV: .tvPg, allowUnrated: false),
+            currentIdentity: DownloadOwnerIdentity(
+                serverIdentifier: "server-a",
+                profileIdentifier: "profile-a"
+            ),
+            ownershipStore: ownership
+        )
+
+        XCTAssertEqual(ownership.loadState, .corrupt)
+        XCTAssertEqual(policy.decision(for: item), .missingOwner)
+        XCTAssertThrowsError(try ownership.enroll(item.id, as: XCTUnwrap(policy.currentIdentity)))
+    }
+
+    @MainActor
+    func test_untrustedDownloadIndexDoesNotCreateLegacySharingGrant() throws {
+        let suite = "OfflinePlaybackTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let item = makeDownloadItem(id: "recovery-item", type: .movie, contentRating: "G")
+        let ownership = DownloadOwnershipStore(
+            defaults: defaults,
+            existingDownloadItems: [item],
+            canMigrateExistingDownloads: false
+        )
+
+        XCTAssertEqual(ownership.loadState, .unavailable)
+        XCTAssertFalse(ownership.grandfatheredLegacyDownloadIDs.contains(item.id))
     }
 
     // MARK: - Helpers

@@ -1,5 +1,5 @@
-import SwiftUI
 import PlinxUI
+import SwiftUI
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Plinx-branded profile switcher (replaces Strimr's ProfileSwitcherView)
@@ -15,6 +15,7 @@ import PlinxUI
 @MainActor
 struct ProfileSwitcherView: View {
     @Environment(SessionManager.self) private var sessionManager
+    @Environment(PlinxSessionAccessCoordinator.self) private var sessionAccessCoordinator
     @Environment(\.plinxTheme) private var theme
     @State private var viewModel: ProfileSwitcherViewModel
     @State private var pinPromptUser: PlexHomeUser?
@@ -49,36 +50,36 @@ struct ProfileSwitcherView: View {
         }
         .navigationTitle("auth.profile.title")
         #if !os(tvOS)
-        .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.inline)
         #endif
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button(role: .destructive) {
-                    isShowingLogoutConfirmation = true
-                } label: {
-                    Image(systemName: "rectangle.portrait.and.arrow.right")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(role: .destructive) {
+                        isShowingLogoutConfirmation = true
+                    } label: {
+                        Image(systemName: "rectangle.portrait.and.arrow.right")
+                    }
+                    .accessibilityLabel("common.actions.logOut")
                 }
-                .accessibilityLabel("common.actions.logOut")
             }
-        }
-        .alert("common.actions.logOut", isPresented: $isShowingLogoutConfirmation) {
-            Button("common.actions.logOut", role: .destructive) {
-                Task { await sessionManager.signOut() }
+            .alert("common.actions.logOut", isPresented: $isShowingLogoutConfirmation) {
+                Button("common.actions.logOut", role: .destructive) {
+                    Task { await sessionManager.signOutRevokingLocalAccess(sessionAccessCoordinator) }
+                }
+                Button("common.actions.cancel", role: .cancel) {}
+            } message: {
+                Text("more.logout.message")
             }
-            Button("common.actions.cancel", role: .cancel) {}
-        } message: {
-            Text("more.logout.message")
-        }
-        .task { await viewModel.loadUsers() }
-        .plinxRefreshable { await viewModel.loadUsers() }
-        .sheet(item: $pinPromptUser, onDismiss: resetPinPrompt) { user in
-            NavigationStack {
-                pinPromptContent(for: user)
+            .task { await viewModel.loadUsers() }
+            .plinxRefreshable { await viewModel.loadUsers() }
+            .sheet(item: $pinPromptUser, onDismiss: resetPinPrompt) { user in
+                NavigationStack {
+                    pinPromptContent(for: user)
+                }
             }
-        }
-        .onChange(of: pinInput) { _, newValue in
-            pinInput = String(newValue.filter(\.isNumber).prefix(4))
-        }
+            .onChange(of: pinInput) { _, newValue in
+                pinInput = String(newValue.filter(\.isNumber).prefix(4))
+            }
     }
 
     // MARK: - Subviews
@@ -144,22 +145,22 @@ struct ProfileSwitcherView: View {
                         profileStatusBadge(isSelected: isSelected, isProtected: isProtected)
                     }
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(user.friendlyName ?? user.title ?? "?")
-                            .font(.headline)
-                            .foregroundStyle(.white)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.85)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(user.friendlyName ?? user.title ?? "?")
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
 
-                        Text(subtitle)
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.62))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                            .opacity(subtitle.isEmpty ? 0 : 1)
-                            .accessibilityHidden(subtitle.isEmpty)
-                    }
-                    .frame(height: 36, alignment: .top)
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.62))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .opacity(subtitle.isEmpty ? 0 : 1)
+                        .accessibilityHidden(subtitle.isEmpty)
+                }
+                .frame(height: 36, alignment: .top)
             }
             .frame(maxWidth: .infinity)
             .frame(minHeight: profileCardMinHeight, alignment: .top)
@@ -311,9 +312,9 @@ struct ProfileSwitcherView: View {
         .padding()
         .navigationTitle("auth.profile.pin.required")
         #if !os(tvOS)
-        .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.inline)
         #endif
-        .onAppear { isPinFieldFocused = true }
+            .onAppear { isPinFieldFocused = true }
     }
 
     private func errorCard(_ message: String) -> some View {

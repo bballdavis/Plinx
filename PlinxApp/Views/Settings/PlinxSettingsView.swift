@@ -1,6 +1,6 @@
-import SwiftUI
 import PlinxCore
 import PlinxUI
+import SwiftUI
 
 /// The Plinx settings screen, protected by a parental gate.
 struct PlinxSettingsView: View {
@@ -44,14 +44,15 @@ private struct SettingsBody: View {
     @Environment(SettingsManager.self) private var settingsManager
     @Environment(LibraryStore.self) private var libraryStore
     @Environment(SessionManager.self) private var sessionManager
+    @Environment(PlinxSessionAccessCoordinator.self) private var sessionAccessCoordinator
     @Environment(PlexAPIContext.self) private var plexApiContext
 
     #if !os(tvOS)
     @AppStorage("plinx.babyLockEnabled") private var babyLockEnabled = false
     #endif
     @AppStorage("plinx.maxMovieRating") private var maxMovieRatingRaw = PlinxRating.g.rawValue
-    @AppStorage("plinx.maxTVRating")    private var maxTVRatingRaw    = PlinxRating.tvY.rawValue
-    @AppStorage("plinx.excludeUnrated") private var excludeUnrated    = true
+    @AppStorage("plinx.maxTVRating") private var maxTVRatingRaw = PlinxRating.tvY.rawValue
+    @AppStorage("plinx.excludeUnrated") private var excludeUnrated = true
     @AppStorage(PlinxNavigationPreference.showSearchInMainNavigationStorageKey)
     private var showSearchInMainNavigation = PlinxNavigationPreference.defaultShowSearchInMainNavigation
 
@@ -74,6 +75,7 @@ private struct SettingsBody: View {
         #else
         List {
             // MARK: Content subpages
+
             Section {
                 NavigationLink(destination: VisibleLibrariesView()) {
                     Label {
@@ -129,6 +131,7 @@ private struct SettingsBody: View {
             }
 
             // MARK: Appearance
+
             Section {
                 NavigationLink(destination: AppearanceSettingsView()) {
                     Label {
@@ -143,7 +146,9 @@ private struct SettingsBody: View {
             }
 
             #if !os(tvOS)
+
             // MARK: Downloads
+
             Section {
                 NavigationLink(destination: SettingsDownloadsView()) {
                     Label {
@@ -158,6 +163,7 @@ private struct SettingsBody: View {
             #endif
 
             // MARK: Content rating — movie
+
             Section {
                 Picker(selection: $maxMovieRatingRaw) {
                     ForEach(PlinxRating.movieRatings, id: \.rawValue) { rating in
@@ -208,7 +214,7 @@ private struct SettingsBody: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    Slider(value: maxVolumeBinding, in: 0...100, step: 5)
+                    Slider(value: maxVolumeBinding, in: 0 ... 100, step: 5)
                         .accessibilityLabel(
                             Text("settings.safety.maxVolume.title", tableName: "Plinx")
                         )
@@ -223,6 +229,7 @@ private struct SettingsBody: View {
             }
 
             // MARK: Baby lock
+
             Section {
                 Toggle(isOn: $babyLockEnabled) {
                     Label {
@@ -247,6 +254,7 @@ private struct SettingsBody: View {
             }
 
             // MARK: Account (profile switching)
+
             Section {
                 Button {
                     isPresentingProfileSwitcher = true
@@ -262,6 +270,7 @@ private struct SettingsBody: View {
             }
 
             // MARK: GPL compliance (hidden behind gate)
+
             Section {
                 Link(destination: URL(string: "https://github.com/wunax/strimr")!) {
                     Label {
@@ -307,9 +316,10 @@ private struct SettingsBody: View {
             }
 
             // MARK: Session
+
             Section {
                 Button(role: .destructive) {
-                    Task { await sessionManager.signOut() }
+                    Task { await sessionManager.signOutRevokingLocalAccess(sessionAccessCoordinator) }
                 } label: {
                     Label("common.actions.logOut", systemImage: "rectangle.portrait.and.arrow.right")
                 }
@@ -513,7 +523,7 @@ private struct SettingsBody: View {
 
                 TvSettingsSection(title: LocalizedStringKey("common.actions.logOut")) {
                     Button(role: .destructive) {
-                        Task { await sessionManager.signOut() }
+                        Task { await sessionManager.signOutRevokingLocalAccess(sessionAccessCoordinator) }
                     } label: {
                         TvSettingsRow(
                             title: LocalizedStringKey("common.actions.logOut"),

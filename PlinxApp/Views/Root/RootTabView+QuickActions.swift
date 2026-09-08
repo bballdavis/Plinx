@@ -1,6 +1,6 @@
-import SwiftUI
 import PlinxCore
 import PlinxUI
+import SwiftUI
 
 extension RootTabView {
     func quickActionSheet(for item: MediaDisplayItem) -> some View {
@@ -36,7 +36,7 @@ extension RootTabView {
             .padding(.horizontal, 16)
             .padding(.bottom, 16)
             #if os(tvOS)
-            .focusSection()
+                .focusSection()
             #endif
         }
         #if os(tvOS)
@@ -87,10 +87,10 @@ extension RootTabView {
         }
         .buttonStyle(.plain)
         #if os(tvOS)
-        .focusEffectDisabled()
-        .focused($focusedQuickActionID, equals: QuickActionFocusOrder.cancelID)
+            .focusEffectDisabled()
+            .focused($focusedQuickActionID, equals: QuickActionFocusOrder.cancelID)
         #endif
-        .accessibilityIdentifier("quickAction.cancel")
+            .accessibilityIdentifier("quickAction.cancel")
     }
 
     func quickActionButton(_ option: QuickActionOption) -> some View {
@@ -129,10 +129,10 @@ extension RootTabView {
         }
         .buttonStyle(PlinkButtonStyle())
         #if os(tvOS)
-        .focusEffectDisabled()
-        .focused($focusedQuickActionID, equals: option.id)
+            .focusEffectDisabled()
+            .focused($focusedQuickActionID, equals: option.id)
         #endif
-        .accessibilityIdentifier("quickAction.option.\(option.id)")
+            .accessibilityIdentifier("quickAction.option.\(option.id)")
     }
 
     #if os(tvOS)
@@ -197,7 +197,7 @@ extension RootTabView {
                     action: {
                         Task { await toggleWatched(media) }
                     }
-                )
+                ),
             ]
 
             #if !os(tvOS)
@@ -229,7 +229,7 @@ extension RootTabView {
                                 return
                             }
                             Task {
-                                guard let ownerIdentity = sessionManager.plinxDownloadOwnerIdentity else {
+                                guard sessionManager.plinxDownloadOwnerIdentity != nil else {
                                     quickActionErrorMessage = NSLocalizedString(
                                         "downloads.ownerUnavailable",
                                         tableName: "Plinx",
@@ -237,28 +237,23 @@ extension RootTabView {
                                     )
                                     return
                                 }
-                                let newDownloadIDs: [String]
                                 switch media.type {
                                 case .show:
-                                    newDownloadIDs = await downloadManager.enqueueShow(
+                                    _ = await downloadManager.enqueueShow(
                                         ratingKey: media.id,
                                         context: plexApiContext
                                     )
                                 case .season:
-                                    newDownloadIDs = await downloadManager.enqueueSeason(
+                                    _ = await downloadManager.enqueueSeason(
                                         ratingKey: media.id,
                                         context: plexApiContext
                                     )
                                 default:
-                                    newDownloadIDs = await downloadManager.enqueueItem(
+                                    _ = await downloadManager.enqueueItem(
                                         ratingKey: media.id,
                                         context: plexApiContext
                                     )
                                 }
-                                downloadOwnershipStore.claim(
-                                    downloadIDs: newDownloadIDs,
-                                    as: ownerIdentity
-                                )
                             }
                         }
                     )
@@ -303,7 +298,7 @@ extension RootTabView {
                     action: {
                         mainCoordinator.showCollectionDetail(collection)
                     }
-                )
+                ),
             ]
 
         case let .playlist(playlist):
@@ -325,7 +320,7 @@ extension RootTabView {
                     action: {
                         mainCoordinator.showPlaylistDetail(playlist)
                     }
-                )
+                ),
             ]
         }
     }

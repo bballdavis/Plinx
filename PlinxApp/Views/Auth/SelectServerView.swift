@@ -1,5 +1,5 @@
-import SwiftUI
 import PlinxUI
+import SwiftUI
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Plinx-branded server selection (replaces Strimr's SelectServerView)
@@ -9,6 +9,7 @@ import PlinxUI
 
 struct SelectServerView: View {
     @Environment(SessionManager.self) private var sessionManager
+    @Environment(PlinxSessionAccessCoordinator.self) private var sessionAccessCoordinator
     @State var viewModel: ServerSelectionViewModel
     @State private var isShowingLogoutConfirmation = false
 
@@ -31,7 +32,7 @@ struct SelectServerView: View {
         }
         .alert("common.actions.logOut", isPresented: $isShowingLogoutConfirmation) {
             Button("common.actions.logOut", role: .destructive) {
-                Task { await sessionManager.signOut() }
+                Task { await sessionManager.signOutRevokingLocalAccess(sessionAccessCoordinator) }
             }
             Button("common.actions.cancel", role: .cancel) {}
         } message: {
@@ -142,7 +143,7 @@ struct SelectServerView: View {
             .opacity(
                 viewModel.isSelecting && viewModel.selectingServerID != server.clientIdentifier
                     ? 0.6
-                    : 1,
+                    : 1
             )
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)

@@ -1,6 +1,6 @@
-import SwiftUI
 import PlinxCore
 import PlinxUI
+import SwiftUI
 
 extension RootTabView {
     @ViewBuilder
@@ -9,10 +9,10 @@ extension RootTabView {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .toolbar(.hidden, for: .tabBar)
             .environment(\.watchedOverrides, watchedOverrides)
-            #if os(tvOS)
+        #if os(tvOS)
             .environment(mediaFocusModel)
             .environmentObject(tvFocusCoordinator)
-            #endif
+        #endif
 
         #if os(tvOS)
         ZStack(alignment: .top) {
@@ -42,39 +42,47 @@ extension RootTabView {
 
     @ViewBuilder
     var tabContainer: some View {
-        #if os(tvOS)
-        tabStack(for: activeRootTab)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        #else
-        ZStack {
-            tabStack(for: .home)
-            tabStack(for: .search)
+        if sessionAccessCoordinator.isLocallyEnrolled,
+           sessionManager.status != .ready
+        {
             tabStack(for: .more)
-            tabStack(for: .library)
-            tabStack(for: .seerrDiscover)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .sheet(isPresented: $showSettings) {
-            Group {
-                if parentalAccessCoordinator.isUnlocked {
-                    NavigationStack {
-                        PlinxSettingsView()
-                            .toolbar(.hidden, for: .navigationBar)
-                            .safeAreaInset(edge: .top, spacing: 0) {
-                                settingsHeaderRow
-                            }
-                    }
-                } else {
-                    ParentalGateView {
-                        // The coordinator owns the authorization state. This
-                        // closure exists so UI-test and future presentation
-                        // layers can react without bypassing that state.
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .onAppear { mainCoordinator.tab = .more }
+        } else {
+            #if os(tvOS)
+            tabStack(for: activeRootTab)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            #else
+            ZStack {
+                tabStack(for: .home)
+                tabStack(for: .search)
+                tabStack(for: .more)
+                tabStack(for: .library)
+                tabStack(for: .seerrDiscover)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .sheet(isPresented: $showSettings) {
+                Group {
+                    if parentalAccessCoordinator.isUnlocked {
+                        NavigationStack {
+                            PlinxSettingsView()
+                                .toolbar(.hidden, for: .navigationBar)
+                                .safeAreaInset(edge: .top, spacing: 0) {
+                                    settingsHeaderRow
+                                }
+                        }
+                    } else {
+                        ParentalGateView {
+                            // The coordinator owns the authorization state. This
+                            // closure exists so UI-test and future presentation
+                            // layers can react without bypassing that state.
+                        }
                     }
                 }
+                .presentationDetents([.large])
             }
-            .presentationDetents([.large])
+            #endif
         }
-        #endif
     }
 
     #if os(tvOS)
@@ -98,7 +106,6 @@ extension RootTabView {
         )
     }
 
-    @ViewBuilder
     var tvOSSettingsContent: some View {
         Group {
             if parentalAccessCoordinator.isUnlocked {
@@ -109,10 +116,10 @@ extension RootTabView {
                             focusedShellTarget = .settings
                         }
                     )
-                        .toolbar(.hidden, for: .navigationBar)
-                        .safeAreaInset(edge: .top, spacing: 0) {
-                            settingsHeaderRow
-                        }
+                    .toolbar(.hidden, for: .navigationBar)
+                    .safeAreaInset(edge: .top, spacing: 0) {
+                        settingsHeaderRow
+                    }
                 }
             } else {
                 ParentalGateView(
@@ -220,9 +227,9 @@ extension RootTabView {
             .allowsHitTesting(activeRootTab == .search)
             .accessibilityHidden(activeRootTab != .search)
             #if os(tvOS)
-            .onAppear {
-                tvFocusCoordinator.activate(.search)
-            }
+                .onAppear {
+                    tvFocusCoordinator.activate(.search)
+                }
             #endif
 
         case .library:
@@ -278,9 +285,9 @@ extension RootTabView {
             .allowsHitTesting(activeRootTab == .library)
             .accessibilityHidden(activeRootTab != .library)
             #if os(tvOS)
-            .onAppear {
-                tvFocusCoordinator.activate(.library)
-            }
+                .onAppear {
+                    tvFocusCoordinator.activate(.library)
+                }
             #endif
 
         case .more:
@@ -324,7 +331,7 @@ extension RootTabView {
                 .accessibilityHidden(activeRootTab != .seerrDiscover)
             }
 
-        case .libraryDetail(_):
+        case .libraryDetail:
             EmptyView()
         }
     }
@@ -376,7 +383,9 @@ extension RootTabView {
     }
 
     func normalizedRootTab(_ tab: MainCoordinator.Tab) -> MainCoordinator.Tab {
-        if case .libraryDetail = tab { return .library }
+        if case .libraryDetail = tab {
+            return .library
+        }
         return tab
     }
 
@@ -523,6 +532,4 @@ extension RootTabView {
             }
         }
     }
-
-
 }

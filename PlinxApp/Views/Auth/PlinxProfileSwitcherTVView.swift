@@ -1,6 +1,6 @@
 #if os(tvOS)
-import SwiftUI
 import PlinxUI
+import SwiftUI
 
 @MainActor
 struct PlinxProfileSwitcherTVView: View {
@@ -11,6 +11,7 @@ struct PlinxProfileSwitcherTVView: View {
     }
 
     @Environment(SessionManager.self) private var sessionManager
+    @Environment(PlinxSessionAccessCoordinator.self) private var sessionAccessCoordinator
     @Environment(\.plinxTheme) private var theme
     @State private var viewModel: ProfileSwitcherViewModel
     @State private var pinPromptUser: PlexHomeUser?
@@ -23,7 +24,7 @@ struct PlinxProfileSwitcherTVView: View {
     private let loadsUsersOnAppear: Bool
 
     private let profileColumns = [
-        GridItem(.adaptive(minimum: 270, maximum: 330), spacing: 36)
+        GridItem(.adaptive(minimum: 270, maximum: 330), spacing: 36),
     ]
 
     init(
@@ -64,7 +65,7 @@ struct PlinxProfileSwitcherTVView: View {
         }
         .alert("common.actions.logOut", isPresented: $isShowingLogoutConfirmation) {
             Button("common.actions.logOut", role: .destructive) {
-                Task { await sessionManager.signOut() }
+                Task { await sessionManager.signOutRevokingLocalAccess(sessionAccessCoordinator) }
             }
             Button("common.actions.cancel", role: .cancel) {}
         } message: {
@@ -353,7 +354,7 @@ struct PlinxProfileSwitcherTVView: View {
 
     private var pinDisplay: some View {
         HStack(spacing: 14) {
-            ForEach(0..<4, id: \.self) { index in
+            ForEach(0 ..< 4, id: \.self) { index in
                 RoundedRectangle(cornerRadius: 15, style: .continuous)
                     .fill(PlinxBrand.surface)
                     .frame(width: 82, height: 64)
@@ -373,7 +374,7 @@ struct PlinxProfileSwitcherTVView: View {
     private let keypadColumns = [
         GridItem(.fixed(128), spacing: 12),
         GridItem(.fixed(128), spacing: 12),
-        GridItem(.fixed(128), spacing: 12)
+        GridItem(.fixed(128), spacing: 12),
     ]
 
     private var keypad: some View {
@@ -434,7 +435,8 @@ struct PlinxProfileSwitcherTVView: View {
     private var preferredProfileID: String? {
         guard !viewModel.users.isEmpty else { return nil }
         if let active = viewModel.activeUserUUID,
-           viewModel.users.contains(where: { $0.uuid == active }) {
+           viewModel.users.contains(where: { $0.uuid == active })
+        {
             return active
         }
         return viewModel.users.first?.uuid

@@ -1,9 +1,10 @@
-import PlinxUI
 import Foundation
+import PlinxUI
 import SwiftUI
 
 struct PlinxContentView: View {
     @Environment(SessionManager.self) private var sessionManager
+    @Environment(PlinxSessionAccessCoordinator.self) private var sessionAccessCoordinator
     @Environment(PlexAPIContext.self) private var plexApiContext
     @Environment(\.safetyPolicy) private var safetyPolicy
     @EnvironmentObject private var mainCoordinator: MainCoordinator
@@ -42,10 +43,17 @@ struct PlinxContentView: View {
                 .environmentObject(playbackLaunchCoordinator)
         }
         .onAppear {
+            synchronizeSessionAccess()
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 500_000_000)
                 AppStoreScreenshotBootstrap.applyRequestedOrientation()
             }
+        }
+        .onChange(of: sessionManager.status) { _, _ in
+            synchronizeSessionAccess()
+        }
+        .onChange(of: sessionRootIdentity) { _, _ in
+            synchronizeSessionAccess()
         }
     }
 
@@ -53,7 +61,8 @@ struct PlinxContentView: View {
         Binding(
             get: {
                 guard playbackLaunchCoordinator.pendingLaunch != nil
-                    || mainCoordinator.selectedPlayQueue != nil else {
+                    || mainCoordinator.selectedPlayQueue != nil
+                else {
                     return nil
                 }
                 return PlaybackPresentationToken()
@@ -76,8 +85,8 @@ struct PlinxContentView: View {
                 SignInView(
                     viewModel: PlinxSignInViewModel(
                         sessionManager: sessionManager,
-                        context: plexApiContext,
-                    ),
+                        context: plexApiContext
+                    )
                 )
             case "playerSettings":
                 playerSettingsPreview
@@ -282,7 +291,7 @@ struct PlinxContentView: View {
                     isSelected: false
                 ),
                 plexStream: nil
-            )
+            ),
         ]
 
         return PlaybackSettingsView(
@@ -418,55 +427,72 @@ struct PlinxContentView: View {
 
     @ViewBuilder
     private var sessionContent: some View {
-        switch sessionManager.status {
-        case .hydrating:
-            PlinxBrandedLoadingView(context: .appTransition)
-        case .signedOut:
-            SignInView(
-                viewModel: PlinxSignInViewModel(
-                    sessionManager: sessionManager,
-                    context: plexApiContext,
-                ),
-            )
-        case .needsProfileSelection:
-            NavigationStack {
-                #if os(tvOS)
-                PlinxProfileSwitcherTVView(
-                    viewModel: ProfileSwitcherViewModel(
-                        context: plexApiContext,
+        if sessionAccessCoordinator.isLocallyEnrolled {
+            ZStack {
+                RootTabView()
+                if sessionManager.status != .ready {
+                    PlinxConnectionRecoveryView()
+                }
+            }
+        } else {
+            switch sessionManager.status {
+            case .hydrating:
+                PlinxBrandedLoadingView(context: .appTransition)
+            case .signedOut:
+                SignInView(
+                    viewModel: PlinxSignInViewModel(
                         sessionManager: sessionManager,
+                        context: plexApiContext
                     )
                 )
-                #else
-                ProfileSwitcherView(
-                    viewModel: ProfileSwitcherViewModel(
-                        context: plexApiContext,
-                        sessionManager: sessionManager,
-                    ),
-                )
-                #endif
-            }
-        case .needsServerSelection:
-            NavigationStack {
-                #if os(tvOS)
-                SelectServerTVView(
-                    viewModel: ServerSelectionViewModel(
-                        sessionManager: sessionManager,
-                        context: plexApiContext,
+            case .needsProfileSelection:
+                NavigationStack {
+                    #if os(tvOS)
+                    PlinxProfileSwitcherTVView(
+                        viewModel: ProfileSwitcherViewModel(
+                            context: plexApiContext,
+                            sessionManager: sessionManager
+                        )
                     )
-                )
-                #else
-                SelectServerView(
-                    viewModel: ServerSelectionViewModel(
-                        sessionManager: sessionManager,
-                        context: plexApiContext,
-                    ),
-                )
-                #endif
+                    #else
+                    ProfileSwitcherView(
+                        viewModel: ProfileSwitcherViewModel(
+                            context: plexApiContext,
+                            sessionManager: sessionManager
+                        )
+                    )
+                    #endif
+                }
+            case .needsServerSelection:
+                NavigationStack {
+                    #if os(tvOS)
+                    SelectServerTVView(
+                        viewModel: ServerSelectionViewModel(
+                            sessionManager: sessionManager,
+                            context: plexApiContext
+                        )
+                    )
+                    #else
+                    SelectServerView(
+                        viewModel: ServerSelectionViewModel(
+                            sessionManager: sessionManager,
+                            context: plexApiContext
+                        )
+                    )
+                    #endif
+                }
+            case .ready:
+                RootTabView()
+                    .id(sessionRootIdentity)
             }
-        case .ready:
-            RootTabView()
-                .id(sessionRootIdentity)
+        }
+    }
+
+    private func synchronizeSessionAccess() {
+        if sessionManager.status == .ready {
+            sessionAccessCoordinator.recordReadySession(sessionManager: sessionManager)
+        } else if sessionManager.status == .signedOut || sessionManager.status == .needsServerSelection {
+            sessionAccessCoordinator.markRemoteFailure()
         }
     }
 
@@ -598,7 +624,10 @@ private struct ParentalGateUITestHarness: View {
 }
 
 private struct EmptyParentalPINStore: ParentalPINStoring {
-    func readPIN() throws -> String? { nil }
-    func writePIN(_ pin: String) throws {}
+    func readPIN() throws -> String? {
+        nil
+    }
+
+    func writePIN(_: String) throws {}
     func deletePIN() throws {}
 }

@@ -22,6 +22,7 @@ struct LifecycleHardeningModifier: ViewModifier {
     let downloadManager: DownloadManager
     let plexApiContext: PlexAPIContext
     let sessionManager: SessionManager
+    let sessionAccessCoordinator: PlinxSessionAccessCoordinator
     let downloadOwnershipStore: DownloadOwnershipStore
     #endif
 
@@ -69,7 +70,7 @@ struct LifecycleHardeningModifier: ViewModifier {
                     }
                 }
             }
-            #if !os(tvOS)
+        #if !os(tvOS)
             .onReceive(
                 NotificationCenter.default.publisher(
                     for: UIApplication.didReceiveMemoryWarningNotification
@@ -86,17 +87,17 @@ struct LifecycleHardeningModifier: ViewModifier {
                 coordinator.handleBackgrounding()
                 mainCoordinator.resetPlayer()
             }
-            #endif
-            #if !os(tvOS)
-            .task(id: sessionManager.plinxDownloadOwnerIdentity) {
+        #endif
+        #if !os(tvOS)
+            .task(id: sessionManager.effectiveDownloadIdentity(using: sessionAccessCoordinator)) {
                 resumeOwnedDownloads()
-            }
-            #endif
+        }
+        #endif
     }
 
     #if !os(tvOS)
     private func resumeOwnedDownloads() {
-        let eligibleDownloadIDs = sessionManager.plinxDownloadOwnerIdentity.map {
+        let eligibleDownloadIDs = sessionManager.effectiveDownloadIdentity(using: sessionAccessCoordinator).map {
             downloadOwnershipStore.downloadIDs(ownedBy: $0)
         } ?? []
         downloadManager.resumePendingDownloads(
@@ -115,6 +116,7 @@ extension View {
         downloadManager: DownloadManager,
         plexApiContext: PlexAPIContext,
         sessionManager: SessionManager,
+        sessionAccessCoordinator: PlinxSessionAccessCoordinator,
         downloadOwnershipStore: DownloadOwnershipStore
     ) -> some View {
         modifier(LifecycleHardeningModifier(
@@ -123,6 +125,7 @@ extension View {
             downloadManager: downloadManager,
             plexApiContext: plexApiContext,
             sessionManager: sessionManager,
+            sessionAccessCoordinator: sessionAccessCoordinator,
             downloadOwnershipStore: downloadOwnershipStore
         ))
     }

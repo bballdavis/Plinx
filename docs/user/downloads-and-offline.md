@@ -50,6 +50,12 @@ the parent-gated Manage Downloads screen so it can be removed and retried.
 - A download must be allowed by the current content policy.
 - Offline media downloaded by the current version is tied to the Plex server
   and profile that created it.
+- Plinx records that ownership before a new item can appear in the download
+  list. A profile or server switch during preparation cannot transfer the
+  remaining items in a season or show batch to the new identity.
+- If a parent logs out or changes profile while preparation is still running,
+  the old authorization is rejected before the item appears or a transfer
+  begins.
 - Downloads already on a device when Plinx is upgraded have no historical
   profile record. Plinx treats those legacy downloads as shared offline media,
   but still hides and blocks playback whenever they exceed the active profile's
@@ -63,3 +69,9 @@ the parent-gated Manage Downloads screen so it can be removed and retried.
 Use the Downloads tab to monitor, play, or remove offline media. If an item is
 not available, reconnect to the intended server/profile and confirm the parent
 rating and library settings still allow it.
+
+After one successful signed-in session, a temporary internet or Plex outage
+keeps the matching Downloads view available. Plinx stores the last authorized
+server/profile context in Keychain without copying the Plex token into download
+metadata. Signing out explicitly revokes that automatic offline access but does
+not silently delete the media files.
