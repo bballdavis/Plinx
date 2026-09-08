@@ -190,6 +190,17 @@ struct PlinxLoadingIndicatorTests {
         #expect(firstPhase.size.cornerRadius == laterPhase.size.cornerRadius)
     }
 
+    @Test func perimeterPolicyNormalizesWrapsAndResolvesReduceMotion() {
+        #expect(PlinxLoadingPerimeterPolicy.normalizedPhase(-0.25) == 0.75)
+        #expect(PlinxLoadingPerimeterPolicy.normalizedPhase(1.25) == 0.25)
+        #expect(PlinxLoadingPerimeterPolicy.normalizedPhase(.nan) == 0)
+        #expect(PlinxLoadingPerimeterPolicy.normalizedPhase(.infinity) == 0)
+        #expect(PlinxLoadingPerimeterPolicy.normalizedPhase(-.infinity) == 0)
+        #expect(PlinxLoadingPerimeterPolicy.presentation(reduceMotion: true, phase: 0.5) == .staticGradient)
+        let result = PlinxLoadingPerimeterPolicy.presentation(reduceMotion: false, phase: 1.25)
+        #expect(result == .animated(startAngle: 90, endAngle: 450))
+    }
+
     @Test func progressStyleCanBeInstalledAtTheAppRoot() {
         _ = PlinxProgressViewStyle()
     }

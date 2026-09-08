@@ -102,9 +102,8 @@ animated rounded-square beacon at hero scale, with the full-color loop centered
 inside, the outlined white wordmark beneath it, and no visible loading caption.
 Its motion-enabled branding test samples the hero beacon before and after a
 full 1.35-second perimeter cycle to ensure the animation never changes its
-origin or size. Component rendering also supports fixed chase phases so
-portrait iPhone and iPad coverage can exercise perimeter appearance without
-wall-clock timing; record new pixel baselines only after visual review.
+origin or size. Component tests cover fixed chase phase policy without
+wall-clock timing; record portrait pixel baselines only after visual review.
 `refreshLoading` provides a deterministic pull-to-refresh surface for visual
 inspection of the branded refresh indicator and hidden native spinner.
 

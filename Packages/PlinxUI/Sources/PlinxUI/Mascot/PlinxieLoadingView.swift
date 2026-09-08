@@ -11,6 +11,25 @@ extension EnvironmentValues {
     }
 }
 
+enum PlinxLoadingPerimeterPresentation: Equatable {
+    case staticGradient
+    case animated(startAngle: Double, endAngle: Double)
+}
+
+enum PlinxLoadingPerimeterPolicy {
+    static func presentation(reduceMotion: Bool, phase: Double) -> PlinxLoadingPerimeterPresentation {
+        guard !reduceMotion else { return .staticGradient }
+        let startAngle = normalizedPhase(phase) * 360
+        return .animated(startAngle: startAngle, endAngle: startAngle + 360)
+    }
+
+    static func normalizedPhase(_ phase: Double) -> Double {
+        guard phase.isFinite else { return 0 }
+        let wrapped = phase.truncatingRemainder(dividingBy: 1)
+        return wrapped >= 0 ? wrapped : wrapped + 1
+    }
+}
+
 /// Responsive sizes for Plinx's rounded-square activity indicator.
 public enum PlinxLoadingSize: Sendable, Equatable {
     case compact
@@ -236,11 +255,20 @@ public struct PlinxLoadingIndicator: View {
         }
     }
 
+    @ViewBuilder
     private func animatedPerimeter(
         shape: RoundedRectangle,
         phase: Double
     ) -> some View {
-        shape
+        let presentation = PlinxLoadingPerimeterPolicy.presentation(
+            reduceMotion: false,
+            phase: phase
+        )
+        switch presentation {
+        case .staticGradient:
+            EmptyView()
+        case let .animated(startAngle, endAngle):
+            shape
             .stroke(
                 AngularGradient(
                     colors: [
@@ -253,8 +281,8 @@ public struct PlinxLoadingIndicator: View {
                         .clear,
                     ],
                     center: .center,
-                    startAngle: .degrees(phase * 360),
-                    endAngle: .degrees((phase + 1) * 360)
+                    startAngle: .degrees(startAngle),
+                    endAngle: .degrees(endAngle)
                 ),
                 style: StrokeStyle(
                     lineWidth: size.strokeWidth,
@@ -262,6 +290,7 @@ public struct PlinxLoadingIndicator: View {
                     lineJoin: .round
                 )
             )
+        }
     }
 
     private func animationPhase(at date: Date) -> Double {
