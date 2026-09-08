@@ -216,7 +216,22 @@ struct PlinxPlaybackPresentationView: View {
 
     var body: some View {
         Group {
-            if let playerViewModel {
+            if DemoFixtureBootstrap.isActive {
+                if let playQueue = mainCoordinator.selectedPlayQueue {
+                    DemoPlaybackView(
+                        playQueue: playQueue,
+                        onExit: {
+                            playbackLaunchCoordinator.cancelPendingLaunch()
+                            mainCoordinator.resetPlayer()
+                        },
+                    )
+                } else {
+                    PlinxPlaybackLoadingView {
+                        playbackLaunchCoordinator.cancelPendingLaunch()
+                        mainCoordinator.resetPlayer()
+                    }
+                }
+            } else if let playerViewModel {
                 PlinxPlayerView(
                     isPresented: playerPresentationBinding,
                     viewModel: playerViewModel
@@ -230,6 +245,11 @@ struct PlinxPlaybackPresentationView: View {
         }
         .task(id: mainCoordinator.selectedPlayQueue?.id) {
             guard let playQueue = mainCoordinator.selectedPlayQueue else {
+                playerViewModel = nil
+                return
+            }
+
+            guard !DemoFixtureBootstrap.isActive else {
                 playerViewModel = nil
                 return
             }

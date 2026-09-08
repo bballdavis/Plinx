@@ -226,6 +226,20 @@ PLINX_PLEX_TOKEN: "your-plex-auth-token"
 
 Keep the real `test_creds.yaml` local only.
 
+## App Review Demo Fixtures
+
+The production connection screen includes **Explore the Demo Library**. This
+path uses the same SessionManager, LibraryStore, production browse/detail
+views, safety decorators, and playback authorization boundary as a connected
+session, but serves fictional content through a Plinx-owned in-process
+fixture transport. It is credential-free and does not contact Plex or persist
+the synthetic token.
+
+The fixture transport is covered by `PlinxApp/UnitTests/DemoFixtureTests.swift`.
+Use the UI test
+`LaunchSmokeUITests/test_demoModeRendersProductionHomeAndSyntheticPlayback` when
+the iOS simulator and the pinned sibling Strimr checkout are available.
+
 ## CI Notes
 
 - CI runs package tests, unit tests, and documentation guardrails.

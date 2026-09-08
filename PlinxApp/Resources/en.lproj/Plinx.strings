@@ -360,3 +360,7 @@
 "signIn.grownUpStep" = "Grown-up step";
 "signIn.portal.title" = "Connect your Plex library";
 "signIn.portal.subtitle" = "You’ll choose a kid profile next.";
+"signIn.button.demo" = "Explore the Demo Library";
+"player.demo.synthetic" = "Synthetic review mode • No account or network required";
+"player.demo.play" = "Play Demo Video";
+"player.demo.pause" = "Pause Demo Video";

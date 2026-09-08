@@ -22,6 +22,9 @@ typealias PlinxSignInViewModel = SignInViewModel
 struct SignInView: View {
     @State private var viewModel: PlinxSignInViewModel
     @Environment(\.plinxTheme) private var theme
+    @Environment(SessionManager.self) private var sessionManager
+    @Environment(PlexAPIContext.self) private var plexApiContext
+    @State private var isLaunchingDemo = false
 
     #if os(tvOS)
     private let ciContext = CIContext()
@@ -206,7 +209,41 @@ struct SignInView: View {
             .accessibilityValue(PlinxBrandingSemantics.signInPrimaryButtonStyleValue)
             .dynamicTypeSize(...DynamicTypeSize.accessibility1)
             .padding(.horizontal, expandedLayout ? 64 : 16)
-            .padding(.bottom, viewModel.isAuthenticating ? 0 : (expandedLayout ? 48 : 56))
+            .padding(.bottom, viewModel.isAuthenticating ? 0 : 16)
+
+            if !viewModel.isAuthenticating {
+                Button {
+                    launchDemo()
+                } label: {
+                    HStack(spacing: 10) {
+                        if isLaunchingDemo {
+                            ProgressView()
+                                .tint(Color.white.opacity(0.9))
+                        } else {
+                            Image(systemName: "sparkles.tv")
+                                .font(.system(size: 20, weight: .semibold))
+                        }
+
+                        Text("signIn.button.demo", tableName: "Plinx")
+                            .font(.system(.headline, design: .rounded, weight: .bold))
+                    }
+                    .foregroundStyle(Color.white)
+                    .frame(maxWidth: .infinity, minHeight: 58)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(Color.white.opacity(0.14))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(Color.white.opacity(0.42), lineWidth: 1)
+                    )
+                }
+                .buttonStyle(PlinkButtonStyle(springs: theme.springs))
+                .disabled(isLaunchingDemo)
+                .accessibilityIdentifier("signIn.demoButton")
+                .padding(.horizontal, expandedLayout ? 64 : 16)
+                .padding(.bottom, expandedLayout ? 48 : 56)
+            }
 
             if viewModel.isAuthenticating {
                 Button("signIn.button.cancel") {
@@ -224,6 +261,18 @@ struct SignInView: View {
         .accessibilityElement(children: .contain)
         .onDisappear {
             viewModel.cancelSignIn()
+        }
+    }
+
+    private func launchDemo() {
+        guard !isLaunchingDemo else { return }
+        isLaunchingDemo = true
+        Task { @MainActor in
+            await DemoFixtureBootstrap.start(
+                sessionManager: sessionManager,
+                context: plexApiContext,
+            )
+            isLaunchingDemo = false
         }
     }
 

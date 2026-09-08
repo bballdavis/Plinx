@@ -319,7 +319,10 @@ private struct SettingsBody: View {
 
             Section {
                 Button(role: .destructive) {
-                    Task { await sessionManager.signOutRevokingLocalAccess(sessionAccessCoordinator) }
+                    Task {
+                        DemoFixtureBootstrap.stop()
+                        await sessionManager.signOutRevokingLocalAccess(sessionAccessCoordinator)
+                    }
                 } label: {
                     Label("common.actions.logOut", systemImage: "rectangle.portrait.and.arrow.right")
                 }
@@ -523,7 +526,10 @@ private struct SettingsBody: View {
 
                 TvSettingsSection(title: LocalizedStringKey("common.actions.logOut")) {
                     Button(role: .destructive) {
-                        Task { await sessionManager.signOutRevokingLocalAccess(sessionAccessCoordinator) }
+                        Task {
+                            DemoFixtureBootstrap.stop()
+                            await sessionManager.signOutRevokingLocalAccess(sessionAccessCoordinator)
+                        }
                     } label: {
                         TvSettingsRow(
                             title: LocalizedStringKey("common.actions.logOut"),

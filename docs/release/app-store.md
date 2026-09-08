@@ -8,7 +8,7 @@ uses calendar versioning; see the [versioning and release guide](../development/
 ## Positioning
 
 - **Name:** Plinx
-- **Subtitle:** Parent-managed Plex playback
+- **Subtitle:** A Plex app for the family
 - **Primary category:** Entertainment
 - **Kids Category:** No
 - **Promotional text:** A focused Plex experience with parent-managed libraries, content ratings, and an adjustable in-app playback level.
@@ -50,30 +50,67 @@ Answer the App Store Connect questionnaire from the app’s maximum capability, 
 
 Declare no tracking and no data collected by the Plinx developer only after confirming the final archive and Xcode privacy report contain no analytics or reporting SDK. The privacy policy must continue to disclose communication with Plex and an optional parent-configured Youtarr service.
 
-## Reviewer Account
+## Reviewer Access
 
-Create a dedicated, non-personal Plex account, profile, and continuously available sample server. Do not commit credentials to this repository.
+The shipped build includes an explicit **Explore the Demo Library** action on
+the connection screen. It opens the production browsing, search, detail,
+authorization, and playback presentation flows against fictional, PG/TV-PG
+fixtures. The demo uses no account, credentials, external server, or network
+request and does not write a demo token to Keychain.
 
-The sample library must use rights-approved, non-personal titles and artwork and include:
+Use the demo path for App Review unless Apple specifically requests a live
+Plex account. If a live account is later required, create a dedicated,
+non-personal Plex account, profile, and continuously available sample server.
+Do not commit credentials to this repository.
 
-- allowed PG and TV-PG examples;
-- one blocked higher-rated example;
-- one unrated example;
-- a mixed-rating playlist and collection;
-- one downloadable movie and one downloadable episode.
+For a live-account fallback, the sample library must use rights-approved,
+non-personal titles and artwork and include the blocked, unrated, playlist,
+collection, and downloadable-media cases documented below.
 
-Review notes must provide:
+The in-app demo uses fictional titles and abstract artwork. Its review fixture
+includes multiple PG/G movies, TV-PG/TV-G shows, learning videos, search
+matches, detail metadata, season/episode metadata, continue-watching rows,
+and synthetic playback controls. The shipped demo intentionally does not
+download or stream media and does not require a Plex account or network
+connection. Rating ceilings, unrated-content exclusion, playlists,
+collections, and live downloads remain covered by the automated and live
+integration test fixtures described in `docs/development/testing.md`.
 
-1. Plex sign-in instructions and any 2FA handling.
-2. The dedicated account credentials in App Store Connect’s secure review fields.
-3. Server and profile names.
-4. The parental PIN.
-5. Steps to change rating limits and visible libraries.
-6. Steps to verify a mixed playlist hides blocked entries.
-7. Steps to change Maximum Playback Level and a warning that it is app-level only.
-8. iPhone/iPad steps to download, go offline, and play the authorized sample; state explicitly that downloads are not a tvOS feature.
-9. Apple TV remote steps for Home, Library, Search, media detail, playback, the parental gate, and protected Settings.
-10. A contact who can restore reviewer access immediately.
+In App Store Connect, mark sign-in information as **not required for review**
+and leave the demo username and password blank. The field is about whether
+Apple needs credentials to review the app; the normal, non-demo connection
+flow can still require the user's Plex account. Paste the following into
+**App Review Information → Notes**:
+
+```text
+No username, password, Plex account, or server is required for review.
+
+Plinx includes a built-in, credential-free demo mode:
+
+1. Launch the app.
+2. On the connection screen, tap “Explore the Demo Library.”
+3. Browse the fictional family movies, television, and learning-video libraries.
+4. Use Search, open a title, and tap Play to exercise the production browse,
+   detail, authorization, and playback presentation flow.
+5. The resulting player is explicitly labeled “Synthetic review mode • No
+   account or network required.” Its play/pause and scrub controls are
+   deterministic demo controls; no media is streamed or downloaded.
+
+The demo uses fictional PG/TV-PG fixtures, does not contact Plex or any
+external server, and is available immediately after selecting the demo action.
+Please use this path instead of waiting for a Plex login.
+```
+
+If Apple specifically requests a live account after reviewing the built-in
+demo, provide a dedicated non-personal account and its credentials only in
+App Store Connect's secure review fields. Do not put credentials in this
+repository or in the public metadata.
+
+If using the live-account fallback instead, include the credentials only in
+App Store Connect's secure fields and provide Plex sign-in/2FA handling,
+server/profile names, the parental PIN, rating/library-control steps, mixed
+playlist behavior, Maximum Playback Level behavior, iPhone/iPad download and
+offline steps, Apple TV remote steps, and a contact who can restore access.
 
 Test the instructions from a freshly installed physical device before submission.
 
