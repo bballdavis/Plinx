@@ -71,9 +71,15 @@ struct DemoPlaybackView: View {
                 }
 
                 VStack(spacing: 8) {
+                    #if os(tvOS)
+                    ProgressView(value: progress)
+                        .tint(Color.accentColor)
+                        .accessibilityIdentifier("demo.player.progress")
+                    #else
                     Slider(value: $progress)
                         .tint(Color.accentColor)
                         .accessibilityIdentifier("demo.player.progress")
+                    #endif
                     HStack {
                         Text(progressText)
                         Spacer()
