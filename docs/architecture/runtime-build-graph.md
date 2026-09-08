@@ -60,7 +60,7 @@ When adding another exclusion, document:
 
 ## Resource Patching
 
-`scripts/patch_resources.py` exists to ensure the generated project retains the required resource references for:
+`scripts/support/patch_resources.py` exists to ensure the generated project retains the required resource references for:
 
 - `Assets.xcassets`
 - iOS `LaunchScreen.storyboard`

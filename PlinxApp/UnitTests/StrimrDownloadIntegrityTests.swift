@@ -2,6 +2,23 @@
 import XCTest
 
 final class StrimrDownloadIntegrityTests: XCTestCase {
+    func test_downloadAccessScopeRoundTripsWithBothIdentityDimensions() throws {
+        let scope = DownloadAccessScope(
+            serverIdentifier: "server-a",
+            accessScopeIdentifier: "profile-a"
+        )
+
+        let encoded = try JSONEncoder().encode(scope)
+        XCTAssertEqual(try JSONDecoder().decode(DownloadAccessScope.self, from: encoded), scope)
+    }
+
+    func test_downloadIndexFailureStatesDoNotPermitPersistenceOrOwnershipMigration() {
+        XCTAssertTrue(DownloadPersistedIndexState.missing.permitsPersistence)
+        XCTAssertTrue(DownloadPersistedIndexState.loaded.permitsOwnershipMigration)
+        XCTAssertFalse(DownloadPersistedIndexState.unreadable.permitsPersistence)
+        XCTAssertFalse(DownloadPersistedIndexState.corrupt.permitsOwnershipMigration)
+    }
+
     func test_acceptsSuccessfulNonEmptyDownload() throws {
         try DownloadIntegrityValidator.validate(
             response: response(status: 200, contentLength: 4),
@@ -66,7 +83,7 @@ final class StrimrDownloadIntegrityTests: XCTestCase {
                 contentLength: 400,
                 additionalHeaders: ["Content-Range": "bytes 600-999/1000"]
             ),
-            stagedFileSize: 1_000
+            stagedFileSize: 1000
         )
     }
 
@@ -78,7 +95,7 @@ final class StrimrDownloadIntegrityTests: XCTestCase {
                     contentLength: 400,
                     additionalHeaders: ["Content-Range": "bytes 600-999/1200"]
                 ),
-                stagedFileSize: 1_000
+                stagedFileSize: 1000
             )
         ) { error in
             XCTAssertEqual(error as? DownloadIntegrityFailure, .contentLengthMismatch)
@@ -88,7 +105,7 @@ final class StrimrDownloadIntegrityTests: XCTestCase {
     func test_acceptsResumedDownloadWhenServerOmitsCompleteSize() throws {
         try DownloadIntegrityValidator.validate(
             response: response(status: 206, contentLength: 400),
-            stagedFileSize: 1_000
+            stagedFileSize: 1000
         )
     }
 
@@ -110,13 +127,13 @@ final class StrimrDownloadIntegrityTests: XCTestCase {
         XCTAssertEqual(try JSONDecoder().decode(DownloadQuality.self, from: encoded), .megabits20_1080p)
         XCTAssertEqual(DownloadQuality.allCases.count, 9)
         let expectedProfiles: [DownloadQuality: DownloadTranscodeProfile] = [
-            .megabits20_1080p: .init(videoBitrateKbps: 20_000, width: 1920, height: 1080),
-            .megabits12_1080p: .init(videoBitrateKbps: 12_000, width: 1920, height: 1080),
-            .megabits10_720p: .init(videoBitrateKbps: 10_000, width: 1280, height: 720),
-            .megabits4_720p: .init(videoBitrateKbps: 4_000, width: 1280, height: 720),
-            .megabits3_720p: .init(videoBitrateKbps: 3_000, width: 1280, height: 720),
-            .megabits2_720p: .init(videoBitrateKbps: 2_000, width: 1280, height: 720),
-            .kilobits1500_480p: .init(videoBitrateKbps: 1_500, width: 848, height: 480),
+            .megabits20_1080p: .init(videoBitrateKbps: 20000, width: 1920, height: 1080),
+            .megabits12_1080p: .init(videoBitrateKbps: 12000, width: 1920, height: 1080),
+            .megabits10_720p: .init(videoBitrateKbps: 10000, width: 1280, height: 720),
+            .megabits4_720p: .init(videoBitrateKbps: 4000, width: 1280, height: 720),
+            .megabits3_720p: .init(videoBitrateKbps: 3000, width: 1280, height: 720),
+            .megabits2_720p: .init(videoBitrateKbps: 2000, width: 1280, height: 720),
+            .kilobits1500_480p: .init(videoBitrateKbps: 1500, width: 848, height: 480),
             .kilobits720_328p: .init(videoBitrateKbps: 720, width: 640, height: 360),
         ]
         for (quality, profile) in expectedProfiles {
@@ -166,7 +183,7 @@ final class StrimrDownloadIntegrityTests: XCTestCase {
         let resolution = DownloadSpaceSavingsPolicy.resolve(
             requestedQuality: .megabits3_720p,
             sourceFileSize: 1_000_000_000,
-            duration: 5_400
+            duration: 5400
         )
 
         XCTAssertEqual(resolution.effectiveQuality, .original)
@@ -192,7 +209,7 @@ final class StrimrDownloadIntegrityTests: XCTestCase {
         let resolution = DownloadSpaceSavingsPolicy.resolve(
             requestedQuality: .megabits3_720p,
             sourceFileSize: 500_000_000,
-            duration: 1_000
+            duration: 1000
         )
 
         XCTAssertEqual(resolution.estimatedOutputBytes, 406_980_000)
@@ -315,7 +332,7 @@ final class StrimrDownloadIntegrityTests: XCTestCase {
         XCTAssertNoThrow(
             try PlexDownloadDecisionValidator.validate(
                 response.mediaContainer.decision,
-                profile: .init(videoBitrateKbps: 3_000, width: 1280, height: 720)
+                profile: .init(videoBitrateKbps: 3000, width: 1280, height: 720)
             )
         )
     }
@@ -326,7 +343,7 @@ final class StrimrDownloadIntegrityTests: XCTestCase {
             decision: "transcode",
             protocolName: "http",
             streams: [
-                .init(streamType: 1, codec: "h264", decision: "transcode", bitrate: 3_001, channels: nil, width: 1280, height: 720),
+                .init(streamType: 1, codec: "h264", decision: "transcode", bitrate: 3001, channels: nil, width: 1280, height: 720),
                 .init(streamType: 2, codec: "aac", decision: "transcode", bitrate: 192, channels: 2, width: nil, height: nil),
             ]
         )
@@ -340,7 +357,7 @@ final class StrimrDownloadIntegrityTests: XCTestCase {
         XCTAssertThrowsError(
             try PlexDownloadDecisionValidator.validate(
                 decision,
-                profile: .init(videoBitrateKbps: 3_000, width: 1280, height: 720)
+                profile: .init(videoBitrateKbps: 3000, width: 1280, height: 720)
             )
         ) { error in
             XCTAssertEqual(error as? PlexDownloadProfileValidationFailure, .directPlaySelected)
@@ -353,7 +370,7 @@ final class StrimrDownloadIntegrityTests: XCTestCase {
             decision: "transcode",
             protocolName: "http",
             streams: [
-                .init(streamType: 1, codec: "h264", decision: "transcode", bitrate: 3_001, channels: nil, width: 1280, height: 720),
+                .init(streamType: 1, codec: "h264", decision: "transcode", bitrate: 3001, channels: nil, width: 1280, height: 720),
                 .init(streamType: 2, codec: "aac", decision: "transcode", bitrate: 192, channels: 2, width: nil, height: nil),
             ]
         )
@@ -366,7 +383,7 @@ final class StrimrDownloadIntegrityTests: XCTestCase {
         XCTAssertThrowsError(
             try PlexDownloadDecisionValidator.validate(
                 decision,
-                profile: .init(videoBitrateKbps: 3_000, width: 1280, height: 720)
+                profile: .init(videoBitrateKbps: 3000, width: 1280, height: 720)
             )
         ) { error in
             XCTAssertEqual(error as? PlexDownloadProfileValidationFailure, .videoBitrateExceeded)
@@ -428,6 +445,7 @@ final class StrimrDownloadIntegrityTests: XCTestCase {
         XCTAssertNil(decoded.estimatedOutputBytes)
         XCTAssertNil(decoded.qualityResolutionReason)
         XCTAssertNil(decoded.remoteReference)
+        XCTAssertNil(decoded.accessScope)
     }
 
     private func queryDictionary(for quality: DownloadQuality) -> [String: String] {

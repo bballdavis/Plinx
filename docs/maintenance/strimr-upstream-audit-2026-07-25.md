@@ -135,6 +135,7 @@ branches, feature branches, and the uncommitted Strimr working tree.
 | Search with no forced movie/TV filter | Still absent | Include with search parity so clips and future supported types can appear |
 | Download HTTP response validation | Implemented, including complete-file validation after HTTP 206 background-session resumes | Contribute as download integrity hardening |
 | Download-index error handling | Upstream still swallows persistence errors | Contribute non-sensitive diagnostics and preserve the last valid index |
+| Download enrollment and access scoping | Upstream publishes entries before a host can persist ownership and keys UI status only by rating key | Keep the host policy in Plinx; contribute the generic pre-publication enrollment callback, stable operation context, scoped lookup key, and fail-safe index state |
 | Offline resume/watched state | Still absent | Contribute separately from download-file integrity |
 | Download network recheck/probe | Partly product-driven and not independently evidenced | Keep in Plinx until a reproducible upstream bug is documented |
 | Download quality selection/transcode profiles | Implemented through Plex's background download queue with forced reduced-quality decisions, typed output-profile validation, per-item sessions, and a 20% space-savings floor | Keep the product-neutral queue, protocol validation, and space-savings guard together as a focused upstream candidate |
@@ -146,6 +147,7 @@ branches, feature branches, and the uncommitted Strimr working tree.
 | Pause when the screen turns off | Upstream Aether lifecycle now stops and reloads in background | Re-evaluate in Plinx; do not replay the old player patch |
 | Optimistic watched-status environment | Used by Plinx quick actions and UI composition | Keep in Plinx unless upstream introduces equivalent actions |
 | Kids tabs, hidden controls, Plinx product identifiers, branding, and player chrome | Plinx-owned product behavior | Never upstream |
+| Player-title inspection lifetime | Upstream auto-hides all controls after three seconds with no child-interaction lifetime callback | Contribute the generic interaction callback; keep responsive title layout and marquee behavior in Plinx |
 | Dynamic authentication polling | No Plex API evidence or regression test supports the chosen backoff | Do not upstream yet |
 | Host-app Plex product identity and encoded auth URL | Upstream hard-codes `Strimr` in Plex request headers and auth URLs | Replay the generic host-bundle identity seam until upstream accepts it; PIN creation and browser claim identity must remain identical |
 | Direct-server bootstrap and UI-test token hooks | Plinx offline/UI-test infrastructure | Keep in Plinx |
@@ -264,6 +266,8 @@ The individual plans are stored in
 10. [SharePlay presentation capability](strimr-contributions/10-shareplay-presentation-capability.md)
 11. [Plex Download Queue transcoding](strimr-contributions/11-download-queue-transcoding.md)
 12. [Host-app Plex authentication identity](strimr-contributions/12-plex-authentication-product-identity.md)
+13. [Download enrollment and access scoping](strimr-contributions/13-download-enrollment-and-access-scoping.md)
+14. [Player-title interaction lifetime](strimr-contributions/14-player-title-interaction-lifetime.md)
 
 ## Upstream Commit Appendix
 

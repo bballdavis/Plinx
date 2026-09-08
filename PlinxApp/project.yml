@@ -30,8 +30,8 @@ options:
     iOS: 17.5
     tvOS: 17.0
   postGenCommand: >-
-    if [ -f ../scripts/patch_resources.py ]; then
-      python3 ../scripts/patch_resources.py;
+    if [ -f ../scripts/support/patch_resources.py ]; then
+      python3 ../scripts/support/patch_resources.py;
     else
       echo "Skipping local resource patch script in non-local environment.";
     fi

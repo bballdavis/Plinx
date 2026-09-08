@@ -93,7 +93,7 @@ iPhone class. For the 13-inch iPad class it accepts `2752x2064` and
 Recheck [Apple's screenshot specifications](https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications/)
 before each submission because accepted device classes can change.
 Store final captures in `screenshots/app-store/`, flatten alpha with
-`scripts/flatten_screenshot_alpha.sh`, and run
+`scripts/release/flatten_screenshot_alpha.sh`, and run
 `scripts/tests/validate_app_store_screenshots.sh --require-tvos` before upload.
 
 `scripts/capture_app_store_screenshots.sh` remains the deterministic,

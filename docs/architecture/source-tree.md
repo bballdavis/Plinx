@@ -57,6 +57,11 @@ Reference material only. These are useful for docs and store assets but should n
 
 Canonical for developer workflows. If a command is expected to be repeated, documented, or used in CI, prefer putting it behind a script here instead of burying it in ad hoc notes.
 
+Keep supported developer and release entry points at the top level. Place
+specialized implementation helpers under `scripts/support/` or
+`scripts/release/`; keep test harnesses, branding generation, and paired Strimr
+tooling in their existing `tests/`, `branding/`, and `strimr/` directories.
+
 ### `.github/workflows/`
 
 Canonical for CI and policy enforcement. If the workflow changes, update `docs/development/ci.md` in the same PR.

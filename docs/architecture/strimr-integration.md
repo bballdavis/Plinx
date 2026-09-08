@@ -116,14 +116,27 @@ directly. Reduced-quality downloads use Plex Media Server's versioned
 `/downloadQueue` API and persist only the queue identifiers needed to resume a
 request. Strimr does not know about Plinx profiles or kid policy.
 
-Plinx owns the safety boundary around that engine. A newly enqueued local
-download ID is claimed by the current server/profile identity, and lifecycle
+Plinx owns the safety boundary around that engine. Strimr captures an immutable
+server/access scope and Plex request context at the start of each item, season,
+or show operation. Each concrete movie or episode must pass Plinx authorization
+and have its local download ID enrolled before Strimr publishes it to the index.
+If index persistence fails, Strimr rolls the enrollment back and removes the
+staged item before starting any transfer. The enrollment callback revalidates
+the captured identity against the live SessionManager owner at publication,
+invalidating work after logout or a profile change. Plinx also observes the
+owner identity itself, because a successful profile switch can leave session
+status at `ready` while the owner changes.
+Status, progress, and duplicate checks use the server/access-scope/rating-key
+tuple rather than a device-wide rating key. Lifecycle
 resume passes only the IDs owned by that identity back to Strimr. Consequently,
 switching Plex profiles cancels preparation polling for the prior profile and
 cannot resume, clean up, or expose another profile's queued download. An
 already-running background file transfer remains hidden and is subject to the
-same ownership check before playback. Existing unowned downloads retain the documented
-legacy visibility behavior, but only newly queued and explicitly owned items
+same ownership check before playback. Existing unowned downloads are
+grandfathered once during a valid index migration; a missing record in the new
+version is not treated as sharing permission. Corrupt ownership or download
+indexes fail closed and remain available for recovery instead of being replaced
+by an empty persisted index. Only newly queued and explicitly owned items
 can have server preparation resumed.
 
 The server queue item is best-effort deleted after a validated local transfer

@@ -113,7 +113,7 @@ arguments are supplied:
   --api-key-issuer-id YOUR-ISSUER-ID
 ```
 
-The script uses `scripts/testflight_export_options.plist`, which is deliberately
+The script uses `scripts/release/testflight_export_options.plist`, which is deliberately
 restricted to internal-only TestFlight distribution. Do not change that file to
 permit external testing or App Store submission as a side effect of development
 delivery.
