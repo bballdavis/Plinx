@@ -44,6 +44,21 @@ final class BrandingUITests: XCTestCase {
         XCTAssertEqual(app.activityIndicators.count, 0)
     }
 
+    func test_homeLoading_motionKeepsHeroBeaconFrameStable() {
+        let app = launch(screen: "homeLoading", disableAnimations: false)
+        let beacon = app.descendants(matching: .any)["plinx.loading.heroBeacon"]
+        XCTAssertTrue(beacon.waitForExistence(timeout: 8))
+        let initialFrame = beacon.frame
+
+        RunLoop.current.run(until: Date().addingTimeInterval(1.5))
+        let laterFrame = beacon.frame
+
+        XCTAssertEqual(initialFrame.origin.x, laterFrame.origin.x, accuracy: 1)
+        XCTAssertEqual(initialFrame.origin.y, laterFrame.origin.y, accuracy: 1)
+        XCTAssertEqual(initialFrame.size.width, laterFrame.size.width, accuracy: 1)
+        XCTAssertEqual(initialFrame.size.height, laterFrame.size.height, accuracy: 1)
+    }
+
     func test_appTransitionLoading_keepsHydrationAndHomeIdentityInTheSameFrame() {
         let hydrationApp = launch(screen: "appHydrating")
         let hydrationIdentity = hydrationApp.descendants(matching: .any)["plinx.loading.branded"]
@@ -181,9 +196,15 @@ final class BrandingUITests: XCTestCase {
         XCTAssertEqual(app.activityIndicators.count, 0)
     }
 
-    private func launch(screen: String) -> XCUIApplication {
+    private func launch(
+        screen: String,
+        disableAnimations: Bool = true
+    ) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments += ["--ui-testing", "--disable-animations"]
+        app.launchArguments += ["--ui-testing"]
+        if disableAnimations {
+            app.launchArguments += ["--disable-animations"]
+        }
         app.launchEnvironment["PLINX_UI_TEST_SCREEN"] = screen
         app.launch()
         return app

@@ -120,10 +120,15 @@ public struct PlinxLoadingIndicator: View {
 
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @Environment(\.plinxLoadingReduceMotionOverride) private var reduceMotionOverride
-    @State private var isAnimating = false
+
+    // Tests can render an exact chase position without relying on wall-clock
+    // timing. This intentionally remains internal so the public initializer is
+    // unchanged for app and package clients.
+    let fixedAnimationPhase: Double?
 
     private let lime = PlinxBrand.lime
     private let teal = PlinxBrand.teal
+    private static let animationDuration: TimeInterval = 1.35
 
     public init(
         size: PlinxLoadingSize = .compact,
@@ -137,6 +142,23 @@ public struct PlinxLoadingIndicator: View {
         self.label = label
         self.accessibilityLabelText = accessibilityLabel
         self.accessibilityIdentifier = accessibilityIdentifier
+        self.fixedAnimationPhase = nil
+    }
+
+    init(
+        size: PlinxLoadingSize = .compact,
+        surface: PlinxLoadingSurface = .transparent,
+        label: LocalizedStringResource? = nil,
+        accessibilityLabel: LocalizedStringResource? = nil,
+        accessibilityIdentifier: String = "plinx.loading.indicator",
+        fixedAnimationPhase: Double?
+    ) {
+        self.size = size
+        self.surface = surface
+        self.label = label
+        self.accessibilityLabelText = accessibilityLabel
+        self.accessibilityIdentifier = accessibilityIdentifier
+        self.fixedAnimationPhase = fixedAnimationPhase
     }
 
     public var body: some View {
@@ -155,12 +177,6 @@ public struct PlinxLoadingIndicator: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText)
         .accessibilityIdentifier(accessibilityIdentifier)
-        .onAppear {
-            isAnimating = !reduceMotion
-        }
-        .onChange(of: reduceMotion) { _, newValue in
-            isAnimating = !newValue
-        }
     }
 
     private var reduceMotion: Bool {
@@ -182,44 +198,7 @@ public struct PlinxLoadingIndicator: View {
             shape
                 .stroke(baseStrokeColor, lineWidth: size.strokeWidth)
 
-            if reduceMotion {
-                shape
-                    .stroke(
-                        LinearGradient(
-                            colors: [lime, teal],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: size.strokeWidth
-                    )
-            } else {
-                shape
-                    .stroke(
-                        AngularGradient(
-                            colors: [
-                                .clear,
-                                .clear,
-                                lime,
-                                teal,
-                                .white,
-                                .clear,
-                                .clear,
-                            ],
-                            center: .center,
-                            startAngle: .degrees(isAnimating ? 360 : 0),
-                            endAngle: .degrees(isAnimating ? 720 : 360)
-                        ),
-                        style: StrokeStyle(
-                            lineWidth: size.strokeWidth,
-                            lineCap: .round,
-                            lineJoin: .round
-                        )
-                    )
-                    .animation(
-                        .linear(duration: 1.35).repeatForever(autoreverses: false),
-                        value: isAnimating
-                    )
-            }
+            perimeter(shape: shape)
 
             if size != .compact {
                 Image("plinx_loading_logo", bundle: .module)
@@ -234,6 +213,60 @@ public struct PlinxLoadingIndicator: View {
             color: surface == .video ? teal.opacity(0.42) : teal.opacity(0.18),
             radius: surface == .video ? 20 : 8
         )
+    }
+
+    @ViewBuilder
+    private func perimeter(shape: RoundedRectangle) -> some View {
+        if reduceMotion {
+            shape
+                .stroke(
+                    LinearGradient(
+                        colors: [lime, teal],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: size.strokeWidth
+                )
+        } else if let fixedAnimationPhase {
+            animatedPerimeter(shape: shape, phase: fixedAnimationPhase)
+        } else {
+            TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
+                animatedPerimeter(shape: shape, phase: animationPhase(at: timeline.date))
+            }
+        }
+    }
+
+    private func animatedPerimeter(
+        shape: RoundedRectangle,
+        phase: Double
+    ) -> some View {
+        shape
+            .stroke(
+                AngularGradient(
+                    colors: [
+                        .clear,
+                        .clear,
+                        lime,
+                        teal,
+                        .white,
+                        .clear,
+                        .clear,
+                    ],
+                    center: .center,
+                    startAngle: .degrees(phase * 360),
+                    endAngle: .degrees((phase + 1) * 360)
+                ),
+                style: StrokeStyle(
+                    lineWidth: size.strokeWidth,
+                    lineCap: .round,
+                    lineJoin: .round
+                )
+            )
+    }
+
+    private func animationPhase(at date: Date) -> Double {
+        (date.timeIntervalSinceReferenceDate / Self.animationDuration)
+            .truncatingRemainder(dividingBy: 1)
     }
 
     @ViewBuilder

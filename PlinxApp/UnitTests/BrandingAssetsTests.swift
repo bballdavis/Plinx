@@ -40,6 +40,19 @@ final class BrandingAssetsTests: XCTestCase {
         )
     }
 
+    func test_launchHeroAsset_usesTheActiveHeroFootprint() {
+        let storyboardURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Resources/LaunchScreen.storyboard")
+        let storyboard = try? String(contentsOf: storyboardURL, encoding: .utf8)
+
+        XCTAssertNotNil(storyboard)
+        XCTAssertTrue(storyboard?.contains("image=\"LaunchHeroIdentity\"") == true)
+        XCTAssertTrue(storyboard?.contains("constant=\"184\"") == true)
+        XCTAssertTrue(storyboard?.contains("constant=\"260\"") == true)
+    }
+
     func test_signInPrimaryButtonStyleSemantic_isLiquidGlassPrimary() {
         XCTAssertEqual(PlinxBrandingSemantics.signInPrimaryButtonStyleValue, "liquidGlassPrimary")
     }

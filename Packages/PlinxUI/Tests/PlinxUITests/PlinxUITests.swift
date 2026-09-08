@@ -171,6 +171,25 @@ struct PlinxLoadingIndicatorTests {
         #expect(indicator.accessibilityIdentifier == "player.buffering.plinx")
     }
 
+    @Test func fixedPhaseSupportIsInternalAndDoesNotChangeHeroGeometry() {
+        let firstPhase = PlinxLoadingIndicator(
+            size: .hero,
+            surface: .glass,
+            fixedAnimationPhase: 0.125
+        )
+        let laterPhase = PlinxLoadingIndicator(
+            size: .hero,
+            surface: .glass,
+            fixedAnimationPhase: 0.875
+        )
+
+        #expect(firstPhase.fixedAnimationPhase == 0.125)
+        #expect(laterPhase.fixedAnimationPhase == 0.875)
+        #expect(firstPhase.size == laterPhase.size)
+        #expect(firstPhase.size.dimension == laterPhase.size.dimension)
+        #expect(firstPhase.size.cornerRadius == laterPhase.size.cornerRadius)
+    }
+
     @Test func progressStyleCanBeInstalledAtTheAppRoot() {
         _ = PlinxProgressViewStyle()
     }

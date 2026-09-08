@@ -741,8 +741,12 @@ gradient perimeter for square indicators and stops the hero identity pulse. It
 does not hide the loading state. The square and loop never rotate.
 
 The static OS launch storyboard uses the same shell, ambient treatment, center
-point, and approximate hero footprint because launch screens cannot animate.
-The first active app loading state adds motion without relocating the identity.
+point, and exact 184-by-260-point hero footprint because launch screens cannot
+animate. Its `LaunchHeroIdentity` vector asset keeps the complete lime-to-teal
+perimeter, centered full-color loop, 24-point gap, and 150-point white
+wordmark. The first active app loading state adds a time-derived perimeter
+chase without relocating or rotating the square or loop. Reduce Motion retains
+the complete static gradient perimeter.
 
 ## 2. Dark-shell browsing screens
 

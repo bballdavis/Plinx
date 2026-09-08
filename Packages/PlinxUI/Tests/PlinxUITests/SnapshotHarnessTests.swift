@@ -188,6 +188,43 @@ final class SnapshotHarnessTests: XCTestCase {
         )
     }
 
+    func test_loadingIndicator_fixedPhase_keepsHeroFootprintAcrossPortraitDevices() {
+        let phases: [Double] = [0.125, 0.875]
+        let portraitDevices: [(name: String, config: ViewImageConfig)] = [
+            ("iphone", .iPhoneX),
+            ("iPad", .iPadPro12_9),
+        ]
+
+        for device in portraitDevices {
+            let expectedFootprint = CGSize(
+                width: PlinxLoadingSize.hero.dimension,
+                height: PlinxLoadingSize.hero.dimension
+            )
+            for phase in phases {
+                let indicator = PlinxLoadingIndicator(
+                    size: .hero,
+                    surface: .glass,
+                    fixedAnimationPhase: phase
+                )
+                let host = UIHostingController(rootView: indicator)
+                host.view.frame = CGRect(origin: .zero, size: device.config.size)
+                host.view.setNeedsLayout()
+                host.view.layoutIfNeeded()
+
+                XCTAssertEqual(
+                    indicator.size.dimension,
+                    expectedFootprint.width,
+                    "Fixed phase must not change the hero width on \(device.name)."
+                )
+                XCTAssertEqual(
+                    indicator.size.dimension,
+                    expectedFootprint.height,
+                    "Fixed phase must not change the hero height on \(device.name)."
+                )
+            }
+        }
+    }
+
     func test_progressStyle_determinateRemainsLinear() {
         let view = ProgressView(value: 0.45)
             .progressViewStyle(PlinxProgressViewStyle())
