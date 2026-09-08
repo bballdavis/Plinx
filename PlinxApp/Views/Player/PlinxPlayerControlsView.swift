@@ -25,6 +25,7 @@ struct PlayerControlsView: View {
     var isRotationLocked: Bool
     var onToggleRotationLock: () -> Void
     var isSharePlay: Bool
+    var onTitleInteractionChanged: (Bool) -> Void = { _ in }
 
     private var playbackBadges: [PlayerControlBadge] {
         var badges: [PlayerControlBadge] = []
@@ -53,54 +54,58 @@ struct PlayerControlsView: View {
     }
 
     var body: some View {
-        ZStack {
-            VStack(spacing: 0) {
-                PlayerControlsHeader(
-                    media: media,
-                    onDismiss: onDismiss,
-                    onShowSettings: onShowSettings,
-                    isSharePlay: isSharePlay
-                )
-
-                Spacer(minLength: 0)
-
-                VStack(spacing: 18) {
-                    PlayerAuxiliaryControlsRow(
-                        isRotationLocked: isRotationLocked,
-                        onToggleRotationLock: onToggleRotationLock,
-                        skipMarkerTitle: skipMarkerTitle,
-                        onSkipMarker: onSkipMarker,
-                        badges: playbackBadges
+        GeometryReader { container in
+            ZStack {
+                VStack(spacing: 0) {
+                    PlayerControlsHeader(
+                        media: media,
+                        onDismiss: onDismiss,
+                        onShowSettings: onShowSettings,
+                        isSharePlay: isSharePlay,
+                        onTitleInteractionChanged: onTitleInteractionChanged,
+                        containerSize: container.size
                     )
-                    .padding(.horizontal, 24)
-                    .opacity(isScrubbing ? 0 : 1)
-                    .allowsHitTesting(!isScrubbing)
 
-                    PlayerTimelineView(
-                        position: $position,
-                        duration: duration,
-                        bufferedAhead: bufferedAhead,
-                        playbackPosition: bufferBasePosition,
-                        onEditingChanged: onScrubbingChanged
-                    )
+                    Spacer(minLength: 0)
+
+                    VStack(spacing: 18) {
+                        PlayerAuxiliaryControlsRow(
+                            isRotationLocked: isRotationLocked,
+                            onToggleRotationLock: onToggleRotationLock,
+                            skipMarkerTitle: skipMarkerTitle,
+                            onSkipMarker: onSkipMarker,
+                            badges: playbackBadges
+                        )
+                        .padding(.horizontal, 24)
+                        .opacity(isScrubbing ? 0 : 1)
+                        .allowsHitTesting(!isScrubbing)
+
+                        PlayerTimelineView(
+                            position: $position,
+                            duration: duration,
+                            bufferedAhead: bufferedAhead,
+                            playbackPosition: bufferBasePosition,
+                            onEditingChanged: onScrubbingChanged
+                        )
+                    }
                 }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 16)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
 
-            PrimaryControls(
-                isPaused: isPaused,
-                onSeekBackward: onSeekBackward,
-                onPlayPause: onPlayPause,
-                onSeekForward: onSeekForward,
-                seekBackwardSeconds: seekBackwardSeconds,
-                seekForwardSeconds: seekForwardSeconds
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-        }
-        .background {
-            PlayerControlsBackground()
+                PrimaryControls(
+                    isPaused: isPaused,
+                    onSeekBackward: onSeekBackward,
+                    onPlayPause: onPlayPause,
+                    onSeekForward: onSeekForward,
+                    seekBackwardSeconds: seekBackwardSeconds,
+                    seekForwardSeconds: seekForwardSeconds
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            }
+            .background {
+                PlayerControlsBackground()
+            }
         }
     }
 }
@@ -158,82 +163,74 @@ private struct PlayerControlsHeader: View {
     var onDismiss: () -> Void
     var onShowSettings: () -> Void
     var isSharePlay: Bool
+    var onTitleInteractionChanged: (Bool) -> Void
+    var containerSize: CGSize
 
     @ScaledMetric(relativeTo: .headline) private var iconSize =
         PlinxPlayerControlLayout.headerIconSize
-    @ScaledMetric(relativeTo: .title3) private var titleSize =
-        PlinxPlayerControlLayout.titleSize
 
     var body: some View {
-        HStack(alignment: .center, spacing: 18) {
-            Button(action: onDismiss) {
-                let chrome = RoundedRectangle(
-                    cornerRadius: PlinxPlayerControlLayout.headerCornerRadius,
-                    style: .continuous
-                )
-                Image(systemName: "chevron.backward")
-                    .font(
-                        .system(
-                            size: iconSize,
-                            weight: .semibold
+        let presentation = PlinxPlayerControlLayout.headerPresentation(
+            width: containerSize.width,
+            height: containerSize.height
+        )
+        Group {
+            if presentation == .compactPortrait {
+                VStack(alignment: .leading, spacing: 8) {
+                    buttonRow
+                    if let title = media?.primaryLabel {
+                        PlinxPlayerTitleView(
+                            title: title,
+                            subtitle: media?.tertiaryLabel,
+                            presentation: presentation,
+                            isSharePlay: isSharePlay,
+                            onInteractionChanged: onTitleInteractionChanged
                         )
-                    )
-                    .foregroundStyle(.white)
-                    .frame(
-                        width: PlinxPlayerControlLayout.headerButtonSize,
-                        height: PlinxPlayerControlLayout.headerButtonSize
-                    )
-                    .background(chrome.fill(.thinMaterial))
-                    .overlay(
-                        chrome.stroke(Color.brandPrimary.opacity(0.42), lineWidth: 1)
-                    )
-                    .shadow(
-                        color: Color.brandPrimary.opacity(0.14),
-                        radius: 10,
-                        x: 0,
-                        y: 6
-                    )
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                if let title = media?.primaryLabel {
-                    Text(title)
-                        .font(
-                            .system(
-                                size: titleSize,
-                                weight: .semibold
-                            )
-                        )
-                        .foregroundStyle(.white)
-                        .lineLimit(2)
+                    }
                 }
-
-                if let subtitle = media?.tertiaryLabel {
-                    Text(subtitle)
-                        .font(.callout)
-                        .foregroundStyle(.white.opacity(0.8))
-                        .lineLimit(2)
-                }
-
-                if isSharePlay {
-                    Text("sharePlay.badge")
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(Color.white.opacity(0.15))
+            } else {
+                HStack(alignment: .center, spacing: 18) {
+                    dismissButton
+                    Spacer(minLength: 12)
+                    if let title = media?.primaryLabel {
+                        PlinxPlayerTitleView(
+                            title: title,
+                            subtitle: media?.tertiaryLabel,
+                            presentation: presentation,
+                            isSharePlay: isSharePlay,
+                            onInteractionChanged: onTitleInteractionChanged
                         )
-                        .foregroundStyle(.white.opacity(0.9))
+                        .frame(maxWidth: PlinxPlayerControlLayout.titleMaxWidth(width: containerSize.width, presentation: presentation))
+                    }
+                    Spacer(minLength: 12)
+                    PlayerSettingsButton(action: onShowSettings)
                 }
             }
-
-            Spacer()
-
-            PlayerSettingsButton(action: onShowSettings)
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 8)
+        .frame(minHeight: PlinxPlayerControlLayout.headerButtonSize + 16)
+    }
+
+    private var buttonRow: some View {
+        HStack {
+            dismissButton
+            Spacer()
+            PlayerSettingsButton(action: onShowSettings)
+        }
+    }
+
+    private var dismissButton: some View {
+        Button(action: onDismiss) {
+            let chrome = RoundedRectangle(cornerRadius: PlinxPlayerControlLayout.headerCornerRadius, style: .continuous)
+            Image(systemName: "chevron.backward")
+                .font(.system(size: iconSize, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: PlinxPlayerControlLayout.headerButtonSize, height: PlinxPlayerControlLayout.headerButtonSize)
+                .background(chrome.fill(.thinMaterial))
+                .overlay(chrome.stroke(Color.brandPrimary.opacity(0.42), lineWidth: 1))
+                .shadow(color: Color.brandPrimary.opacity(0.14), radius: 10, x: 0, y: 6)
+        }
     }
 }
 

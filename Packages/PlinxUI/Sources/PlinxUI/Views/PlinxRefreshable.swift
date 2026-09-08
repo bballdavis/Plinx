@@ -17,6 +17,7 @@ public extension View {
 private struct PlinxRefreshableModifier: ViewModifier {
     let action: @Sendable () async -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isRefreshing = false
 
     func body(content: Content) -> some View {
@@ -38,13 +39,17 @@ private struct PlinxRefreshableModifier: ViewModifier {
                     .frame(width: 48, height: 48)
                     .padding(.top, 8)
                     .allowsHitTesting(false)
-                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .transition(
+                        reduceMotion
+                            ? .opacity
+                            : .move(edge: .top).combined(with: .opacity)
+                    )
+                    .animation(.easeInOut(duration: 0.18), value: isRefreshing)
                 }
             }
-            .animation(.easeInOut(duration: 0.18), value: isRefreshing)
-            #if os(iOS)
+        #if os(iOS)
             .background(PlinxRefreshControlProbe())
-            #endif
+        #endif
     }
 
     private var refreshScale: CGFloat {
@@ -58,11 +63,11 @@ private struct PlinxRefreshableModifier: ViewModifier {
 
 #if os(iOS)
 private struct PlinxRefreshControlProbe: UIViewRepresentable {
-    func makeUIView(context: Context) -> ProbeView {
+    func makeUIView(context _: Context) -> ProbeView {
         ProbeView()
     }
 
-    func updateUIView(_ uiView: ProbeView, context: Context) {
+    func updateUIView(_ uiView: ProbeView, context _: Context) {
         uiView.hideNativeRefreshIndicator()
     }
 
@@ -87,7 +92,8 @@ private struct PlinxRefreshControlProbe: UIViewRepresentable {
 
             while let view = candidate {
                 if let scrollView = view as? UIScrollView,
-                   let refreshControl = scrollView.refreshControl {
+                   let refreshControl = scrollView.refreshControl
+                {
                     refreshControl.tintColor = .clear
                     refreshControl.isAccessibilityElement = false
                     refreshControl.accessibilityElementsHidden = true

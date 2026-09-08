@@ -1,5 +1,5 @@
-import XCTest
 @testable import Plinx
+import XCTest
 
 final class PlinxPlayerControlLayoutTests: XCTestCase {
     func test_overlayHeaderUsesFiftyPercentEmphasis() {
@@ -24,6 +24,32 @@ final class PlinxPlayerControlLayoutTests: XCTestCase {
                 verticalSizeClass: .compact
             ),
             1.65
+        )
+    }
+
+    func test_headerPresentationUsesContainerGeometry() {
+        XCTAssertEqual(
+            PlinxPlayerControlLayout.headerPresentation(width: 390, height: 844),
+            .compactPortrait
+        )
+        XCTAssertEqual(
+            PlinxPlayerControlLayout.headerPresentation(width: 820, height: 1180),
+            .spaciousPortrait
+        )
+        XCTAssertEqual(
+            PlinxPlayerControlLayout.headerPresentation(width: 844, height: 390),
+            .landscape
+        )
+    }
+
+    func test_landscapeTitleWidthIsBoundedBetweenButtons() {
+        XCTAssertEqual(
+            PlinxPlayerControlLayout.titleMaxWidth(width: 1366, presentation: .landscape),
+            720
+        )
+        XCTAssertEqual(
+            PlinxPlayerControlLayout.titleMaxWidth(width: 390, presentation: .compactPortrait),
+            350
         )
     }
 

@@ -15,6 +15,25 @@ enum PlinxPlayerControlLayout {
     static let headerIconSize = baseHeaderIconSize * emphasisScale
     static let headerCornerRadius = baseHeaderCornerRadius * emphasisScale
     static let titleSize = baseTitleSize * emphasisScale
+    static let compactTitleSize: CGFloat = 17
+
+    static func headerPresentation(width: CGFloat, height: CGFloat) -> HeaderPresentation {
+        if height > width {
+            return width < 600 ? .compactPortrait : .spaciousPortrait
+        }
+        return .landscape
+    }
+
+    static func titleMaxWidth(width: CGFloat, presentation: HeaderPresentation) -> CGFloat {
+        switch presentation {
+        case .compactPortrait:
+            max(0, width - 40)
+        case .landscape:
+            min(max(0, width - 260), 720)
+        case .spaciousPortrait:
+            min(max(0, width - 220), 720)
+        }
+    }
 
     static func scale(
         horizontalSizeClass: UserInterfaceSizeClass?,
@@ -33,8 +52,8 @@ enum PlinxPlayerControlLayout {
     }
 
     static func exitButtonSize(
-        horizontalSizeClass: UserInterfaceSizeClass?,
-        verticalSizeClass: UserInterfaceSizeClass?
+        horizontalSizeClass _: UserInterfaceSizeClass?,
+        verticalSizeClass _: UserInterfaceSizeClass?
     ) -> CGFloat {
         #if os(tvOS)
         112
@@ -52,4 +71,10 @@ enum PlinxPlayerControlLayout {
             verticalSizeClass: verticalSizeClass
         ) * 0.34
     }
+}
+
+enum HeaderPresentation: Equatable {
+    case compactPortrait
+    case landscape
+    case spaciousPortrait
 }

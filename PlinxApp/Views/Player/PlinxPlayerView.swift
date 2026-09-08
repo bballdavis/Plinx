@@ -1,5 +1,5 @@
-import SwiftUI
 import PlinxUI
+import SwiftUI
 
 /// Plinx-styled player screen.
 ///
@@ -29,16 +29,12 @@ struct PlinxPlayerView: View {
                 }
             )
             .ignoresSafeArea()
-
         }
-        .animation(.easeInOut(duration: 0.18), value: viewModel.isLoading)
-        .animation(.easeInOut(duration: 0.18), value: viewModel.isBuffering)
         #if !os(tvOS)
         .statusBarHidden(true)
         .persistentSystemOverlays(.hidden)
         #endif
     }
-
 }
 
 struct PlinxPlayerExitButton: View {
@@ -136,13 +132,16 @@ struct PlinxPlayerPlaybackView: View {
             .onDisappear(perform: onExit)
             #endif
 
-            if viewModel.isLoading || viewModel.isBuffering {
-                PlinxVideoBufferingOverlay()
-                    .transition(.opacity)
-            }
+            PlinxVideoBufferingOverlay()
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                .opacity(showsLoadingOverlay ? 1 : 0)
+                .accessibilityHidden(!showsLoadingOverlay)
+                .animation(.easeInOut(duration: 0.18), value: showsLoadingOverlay)
         }
-        .animation(.easeInOut(duration: 0.18), value: viewModel.isLoading)
-        .animation(.easeInOut(duration: 0.18), value: viewModel.isBuffering)
+    }
+
+    private var showsLoadingOverlay: Bool {
+        viewModel.isLoading || viewModel.isBuffering
     }
 }
 
