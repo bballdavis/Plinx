@@ -137,8 +137,8 @@ private struct PlinxPushedPageChrome: ViewModifier {
     @Environment(\.dismiss) private var dismiss
 
     func body(content: Content) -> some View {
+        // Hiding the bar (not the back button) keeps the edge-swipe back gesture.
         content
-            .navigationBarBackButtonHidden(true)
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top, spacing: 0) {
                 PlinxPageHeader(title: title, onBack: { dismiss() })
