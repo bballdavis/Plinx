@@ -196,15 +196,7 @@ struct AppearanceSettingsView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .navigationTitle(Text("settings.appearance.title", tableName: "Plinx"))
-        #if os(tvOS)
-        .listStyle(.plain)
-        #else
-        .navigationBarTitleDisplayMode(.large)
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        #endif
-        .background(Color.appBackground.ignoresSafeArea())
+        .plinxSettingsPage(title: Text("settings.appearance.title", tableName: "Plinx"))
     }
 }
 
@@ -228,15 +220,7 @@ struct AccentColorSettingsView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .navigationTitle(Text("settings.accent.title", tableName: "Plinx"))
-        #if os(tvOS)
-        .listStyle(.plain)
-        #else
-        .navigationBarTitleDisplayMode(.large)
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        #endif
-        .background(Color.appBackground.ignoresSafeArea())
+        .plinxSettingsPage(title: Text("settings.accent.title", tableName: "Plinx"))
     }
 
     private func colorSwatch(_ option: PlinxAccentColor) -> some View {

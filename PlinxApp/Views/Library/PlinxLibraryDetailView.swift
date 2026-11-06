@@ -61,6 +61,11 @@ struct PlinxLibraryDetailView: View {
         )
         .navigationBarBackButtonHidden(true)
         .toolbarBackground(.hidden, for: .navigationBar)
+        #if !os(tvOS)
+        // The custom header owns the back button; hide the (empty) system bar so it
+        // does not reserve a blank band above the header.
+        .toolbar(.hidden, for: .navigationBar)
+        #endif
         .onChange(of: settingsManager.interface.displayCollections) { _, displayCollections in
             if !displayCollections, selectedTab == .collections {
                 selectedTab = .recommended
@@ -151,7 +156,7 @@ struct PlinxLibraryDetailView: View {
 
                     Text(library.title)
                         .font(.title3.weight(.bold))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(.white.opacity(0.95))
                         .lineLimit(1)
 
                     Spacer(minLength: 0)

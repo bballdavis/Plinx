@@ -24,15 +24,7 @@ struct VisibleLibrariesView: View {
                 }
             }
         }
-        .navigationTitle(Text("settings.libraries.title", tableName: "Plinx"))
-        #if os(tvOS)
-        .listStyle(.plain)
-        #else
-        .navigationBarTitleDisplayMode(.large)
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        #endif
-        .background(Color.appBackground.ignoresSafeArea())
+        .plinxSettingsPage(title: Text("settings.libraries.title", tableName: "Plinx"))
         .task {
             if libraryStore.libraries.isEmpty {
                 try? await libraryStore.loadLibraries()

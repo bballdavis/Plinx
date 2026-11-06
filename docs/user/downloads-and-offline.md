@@ -13,6 +13,10 @@ season's details, the same picker stays scoped to that season. Select All queues
 every episode that is not already downloaded, or individual episodes can be
 chosen before confirming.
 
+The Downloads tab shows downloads as a poster grid or a list. In the grid,
+posters line up in even columns in portrait and landscape, and wide videos take
+two columns. The pencil button opens the parent-gated Manage Downloads sheet.
+
 ## Download quality
 
 The Original option downloads the selected source media part directly. The

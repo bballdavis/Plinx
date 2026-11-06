@@ -25,9 +25,11 @@ struct ProfileSwitcherView: View {
     private let profileCardCornerRadius: CGFloat = 26
     private let profileCardAvatarSize: CGFloat = 120
     private let profileCardMinHeight: CGFloat = 228
+    private let onClose: (() -> Void)?
 
-    init(viewModel: ProfileSwitcherViewModel) {
+    init(viewModel: ProfileSwitcherViewModel, onClose: (() -> Void)? = nil) {
         _viewModel = State(initialValue: viewModel)
+        self.onClose = onClose
     }
 
     var body: some View {
@@ -43,23 +45,14 @@ struct ProfileSwitcherView: View {
                     profilesGrid
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 32)
+                .padding(.top, 12)
                 .padding(.bottom, 12)
             }
         }
         .navigationTitle("auth.profile.title")
-        #if !os(tvOS)
-        .navigationBarTitleDisplayMode(.inline)
-        #endif
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button(role: .destructive) {
-                    isShowingLogoutConfirmation = true
-                } label: {
-                    Image(systemName: "rectangle.portrait.and.arrow.right")
-                }
-                .accessibilityLabel("common.actions.logOut")
-            }
+        .toolbar(.hidden, for: .navigationBar)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            chromeHeader
         }
         .alert("common.actions.logOut", isPresented: $isShowingLogoutConfirmation) {
             Button("common.actions.logOut", role: .destructive) {
@@ -72,9 +65,11 @@ struct ProfileSwitcherView: View {
         .task { await viewModel.loadUsers() }
         .plinxRefreshable { await viewModel.loadUsers() }
         .sheet(item: $pinPromptUser, onDismiss: resetPinPrompt) { user in
-            NavigationStack {
-                pinPromptContent(for: user)
-            }
+            pinPromptContent(for: user)
+                #if !os(tvOS)
+                .presentationDetents([.medium, .large])
+                .presentationBackground(theme.palette.background)
+                #endif
         }
         .onChange(of: pinInput) { _, newValue in
             pinInput = String(newValue.filter(\.isNumber).prefix(4))
@@ -82,6 +77,34 @@ struct ProfileSwitcherView: View {
     }
 
     // MARK: - Subviews
+
+    /// Plinx chrome in place of the system navigation bar: log out on the
+    /// leading edge and, when presented as a sheet, close on the trailing edge.
+    private var chromeHeader: some View {
+        HStack(spacing: 12) {
+            if onClose != nil {
+                logoutChromeButton
+            }
+            Spacer(minLength: 0)
+            if let onClose {
+                PlinxChromeButton(systemImage: "xmark", action: onClose)
+            } else {
+                logoutChromeButton
+            }
+        }
+        .padding(.horizontal, PlinxPageHeaderMetrics.horizontalPadding)
+        .padding(.top, PlinxPageHeaderMetrics.topPadding)
+        .padding(.bottom, PlinxPageHeaderMetrics.bottomPadding)
+    }
+
+    private var logoutChromeButton: some View {
+        PlinxCompactDestructiveButton(
+            systemImage: "rectangle.portrait.and.arrow.right",
+            accessibilityLabel: Text("common.actions.logOut", tableName: "Plinx")
+        ) {
+            isShowingLogoutConfirmation = true
+        }
+    }
 
     private var header: some View {
         VStack(spacing: 8) {
@@ -271,21 +294,39 @@ struct ProfileSwitcherView: View {
     }
 
     private func pinPromptContent(for user: PlexHomeUser) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("auth.profile.pin.title")
-                .font(.headline)
-
-            let displayName = user.friendlyName ?? user.title ?? "?"
-            Text("auth.profile.pin.prompt \(displayName)")
-                .foregroundStyle(.secondary)
+        let displayName = user.friendlyName ?? user.title ?? "?"
+        return VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("auth.profile.pin.title")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(.white)
+                    Text("auth.profile.pin.prompt \(displayName)")
+                        .foregroundStyle(.white.opacity(0.7))
+                }
+                Spacer(minLength: 0)
+                PlinxChromeButton(systemImage: "xmark") {
+                    resetPinPrompt()
+                }
+            }
 
             SecureField("auth.profile.pin.placeholder", text: $pinInput)
+                #if !os(tvOS)
                 .keyboardType(.numberPad)
+                #endif
                 .textContentType(.password)
                 .focused($isPinFieldFocused)
+                .font(.title2.monospacedDigit())
+                .foregroundStyle(.white)
                 .padding()
-                .background(.gray.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(.ultraThinMaterial)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color.accentColor.opacity(isPinFieldFocused ? 0.8 : 0.35), lineWidth: 1)
+                )
 
             Button {
                 let enteredPin = pinInput
@@ -293,24 +334,20 @@ struct ProfileSwitcherView: View {
                 resetPinPrompt()
             } label: {
                 Text("common.actions.switchProfile")
-                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(theme.palette.primary)
+            .buttonStyle(PlinxPrimaryActionButtonStyle())
             .disabled(pinInput.count < 4)
 
-            Button("common.actions.cancel", role: .cancel) {
-                resetPinPrompt()
-            }
-            .frame(maxWidth: .infinity)
-
-            Spacer()
+            Spacer(minLength: 0)
         }
-        .padding()
-        .navigationTitle("auth.profile.pin.required")
-        #if !os(tvOS)
-        .navigationBarTitleDisplayMode(.inline)
-        #endif
+        .padding(.horizontal, PlinxPageHeaderMetrics.horizontalPadding)
+        .padding(.top, 24)
+        .padding(.bottom, 16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(theme.palette.background.ignoresSafeArea())
+        .tint(.accentColor)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Text("auth.profile.pin.required"))
         .onAppear { isPinFieldFocused = true }
     }
 

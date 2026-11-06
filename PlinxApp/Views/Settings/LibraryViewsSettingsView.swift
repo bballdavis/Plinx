@@ -34,15 +34,7 @@ struct LibraryViewsSettingsView: View {
                 }
             }
         }
-        .navigationTitle(Text("settings.libraryViews.title", tableName: "Plinx"))
-        #if os(tvOS)
-        .listStyle(.plain)
-        #else
-        .navigationBarTitleDisplayMode(.large)
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        #endif
-        .background(Color.appBackground.ignoresSafeArea())
+        .plinxSettingsPage(title: Text("settings.libraryViews.title", tableName: "Plinx"))
         .task {
             if libraryStore.libraries.isEmpty {
                 try? await libraryStore.loadLibraries()
@@ -113,14 +105,8 @@ private struct LibraryViewSectionsConfigurationView: View {
                 }
             }
         }
-        .navigationTitle(library.title)
-        #if os(tvOS)
-        .listStyle(.plain)
-        #else
-        .navigationBarTitleDisplayMode(.inline)
-        .listStyle(.insetGrouped)
-        #endif
         .environment(\.editMode, .constant(.active))
+        .plinxSettingsPage(title: Text(library.title))
         .task {
             await loadSections()
         }

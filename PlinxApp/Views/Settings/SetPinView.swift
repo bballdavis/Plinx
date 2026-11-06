@@ -84,8 +84,7 @@ struct SetPinView: View {
                         )
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.accentColor)
+                    .buttonStyle(PlinxPrimaryActionButtonStyle())
                     .disabled(activeEntryValue.count < 4)
                 }
                 .padding(.vertical, 4)
@@ -100,20 +99,10 @@ struct SetPinView: View {
                     .font(.caption)
             }
         }
-        #if os(tvOS)
-        .listStyle(.plain)
-        #else
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        #endif
-        .background(Color.appBackground.ignoresSafeArea())
-        .navigationTitle(Text("settings.parentalPIN.navigationTitle", tableName: "Plinx"))
+        .plinxSettingsPage(title: Text("settings.parentalPIN.navigationTitle", tableName: "Plinx"))
         .onAppear {
             step = parentalAccessCoordinator.hasPIN ? .verifyCurrent : .enter
         }
-        #if !os(tvOS)
-        .navigationBarTitleDisplayMode(.inline)
-        #endif
     }
 
     private func handleNext() {

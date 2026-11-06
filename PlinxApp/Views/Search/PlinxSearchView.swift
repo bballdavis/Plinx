@@ -14,7 +14,8 @@ struct PlinxSearchView: View {
     #endif
     @Environment(\.safetyPolicy) private var safetyPolicy
 
-    private var searchAccentColor: Color { PlinxAccentColor.green.color }
+    /// Follows the parent-selected accent so search matches the rest of the app.
+    private var searchAccentColor: Color { .accentColor }
 
     var body: some View {
         ScrollView {

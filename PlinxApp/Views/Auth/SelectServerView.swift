@@ -17,17 +17,26 @@ struct SelectServerView: View {
             header
             content
         }
-        .padding(24)
+        .padding(.horizontal, 24)
+        .padding(.bottom, 24)
+        .frame(maxWidth: 720)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Color.appBackground.ignoresSafeArea())
         .tint(.accentColor)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button(role: .destructive) {
+        .toolbar(.hidden, for: .navigationBar)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            HStack {
+                Spacer(minLength: 0)
+                PlinxCompactDestructiveButton(
+                    systemImage: "rectangle.portrait.and.arrow.right",
+                    accessibilityLabel: Text("common.actions.logOut", tableName: "Plinx")
+                ) {
                     isShowingLogoutConfirmation = true
-                } label: {
-                    Image(systemName: "rectangle.portrait.and.arrow.right")
                 }
-                .accessibilityLabel("common.actions.logOut")
             }
+            .padding(.horizontal, PlinxPageHeaderMetrics.horizontalPadding)
+            .padding(.top, PlinxPageHeaderMetrics.topPadding)
+            .padding(.bottom, PlinxPageHeaderMetrics.bottomPadding)
         }
         .alert("common.actions.logOut", isPresented: $isShowingLogoutConfirmation) {
             Button("common.actions.logOut", role: .destructive) {
@@ -46,8 +55,9 @@ struct SelectServerView: View {
         VStack(spacing: 8) {
             Text("serverSelection.title")
                 .font(.largeTitle.bold())
+                .foregroundStyle(.white)
             Text("serverSelection.subtitle")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.white.opacity(0.7))
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
@@ -79,25 +89,23 @@ struct SelectServerView: View {
         VStack(spacing: 12) {
             Text("serverSelection.empty.title")
                 .font(.headline)
+                .foregroundStyle(.white)
             Text("serverSelection.empty.description")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.white.opacity(0.7))
                 .multilineTextAlignment(.center)
             Button {
                 Task { await viewModel.load() }
             } label: {
                 HStack {
                     if viewModel.isLoading {
-                        ProgressView().tint(.accentColor)
+                        ProgressView().tint(.white)
                     }
                     Text("serverSelection.retry")
                         .fontWeight(.semibold)
                 }
                 .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.accentColor)
-                .foregroundStyle(.white)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
+            .buttonStyle(PlinxPrimaryActionButtonStyle())
             .disabled(viewModel.isLoading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -121,10 +129,10 @@ struct SelectServerView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(server.name)
                         .font(.headline)
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(.white)
                     connectionSummary(for: server)
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.white.opacity(0.65))
                 }
 
                 Spacer()
@@ -134,7 +142,7 @@ struct SelectServerView: View {
                         .tint(.accentColor)
                 } else {
                     Image(systemName: "chevron.right")
-                        .foregroundStyle(Color(.tertiaryLabel))
+                        .foregroundStyle(.white.opacity(0.4))
                 }
             }
             .opacity(
@@ -144,8 +152,15 @@ struct SelectServerView: View {
             )
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.secondary.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(.ultraThinMaterial)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(.plain)
         .disabled(viewModel.isSelecting)

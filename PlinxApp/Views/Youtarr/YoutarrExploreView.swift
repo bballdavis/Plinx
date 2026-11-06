@@ -767,6 +767,7 @@ struct YoutarrExploreView: View {
             .presentationDragIndicator(.visible)
             #endif
         }
+        #if os(tvOS)
         .confirmationDialog(
             quickActionVideo?.title ?? "",
             isPresented: Binding(
@@ -776,16 +777,33 @@ struct YoutarrExploreView: View {
             titleVisibility: .visible
         ) {
             if let video = quickActionVideo {
-                Button("More Info") {
-                    selectedVideo = video
-                    quickActionVideo = nil
+                ForEach(quickActionOptions(for: video)) { option in
+                    Button(option.title, action: option.action)
+                        .disabled(!option.isEnabled)
                 }
-                quickActionRequestButton(for: video)
-                Button("Cancel", role: .cancel) {
+                Button(role: .cancel) {
                     quickActionVideo = nil
+                } label: {
+                    Text("common.actions.cancel", tableName: "Plinx")
                 }
             }
         }
+        #else
+        // Glass quick-action panel matching the home screen's long-press sheet
+        // instead of the stock system action sheet.
+        .overlay(alignment: .bottom) {
+            if let video = quickActionVideo {
+                PlinxActionPanel(
+                    title: video.title,
+                    options: quickActionOptions(for: video),
+                    onCancel: { quickActionVideo = nil },
+                    accessibilityPrefix: "youtarr.quickAction"
+                )
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(response: 0.25, dampingFraction: 0.86), value: quickActionVideo != nil)
+        #endif
         .task {
             await viewModel.activate()
         }
@@ -823,42 +841,7 @@ struct YoutarrExploreView: View {
                 }
             }
 
-            HStack(spacing: 12) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
-
-                TextField(
-                    text: $viewModel.searchText,
-                    prompt: Text("youtarr.explore.searchVideos", tableName: "Plinx")
-                ) {
-                    EmptyView()
-                }
-                .submitLabel(.search)
-                .onSubmit(startReload)
-
-                if !viewModel.searchText.isEmpty {
-                    Button {
-                        viewModel.searchText = ""
-                        startReload()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(Text("common.actions.clear", tableName: "Plinx"))
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(.ultraThinMaterial)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color.accentColor.opacity(0.24), lineWidth: 1)
-            }
+            YoutarrSearchField(text: $viewModel.searchText, onSubmit: startReload)
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
@@ -982,9 +965,12 @@ struct YoutarrExploreView: View {
     private func sectionError(_ message: String, retry: @escaping () -> Void) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Label(message, systemImage: "wifi.exclamationmark")
-                .foregroundStyle(.secondary)
-            Button("Try Again", action: retry)
-                .buttonStyle(.bordered)
+                .foregroundStyle(.white.opacity(0.7))
+            PlinxChromeActionButton(
+                titleKey: "youtarr.explore.retry",
+                systemImage: "arrow.clockwise",
+                action: retry
+            )
         }
         .padding(.horizontal, 16)
     }
@@ -1053,26 +1039,46 @@ struct YoutarrExploreView: View {
         }
     }
 
-    @ViewBuilder
-    private func quickActionRequestButton(for video: YoutarrVideo) -> some View {
+    private func quickActionOptions(for video: YoutarrVideo) -> [PlinxActionPanelOption] {
+        var options = [
+            PlinxActionPanelOption(
+                id: "moreInfo",
+                title: YoutarrStrings.value("youtarr.quickAction.moreInfo"),
+                systemImage: "info.circle"
+            ) {
+                selectedVideo = video
+                quickActionVideo = nil
+            }
+        ]
+
+        let request: (key: String, image: String, enabled: Bool)
         switch viewModel.requestState(for: video) {
         case .eligible:
-            Button("Request") { startRequest(video) }
+            request = ("youtarr.request.action", "plus.circle", true)
         case .failed:
-            Button("Retry Request") { startRequest(video) }
+            request = ("youtarr.request.retry", "arrow.clockwise", true)
         case .submitting:
-            Button("Requesting…") {}
-                .disabled(true)
+            request = ("youtarr.request.submitting", "hourglass", false)
         case .requested:
-            Button("Requested") {}
-                .disabled(true)
+            request = ("youtarr.explore.requested", "checkmark.circle", false)
         case .downloaded:
-            Button("Already Downloaded") {}
-                .disabled(true)
+            request = ("youtarr.explore.downloaded", "arrow.down.circle", false)
         case .unavailable:
-            Button("Request Unavailable") {}
-                .disabled(true)
+            request = ("youtarr.quickAction.requestUnavailable", "nosign", false)
         }
+
+        options.append(
+            PlinxActionPanelOption(
+                id: "request",
+                title: YoutarrStrings.value(request.key),
+                systemImage: request.image,
+                isEnabled: request.enabled
+            ) {
+                startRequest(video)
+                quickActionVideo = nil
+            }
+        )
+        return options
     }
 }
 
@@ -1102,8 +1108,55 @@ struct YoutarrExploreTabContent: View {
     }
 }
 
+/// Glass search field shared by Explore and channel screens, used instead of
+/// the system `.searchable` bar so both match the Plinx header chrome.
+private struct YoutarrSearchField: View {
+    @Binding var text: String
+    let onSubmit: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+
+            TextField(
+                text: $text,
+                prompt: Text("youtarr.explore.searchVideos", tableName: "Plinx")
+            ) {
+                EmptyView()
+            }
+            .submitLabel(.search)
+            .onSubmit(onSubmit)
+
+            if !text.isEmpty {
+                Button {
+                    text = ""
+                    onSubmit()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.white.opacity(0.55))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text("common.actions.clear", tableName: "Plinx"))
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(.ultraThinMaterial)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.accentColor.opacity(0.24), lineWidth: 1)
+        }
+    }
+}
+
 private struct YoutarrChannelView: View {
     let channel: YoutarrChannel
+    @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel: YoutarrChannelViewModel
     @State private var actionTask: Task<Void, Never>?
     @State private var requestTasks: [String: Task<Void, Never>] = [:]
@@ -1146,6 +1199,24 @@ private struct YoutarrChannelView: View {
                 videoGrid
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background {
+            PlinxAmbientBackground()
+        }
+        #if os(iOS)
+        // Plinx back button, title and glass search field instead of the
+        // system navigation bar and `.searchable` bar.
+        .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            VStack(spacing: 0) {
+                PlinxPageHeader(title: Text(channel.title), onBack: { dismiss() })
+                YoutarrSearchField(text: $viewModel.searchText, onSubmit: startReload)
+                    .padding(.horizontal, PlinxPageHeaderMetrics.horizontalPadding)
+                    .padding(.bottom, 10)
+            }
+        }
+        #else
         .navigationTitle(channel.title)
         .youtarrInlineNavigationTitle()
         .searchable(
@@ -1155,6 +1226,7 @@ private struct YoutarrChannelView: View {
         .onSubmit(of: .search) {
             startReload()
         }
+        #endif
         .task {
             await viewModel.load()
         }
