@@ -224,7 +224,9 @@ struct PlinxDownloadsGridView: View {
             metrics: gridMetrics
         )
 
-        return LazyVStack(alignment: .leading, spacing: gridRowSpacing) {
+        // A plain VStack: the grid is already one child of the outer LazyVStack, and
+        // building every row keeps all cards (and their test hooks) in the hierarchy.
+        return VStack(alignment: .leading, spacing: gridRowSpacing) {
             ForEach(Array(arrangement.rows.enumerated()), id: \.offset) { _, row in
                 HStack(alignment: .top, spacing: arrangement.columnSpacing) {
                     ForEach(row.placements, id: \.index) { placement in

@@ -1206,7 +1206,6 @@ private struct YoutarrChannelView: View {
         #if os(iOS)
         // Plinx back button, title and glass search field instead of the
         // system navigation bar and `.searchable` bar.
-        .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
         .safeAreaInset(edge: .top, spacing: 0) {
             VStack(spacing: 0) {
