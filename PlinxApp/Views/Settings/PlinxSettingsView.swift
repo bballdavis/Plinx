@@ -139,23 +139,21 @@ private struct SettingsBody: View {
 
             // MARK: Content rating — movie
             Section {
-                Picker(selection: $maxMovieRatingRaw) {
-                    ForEach(PlinxRating.movieRatings, id: \.rawValue) { rating in
-                        Text(rating.rawValue).tag(rating.rawValue)
-                    }
-                } label: {
-                    Text("settings.safety.movie.rating.title", tableName: "Plinx")
-                }
-                .pickerStyle(.menu)
+                ratingChoiceLink(
+                    title: Text("settings.safety.movie.rating.title", tableName: "Plinx"),
+                    systemImage: "film.fill",
+                    ratings: PlinxRating.movieRatings.map(\.rawValue),
+                    selection: $maxMovieRatingRaw,
+                    accessibilityID: "settings.rating.movie"
+                )
 
-                Picker(selection: $maxTVRatingRaw) {
-                    ForEach(PlinxRating.tvRatings, id: \.rawValue) { rating in
-                        Text(rating.rawValue).tag(rating.rawValue)
-                    }
-                } label: {
-                    Text("settings.safety.tv.rating.title", tableName: "Plinx")
-                }
-                .pickerStyle(.menu)
+                ratingChoiceLink(
+                    title: Text("settings.safety.tv.rating.title", tableName: "Plinx"),
+                    systemImage: "tv.fill",
+                    ratings: PlinxRating.tvRatings.map(\.rawValue),
+                    selection: $maxTVRatingRaw,
+                    accessibilityID: "settings.rating.tv"
+                )
 
                 Toggle(isOn: $excludeUnrated) {
                     Label {
@@ -310,12 +308,40 @@ private struct SettingsBody: View {
                     viewModel: ProfileSwitcherViewModel(
                         context: plexApiContext,
                         sessionManager: sessionManager
-                    )
+                    ),
+                    onClose: { isPresentingProfileSwitcher = false }
                 )
             }
         }
         #endif
     }
+
+    #if !os(tvOS)
+    private func ratingChoiceLink(
+        title: Text,
+        systemImage: String,
+        ratings: [String],
+        selection: Binding<String>,
+        accessibilityID: String
+    ) -> some View {
+        NavigationLink {
+            PlinxSettingsChoiceView(
+                title: title,
+                choices: ratings.map { PlinxSettingsChoice(value: $0, title: $0) },
+                selection: selection,
+                footer: Text("settings.safety.rating.description", tableName: "Plinx"),
+                accessibilityPrefix: "settings.rating.choice"
+            )
+        } label: {
+            PlinxSettingsValueLabel(
+                title: title,
+                systemImage: systemImage,
+                value: selection.wrappedValue
+            )
+        }
+        .accessibilityIdentifier(accessibilityID)
+    }
+    #endif
 
     #if os(tvOS)
     private var tvSettingsContent: some View {

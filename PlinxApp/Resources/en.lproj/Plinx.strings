@@ -10,6 +10,7 @@
 "common.actions.back" = "Back";
 "common.actions.cancel" = "Cancel";
 "common.actions.close" = "Close";
+"common.actions.delete" = "Delete";
 "common.actions.done" = "Done";
 "common.actions.logOut" = "Log Out";
 "common.actions.next" = "Next";
@@ -54,6 +55,8 @@
 "downloads.status.transcoding %lld" = "Transcoding %lld%%";
 "downloads.status.downloading %lld" = "Downloading %lld%%";
 "downloads.status.failed" = "Download failed";
+"downloads.status.completed" = "Downloaded";
+"downloads.manage.title" = "Manage Downloads";
 "downloads.blockedByContentControls" = "This item is blocked by the current content controls.";
 "downloads.ownerUnavailable" = "Select a Plex profile and server before downloading.";
 "downloads.offline.unavailable.title" = "Downloaded video unavailable";
@@ -194,6 +197,8 @@
 "common.close" = "Close";
 "youtarr.explore.downloaded" = "Downloaded";
 "youtarr.explore.requested" = "Requested";
+"youtarr.quickAction.moreInfo" = "More Info";
+"youtarr.quickAction.requestUnavailable" = "Request Unavailable";
 "youtarr.explore.rating.level" = "Rating level";
 "youtarr.request.action" = "Request";
 "youtarr.request.submitting" = "Sending request";

@@ -55,30 +55,23 @@ struct PlinxDownloadsGridView: View {
         #if os(tvOS)
         18
         #else
-        10
+        12
         #endif
     }
 
-    private struct GridPosterLayout {
-        let posterSize: CGSize
-        let posterWidth: CGFloat
-        let posterHeight: CGFloat
-        let cardWidth: CGFloat
-    }
-
-    private var gridPosterHeight: CGFloat {
+    private var gridHorizontalPadding: CGFloat {
         #if os(tvOS)
-        isPortraitViewport ? 295 : 270
+        42
         #else
-        isPortraitViewport ? 235 : 220
+        16
         #endif
     }
 
     private var gridTextHeight: CGFloat {
         #if os(tvOS)
-        92
+        96
         #else
-        74
+        78
         #endif
     }
 
@@ -90,29 +83,38 @@ struct PlinxDownloadsGridView: View {
         #endif
     }
 
-    private var gridMinCardWidth: CGFloat {
+    private var listArtworkSlotSize: CGSize {
+        CGSize(width: 78, height: 68)
+    }
+
+    /// Column sizing for the downloads grid. Portrait viewports favor more,
+    /// narrower columns; landscape viewports allow slightly wider posters.
+    private var gridMetrics: DownloadsGridLayoutPolicy.Metrics {
         #if os(tvOS)
-        isPortraitViewport ? 180 : 210
+        DownloadsGridLayoutPolicy.Metrics(
+            minimumColumnWidth: isPortraitViewport ? 190 : 210,
+            maximumColumnWidth: 300,
+            columnSpacing: gridSpacing
+        )
         #else
-        isPortraitViewport ? 132 : 148
+        DownloadsGridLayoutPolicy.Metrics(
+            minimumColumnWidth: isPortraitViewport ? 136 : 150,
+            maximumColumnWidth: 220,
+            columnSpacing: gridSpacing
+        )
         #endif
     }
 
-    private var gridMaxCardWidth: CGFloat {
-        #if os(tvOS)
-        isPortraitViewport ? 280 : 360
-        #else
-        isPortraitViewport ? 220 : 300
-        #endif
+    private var resolvedViewportSize: CGSize {
+        viewportSize == .zero ? UIScreen.main.bounds.size : viewportSize
     }
 
-    private var gridCardHeight: CGFloat {
-        gridPosterHeight + gridTextHeight + 8
+    private var gridAvailableWidth: CGFloat {
+        max(resolvedViewportSize.width - gridHorizontalPadding * 2, 1)
     }
 
     private var isPortraitViewport: Bool {
-        let resolvedSize = viewportSize == .zero ? UIScreen.main.bounds.size : viewportSize
-        return resolvedSize.height >= resolvedSize.width
+        resolvedViewportSize.height >= resolvedViewportSize.width
     }
 
     var body: some View {
@@ -122,22 +124,17 @@ struct PlinxDownloadsGridView: View {
                     emptyState
                 } else {
                     if layoutMode == .grid {
-                        DownloadsAdaptiveFlowLayout(itemSpacing: gridSpacing, rowSpacing: gridRowSpacing) {
-                            ForEach(visibleDownloads) { item in
-                                gridCell(item)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 16)
-                        .padding(.top, 8)
-                        .padding(.bottom, 120)
+                        downloadsGrid
+                            .padding(.horizontal, gridHorizontalPadding)
+                            .padding(.top, 8)
+                            .padding(.bottom, 120)
                     } else {
                         LazyVStack(spacing: 8) {
                             ForEach(visibleDownloads) { item in
                                 listRow(item)
                             }
                         }
-                        .padding(.horizontal, 16)
+                        .padding(.horizontal, gridHorizontalPadding)
                         .padding(.top, 8)
                         .padding(.bottom, 120)
                     }
@@ -196,61 +193,110 @@ struct PlinxDownloadsGridView: View {
     // MARK: - Header
 
     private var titleRow: some View {
-        ZStack {
-            Text("tabs.downloads", tableName: "Plinx")
-                .font(.title3.weight(.bold))
-                .foregroundStyle(.white.opacity(0.95))
-
-            HStack {
-                chromeButton(systemImage: "chevron.left") {
-                    mainCoordinator.tab = .home
+        PlinxPageHeader(
+            title: Text("tabs.downloads", tableName: "Plinx"),
+            onBack: { mainCoordinator.tab = .home }
+        ) {
+            HStack(spacing: 12) {
+                chromeButton(systemImage: layoutMode.iconName) {
+                    layoutMode = layoutMode == .grid ? .list : .grid
                 }
 
-                Spacer()
-                HStack(spacing: 12) {
-                    chromeButton(systemImage: layoutMode.iconName) {
-                        layoutMode = layoutMode == .grid ? .list : .grid
-                    }
-
-                    chromeButton(systemImage: "pencil") {
-                        parentalAccessCoordinator.lock()
-                        showManage = true
-                    }
+                chromeButton(systemImage: "pencil") {
+                    parentalAccessCoordinator.lock()
+                    showManage = true
                 }
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 8)
-        .padding(.bottom, 10)
     }
 
-    // MARK: - Grid cells
+    // MARK: - Grid
 
-    private func gridCell(_ item: DownloadItem) -> some View {
-        let localPoster = localPosterImage(for: item)
-        let layout = gridPosterLayout(for: item, poster: localPoster)
+    /// Equal-width column grid: every card starts on a shared column line and
+    /// every title in a row starts on the same baseline, in both orientations.
+    private var downloadsGrid: some View {
+        let items = visibleDownloads
+        let posters = items.map { localPosterImage(for: $0) }
+        let artworks = zip(items, posters).map { gridArtwork(for: $0.0, poster: $0.1) }
+        let arrangement = DownloadsGridLayoutPolicy.arrange(
+            artworks,
+            availableWidth: gridAvailableWidth,
+            metrics: gridMetrics
+        )
+
+        return LazyVStack(alignment: .leading, spacing: gridRowSpacing) {
+            ForEach(Array(arrangement.rows.enumerated()), id: \.offset) { _, row in
+                HStack(alignment: .top, spacing: arrangement.columnSpacing) {
+                    ForEach(row.placements, id: \.index) { placement in
+                        gridCell(
+                            items[placement.index],
+                            poster: posters[placement.index],
+                            placement: placement,
+                            posterAreaHeight: row.posterAreaHeight
+                        )
+                    }
+                }
+                .padding(.leading, arrangement.leadingInset)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .accessibilityIdentifier("downloads.grid")
+    }
+
+    private func gridArtwork(
+        for item: DownloadItem,
+        poster: PlatformImage?
+    ) -> DownloadsGridLayoutPolicy.Artwork {
+        // "Other Videos" libraries (Plex agent = "none": personal media, YouTube, home videos)
+        // use type=movie but store landscape thumbnails, not portrait movie posters. The only
+        // reliable signal at display time is the downloaded poster's aspect ratio. If the poster
+        // is wider than tall, render landscape even though prefersPortraitArtwork is true.
+        // Note: clip-type items (Plex extras/trailers) can't be downloaded — enqueueItem filters
+        // them — so type-based landscape logic is irrelevant for real download items.
+        let posterIsLandscape = poster.map { $0.size.width > $0.size.height } ?? false
+        if !posterIsLandscape && item.metadata.prefersPortraitArtwork {
+            return .portrait
+        }
+
+        return .landscape(
+            aspectRatio: DownloadsArtworkLayoutPolicy.displayAspectRatio(
+                for: .landscape,
+                imageSize: poster?.size
+            )
+        )
+    }
+
+    private func gridCell(
+        _ item: DownloadItem,
+        poster: PlatformImage?,
+        placement: DownloadsGridLayoutPolicy.Placement,
+        posterAreaHeight: CGFloat
+    ) -> some View {
+        let posterSize = placement.posterSize
+        let posterTopInset = max(posterAreaHeight - posterSize.height, 0)
 
         return VStack(alignment: .leading, spacing: 6) {
             posterCell(
                 item,
-                poster: localPoster,
-                posterSize: layout.posterSize,
-                posterWidth: layout.posterWidth,
-                posterHeight: layout.posterHeight,
-                cardWidth: layout.cardWidth
+                poster: poster,
+                posterSize: posterSize,
+                cellWidth: placement.cellWidth,
+                posterAreaHeight: posterAreaHeight
             )
             metadataLabels(for: item, titleLineLimit: 2)
-                .frame(width: layout.cardWidth, height: gridTextHeight, alignment: .topLeading)
+                .frame(width: placement.cellWidth, height: gridTextHeight, alignment: .topLeading)
         }
-        .frame(width: layout.cardWidth, height: gridCardHeight, alignment: .topLeading)
+        .frame(width: placement.cellWidth, alignment: .topLeading)
         // Accessibility hooks outside the Button so XCTest finds them as .other elements
         // (Button labels are not traversable as otherElements / descendants in iOS 26).
-        // Thumbnail: full poster area (portrait or landscape dimensions drive the frame check).
+        // Thumbnail: the rendered poster frame (artwork is bottom-aligned in the row's
+        // shared poster area, so the hook is offset by the same top inset).
         .overlay(alignment: .topLeading) {
             Color.clear
-                .frame(width: layout.posterWidth, height: layout.posterHeight)
+                .frame(width: posterSize.width, height: posterSize.height)
                 .accessibilityIdentifier("downloads.thumbnail.\(item.id)")
                 .allowsHitTesting(false)
+                .padding(.top, posterTopInset)
         }
         // Progress: placed at the bottom of the card (non-overlapping with thumbnail above)
         // so iOS 26 doesn't merge the two accessibility elements. Width = track width.
@@ -260,7 +306,7 @@ struct PlinxDownloadsGridView: View {
         // resetting status to .failed doesn't make the element disappear before tests query it.
         .overlay(alignment: .bottomLeading) {
             Color.clear
-                .frame(width: max(layout.posterWidth - 8, 0), height: gridTextHeight)
+                .frame(width: max(posterSize.width - 8, 0), height: gridTextHeight)
                 .accessibilityIdentifier("downloads.progress.\(item.id)")
                 .allowsHitTesting(false)
         }
@@ -270,26 +316,25 @@ struct PlinxDownloadsGridView: View {
         _ item: DownloadItem,
         poster: PlatformImage?,
         posterSize: CGSize,
-        posterWidth: CGFloat,
-        posterHeight: CGFloat,
-        cardWidth: CGFloat
+        cellWidth: CGFloat,
+        posterAreaHeight: CGFloat
     ) -> some View {
         return Button {
             guard item.isPlayable, accessPolicy.decision(for: item) == .allowed else { return }
             selectedDownload = item
         } label: {
-            // Always use gridPosterHeight so text labels align across mixed portrait/landscape rows.
-            // The artwork is centered within the fixed-height area.
+            // Every card in a row shares the row's poster-area height so titles align;
+            // shorter (landscape) artwork sits on the bottom edge, directly above its title.
             Color.clear
-                .frame(width: cardWidth, height: gridPosterHeight)
-                .overlay {
+                .frame(width: cellWidth, height: posterAreaHeight)
+                .overlay(alignment: .bottomLeading) {
                     posterArtwork(
                         for: item,
                         poster: poster,
                         posterSize: posterSize
                     )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 }
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .opacity(item.isPlayable ? 1 : 0.85)
@@ -304,9 +349,12 @@ struct PlinxDownloadsGridView: View {
             selectedDownload = item
         } label: {
             HStack(alignment: .center, spacing: 12) {
+                // Fixed-width slot keeps every title on the same leading edge whether
+                // the artwork is portrait or landscape.
                 posterImage(for: item)
                     .frame(width: posterSize.width, height: posterSize.height)
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .frame(width: listArtworkSlotSize.width, height: listArtworkSlotSize.height)
 
                 VStack(alignment: .leading, spacing: 4) {
                     metadataLabels(for: item, titleLineLimit: 2)
@@ -317,7 +365,7 @@ struct PlinxDownloadsGridView: View {
                     if let downloadedSize = downloadedSize(for: item) {
                         Text(formattedBytes(downloadedSize))
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.white.opacity(0.65))
                             .lineLimit(1)
                     }
 
@@ -331,9 +379,14 @@ struct PlinxDownloadsGridView: View {
             }
             .padding(10)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(.ultraThinMaterial)
             )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(.plain)
         .opacity(item.isPlayable ? 1 : 0.85)
@@ -343,8 +396,9 @@ struct PlinxDownloadsGridView: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(item.metadata.title)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.primary)
+                .foregroundStyle(.white)
                 .lineLimit(titleLineLimit)
+                .multilineTextAlignment(.leading)
 
             if secondaryLeadingLabel(for: item) != nil || secondaryTrailingLabel(for: item) != nil {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -360,14 +414,14 @@ struct PlinxDownloadsGridView: View {
                             .lineLimit(1)
                     }
                 }
-                .font(.headline)
-                .foregroundStyle(.secondary)
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.65))
             }
 
             if let tertiary = tertiaryLabel(for: item) {
                 Text(tertiary)
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(item.status == .failed ? Color.red : Color.accentColor)
                     .lineLimit(1)
             }
         }
@@ -400,32 +454,7 @@ struct PlinxDownloadsGridView: View {
     }
 
     private func tertiaryLabel(for item: DownloadItem) -> String? {
-        switch item.status {
-        case .queued:
-            return NSLocalizedString("downloads.status.queued", tableName: "Plinx", comment: "")
-        case .deciding:
-            return NSLocalizedString("downloads.status.deciding", tableName: "Plinx", comment: "")
-        case .preparing:
-            return String.localizedStringWithFormat(
-                NSLocalizedString(
-                    item.preparationProgress == nil
-                        ? "downloads.status.preparing %lld"
-                        : "downloads.status.transcoding %lld",
-                    tableName: "Plinx",
-                    comment: "",
-                ),
-                Int64(((item.preparationProgress ?? 0) * 100).rounded())
-            )
-        case .downloading:
-            return String.localizedStringWithFormat(
-                NSLocalizedString("downloads.status.downloading %lld", tableName: "Plinx", comment: ""),
-                Int64((item.progress * 100).rounded())
-            )
-        case .completed:
-            return nil
-        case .failed:
-            return NSLocalizedString("downloads.status.failed", tableName: "Plinx", comment: "")
-        }
+        item.status == .completed ? nil : item.plinxStatusText
     }
 
     private func joinedMeta(_ parts: [String?]) -> String? {
@@ -491,46 +520,6 @@ struct PlinxDownloadsGridView: View {
         }
     }
 
-    private func gridPosterLayout(for item: DownloadItem, poster: PlatformImage?) -> GridPosterLayout {
-        let posterSize = posterFrameSize(for: item, poster: poster)
-        let posterWidth = posterSize.width
-        let cardWidth = gridCardWidth(for: posterWidth)
-        return GridPosterLayout(
-            posterSize: posterSize,
-            posterWidth: posterWidth,
-            posterHeight: posterSize.height,
-            cardWidth: cardWidth
-        )
-    }
-
-    private func posterFrameSize(for item: DownloadItem, poster: PlatformImage?) -> CGSize {
-        // "Other Videos" libraries (Plex agent = "none": personal media, YouTube, home videos)
-        // use type=movie but store landscape thumbnails, not portrait movie posters. The only
-        // reliable signal at display time is the downloaded poster's aspect ratio. If the poster
-        // is wider than tall, render landscape even though prefersPortraitArtwork is true.
-        // Note: clip-type items (Plex extras/trailers) can't be downloaded — enqueueItem filters
-        // them — so type-based landscape logic is irrelevant for real download items.
-        let posterIsLandscape = poster.map { $0.size.width > $0.size.height } ?? false
-        let prefersPortrait = !posterIsLandscape && item.metadata.prefersPortraitArtwork
-
-        if prefersPortrait {
-            let width = min(gridPosterHeight * DownloadsArtworkLayoutPolicy.portraitAspectRatio, gridMaxCardWidth)
-            return CGSize(width: width, height: gridPosterHeight)
-        }
-
-        let landscapeHeight = min(gridPosterHeight * DownloadsArtworkLayoutPolicy.portraitAspectRatio, 160)
-        let ratio = DownloadsArtworkLayoutPolicy.displayAspectRatio(
-            for: item.metadata.resolvedArtworkLayoutStyle,
-            imageSize: poster?.size
-        )
-        let landscapeWidth = min(landscapeHeight * ratio, gridMaxCardWidth)
-        return CGSize(width: landscapeWidth, height: landscapeHeight)
-    }
-
-    private func gridCardWidth(for posterWidth: CGFloat) -> CGFloat {
-        max(posterWidth, gridMinCardWidth)
-    }
-
     private func localPosterImage(for item: DownloadItem) -> PlatformImage? {
         guard let posterURL = downloadManager.localPosterURL(for: item) else { return nil }
         return PlatformImage(contentsOfFile: posterURL.path)
@@ -559,11 +548,11 @@ struct PlinxDownloadsGridView: View {
 #endif
         } else {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(Color.gray.opacity(0.2))
+                .fill(Color.white.opacity(0.08))
                 .overlay {
                     Image(systemName: "film")
-                        .foregroundStyle(.secondary)
-                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.45))
+                        .font(.title3)
                 }
         }
     }
@@ -573,13 +562,14 @@ struct PlinxDownloadsGridView: View {
     private var emptyState: some View {
         VStack(spacing: 12) {
             Image(systemName: "arrow.down.circle")
-                .font(.system(size: 44))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 44, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
             Text("downloads.empty.title", tableName: "Plinx")
                 .font(.headline)
+                .foregroundStyle(.white)
             Text("downloads.empty.message", tableName: "Plinx")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.white.opacity(0.7))
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
@@ -590,8 +580,8 @@ struct PlinxDownloadsGridView: View {
 
 // MARK: - Manage view wrapper
 
-/// Wraps the original DownloadsView (list + storage info) with a custom
-/// back button matching the app's navigation chrome style.
+/// Parent-gated download management sheet (status, quality details, delete)
+/// on the Plinx dark shell with the standard sheet header.
 @MainActor
 struct PlinxDownloadsManageView: View {
     @Environment(\.dismiss) private var dismiss
@@ -612,96 +602,111 @@ struct PlinxDownloadsManageView: View {
         List {
             if visibleDownloads.isEmpty {
                 Text("downloads.empty.message", tableName: "Plinx")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.white.opacity(0.7))
             } else {
                 ForEach(visibleDownloads) { item in
-                    HStack(spacing: 12) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(item.metadata.title)
-                                .font(.headline)
-                                .lineLimit(2)
-
-                            Text(item.status.rawValue.capitalized)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-
-                            if let qualitySummary = qualitySummary(for: item) {
-                                Text(qualitySummary)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(2)
-                            }
-
-                            if let sizeSummary = sizeSummary(for: item) {
-                                Text(sizeSummary)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(2)
-                            }
-
-                            if let reason = qualityReason(for: item) {
-                                Text(reason)
-                                    .font(.caption2)
-                                    .foregroundStyle(
-                                        item.qualityResolutionReason == .serverRejectedProfile
-                                            ? Color.red
-                                            : Color.secondary
-                                    )
-                                    .lineLimit(2)
-                            }
-
-                            if item.status == .failed, let errorMessage = item.errorMessage {
-                                Text(errorMessage)
-                                    .font(.caption2)
-                                    .foregroundStyle(.red)
-                                    .lineLimit(2)
-                            }
-                        }
-
-                        Spacer()
-
-                        if item.status.isActive {
-                            ProgressView(
-                                value: item.status == .preparing
-                                    ? item.preparationProgress
-                                    : item.progress
-                            )
-                                .frame(width: 90)
-                        }
-
-                        Button(role: .destructive) {
-                            Task { await downloadManager.delete(item) }
-                        } label: {
-                            Image(systemName: "trash")
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .padding(.vertical, 4)
+                    manageRow(item)
                 }
             }
         }
         #if os(tvOS)
         .listStyle(.plain)
+        #else
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
         #endif
-            .safeAreaInset(edge: .top, spacing: 0) {
-                manageHeader
-            }
-            .toolbar(.hidden, for: .navigationBar)
-            .task {
-                await downloadManager.recheckNetworkStatus()
-            }
+        .background(Color.appBackground.ignoresSafeArea())
+        .tint(.accentColor)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            PlinxSheetHeader(
+                title: Text("downloads.manage.title", tableName: "Plinx"),
+                onClose: { dismiss() }
+            )
+        }
+        .toolbar(.hidden, for: .navigationBar)
+        #if !os(tvOS)
+        .presentationBackground(Color.appBackground)
+        #endif
+        .task {
+            await downloadManager.recheckNetworkStatus()
+        }
     }
 
-    private var manageHeader: some View {
+    private func manageRow(_ item: DownloadItem) -> some View {
         HStack(spacing: 12) {
-            PlinxChromeButton(systemImage: "chevron.left") {
-                dismiss()
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.metadata.title)
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+
+                Text(item.plinxStatusText)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(item.status == .failed ? Color.red : Color.accentColor)
+
+                if let qualitySummary = qualitySummary(for: item) {
+                    Text(qualitySummary)
+                        .font(.caption2)
+                        .foregroundStyle(.white.opacity(0.65))
+                        .lineLimit(2)
+                }
+
+                if let sizeSummary = sizeSummary(for: item) {
+                    Text(sizeSummary)
+                        .font(.caption2)
+                        .foregroundStyle(.white.opacity(0.65))
+                        .lineLimit(2)
+                }
+
+                if let reason = qualityReason(for: item) {
+                    Text(reason)
+                        .font(.caption2)
+                        .foregroundStyle(
+                            item.qualityResolutionReason == .serverRejectedProfile
+                                ? Color.red
+                                : Color.white.opacity(0.65)
+                        )
+                        .lineLimit(2)
+                }
+
+                if item.status == .failed, let errorMessage = item.errorMessage {
+                    Text(errorMessage)
+                        .font(.caption2)
+                        .foregroundStyle(.red)
+                        .lineLimit(2)
+                }
             }
-            Spacer()
+
+            Spacer(minLength: 8)
+
+            if item.status.isActive {
+                ProgressView(
+                    value: item.status == .preparing
+                        ? item.preparationProgress
+                        : item.progress
+                )
+                .tint(.accentColor)
+                .frame(width: 90)
+            }
+
+            Button(role: .destructive) {
+                Task { await downloadManager.delete(item) }
+            } label: {
+                Image(systemName: "trash")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(.red)
+                    .frame(width: 44, height: 44)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color.red.opacity(0.14))
+                    )
+                    .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("common.actions.delete", tableName: "Plinx"))
+            .accessibilityIdentifier("downloads.manage.delete.\(item.id)")
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 8)
-        .padding(.bottom, 10)
+        .padding(.vertical, 4)
     }
 
     private func qualitySummary(for item: DownloadItem) -> String? {
@@ -777,66 +782,35 @@ private struct DownloadsViewportSizePreferenceKey: PreferenceKey {
     }
 }
 
-private struct DownloadsAdaptiveFlowLayout: Layout {
-    let itemSpacing: CGFloat
-    let rowSpacing: CGFloat
-
-    func sizeThatFits(
-        proposal: ProposedViewSize,
-        subviews: Subviews,
-        cache: inout ()
-    ) -> CGSize {
-        let frames = arrangedFrames(for: subviews, in: proposal.width)
-        guard let lastFrame = frames.last else {
-            return CGSize(width: proposal.width ?? 0, height: 0)
-        }
-
-        let contentWidth = frames.map(\.maxX).max() ?? 0
-        return CGSize(
-            width: proposal.width ?? contentWidth,
-            height: lastFrame.maxY
-        )
-    }
-
-    func placeSubviews(
-        in bounds: CGRect,
-        proposal: ProposedViewSize,
-        subviews: Subviews,
-        cache: inout ()
-    ) {
-        let frames = arrangedFrames(for: subviews, in: bounds.width)
-
-        for (subview, frame) in zip(subviews, frames) {
-            subview.place(
-                at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
-                proposal: ProposedViewSize(width: frame.width, height: frame.height)
+private extension DownloadItem {
+    /// Localized, user-facing download status shared by the grid, list and
+    /// manage views.
+    var plinxStatusText: String {
+        switch status {
+        case .queued:
+            return NSLocalizedString("downloads.status.queued", tableName: "Plinx", comment: "")
+        case .deciding:
+            return NSLocalizedString("downloads.status.deciding", tableName: "Plinx", comment: "")
+        case .preparing:
+            return String.localizedStringWithFormat(
+                NSLocalizedString(
+                    preparationProgress == nil
+                        ? "downloads.status.preparing %lld"
+                        : "downloads.status.transcoding %lld",
+                    tableName: "Plinx",
+                    comment: ""
+                ),
+                Int64(((preparationProgress ?? 0) * 100).rounded())
             )
+        case .downloading:
+            return String.localizedStringWithFormat(
+                NSLocalizedString("downloads.status.downloading %lld", tableName: "Plinx", comment: ""),
+                Int64((progress * 100).rounded())
+            )
+        case .completed:
+            return NSLocalizedString("downloads.status.completed", tableName: "Plinx", comment: "")
+        case .failed:
+            return NSLocalizedString("downloads.status.failed", tableName: "Plinx", comment: "")
         }
-    }
-
-    private func arrangedFrames(for subviews: Subviews, in availableWidth: CGFloat?) -> [CGRect] {
-        let maxWidth = max(availableWidth ?? UIScreen.main.bounds.width, 1)
-        var frames: [CGRect] = []
-        var currentX: CGFloat = 0
-        var currentY: CGFloat = 0
-        var rowHeight: CGFloat = 0
-
-        for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
-            let width = min(size.width, maxWidth)
-            let height = size.height
-
-            if currentX > 0, currentX + width > maxWidth {
-                currentX = 0
-                currentY += rowHeight + rowSpacing
-                rowHeight = 0
-            }
-
-            frames.append(CGRect(x: currentX, y: currentY, width: width, height: height))
-            currentX += width + itemSpacing
-            rowHeight = max(rowHeight, height)
-        }
-
-        return frames
     }
 }

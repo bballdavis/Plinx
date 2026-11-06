@@ -26,6 +26,7 @@ When screenshots, old notes, or memory conflict with code, the code-backed sourc
 - `PlinxApp/App/AppearanceSetup.swift`
 - `PlinxApp/Views/Common/PlinxBrandLogoView.swift`
 - `PlinxApp/Views/Common/PlinxBrandedLoadingView.swift`
+- `PlinxApp/Views/Common/PlinxPageChrome.swift`
 - `PlinxApp/Views/Auth/SignInView.swift`
 - `PlinxApp/Views/ParentalGateView.swift`
 - `PlinxApp/Views/RootTabView.swift`
@@ -561,6 +562,33 @@ From `AppearanceSetup`:
 
 This is canonical. Do not reintroduce opaque default UIKit bars for normal kid-facing shells.
 
+## Page and sheet chrome
+
+Pushed screens and sheets do not show the system navigation bar, system back
+button, or system search bar. `PlinxApp/Views/Common/PlinxPageChrome.swift`
+owns the shared pieces:
+
+- `PlinxPageHeader` and `plinxPushedPageChrome(title:)`: `PlinxChromeButton`
+  back control on the leading edge, a centered white `title3` bold title that
+  stays clear of the chrome buttons, and optional trailing chrome actions
+- `PlinxSheetHeader`: leading title with a trailing `xmark` close control, used
+  by the settings and Manage Downloads sheets
+- `plinxSettingsPage(title:)`: dark shell, inset grouped rows with hidden
+  scroll background, accent tint, and the shared back-button header for every
+  settings subpage
+- `PlinxSettingsChoiceView`: a pushed list with accent selection checkmarks in
+  place of `Picker` menu or navigation-link styles, which open stock system
+  menus and lists
+- `PlinxPrimaryActionButtonStyle`: accent-filled rounded action for forms in
+  place of `.borderedProminent`
+- `PlinxActionPanel`: the glass long-press action panel in place of
+  `.confirmationDialog`; the panel is capped at 560 points wide so it stays
+  compact on iPad
+
+Header geometry is 20 points horizontal, 8 points top, and 10 points bottom on
+iOS (`PlinxPageHeaderMetrics`). tvOS keeps its focus-driven system presentation
+for settings subpages and Youtarr quick actions.
+
 ## Floating tab picker
 
 The bottom navigation should feel:
@@ -676,6 +704,15 @@ Required traits:
 
 These surfaces should feel calm and content-led, not promotional.
 
+The Downloads grid divides the available width into equal columns
+(`DownloadsGridLayoutPolicy`), so card edges share column lines and both page
+gutters match in portrait and landscape. Portrait posters take one column and
+landscape artwork spans two. Each row shares one poster-area height with
+artwork bottom-aligned, so titles start on one baseline. Titles use white
+semibold `subheadline`; supporting metadata uses smaller muted `caption` text,
+and download status uses the accent color (red for failures). List mode keeps
+artwork in a fixed-width slot so titles share one leading edge.
+
 ## 3. Overlay and action surfaces
 
 Examples:
@@ -691,6 +728,10 @@ Required traits:
 - strong corner radius
 - white foreground labels/icons
 - accent stroke or accent fill at low opacity
+
+Do not use stock `.confirmationDialog` action sheets or `Menu` popovers for
+kid-facing quick actions on iOS; use `PlinxActionPanel` or the home quick-action
+sheet.
 
 ## Key Screen Rules
 
@@ -771,6 +812,8 @@ Rules:
 
 - Settings should feel parent-safe and serious, but still clearly part of Plinx.
 - Use accent for the actionable part of each setting, not as page wallpaper.
+- Every settings subpage uses `plinxSettingsPage(title:)`; never fall back to the system navigation bar or a stock grouped background.
+- Value pickers (content ratings, download quality) show the current value on the row and push a `PlinxSettingsChoiceView`; do not use `.menu` or `.navigationLink` picker styles.
 - Group panels should feel soft and elevated, never harsh or sterile.
 - On tvOS, use a near-full-screen parent modal with large grouped rows, 30-point primary labels, readable supporting copy, and a persistent close control.
 - tvOS rating choices use neutral text and a selected checkmark. Accent outlines communicate focus; never place accent-colored rating text on an accent-colored pill.
@@ -783,7 +826,9 @@ Current profile-switcher language:
 - fixed-height profile tiles for every account state
 - green outline and soft glow for the active profile
 - subtle glass or charcoal tile fill, never a full bright selection box
-- compact native destructive logout icon in the authentication toolbar
+- compact glass destructive logout control (`PlinxCompactDestructiveButton`)
+  in the Plinx header instead of the system toolbar, with a chrome `xmark`
+  close control when presented from settings
 
 Rules:
 
@@ -958,6 +1003,7 @@ Changes in these files usually imply a branding review:
 - `PlinxApp/App/AppearanceSetup.swift`
 - `PlinxApp/Views/Common/PlinxBrandedLoadingView.swift`
 - `PlinxApp/Views/Common/PlinxBrandLogoView.swift`
+- `PlinxApp/Views/Common/PlinxPageChrome.swift`
 - `PlinxApp/Views/Auth/`
 - `PlinxApp/Views/ParentalGateView.swift`
 - `PlinxApp/Views/RootTabView.swift`

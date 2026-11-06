@@ -46,9 +46,9 @@ struct PlinxCollectionDetailView: View {
                     if let years = viewModel.yearsText ?? viewModel.elementsCountText {
                         Text(years)
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.white.opacity(0.7))
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 16)
+                            .padding(.horizontal, collectionGridPadding)
                             .padding(.top, 8)
                     }
                     LazyVGrid(columns: columns, spacing: 12) {
@@ -60,13 +60,15 @@ struct PlinxCollectionDetailView: View {
                 }
             }
         }
-        .navigationTitle(viewModel.collection.title)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.appBackground.ignoresSafeArea())
         #if os(tvOS)
+        .navigationTitle(viewModel.collection.title)
         .toolbarTitleDisplayMode(.inline)
-        #else
-        .toolbarTitleDisplayMode(.inlineLarge)
-        #endif
         .toolbarBackground(.hidden, for: .navigationBar)
+        #else
+        .plinxPushedPageChrome(title: Text(viewModel.collection.title))
+        #endif
         .task { await viewModel.load() }
         .onChange(of: safetyPolicy) { _, newPolicy in
             viewModel.updatePolicy(newPolicy)

@@ -177,7 +177,7 @@ struct YoutarrSettingsView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .navigationTitle(Text("youtarr.settings.title", tableName: "Plinx"))
+        .plinxSettingsPage(title: Text("youtarr.settings.title", tableName: "Plinx"))
         .task {
             baseURL = configurationStore.storedBaseURL ?? ""
             isConfigured = configurationStore.isConfigured()

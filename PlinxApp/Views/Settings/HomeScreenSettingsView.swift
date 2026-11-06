@@ -130,18 +130,8 @@ struct HomeScreenSettingsView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .navigationTitle(Text("settings.homescreen.title", tableName: "Plinx"))
-        #if os(tvOS)
-        .listStyle(.plain)
-        #else
-        .navigationBarTitleDisplayMode(.large)
-        .listStyle(.insetGrouped)
-        #endif
         .environment(\.editMode, .constant(.active))
-        #if !os(tvOS)
-        .scrollContentBackground(.hidden)
-        #endif
-        .background(Color.appBackground.ignoresSafeArea())
+        .plinxSettingsPage(title: Text("settings.homescreen.title", tableName: "Plinx"))
         .task {
             if libraryStore.libraries.isEmpty {
                 try? await libraryStore.loadLibraries()

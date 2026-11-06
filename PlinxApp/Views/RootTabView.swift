@@ -297,6 +297,10 @@ struct RootTabView: View {
             }
             .padding(14)
             .liquidGlassBackground(style: PlinxTheme.Glass(cornerRadius: quickActionCornerRadius))
+            #if !os(tvOS)
+            // Keep the panel compact on iPad instead of stretching edge to edge.
+            .frame(maxWidth: PlinxActionPanel.maximumWidth)
+            #endif
             .padding(.horizontal, 16)
             .padding(.bottom, 16)
             .accessibilityIdentifier("quickAction.sheet")
