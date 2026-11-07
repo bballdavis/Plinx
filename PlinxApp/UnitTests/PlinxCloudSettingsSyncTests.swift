@@ -20,12 +20,25 @@ private final class InMemoryCloudStore: PlinxCloudKeyValueStore {
     }
 }
 
+private final class FakeIdentityProvider: PlinxCloudIdentityProviding {
+    var identity: String?
+
+    init(_ identity: String?) {
+        self.identity = identity
+    }
+
+    func currentIdentity() -> Data? {
+        identity.map { Data($0.utf8) }
+    }
+}
+
 @MainActor
 final class PlinxCloudSettingsSyncTests: XCTestCase {
     private var suiteName: String!
     private var defaults: UserDefaults!
     private var cloud: InMemoryCloudStore!
     private var settingsManager: SettingsManager!
+    private var identity: FakeIdentityProvider!
 
     override func setUp() {
         super.setUp()
@@ -34,6 +47,7 @@ final class PlinxCloudSettingsSyncTests: XCTestCase {
         defaults.removePersistentDomain(forName: suiteName)
         cloud = InMemoryCloudStore()
         settingsManager = SettingsManager(userDefaults: defaults)
+        identity = FakeIdentityProvider("account-a")
     }
 
     override func tearDown() {
@@ -42,6 +56,7 @@ final class PlinxCloudSettingsSyncTests: XCTestCase {
         suiteName = nil
         cloud = nil
         settingsManager = nil
+        identity = nil
         super.tearDown()
     }
 
@@ -50,8 +65,16 @@ final class PlinxCloudSettingsSyncTests: XCTestCase {
             defaults: defaults,
             cloud: cloud,
             settings: PlinxSyncedSettingsCatalog.standard(defaults: defaults, settingsManager: settingsManager),
-            notificationCenter: NotificationCenter()
+            notificationCenter: NotificationCenter(),
+            identityProvider: identity,
+            // Long enough that the in-session fallback never fires during a test.
+            initialSyncGracePeriod: 3_600
         )
+    }
+
+    /// Puts a value in iCloud so enabling does not wait for a first download.
+    private func seedCloud() {
+        cloud.values[cloudKey("plinx.homeCombineMoviesTV")] = true
     }
 
     private func cloudKey(_ name: String) -> String {
@@ -80,13 +103,19 @@ final class PlinxCloudSettingsSyncTests: XCTestCase {
 
     // MARK: - Enabling
 
-    func test_enablingWithEmptyCloudUploadsSetValuesOnly() {
+    func test_enablingWithEmptyCloudWaitsThenUploadsSetValuesOnly() {
         defaults.set("PG", forKey: "plinx.maxMovieRating")
         defaults.set(false, forKey: "plinx.excludeUnrated")
         settingsManager.setMaxVolumePercent(55)
+        let sync = makeSync()
 
-        makeSync().setEnabled(true)
+        sync.setEnabled(true)
+        XCTAssertTrue(sync.isAwaitingInitialSync)
+        XCTAssertTrue(cloud.values.isEmpty, "Nothing uploads before iCloud's first download")
 
+        sync.finishInitialSync()
+
+        XCTAssertFalse(sync.isAwaitingInitialSync)
         XCTAssertEqual(cloud.values[cloudKey("plinx.maxMovieRating")] as? String, "PG")
         XCTAssertEqual(cloud.values[cloudKey("plinx.excludeUnrated")] as? Bool, false)
         XCTAssertEqual(cloud.values[cloudKey("strimr.playback.maxVolumePercent")] as? Int, 55)
@@ -113,6 +142,52 @@ final class PlinxCloudSettingsSyncTests: XCTestCase {
             "blue",
             "Settings iCloud lacks are uploaded from this device"
         )
+    }
+
+    func test_newDeviceAdoptsSettingsThatArriveAfterEnabling() {
+        // This device has its own (default) volume and a local rating.
+        settingsManager.setMaxVolumePercent(70)
+        defaults.set("PG", forKey: "plinx.maxMovieRating")
+        let sync = makeSync()
+        sync.setEnabled(true)
+
+        // iCloud's first download delivers the family's volume cap.
+        cloud.values[cloudKey("strimr.playback.maxVolumePercent")] = 40
+        sync.handleExternalChange(
+            reason: NSUbiquitousKeyValueStoreInitialSyncChange,
+            changedKeys: [cloudKey("strimr.playback.maxVolumePercent")]
+        )
+
+        XCTAssertEqual(settingsManager.playback.maxVolumePercent, 40)
+        XCTAssertEqual(
+            cloud.values[cloudKey("strimr.playback.maxVolumePercent")] as? Int,
+            40,
+            "The family's value must not be replaced by this device's default"
+        )
+        XCTAssertEqual(cloud.values[cloudKey("plinx.maxMovieRating")] as? String, "PG")
+        XCTAssertFalse(sync.isAwaitingInitialSync)
+    }
+
+    func test_untouchedStrimrDefaultsAreNotUploaded() {
+        let sync = makeSync()
+        sync.setEnabled(true)
+        sync.finishInitialSync()
+
+        XCTAssertNil(cloud.values[cloudKey("strimr.playback.maxVolumePercent")])
+        XCTAssertNil(cloud.values[cloudKey("strimr.interface.hiddenLibraryIds")])
+        XCTAssertNil(cloud.values[cloudKey("strimr.interface.displayCollections")])
+    }
+
+    func test_launchAfterAWaitedSessionSeedsAnEmptyCloud() {
+        defaults.set("PG", forKey: "plinx.maxMovieRating")
+        makeSync().setEnabled(true)
+        XCTAssertTrue(cloud.values.isEmpty)
+
+        let relaunched = makeSync()
+        relaunched.start()
+
+        XCTAssertFalse(relaunched.isAwaitingInitialSync)
+        XCTAssertEqual(cloud.values[cloudKey("plinx.maxMovieRating")] as? String, "PG")
     }
 
     // MARK: - Validation
@@ -160,6 +235,7 @@ final class PlinxCloudSettingsSyncTests: XCTestCase {
     // MARK: - Ongoing sync
 
     func test_externalChangeAppliesOnlyChangedPlinxKeys() {
+        seedCloud()
         let sync = makeSync()
         sync.setEnabled(true)
         cloud.values[cloudKey("plinx.maxTVRating")] = "TV-Y7"
@@ -175,6 +251,7 @@ final class PlinxCloudSettingsSyncTests: XCTestCase {
     }
 
     func test_localChangesArePushedWithoutEchoWrites() {
+        seedCloud()
         let sync = makeSync()
         sync.setEnabled(true)
         let writesAfterEnable = cloud.writeCount
@@ -209,6 +286,7 @@ final class PlinxCloudSettingsSyncTests: XCTestCase {
         defaults.set("PG", forKey: "plinx.maxMovieRating")
         let sync = makeSync()
         sync.setEnabled(true)
+        sync.finishInitialSync()
         sync.setEnabled(false)
 
         defaults.set("G", forKey: "plinx.maxMovieRating")
@@ -216,6 +294,47 @@ final class PlinxCloudSettingsSyncTests: XCTestCase {
 
         XCTAssertEqual(defaults.string(forKey: "plinx.maxMovieRating"), "G")
         XCTAssertEqual(cloud.values[cloudKey("plinx.maxMovieRating")] as? String, "PG")
+    }
+
+    func test_accountChangedWhileClosedTurnsSyncOffBeforeApplyingValues() {
+        defaults.set("G", forKey: "plinx.maxMovieRating")
+        seedCloud()
+        makeSync().setEnabled(true)
+
+        // While Plinx was closed the device signed in to another iCloud
+        // account whose store allows PG-13.
+        identity.identity = "account-b"
+        cloud.values[cloudKey("plinx.maxMovieRating")] = "PG-13"
+        let relaunched = makeSync()
+        relaunched.start()
+
+        XCTAssertFalse(relaunched.isEnabled)
+        XCTAssertEqual(relaunched.disableReason, .accountChanged)
+        XCTAssertEqual(defaults.string(forKey: "plinx.maxMovieRating"), "G")
+    }
+
+    func test_sameAccountAtLaunchKeepsSyncing() {
+        seedCloud()
+        makeSync().setEnabled(true)
+        cloud.values[cloudKey("plinx.maxMovieRating")] = "PG"
+
+        let relaunched = makeSync()
+        relaunched.start()
+
+        XCTAssertTrue(relaunched.isEnabled)
+        XCTAssertEqual(defaults.string(forKey: "plinx.maxMovieRating"), "PG")
+    }
+
+    func test_unavailableIdentityAtLaunchIsNotTreatedAsAccountChange() {
+        seedCloud()
+        makeSync().setEnabled(true)
+
+        identity.identity = nil
+        let relaunched = makeSync()
+        relaunched.start()
+
+        XCTAssertTrue(relaunched.isEnabled)
+        XCTAssertNil(relaunched.disableReason)
     }
 
     // MARK: - Scope

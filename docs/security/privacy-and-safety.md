@@ -43,9 +43,14 @@ Rules:
 - A value a device has never set is not uploaded, and nothing is deleted from
   iCloud, so a new device cannot reset another device's choices.
 - Turning sync on adopts settings already in iCloud and uploads settings iCloud
-  lacks. Later changes are last-writer-wins per setting.
+  lacks. If iCloud has not delivered anything yet, uploads wait for its first
+  download, or for 60 seconds or the next launch with nothing arriving, so a
+  new device cannot replace the family's values with its defaults. Later
+  changes are last-writer-wins per setting.
 - An iCloud account change turns sync off on that device and tells the parent,
-  so another account's settings never apply silently.
+  so another account's settings never apply silently. The account identity is
+  recorded when sync is turned on and checked at launch before any value is
+  applied, so a change made while Plinx was closed is also caught.
 
 Both app targets use the same key-value store identifier
 (`$(TeamIdentifierPrefix)com.bballdavis.plinx`), so iPhone, iPad, and Apple TV

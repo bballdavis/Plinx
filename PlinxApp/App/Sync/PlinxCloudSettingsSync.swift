@@ -31,6 +31,21 @@ protocol PlinxCloudKeyValueStore: AnyObject {
 
 extension NSUbiquitousKeyValueStore: PlinxCloudKeyValueStore {}
 
+/// Supplies the current iCloud account identity so an account change made
+/// while Plinx was not running is detected before any value is applied.
+protocol PlinxCloudIdentityProviding {
+    /// An archived form of the current iCloud identity, or `nil` when iCloud is
+    /// unavailable or the identity cannot be read.
+    func currentIdentity() -> Data?
+}
+
+struct PlinxUbiquityIdentityProvider: PlinxCloudIdentityProviding {
+    func currentIdentity() -> Data? {
+        guard let token = FileManager.default.ubiquityIdentityToken else { return nil }
+        return try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: false)
+    }
+}
+
 /// A property-list value that can round-trip through the iCloud key-value store.
 enum PlinxSyncValue: Equatable {
     case bool(Bool)
@@ -91,6 +106,11 @@ final class PlinxCloudSettingsSync {
     }
 
     static let enabledKey = "plinx.iCloudSync.enabled"
+    /// Set when sync was turned on before iCloud had delivered this account's
+    /// existing settings; uploads wait until they arrive.
+    static let awaitingInitialSyncKey = "plinx.iCloudSync.awaitingInitialSync"
+    /// Archived iCloud identity recorded when sync was turned on.
+    static let identityKey = "plinx.iCloudSync.identity"
     static let cloudKeyPrefix = "plinx.sync.v1."
 
     private(set) var isEnabled: Bool
@@ -103,18 +123,32 @@ final class PlinxCloudSettingsSync {
     @ObservationIgnored private let notificationCenter: NotificationCenter
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
     @ObservationIgnored private var isPushScheduled = false
+    @ObservationIgnored private let identityProvider: PlinxCloudIdentityProviding
+    @ObservationIgnored private let initialSyncGracePeriod: TimeInterval
+    @ObservationIgnored private var initialSyncFallback: Task<Void, Never>?
 
     init(
         defaults: UserDefaults = .standard,
         cloud: PlinxCloudKeyValueStore = NSUbiquitousKeyValueStore.default,
         settings: [PlinxSyncedSetting],
-        notificationCenter: NotificationCenter = .default
+        notificationCenter: NotificationCenter = .default,
+        identityProvider: PlinxCloudIdentityProviding = PlinxUbiquityIdentityProvider(),
+        initialSyncGracePeriod: TimeInterval = 60
     ) {
         self.defaults = defaults
         self.cloud = cloud
         self.settings = settings
         self.notificationCenter = notificationCenter
+        self.identityProvider = identityProvider
+        // How long to wait for iCloud's first download before treating an
+        // empty store as genuinely empty during the same session.
+        self.initialSyncGracePeriod = initialSyncGracePeriod
         isEnabled = defaults.bool(forKey: Self.enabledKey)
+    }
+
+    /// True while uploads wait for iCloud to deliver existing settings.
+    var isAwaitingInitialSync: Bool {
+        defaults.bool(forKey: Self.awaitingInitialSyncKey)
     }
 
     static func cloudKey(for name: String) -> String {
@@ -124,10 +158,25 @@ final class PlinxCloudSettingsSync {
     /// Resumes syncing at launch when a parent previously enabled it.
     func start() {
         guard isEnabled else { return }
+
+        // Fail closed before touching any value: an iCloud account that
+        // changed while Plinx was not running must not apply its settings.
+        if identityChangedSinceEnabled() {
+            disableAfterAccountChange()
+            return
+        }
+
         beginObserving()
         cloud.synchronize()
         applyCloudValues(names: nil)
-        pushLocalChanges()
+
+        if isAwaitingInitialSync {
+            // A whole session has passed since sync was turned on. If iCloud
+            // still holds nothing, this device's settings become the seed.
+            finishInitialSync()
+        } else {
+            pushLocalChanges()
+        }
     }
 
     /// Turns sync on or off for this device. Turning it on adopts settings
@@ -140,13 +189,94 @@ final class PlinxCloudSettingsSync {
 
         if enabled {
             disableReason = nil
+            recordCurrentIdentity()
             cloud.synchronize()
-            applyCloudValues(names: nil)
-            pushLocalChanges()
             beginObserving()
+
+            if cloudHasSyncedSettings {
+                applyCloudValues(names: nil)
+                pushLocalChanges()
+            } else {
+                // iCloud's first download can arrive after `synchronize()`
+                // returns. Uploading now could replace the family's settings
+                // with this device's defaults, so wait for that download (or a
+                // grace period with nothing arriving) before seeding iCloud.
+                defaults.set(true, forKey: Self.awaitingInitialSyncKey)
+                scheduleInitialSyncFallback()
+            }
         } else {
+            initialSyncFallback?.cancel()
+            initialSyncFallback = nil
+            defaults.removeObject(forKey: Self.awaitingInitialSyncKey)
+            defaults.removeObject(forKey: Self.identityKey)
             stopObserving()
         }
+    }
+
+    /// Ends the wait for iCloud's first download: adopts whatever arrived,
+    /// then uploads settings iCloud still lacks.
+    func finishInitialSync() {
+        guard isEnabled, isAwaitingInitialSync else { return }
+        initialSyncFallback?.cancel()
+        initialSyncFallback = nil
+        defaults.removeObject(forKey: Self.awaitingInitialSyncKey)
+        applyCloudValues(names: nil)
+        pushLocalChanges()
+    }
+
+    private var cloudHasSyncedSettings: Bool {
+        settings.contains { cloud.object(forKey: Self.cloudKey(for: $0.name)) != nil }
+    }
+
+    private func scheduleInitialSyncFallback() {
+        initialSyncFallback?.cancel()
+        let delay = initialSyncGracePeriod
+        initialSyncFallback = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(max(delay, 0) * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            self?.finishInitialSync()
+        }
+    }
+
+    // MARK: - Account identity
+
+    private func recordCurrentIdentity() {
+        if let identity = identityProvider.currentIdentity() {
+            defaults.set(identity, forKey: Self.identityKey)
+        } else {
+            defaults.removeObject(forKey: Self.identityKey)
+        }
+    }
+
+    /// True only when both the recorded and current identities are known and
+    /// differ. An unavailable identity (signed out, iCloud restricted) stops
+    /// key-value traffic by itself, so it is not treated as a new account.
+    private func identityChangedSinceEnabled() -> Bool {
+        guard let current = identityProvider.currentIdentity() else { return false }
+        guard let recorded = defaults.data(forKey: Self.identityKey) else {
+            // Sync was enabled while no identity was readable; adopt this one.
+            defaults.set(current, forKey: Self.identityKey)
+            return false
+        }
+        return !Self.identitiesMatch(recorded, current)
+    }
+
+    private static func identitiesMatch(_ lhs: Data, _ rhs: Data) -> Bool {
+        if lhs == rhs { return true }
+        guard let left = unarchive(lhs), let right = unarchive(rhs) else { return false }
+        return left.isEqual(right)
+    }
+
+    private static func unarchive(_ data: Data) -> NSObject? {
+        guard let unarchiver = try? NSKeyedUnarchiver(forReadingFrom: data) else { return nil }
+        unarchiver.requiresSecureCoding = false
+        defer { unarchiver.finishDecoding() }
+        return unarchiver.decodeObject(forKey: NSKeyedArchiveRootObjectKey) as? NSObject
+    }
+
+    private func disableAfterAccountChange() {
+        setEnabled(false)
+        disableReason = .accountChanged
     }
 
     // MARK: - Sync
@@ -166,8 +296,9 @@ final class PlinxCloudSettingsSync {
 
     /// Uploads local values that differ from the cloud copy. Values the device
     /// has never set are skipped, and nothing is ever deleted from iCloud.
+    /// Nothing is uploaded while waiting for iCloud's first download.
     func pushLocalChanges() {
-        guard isEnabled else { return }
+        guard isEnabled, !isAwaitingInitialSync else { return }
         for setting in settings {
             guard let local = setting.read() else { continue }
             let key = Self.cloudKey(for: setting.name)
@@ -184,8 +315,7 @@ final class PlinxCloudSettingsSync {
         case NSUbiquitousKeyValueStoreAccountChange:
             // Fail closed: a different iCloud account must not silently replace
             // this device's parental settings.
-            setEnabled(false)
-            disableReason = .accountChanged
+            disableAfterAccountChange()
         case NSUbiquitousKeyValueStoreQuotaViolationChange:
             // Plinx stores a few kilobytes; nothing to recover.
             break
@@ -196,7 +326,13 @@ final class PlinxCloudSettingsSync {
                     return String(key.dropFirst(Self.cloudKeyPrefix.count))
                 })
             }
-            applyCloudValues(names: names)
+            if isAwaitingInitialSync {
+                // The first download arrived: adopt everything iCloud holds,
+                // then upload what it lacks.
+                finishInitialSync()
+            } else {
+                applyCloudValues(names: names)
+            }
         }
     }
 
