@@ -285,36 +285,70 @@ struct PlinxSettingsValueLabel: View {
 
 // MARK: - Buttons
 
-/// Accent-filled primary action for forms inside Plinx surfaces. Replaces
-/// `.borderedProminent`, which renders as a stock system capsule.
-struct PlinxPrimaryActionButtonStyle: ButtonStyle {
+/// The app's action-button language, shared with media detail's Play and
+/// secondary actions and the long-press "More Info" options: accent-tinted
+/// liquid glass, an accent outline with a soft accent glow, and a spring press
+/// that tightens the glow. Use `.primary` for the one main action on a screen
+/// and `.secondary` for supporting actions.
+struct PlinxActionButtonStyle: ButtonStyle {
+    enum Treatment {
+        case primary
+        case secondary
+    }
+
+    var treatment: Treatment = .primary
+    var minHeight: CGFloat?
+
     func makeBody(configuration: Configuration) -> some View {
-        PlinxPrimaryActionButtonBody(configuration: configuration)
+        PlinxActionButtonBody(configuration: configuration, treatment: treatment, minHeight: minHeight)
     }
 }
 
-private struct PlinxPrimaryActionButtonBody: View {
-    let configuration: PlinxPrimaryActionButtonStyle.Configuration
+private struct PlinxActionButtonBody: View {
+    let configuration: PlinxActionButtonStyle.Configuration
+    let treatment: PlinxActionButtonStyle.Treatment
+    let minHeight: CGFloat?
     @Environment(\.isEnabled) private var isEnabled
 
+    private var isPrimary: Bool { treatment == .primary }
+    private var cornerRadius: CGFloat { isPrimary ? 20 : 16 }
+    private var resolvedMinHeight: CGFloat { minHeight ?? (isPrimary ? 64 : 52) }
+
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         configuration.label
-            .font(.headline)
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity, minHeight: 48)
-            .padding(.horizontal, 18)
-            .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.accentColor.opacity(isEnabled ? 1 : 0.35))
+            .font(isPrimary ? .title3.weight(.bold) : .headline)
+            .foregroundStyle(isPrimary ? Color.white : Color.accentColor)
+            .padding(.horizontal, 20)
+            .frame(maxWidth: .infinity, minHeight: resolvedMinHeight)
+            .background {
+                shape
+                    .fill(.ultraThinMaterial)
+                    .overlay {
+                        shape.fill(Color.accentColor.opacity(isPrimary ? 0.30 : 0.18))
+                    }
+            }
+            .overlay {
+                shape.stroke(
+                    Color.accentColor.opacity(configuration.isPressed ? 0.95 : 0.68),
+                    lineWidth: configuration.isPressed ? 2 : 1.5
+                )
+            }
+            .overlay {
+                // Inner highlight keeps the glass edge crisp on bright accents.
+                shape
+                    .inset(by: 1.5)
+                    .stroke(Color.white.opacity(0.14), lineWidth: 1)
+            }
+            .shadow(
+                color: Color.accentColor.opacity(configuration.isPressed ? 0.10 : (isPrimary ? 0.26 : 0.18)),
+                radius: configuration.isPressed ? 3 : (isPrimary ? 14 : 8),
+                y: configuration.isPressed ? 2 : 5
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color.white.opacity(0.18), lineWidth: 1)
-            )
-            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .opacity(isEnabled ? 1 : 0.7)
-            .scaleEffect(configuration.isPressed ? 0.97 : 1)
-            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: configuration.isPressed)
+            .contentShape(shape)
+            .opacity(isEnabled ? 1 : 0.6)
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .animation(.spring(response: 0.25, dampingFraction: 0.8), value: configuration.isPressed)
     }
 }
 

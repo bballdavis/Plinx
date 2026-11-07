@@ -87,14 +87,18 @@ final class BrandingUITests: XCTestCase {
 
         let logo = app.images["signIn.logo.fullColor"]
         XCTAssertTrue(logo.waitForExistence(timeout: 8), "Sign-in should render contrast-safe branding")
-        XCTAssertEqual(logo.value as? String, "BrandLockupWhite", "Compact sign-in should use the white lockup over the colored portal")
+        XCTAssertEqual(logo.value as? String, "BrandLockupOnDark", "Quiet-shell sign-in sits on the dark shell, so it uses the on-dark lockup")
 
         let title = app.staticTexts["signIn.portal.title"]
         XCTAssertTrue(title.waitForExistence(timeout: 8))
-        XCTAssertGreaterThan(
-            logo.frame.height,
-            title.frame.height,
-            "The Plinx identity should visually lead the sign-in headline"
+        XCTAssertLessThan(
+            logo.frame.maxY,
+            title.frame.minY,
+            "The Plinx lockup anchors the top of the screen above the headline"
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["onboarding.step"].exists,
+            "Sign-in should show onboarding progress"
         )
 
         let primaryButton = app.buttons["signIn.primaryButton"]

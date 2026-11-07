@@ -84,7 +84,7 @@ struct SetPinView: View {
                         )
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(PlinxPrimaryActionButtonStyle())
+                    .buttonStyle(PlinxActionButtonStyle(minHeight: 52))
                     .disabled(activeEntryValue.count < 4)
                 }
                 .padding(.vertical, 4)

@@ -37,93 +37,104 @@ struct SignInView: View {
         tvOSBody
         #else
         GeometryReader { proxy in
+            let layout = PlinxOnboardingLayout(width: proxy.size.width)
+
             ZStack {
                 PlinxAmbientBackground(intensity: .hero)
 
                 ScrollView {
-                    let expandedLayout = proxy.size.width >= 700
-
-                    guidedPortal(expandedLayout: expandedLayout)
-                        .frame(
-                            maxWidth: expandedLayout ? .infinity : 620,
-                            minHeight: max(680, proxy.size.height - 28)
-                        )
-                        .padding(.horizontal, expandedLayout ? 0 : 28)
-                        .padding(.vertical, expandedLayout ? 0 : 14)
+                    quietShell(layout: layout)
+                        .frame(maxWidth: layout.contentMaxWidth)
                         .frame(maxWidth: .infinity)
+                        .frame(minHeight: proxy.size.height)
                 }
                 .scrollIndicators(.hidden)
+                .scrollBounceBehavior(.basedOnSize)
             }
+        }
+        .onDisappear {
+            viewModel.cancelSignIn()
         }
         #endif
     }
 
     #if !os(tvOS)
-    private func guidedPortal(expandedLayout: Bool) -> some View {
-        VStack(spacing: 0) {
-            PlinxBrandLogoView(
-                asset: expandedLayout ? .lockupOnDark : .lockupWhite,
-                accessibilityIdentifier: "signIn.logo.fullColor",
-                maxWidth: expandedLayout
-                    ? PlinxBrandLayoutMetrics.signInExpandedLogoWidth
-                    : PlinxBrandLayoutMetrics.signInCompactLogoWidth
-            )
-            .padding(.top, expandedLayout ? 48 : 80)
+    // MARK: - Quiet shell (iPhone and iPad)
 
-            Spacer()
-                .frame(height: expandedLayout ? 44 : 92)
-
-            VStack(spacing: 18) {
-                Label {
-                    Text("signIn.grownUpStep", tableName: "Plinx")
-                        .font(.system(.caption, design: .rounded, weight: .semibold))
-                } icon: {
-                    Image(systemName: "checkmark.shield.fill")
-                        .font(.system(size: 13, weight: .semibold))
-                }
-                .foregroundStyle(Color(red: 0.02, green: 0.36, blue: 0.34))
-                .padding(.horizontal, 12)
-                .frame(minHeight: 30)
-                .background(
-                    Capsule(style: .continuous)
-                        .fill(Color(red: 0.76, green: 0.97, blue: 0.77))
+    /// Sign-in on the ambient dark shell: logo and step indicator on top,
+    /// left-aligned headline, and the app's glass primary action. Wide iPad
+    /// layouts add a "What happens next" card beside the copy.
+    private func quietShell(layout: PlinxOnboardingLayout) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .center) {
+                PlinxBrandLogoView(
+                    asset: .lockupOnDark,
+                    accessibilityIdentifier: "signIn.logo.fullColor",
+                    maxWidth: layout.logoWidth
                 )
-                .overlay(
-                    Capsule(style: .continuous)
-                        .stroke(Color.white.opacity(0.62), lineWidth: 1)
-                )
-                .accessibilityIdentifier("signIn.grownUpStep")
-                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
-                .lineLimit(1)
-
-                Text("signIn.portal.title", tableName: "Plinx")
-                    .font(
-                        .system(
-                            size: expandedLayout
-                                ? PlinxBrandLayoutMetrics.signInExpandedTitleSize
-                                : PlinxBrandLayoutMetrics.signInCompactTitleSize,
-                            weight: .bold,
-                            design: .rounded
-                        )
-                    )
-                    .minimumScaleFactor(0.82)
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(Color.white)
-                    .frame(maxWidth: expandedLayout ? 680 : 430)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("signIn.portal.title")
-
-                Text("signIn.portal.subtitle", tableName: "Plinx")
-                    .font(.system(.body, design: .rounded, weight: .medium))
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(Color(red: 0.65, green: 0.94, blue: 0.76))
-                    .frame(maxWidth: expandedLayout ? 680 : 430)
-                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 16)
+                PlinxOnboardingStepIndicator(step: .connect, isExpanded: layout != .compact)
             }
-            .padding(.horizontal, expandedLayout ? 64 : 28)
+            .padding(.top, layout == .compact ? 12 : 32)
 
-            Spacer(minLength: expandedLayout ? 32 : 44)
+            Spacer(minLength: layout == .compact ? 56 : 48)
 
+            switch layout {
+            case .wide:
+                HStack(alignment: .center, spacing: 72) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        headline(layout: layout)
+                        actionArea(layout: layout)
+                            .frame(maxWidth: 420)
+                            .padding(.top, 40)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    PlinxOnboardingNextStepsCard(currentStep: .connect)
+                        .frame(maxWidth: 460)
+                }
+                Spacer(minLength: 48)
+            case .regular:
+                headline(layout: layout)
+                PlinxOnboardingNextStepsCard(currentStep: .connect)
+                    .padding(.top, 36)
+                Spacer(minLength: 36)
+                actionArea(layout: layout)
+                    .frame(maxWidth: 460)
+                    .frame(maxWidth: .infinity)
+            case .compact:
+                headline(layout: layout)
+                Spacer(minLength: 40)
+                actionArea(layout: layout)
+            }
+        }
+        .padding(.horizontal, layout.horizontalPadding)
+        .padding(.bottom, layout == .compact ? 24 : 40)
+        .accessibilityElement(children: .contain)
+    }
+
+    private func headline(layout: PlinxOnboardingLayout) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            PlinxOnboardingGrownUpEyebrow(isExpanded: layout != .compact)
+
+            Text("signIn.portal.title", tableName: "Plinx")
+                .font(.system(size: layout.titleSize, weight: .heavy, design: .rounded))
+                .foregroundStyle(Color.white)
+                .minimumScaleFactor(0.8)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityIdentifier("signIn.portal.title")
+
+            Text("signIn.portal.subtitle", tableName: "Plinx")
+                .font(.system(layout == .compact ? .title3 : .title2, design: .rounded, weight: .semibold))
+                .foregroundStyle(Color.brandSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func actionArea(layout: PlinxOnboardingLayout) -> some View {
+        VStack(spacing: 14) {
             if let error = viewModel.errorMessage {
                 Label {
                     Text(error)
@@ -131,18 +142,20 @@ struct SignInView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 } icon: {
                     Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(Color.orange)
                 }
                 .foregroundStyle(Color.white)
-                .multilineTextAlignment(.leading)
-                .padding(.horizontal, expandedLayout ? 64 : 16)
-                .padding(.vertical, 12)
+                .padding(14)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color.black.opacity(0.24))
+                        .fill(PlinxBrand.surface)
                 )
-                .padding(.horizontal, 16)
-                .padding(.bottom, 12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.orange.opacity(0.45), lineWidth: 1)
+                )
+                .accessibilityIdentifier("signIn.error")
             }
 
             Button {
@@ -154,7 +167,7 @@ struct SignInView: View {
                             .tint(Color.white)
                     } else {
                         Image(systemName: "person.crop.circle.badge.checkmark")
-                            .font(.system(size: 28, weight: .semibold))
+                            .font(.system(size: 22, weight: .semibold))
                     }
 
                     Text(
@@ -162,112 +175,31 @@ struct SignInView: View {
                             ? "signIn.button.waiting"
                             : "signIn.button.continue"
                     )
-                    .font(.system(.title2, design: .rounded, weight: .bold))
+                    .font(.system(.title3, design: .rounded, weight: .bold))
+                    .lineLimit(1)
                     .minimumScaleFactor(0.75)
                 }
-                .foregroundStyle(Color.white)
-                .frame(maxWidth: .infinity, minHeight: expandedLayout ? 104 : 90)
-                .padding(.horizontal, expandedLayout ? 48 : 20)
-                .background(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color(red: 0.10, green: 0.49, blue: 0.38),
-                                    Color(red: 0.025, green: 0.28, blue: 0.30)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                                .fill(Color.accentColor.opacity(0.12))
-                        )
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .stroke(Color.accentColor.opacity(0.88), lineWidth: 1.5)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 23, style: .continuous)
-                        .stroke(Color.white.opacity(0.20), lineWidth: 1)
-                        .padding(1)
-                )
-                .shadow(color: Color.accentColor.opacity(0.28), radius: 16, x: 0, y: 8)
             }
-            .buttonStyle(PlinkButtonStyle(springs: theme.springs))
+            .buttonStyle(PlinxActionButtonStyle(treatment: .primary, minHeight: layout == .compact ? 64 : 70))
             .disabled(viewModel.isAuthenticating)
-            .opacity(viewModel.isAuthenticating ? 0.78 : 1)
             .accessibilityIdentifier("signIn.primaryButton")
             .accessibilityValue(PlinxBrandingSemantics.signInPrimaryButtonStyleValue)
             .dynamicTypeSize(...DynamicTypeSize.accessibility1)
-            .padding(.horizontal, expandedLayout ? 64 : 16)
-            .padding(.bottom, viewModel.isAuthenticating ? 0 : (expandedLayout ? 48 : 56))
 
             if viewModel.isAuthenticating {
                 Button("signIn.button.cancel") {
                     viewModel.cancelSignIn()
                 }
-                .foregroundStyle(Color.white.opacity(0.86))
-                .padding(.top, 16)
-                .padding(.bottom, expandedLayout ? 48 : 56)
+                .buttonStyle(PlinxActionButtonStyle(treatment: .secondary))
                 .accessibilityIdentifier("signIn.cancelButton")
+            } else {
+                Text("signIn.footnote", tableName: "Plinx")
+                    .font(.system(.footnote, design: .rounded, weight: .semibold))
+                    .foregroundStyle(Color.white.opacity(0.62))
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-        }
-        .background {
-            portalBackground(expandedLayout: expandedLayout)
-        }
-        .accessibilityElement(children: .contain)
-        .onDisappear {
-            viewModel.cancelSignIn()
-        }
-    }
-
-    @ViewBuilder
-    private func portalBackground(expandedLayout: Bool) -> some View {
-        let gradient = LinearGradient(
-            colors: [
-                PlinxBrand.lime,
-                PlinxBrand.teal,
-                PlinxBrand.teal.opacity(0.74),
-                PlinxBrand.charcoal
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-
-        if expandedLayout {
-            PlinxAmbientBackground(intensity: .hero)
-        } else {
-            RoundedRectangle(cornerRadius: 42, style: .continuous)
-                .fill(gradient)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 42, style: .continuous)
-                        .fill(
-                            RadialGradient(
-                                colors: [Color.white.opacity(0.18), .clear],
-                                center: .topLeading,
-                                startRadius: 20,
-                                endRadius: 480
-                            )
-                        )
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 42, style: .continuous)
-                        .stroke(
-                            LinearGradient(
-                                colors: [
-                                    Color(red: 0.78, green: 1.0, blue: 0.54),
-                                    Color.accentColor.opacity(0.84)
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            ),
-                            lineWidth: 1.5
-                        )
-                )
-                .shadow(color: Color.accentColor.opacity(0.26), radius: 24, x: 0, y: 10)
         }
     }
     #endif

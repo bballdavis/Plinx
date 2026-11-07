@@ -37,11 +37,14 @@ final class BrandingAssetsTests: XCTestCase {
     }
 
     func test_brandHierarchyMetrics_keepSignInAndHomeIdentityProminent() {
-        XCTAssertEqual(PlinxBrandLayoutMetrics.signInCompactLogoWidth, 280)
-        XCTAssertEqual(PlinxBrandLayoutMetrics.signInExpandedLogoWidth, 380)
+        XCTAssertEqual(PlinxBrandLayoutMetrics.signInCompactLogoWidth, 132)
+        XCTAssertEqual(PlinxBrandLayoutMetrics.signInExpandedLogoWidth, 176)
+        XCTAssertEqual(PlinxBrandLayoutMetrics.signInCompactTitleSize, 40)
+        XCTAssertEqual(PlinxBrandLayoutMetrics.signInExpandedTitleSize, 58)
         XCTAssertLessThan(
-            PlinxBrandLayoutMetrics.signInExpandedTitleSize,
-            PlinxBrandLayoutMetrics.signInExpandedLogoWidth
+            PlinxBrandLayoutMetrics.signInCompactLogoWidth,
+            PlinxBrandLayoutMetrics.signInExpandedLogoWidth,
+            "The onboarding lockup grows on iPad but stays an anchor, not a hero"
         )
 
         XCTAssertEqual(
