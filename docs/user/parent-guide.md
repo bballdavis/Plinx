@@ -33,6 +33,18 @@ The maximum playback level affects only the Plinx player. It is not hearing
 protection and cannot limit device, headphone, AirPlay, receiver, or television
 volume.
 
+## Syncing settings across devices
+
+Turn on **Sync Settings with iCloud** in protected settings to share content
+limits, unrated filtering, touch lock, the volume limit, appearance, and home
+and library layout with other devices that use the same iCloud account. Sync is
+off by default and must be turned on separately on each device, so a device that
+needs different limits can stay independent even on a shared Apple ID.
+
+When you turn it on, the device adopts settings already in iCloud. The parental
+PIN, the Youtarr connection, and download settings never sync. If the device's
+iCloud account changes, Plinx turns sync off until you turn it on again.
+
 ## Safety boundaries
 
 No external links appear in kid-facing UI. Plinx also keeps parental settings

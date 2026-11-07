@@ -42,7 +42,7 @@ extension SettingsManager {
     private var libraryViewSettingsStorage: [String: PlinxLibraryViewSettings] {
         get {
             guard
-                let data = UserDefaults.standard.data(forKey: libraryViewStorageKey),
+                let data = UserDefaults.standard.data(forKey: plinxLibraryViewStorageKey),
                 let decoded = try? JSONDecoder().decode([String: PlinxLibraryViewSettings].self, from: data)
             else {
                 return [:]
@@ -51,9 +51,10 @@ extension SettingsManager {
         }
         set {
             guard let data = try? JSONEncoder().encode(newValue) else { return }
-            UserDefaults.standard.set(data, forKey: libraryViewStorageKey)
+            UserDefaults.standard.set(data, forKey: plinxLibraryViewStorageKey)
         }
     }
 }
 
-private let libraryViewStorageKey = "plinx.libraryViewSettings.v1"
+/// UserDefaults key for per-library view settings; also the iCloud sync name.
+let plinxLibraryViewStorageKey = "plinx.libraryViewSettings.v1"

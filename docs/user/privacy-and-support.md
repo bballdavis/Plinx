@@ -8,7 +8,9 @@ sidebar_position: 7
 
 Plinx does not collect analytics, crash reports, or usage telemetry. It stores
 the settings needed for the app to work on the device and communicates directly
-with Plex and any parent-configured local service.
+with Plex and any parent-configured local service. If a parent turns on
+optional iCloud settings sync, preferences are copied to that family's own
+iCloud account; Plinx never receives them.
 
 Read the full [Privacy Policy](https://github.com/bballdavis/Plinx/blob/main/PRIVACY_POLICY.md)
 for details about local storage, Plex communication, children and families, and

@@ -61,6 +61,9 @@ struct PlinxApp: App {
     @State private var parentalAccessCoordinator: ParentalAccessCoordinator
     @State private var downloadOwnershipStore: DownloadOwnershipStore
 
+    // ── Plinx optional iCloud settings sync (off until a parent enables it) ──
+    @State private var cloudSettingsSync: PlinxCloudSettingsSync
+
     // ── Plinx Safety Layer ──────────────────────────────────────────────
     @AppStorage("plinx.maxMovieRating") private var maxMovieRatingRaw = PlinxRating.g.rawValue
     @AppStorage("plinx.maxTVRating") private var maxTVRatingRaw = PlinxRating.tvY.rawValue
@@ -128,6 +131,13 @@ struct PlinxApp: App {
         _parentalAccessCoordinator = State(initialValue: ParentalAccessCoordinator())
         _downloadOwnershipStore = State(initialValue: DownloadOwnershipStore())
 
+        // Resumes iCloud settings sync only if a parent enabled it on this device.
+        let cloudSync = PlinxCloudSettingsSync(
+            settings: PlinxSyncedSettingsCatalog.standard(settingsManager: settings)
+        )
+        cloudSync.start()
+        _cloudSettingsSync = State(initialValue: cloudSync)
+
         // Layer 2: Plinx safety + theming are initialized via property defaults.
         // The ViewFactory is created in `body` since it needs the live state refs.
     }
@@ -147,6 +157,7 @@ struct PlinxApp: App {
                 .environment(downloadManager)
                 .environment(parentalAccessCoordinator)
                 .environment(downloadOwnershipStore)
+                .environment(cloudSettingsSync)
                 .environment(\.sharePlayPresentationPolicy, .hidden)
                 // ── Plinx layer injection ───────────────────────────
                 .environment(\.plinxTheme, theme)
