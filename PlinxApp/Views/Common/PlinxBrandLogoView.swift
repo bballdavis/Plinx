@@ -20,10 +20,11 @@ enum PlinxBrandingSemantics {
 }
 
 enum PlinxBrandLayoutMetrics {
-    static let signInCompactLogoWidth: CGFloat = 280
-    static let signInExpandedLogoWidth: CGFloat = 380
-    static let signInCompactTitleSize: CGFloat = 34
-    static let signInExpandedTitleSize: CGFloat = 44
+    /// Onboarding uses the lockup as a compact anchor; the headline leads.
+    static let signInCompactLogoWidth: CGFloat = 132
+    static let signInExpandedLogoWidth: CGFloat = 176
+    static let signInCompactTitleSize: CGFloat = 40
+    static let signInExpandedTitleSize: CGFloat = 58
     static let homeHeaderLogoGapReductionFactor: CGFloat = 0.5
 
     private static let homeHeaderLogoCanvasHeight: CGFloat = 320

@@ -350,3 +350,12 @@
 "signIn.grownUpStep" = "Grown-up step";
 "signIn.portal.title" = "Connect your Plex library";
 "signIn.portal.subtitle" = "You’ll choose a kid profile next.";
+"signIn.footnote" = "You’ll sign in on plex.tv. Plinx never sees your password.";
+"onboarding.step %lld %lld" = "Step %1$lld of %2$lld";
+"onboarding.next.title" = "What happens next";
+"onboarding.next.connect.title" = "Connect Plex";
+"onboarding.next.connect.detail" = "Sign in on plex.tv in a secure window.";
+"onboarding.next.profile.title" = "Choose a kid profile";
+"onboarding.next.profile.detail" = "PIN-protected profiles stay locked.";
+"onboarding.next.server.title" = "Pick your server";
+"onboarding.next.server.detail" = "Plinx remembers it for next time.";

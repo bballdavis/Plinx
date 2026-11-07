@@ -144,8 +144,9 @@ and wordmark need to remain independent. Use
 ### Sizing guidance from current app usage
 
 - `PlinxBrandLogoView` defaults to `maxWidth: 240`
-- sign-in uses a 280-point lockup on compact layouts and a 380-point lockup
-  on spacious iPad layouts so the identity leads the connection headline
+- iPhone and iPad onboarding uses the on-dark lockup as a compact top anchor:
+  132 points wide on compact layouts and 176 points on iPad, so the
+  connection headline leads
 - the home header lockup fills the existing chrome row: 195 by 52 points at
   the default button size, capped at 56 points high
 - the home header uses the approved lockup mark and wordmark with the internal
@@ -237,7 +238,7 @@ The sticky navigation bar must remain opaque enough to preserve text and logo
 contrast while content scrolls beneath it. Use a near-opaque white surface in
 light mode and the canonical shell in dark mode. Do not make the navigation
 transparent over the homepage hero.
-- contained sign-in portal surfaces
+- the tvOS sign-in portal
 - the parental gate
 - selected dedicated marketing artwork
 
@@ -265,29 +266,38 @@ Use this richer treatment for:
 
 Do not use it behind dense content browsing surfaces; it is too loud for content-heavy screens.
 
-### Guided portal sign-in
+### Quiet-shell onboarding (iPhone and iPad)
 
-The sign-in surface uses the guided portal direction:
+Sign-in, profile selection, and server selection share one "quiet shell"
+layout (`PlinxApp/Views/Auth/PlinxOnboardingChrome.swift`):
 
-- a dark `appBackground` shell around one luminous, continuous-corner portal
-- the full-color Plinx logo as the first brand landmark
-- an explicit “Grown-up step” cue before Plex authentication
-- a short title and outcome-oriented follow-up that explains profile selection comes next
-- one oversized, bottom-anchored primary action with a dark teal base and accent-aware stroke/glow
-- errors contained inside the portal immediately above the primary action
+- the hero `PlinxAmbientBackground` directly behind the content, with no
+  portal card or full-bleed gradient slab
+- a top row with the on-dark lockup (sign-in) or the compact logout control
+  (profiles, servers) on the leading edge and a "Step N of 3" indicator with an
+  accent segmented bar on the trailing edge
+- left-aligned display type: heavy rounded headline in white, short supporting
+  line in `brandSecondary`
+- an accent "Grown-up step" shield eyebrow before Plex authentication
+- one primary action using `PlinxActionButtonStyle`, the same accent-tinted
+  liquid glass, accent outline and glow, and spring press as media detail's
+  Play and the long-press "More Info" options, anchored at the bottom on
+  iPhone; a short note under it says sign-in happens on plex.tv
+- errors in a dark surface panel with an orange outline directly above the
+  primary action
+- profile tiles and server rows on `PlinxBrand.surface` with a hairline
+  outline; the active profile or connecting server gets an accent outline
 
-The compact portal must remain centered and width-constrained on iPhone,
-expand vertically for Dynamic Type, and scroll rather than clip on compact-height
-devices. The user-selectable accent may tint interactive emphasis, but it must
-not replace the foundational green-to-teal portal gradient.
+Layout tiers (`PlinxOnboardingLayout`): compact below 700 points wide; regular
+(iPad portrait, split view) adds the "What happens next" card under the copy;
+wide (980 points and up) places that card beside the copy and action. Content
+scrolls rather than clips and keeps a readable maximum width.
 
-On iPad, the sign-in surface is an edge-to-edge branded screen rather than an
-iPhone-sized card centered inside a dark surround. Use the full canvas for the
-gradient, increase the logo and display type modestly, and give the primary
-action a wider target while preserving the centered reading order. Keep the
-compact rounded portal treatment for iPhone widths.
+The user-selectable accent drives the step bar, eyebrow, button tint, and
+selection outlines. The identity gradient appears only in the logo and the
+placeholder profile avatar.
 
-On tvOS, adapt the same hierarchy to one wide, overscan-safe portal:
+On tvOS, keep the QR sign-in in one wide, overscan-safe portal:
 
 - keep the full-color logo inside the portal as its first landmark
 - place the large QR plate before the grown-up instructions in reading order
@@ -579,8 +589,9 @@ owns the shared pieces:
 - `PlinxSettingsChoiceView`: a pushed list with accent selection checkmarks in
   place of `Picker` menu or navigation-link styles, which open stock system
   menus and lists
-- `PlinxPrimaryActionButtonStyle`: accent-filled rounded action for forms in
-  place of `.borderedProminent`
+- `PlinxActionButtonStyle`: the app's action button (accent-tinted liquid
+  glass, accent outline and glow, spring press), in `.primary` and
+  `.secondary` treatments, in place of `.borderedProminent` or solid fills
 - `PlinxActionPanel`: the glass long-press action panel in place of
   `.confirmationDialog`; the panel is capped at 560 points wide so it stays
   compact on iPad
@@ -737,23 +748,23 @@ sheet.
 
 ## Sign-in
 
-Current sign-in language:
+Current sign-in language (iPhone and iPad):
 
-- dark shell with restrained ambient lime/teal light
-- contained canonical-gradient portal on compact layouts
-- white horizontal lockup on the compact colored portal
-- dark-surface full-color lockup on spacious dark-shell layouts
-- white title/subtitle
-- accent-stroked, glass-adjacent CTA
+- quiet shell: hero ambient light directly behind the content, no portal card
+- full-color on-dark lockup as a compact top-leading anchor
+- onboarding step indicator on the top-trailing edge
+- left-aligned white headline and `brandSecondary` supporting line
+- `PlinxActionButtonStyle` primary action matching the rest of the app
 
 Rules:
 
-- Sign-in should feel welcoming and premium, not utilitarian.
-- The Plinx lockup is the primary landmark. Use 34-point connection-title type
-  on compact layouts and 44-point type on spacious iPad layouts so the title
-  remains clearly secondary to the logo.
-- The primary CTA should remain visually lighter and friendlier than a harsh solid fill button.
-- Subtitle copy can explain the task, but should stay short and centered.
+- Sign-in should feel calm, sharp, and clearly part of the app the family is
+  about to use, not a separate marketing page.
+- The headline leads: 40-point heavy rounded type on compact layouts and
+  58-point on iPad. The lockup anchors the top of the screen.
+- Use the shared glass action button; do not reintroduce a solid fill or a
+  bespoke gradient button.
+- Subtitle copy explains the next step in one short line.
 
 ## Parental gate
 
@@ -823,9 +834,10 @@ Rules:
 Current profile-switcher language:
 
 - dark shell background
-- fixed-height profile tiles for every account state
-- green outline and soft glow for the active profile
-- subtle glass or charcoal tile fill, never a full bright selection box
+- quiet-shell onboarding layout with "Step 2 of 3" while onboarding
+- fixed-height profile tiles for every account state, centered circular avatars
+- accent outline, accent checkmark, and soft accent glow for the active profile
+- `PlinxBrand.surface` tile fill, never a full bright selection box
 - compact glass destructive logout control (`PlinxCompactDestructiveButton`)
   in the Plinx header instead of the system toolbar, with a chrome `xmark`
   close control when presented from settings
@@ -871,7 +883,10 @@ That distinction is part of the experience and should not be blurred casually.
 
 ## Primary branded button
 
-Use `LiquidGlassButton` first when a branded action is needed.
+In app screens, use `PlinxActionButtonStyle` for the main action on a screen:
+it is the same treatment as media detail's Play button and the long-press
+"More Info" options. `LiquidGlassButton` remains the package-level component
+for branded moments such as the parental gate.
 
 Characteristics:
 
