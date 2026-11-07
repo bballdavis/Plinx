@@ -12,13 +12,45 @@ Plinx is built around three non-negotiable rules:
 
 Current implementation anchors:
 
-- `PlinxApp/Resources/PrivacyInfo.xcprivacy` declares no tracking or collected data types and declares approved reasons for app-local `UserDefaults` and user-visible disk-space checks
+- `PlinxApp/Resources/PrivacyInfo.xcprivacy` declares no tracking or collected data types (optional iCloud settings sync stores data in the user's own iCloud account and is not developer collection) and declares approved reasons for app-local `UserDefaults` and user-visible disk-space checks
 - `PlinxApp/App/ErrorReporter.swift` is a no-op reporter so no crash or analytics SDK is active
 - `PlinxApp/project.yml` excludes Strimr's reporting implementation and wires in the no-op replacement
 - the resolved Plinx package graph excludes Sentry even though upstream Strimr
   can use it in its own standalone targets
 
 Do not add analytics, crash reporting, telemetry, or usage tracking without explicitly changing product policy and documentation first.
+
+## Optional iCloud Settings Sync
+
+`PlinxCloudSettingsSync` (`PlinxApp/App/Sync/`) can copy family preferences
+through Apple's iCloud key-value store (`NSUbiquitousKeyValueStore`). It does
+not change the zero-collection baseline: values stay in the family's own iCloud
+account, and Plinx operates no server and never receives them. The privacy
+manifest still declares no collected data types.
+
+Rules:
+
+- Sync is off by default and is enabled per device in protected settings.
+  Families often share one Apple ID across children who need different limits,
+  so enabling it on one device never enables it on another.
+- `PlinxSyncedSettingsCatalog` is the allow-list of synced preferences. The
+  parent PIN, Plex and Youtarr credentials, the Youtarr connection, download
+  quality and Wi-Fi rules, download ownership, device-size layout tuning, and
+  the sync switch itself must never be added to it. Unit tests guard this.
+- Every incoming value is validated against the choices the UI offers (rating
+  allow-lists, accent and button-size cases, volume range, identifier list
+  shape and size). Invalid values are ignored and the local value stays.
+- A value a device has never set is not uploaded, and nothing is deleted from
+  iCloud, so a new device cannot reset another device's choices.
+- Turning sync on adopts settings already in iCloud and uploads settings iCloud
+  lacks. Later changes are last-writer-wins per setting.
+- An iCloud account change turns sync off on that device and tells the parent,
+  so another account's settings never apply silently.
+
+Both app targets use the same key-value store identifier
+(`$(TeamIdentifierPrefix)com.bballdavis.plinx`), so iPhone, iPad, and Apple TV
+share one store. The App ID must have the iCloud capability with key-value
+storage enabled.
 
 ## Kid-Safety Boundaries
 

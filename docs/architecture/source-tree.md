@@ -25,7 +25,10 @@ Use this for:
 - app-facing views and navigation
 - adapters between Plinx and Strimr
 - decorators that wrap upstream behavior
-- app resources and localized strings
+- app resources, localized strings, and entitlements
+  (`Resources/Plinx.entitlements`, `Resources/Plinx-tvOS.entitlements`)
+- optional iCloud settings sync (`App/Sync/`), whose allow-list and safety
+  rules are described in [privacy and safety](../security/privacy-and-safety.md)
 - app-specific unit/UI tests
 
 Do not treat `PlinxApp/build/` or the generated `Plinx.xcodeproj/` as canonical.

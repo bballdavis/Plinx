@@ -44,7 +44,15 @@ Answer the App Store Connect questionnaire from the app’s maximum capability, 
 
 ## App Privacy
 
-Declare no tracking and no data collected by the Plinx developer only after confirming the final archive and Xcode privacy report contain no analytics or reporting SDK. The privacy policy must continue to disclose communication with Plex and user-selected servers.
+Declare no tracking and no data collected by the Plinx developer only after confirming the final archive and Xcode privacy report contain no analytics or reporting SDK. The privacy policy must continue to disclose communication with Plex and user-selected servers, and the optional iCloud settings sync. Settings synced through the user's own iCloud key-value store are not accessible to the developer and are not declared as collected data.
+
+## Capabilities
+
+The `com.bballdavis.plinx` App ID must have the iCloud capability with key-value
+storage enabled, for both the iOS and tvOS apps. Both targets' entitlements use
+`$(TeamIdentifierPrefix)com.bballdavis.plinx` so devices share one store.
+Automatic signing adds the capability when a team admin is signed in to Xcode;
+otherwise enable it in the developer portal before archiving.
 
 ## Reviewer Account
 
@@ -124,6 +132,8 @@ from the same manifest, along with standard and wide Top Shelf artwork.
 - P0 parental, content, playlist, playback, and offline authorization tests pass.
 - Clean iPhone and iPad Release builds pass with the pinned Xcode/runtime.
 - Signed archive passes `scripts/tests/validate_testflight_archive.sh`.
+- The signed archive carries the iCloud key-value storage entitlement, and
+  settings sync works between two devices on one iCloud account.
 - Xcode privacy report is reviewed for the app, Strimr, AetherEngine, and
   embedded frameworks.
 - Privacy and support URLs are public.

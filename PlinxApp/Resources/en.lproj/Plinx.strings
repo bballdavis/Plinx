@@ -254,6 +254,10 @@
 "settings.accent.section" = "Appearance";
 "settings.accent.title" = "Accent Color";
 "settings.accent.description" = "Choose the highlight color used throughout Plinx.";
+"settings.iCloudSync.section" = "iCloud";
+"settings.iCloudSync.title" = "Sync Settings with iCloud";
+"settings.iCloudSync.description" = "Shares parental controls, the volume limit, appearance, and home and library layout with your other devices that use the same iCloud account and have sync turned on. Settings stay in your iCloud account; Plinx never receives them. The parent PIN, Youtarr connection, and download settings stay on this device. Turning sync on uses settings already in iCloud.";
+"settings.iCloudSync.accountChanged" = "Sync turned off because this device's iCloud account changed. Turn it on again to use that account's settings.";
 "settings.downloads.title" = "Downloads";
 "settings.downloads.quality" = "Download Quality";
 "settings.downloads.quality.description" = "Applies to future downloads. Original keeps the source file when possible; other options request a server-side transcode before saving offline.";

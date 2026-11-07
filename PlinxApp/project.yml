@@ -149,6 +149,14 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
 
+    # iCloud key-value storage for optional, parent-enabled settings sync.
+    # Both app targets use one identifier so iPhone, iPad, and Apple TV share
+    # the same store. The App ID needs the iCloud capability (key-value storage).
+    entitlements:
+      path: Resources/Plinx.entitlements
+      properties:
+        com.apple.developer.ubiquity-kvstore-identifier: $(TeamIdentifierPrefix)com.bballdavis.plinx
+
     settings:
       base:
         CODE_SIGN_STYLE: Automatic
@@ -302,6 +310,14 @@ targets:
         NSLocalNetworkUsageDescription: Plinx connects to Plex Media Servers on your local network when you choose a local server connection.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
+
+    # iCloud key-value storage for optional, parent-enabled settings sync.
+    # Both app targets use one identifier so iPhone, iPad, and Apple TV share
+    # the same store. The App ID needs the iCloud capability (key-value storage).
+    entitlements:
+      path: Resources/Plinx-tvOS.entitlements
+      properties:
+        com.apple.developer.ubiquity-kvstore-identifier: $(TeamIdentifierPrefix)com.bballdavis.plinx
 
     settings:
       base:

@@ -31,6 +31,8 @@ private struct SettingsBody: View {
     @Environment(LibraryStore.self) private var libraryStore
     @Environment(SessionManager.self) private var sessionManager
     @Environment(PlexAPIContext.self) private var plexApiContext
+    /// Optional so previews and harnesses without the app root still render.
+    @Environment(PlinxCloudSettingsSync.self) private var cloudSync: PlinxCloudSettingsSync?
 
     @AppStorage("plinx.babyLockEnabled") private var babyLockEnabled = false
     @AppStorage("plinx.maxMovieRating") private var maxMovieRatingRaw = PlinxRating.g.rawValue
@@ -40,6 +42,13 @@ private struct SettingsBody: View {
     private var showSearchInMainNavigation = PlinxNavigationPreference.defaultShowSearchInMainNavigation
 
     @State private var isPresentingProfileSwitcher = false
+
+    private var cloudSyncBinding: Binding<Bool> {
+        Binding(
+            get: { cloudSync?.isEnabled ?? false },
+            set: { cloudSync?.setEnabled($0) }
+        )
+    }
 
     private var maxVolumeBinding: Binding<Double> {
         Binding(
@@ -237,6 +246,32 @@ private struct SettingsBody: View {
                 }
             } header: {
                 Text("settings.profile.section", tableName: "Plinx")
+            }
+
+            // MARK: iCloud settings sync
+            if let cloudSync {
+                Section {
+                    Toggle(isOn: cloudSyncBinding) {
+                        Label {
+                            Text("settings.iCloudSync.title", tableName: "Plinx")
+                        } icon: {
+                            Image(systemName: "icloud.fill")
+                        }
+                    }
+                    .accessibilityIdentifier("settings.iCloudSync.toggle")
+                } header: {
+                    Text("settings.iCloudSync.section", tableName: "Plinx")
+                } footer: {
+                    VStack(alignment: .leading, spacing: 6) {
+                        if cloudSync.disableReason == .accountChanged {
+                            Text("settings.iCloudSync.accountChanged", tableName: "Plinx")
+                                .foregroundStyle(Color.orange)
+                        }
+                        Text("settings.iCloudSync.description", tableName: "Plinx")
+                            .foregroundStyle(.secondary)
+                    }
+                    .font(.caption)
+                }
             }
 
             // MARK: GPL compliance (hidden behind gate)
@@ -484,6 +519,21 @@ private struct SettingsBody: View {
                         )
                     }
                     .buttonStyle(.plain)
+                }
+
+                if cloudSync != nil {
+                    TvSettingsSection(
+                        title: LocalizedStringKey("settings.iCloudSync.section"),
+                        footer: cloudSync?.disableReason == .accountChanged
+                            ? LocalizedStringKey("settings.iCloudSync.accountChanged")
+                            : LocalizedStringKey("settings.iCloudSync.description")
+                    ) {
+                        TvSettingsToggleRow(
+                            title: LocalizedStringKey("settings.iCloudSync.title"),
+                            icon: "icloud.fill",
+                            isOn: cloudSyncBinding
+                        )
+                    }
                 }
 
                 TvSettingsSection(
