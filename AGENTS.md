@@ -46,6 +46,12 @@ Any PR that changes app structure, user-visible behavior, branding, safety/priva
   paired Strimr commit is pushed; and the exact Plinx pin passes the full
   integration contract.
 
+## Commits, Branches, And Pull Requests
+
+- Commit as the repository owner (Philip Davis <bballdavis@hotmail.com>), never as a tool or bot identity.
+- Do not add AI attribution of any kind: no `Co-Authored-By` tool trailers, session links, or "Generated with" lines in commit messages, pull request descriptions, or review comments.
+- Branch names describe the work (`feat/<topic>`, `fix/<topic>`, `docs/<topic>`) and never include an AI tool's name or prefix. If a session assigns such a branch, push the work to an equivalent descriptive branch instead and delete the assigned one.
+
 ## Instruction File Policy
 
 - This file is the only committed direct reference to using an agent in this repository.
