@@ -19,11 +19,22 @@ enum PlinxSyncedSettingsCatalog {
     static let maximumIdentifierCount = 500
     static let maximumIdentifierLength = 256
 
+    /// The UserDefaults key Strimr's `SettingsManager` persists to. Until it
+    /// exists, the device is on Strimr defaults and has nothing to upload.
+    static let strimrSettingsStorageKey = "strimr.settings"
+
     static func standard(
         defaults: UserDefaults = .standard,
         settingsManager: SettingsManager
     ) -> [PlinxSyncedSetting] {
-        [
+        // SettingsManager always reports values, even untouched defaults.
+        // Report nil until it has persisted anything, so a fresh device cannot
+        // replace the family's values with Strimr defaults.
+        let hasStoredStrimrSettings: @MainActor () -> Bool = {
+            defaults.object(forKey: strimrSettingsStorageKey) != nil
+        }
+
+        return [
             // ── Parental controls ─────────────────────────────────────────
             choice("plinx.maxMovieRating", allowed: PlinxRating.movieRatings.map(\.rawValue), defaults: defaults),
             choice("plinx.maxTVRating", allowed: PlinxRating.tvRatings.map(\.rawValue), defaults: defaults),
@@ -31,7 +42,9 @@ enum PlinxSyncedSettingsCatalog {
             flag("plinx.babyLockEnabled", defaults: defaults),
             PlinxSyncedSetting(
                 name: "strimr.playback.maxVolumePercent",
-                read: { .int(settingsManager.playback.maxVolumePercent) },
+                read: {
+                    hasStoredStrimrSettings() ? .int(settingsManager.playback.maxVolumePercent) : nil
+                },
                 apply: { value in
                     guard case .int(let percent) = value, (0...100).contains(percent) else { return false }
                     settingsManager.setMaxVolumePercent(percent)
@@ -57,7 +70,9 @@ enum PlinxSyncedSettingsCatalog {
             libraryViewSettings(defaults: defaults),
             PlinxSyncedSetting(
                 name: "strimr.interface.hiddenLibraryIds",
-                read: { .stringArray(settingsManager.interface.hiddenLibraryIds) },
+                read: {
+                    hasStoredStrimrSettings() ? .stringArray(settingsManager.interface.hiddenLibraryIds) : nil
+                },
                 apply: { value in
                     guard case .stringArray(let ids) = value, isValidIdentifierList(ids) else { return false }
                     settingsManager.setHiddenLibraryIds(ids)
@@ -66,7 +81,9 @@ enum PlinxSyncedSettingsCatalog {
             ),
             PlinxSyncedSetting(
                 name: "strimr.interface.displayCollections",
-                read: { .bool(settingsManager.interface.displayCollections) },
+                read: {
+                    hasStoredStrimrSettings() ? .bool(settingsManager.interface.displayCollections) : nil
+                },
                 apply: { value in
                     guard case .bool(let enabled) = value else { return false }
                     settingsManager.setDisplayCollections(enabled)
