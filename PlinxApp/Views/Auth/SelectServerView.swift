@@ -1,10 +1,11 @@
-import PlinxUI
 import SwiftUI
+import PlinxUI
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Plinx-branded server selection (replaces Strimr's SelectServerView)
 //
-// Functionally identical to Strimr's version but uses Plinx theme colors.
+// Functionally identical to Strimr's version; presented as onboarding step 3 on
+// the quiet-shell layout shared with sign-in and profile selection.
 // ─────────────────────────────────────────────────────────────────────────────
 
 struct SelectServerView: View {
@@ -12,23 +13,53 @@ struct SelectServerView: View {
     @Environment(PlinxSessionAccessCoordinator.self) private var sessionAccessCoordinator
     @State var viewModel: ServerSelectionViewModel
     @State private var isShowingLogoutConfirmation = false
+    #if !os(tvOS)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    #endif
+
+    private var isExpanded: Bool {
+        #if os(tvOS)
+        true
+        #else
+        horizontalSizeClass == .regular
+        #endif
+    }
 
     var body: some View {
-        VStack(spacing: 24) {
-            header
-            content
-        }
-        .padding(24)
-        .tint(.accentColor)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button(role: .destructive) {
-                    isShowingLogoutConfirmation = true
-                } label: {
-                    Image(systemName: "rectangle.portrait.and.arrow.right")
-                }
-                .accessibilityLabel("common.actions.logOut")
+        GeometryReader { proxy in
+            let layout = PlinxOnboardingLayout(width: proxy.size.width, height: proxy.size.height)
+            let arrangement = layout.usesColumns
+                ? AnyLayout(HStackLayout(alignment: .top, spacing: 32))
+                : AnyLayout(VStackLayout(alignment: .leading, spacing: isExpanded ? 32 : 24))
+            arrangement {
+                header
+                    .frame(maxWidth: layout.usesColumns ? 280 : .infinity, alignment: .leading)
+                content
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
+            .padding(.horizontal, layout.horizontalPadding)
+            .padding(.top, isExpanded ? 24 : 16)
+            .padding(.bottom, 24)
+            .frame(maxWidth: layout.usesColumns ? 1180 : 760)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }
+        .background(PlinxAmbientBackground(intensity: .hero))
+        .tint(.accentColor)
+        .toolbar(.hidden, for: .navigationBar)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            HStack(alignment: .center) {
+                PlinxCompactDestructiveButton(
+                    systemImage: "rectangle.portrait.and.arrow.right",
+                    accessibilityLabel: Text("common.actions.logOut", tableName: "Plinx")
+                ) {
+                    isShowingLogoutConfirmation = true
+                }
+                Spacer(minLength: 0)
+                PlinxOnboardingStepIndicator(step: .server, isExpanded: isExpanded)
+            }
+            .padding(.horizontal, isExpanded ? 48 : PlinxPageHeaderMetrics.horizontalPadding)
+            .padding(.top, PlinxPageHeaderMetrics.topPadding)
+            .padding(.bottom, PlinxPageHeaderMetrics.bottomPadding)
         }
         .alert("common.actions.logOut", isPresented: $isShowingLogoutConfirmation) {
             Button("common.actions.logOut", role: .destructive) {
@@ -44,14 +75,18 @@ struct SelectServerView: View {
     }
 
     private var header: some View {
-        VStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             Text("serverSelection.title")
-                .font(.largeTitle.bold())
+                .font(.system(size: isExpanded ? 52 : 36, weight: .heavy, design: .rounded))
+                .foregroundStyle(Color.white)
+                .minimumScaleFactor(0.8)
+                .accessibilityAddTraits(.isHeader)
             Text("serverSelection.subtitle")
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+                .font(.system(isExpanded ? .title3 : .body, design: .rounded, weight: .semibold))
+                .foregroundStyle(Color.brandSecondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
@@ -59,9 +94,7 @@ struct SelectServerView: View {
         if viewModel.isLoading, viewModel.servers.isEmpty {
             PlinxBrandedLoadingView(
                 context: .content,
-                titleKey: LocalizedStringResource(
-                    "serverSelection.loading"
-                )
+                titleKey: "serverSelection.loading"
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if viewModel.servers.isEmpty {
@@ -80,77 +113,87 @@ struct SelectServerView: View {
 
     private var emptyState: some View {
         VStack(spacing: 12) {
+            Image(systemName: "server.rack")
+                .font(.system(size: 40, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+                .padding(.bottom, 4)
             Text("serverSelection.empty.title")
-                .font(.headline)
+                .font(.system(.title3, design: .rounded, weight: .bold))
+                .foregroundStyle(.white)
             Text("serverSelection.empty.description")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.brandSecondary)
                 .multilineTextAlignment(.center)
             Button {
                 Task { await viewModel.load() }
             } label: {
                 HStack {
                     if viewModel.isLoading {
-                        ProgressView().tint(.accentColor)
+                        ProgressView().tint(.white)
                     }
                     Text("serverSelection.retry")
                         .fontWeight(.semibold)
                 }
                 .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.accentColor)
-                .foregroundStyle(.white)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
+            .buttonStyle(PlinxActionButtonStyle())
+            .padding(.top, 8)
             .disabled(viewModel.isLoading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     private func serverRow(_ server: PlexCloudResource) -> some View {
+        let isConnecting = viewModel.selectingServerID == server.clientIdentifier
+        let shape = RoundedRectangle(cornerRadius: 20, style: .continuous)
+
         return Button {
             Task {
                 await viewModel.select(server: server)
             }
         } label: {
-            HStack(spacing: 12) {
-                Circle()
-                    .fill(Color.accentColor.opacity(0.2))
-                    .frame(width: 44, height: 44)
-                    .overlay(
-                        Image(systemName: "server.rack")
-                            .foregroundStyle(Color.accentColor)
+            HStack(spacing: 14) {
+                Image(systemName: "server.rack")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 48, height: 48)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(Color.accentColor.opacity(0.14))
                     )
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(server.name)
-                        .font(.headline)
-                        .foregroundStyle(.primary)
+                        .font(.system(.headline, design: .rounded, weight: .heavy))
+                        .foregroundStyle(Color.white)
                     connectionSummary(for: server)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(.system(.subheadline, design: .rounded, weight: .medium))
+                        .foregroundStyle(Color.brandSecondary)
                 }
 
-                Spacer()
+                Spacer(minLength: 8)
 
-                if viewModel.selectingServerID == server.clientIdentifier {
+                if isConnecting {
                     ProgressView()
                         .tint(.accentColor)
                 } else {
                     Image(systemName: "chevron.right")
-                        .foregroundStyle(Color(.tertiaryLabel))
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(Color.white.opacity(0.4))
                 }
             }
-            .opacity(
-                viewModel.isSelecting && viewModel.selectingServerID != server.clientIdentifier
-                    ? 0.6
-                    : 1
-            )
-            .padding()
+            .opacity(viewModel.isSelecting && !isConnecting ? 0.6 : 1)
+            .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.secondary.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(shape.fill(PlinxBrand.surface))
+            .overlay(
+                shape.strokeBorder(
+                    isConnecting ? Color.accentColor : Color.white.opacity(0.08),
+                    lineWidth: isConnecting ? 2 : 1
+                )
+            )
+            .contentShape(shape)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PlinkButtonStyle())
         .disabled(viewModel.isSelecting)
     }
 

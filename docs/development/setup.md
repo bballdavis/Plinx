@@ -5,7 +5,8 @@ This guide covers local development, project generation, and the sibling depende
 ## Prerequisites
 
 - macOS 14 or later
-- Xcode 26 or later
+- The release Xcode version recorded in `.xcode-version` (newer local Xcode
+  versions require their own compatibility check)
 - Homebrew
 
 ## Initial Setup
@@ -22,14 +23,28 @@ This guide covers local development, project generation, and the sibling depende
    ```bash
    cd ..
    git clone https://github.com/bballdavis/strimr.git
-   git -C strimr checkout plinx-patches
+   git -C strimr remote add upstream https://github.com/wunax/strimr.git
+   git -C strimr config remote.pushDefault origin
+   git -C strimr fetch origin
+   git -C strimr fetch upstream
    cd Plinx
+   source config/release-dependencies.env
+   git -C ../strimr switch --track "origin/$STRIMR_BRANCH"
+   ./scripts/verify_strimr_integration_contract.sh --full
    ```
 
-   If you are working on Plinx `dev`, switch the sibling Strimr checkout to
-   `dev-plinx`; for Plinx `main`, use Strimr `plinx-patches`. In both cases
-   verify the exact revision in `config/release-dependencies.env`. See
-   `docs/development/branch-pairing.md`.
+   `origin` is your writable fork; `upstream` is the original Strimr project.
+   Fetching upstream makes comparison possible without updating the paired pin.
+   If the local branch already exists, use `git -C ../strimr switch
+   "$STRIMR_BRANCH"` instead. A branch head that differs from the exact pin
+   needs deliberate pairing work; do not pull a newer engine into a build.
+
+   Create the other local tracking branch when needed with
+   `git -C ../strimr branch --track dev-plinx origin/dev-plinx` or
+   `git -C ../strimr branch --track plinx-patches origin/plinx-patches`.
+   The canonical development/stable branch roles are described in
+   [branch pairing](branch-pairing.md), but the checked-out Plinx configuration
+   always decides the branch and commit for verification.
 
 3. Install XcodeGen:
 
@@ -83,6 +98,24 @@ Or use the repo scripts:
 ./scripts/build_only.sh
 ./scripts/run_iphone_sim.sh
 ```
+
+To verify the Apple TV target on Apple Silicon without installing a tvOS
+simulator runtime, compile for a generic simulator with the supported
+architecture explicitly selected:
+
+```bash
+source scripts/build_environment.sh
+xcodebuild build \
+  -project PlinxApp/Plinx.xcodeproj -scheme Plinx-tvOS \
+  -destination 'generic/platform=tvOS Simulator' \
+  -derivedDataPath "$PLINX_XCODE_DERIVED_DATA_PATH" \
+  ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO
+```
+
+The pinned LibDovi simulator binary supplies arm64. An unrestricted generic
+build can also request x86_64 and fail at link time; that is not a reason to
+change the Strimr or AetherEngine pins. A runtime is still needed for Apple TV
+interaction tests, and simulator builds do not verify distribution signing.
 
 ## Project Generation Rules
 

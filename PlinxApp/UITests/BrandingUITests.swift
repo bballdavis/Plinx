@@ -2,6 +2,34 @@ import XCTest
 
 final class BrandingUITests: XCTestCase {
 
+    func test_parentalPIN_numericKeyboardAndDoneStayVisible() {
+        let app = launch(screen: "parentalPINGate")
+        let field = app.secureTextFields["parentalGate.numberEntry"]
+        XCTAssertTrue(field.waitForExistence(timeout: 10))
+        field.tap()
+        let keyboard = app.keyboards.firstMatch
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 5), "Tapping PIN entry should request the numeric keyboard")
+        XCTAssertTrue(keyboard.keys["1"].isHittable, "The software number pad must be onscreen for this interaction check")
+        XCTAssertFalse(keyboard.keys["q"].exists)
+        let done = app.buttons["Done"].firstMatch
+        XCTAssertTrue(done.isHittable)
+        XCTAssertLessThanOrEqual(done.frame.maxY, app.frame.maxY - 8)
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "parental-pin-keyboard"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        field.typeText("1111")
+        done.tap()
+        XCTAssertTrue(app.staticTexts["Incorrect PIN. Try again."].waitForExistence(timeout: 3))
+        XCTAssertTrue(field.exists, "An incorrect PIN must keep the gate locked")
+        field.typeText("2468")
+        done.tap()
+        let dismissed = NSPredicate(format: "exists == false")
+        expectation(for: dismissed, evaluatedWith: field)
+        waitForExpectations(timeout: 5)
+    }
+
     override func setUp() {
         super.setUp()
         continueAfterFailure = false
@@ -64,6 +92,8 @@ final class BrandingUITests: XCTestCase {
         let hydrationIdentity = hydrationApp.descendants(matching: .any)["plinx.loading.branded"]
         XCTAssertTrue(hydrationIdentity.waitForExistence(timeout: 8))
         let hydrationFrame = hydrationIdentity.frame
+        XCTAssertEqual(hydrationFrame.midX, hydrationApp.frame.midX, accuracy: 1)
+        XCTAssertEqual(hydrationFrame.midY, hydrationApp.frame.midY, accuracy: 1)
         hydrationApp.terminate()
 
         let homeApp = launch(screen: "homeLoading")
@@ -108,15 +138,14 @@ final class BrandingUITests: XCTestCase {
 
         let logo = app.images["signIn.logo.fullColor"]
         XCTAssertTrue(logo.waitForExistence(timeout: 8), "Sign-in should render contrast-safe branding")
-        XCTAssertEqual(logo.value as? String, "BrandLockupWhite", "Compact sign-in should use the white lockup over the colored portal")
+        XCTAssertEqual(logo.value as? String, "BrandLockupOnDark", "Sign-in should use the refreshed dark-shell lockup")
 
         let title = app.staticTexts["signIn.portal.title"]
         XCTAssertTrue(title.waitForExistence(timeout: 8))
-        XCTAssertGreaterThan(
-            logo.frame.height,
-            title.frame.height,
-            "The Plinx identity should visually lead the sign-in headline"
-        )
+        XCTAssertLessThan(logo.frame.maxY, title.frame.minY)
+        XCTAssertTrue(app.descendants(matching: .any)["onboarding.step"].exists)
+        XCTAssertTrue(app.buttons["signIn.infoButton"].exists)
+        XCTAssertFalse(app.buttons["signIn.demoButton"].exists)
 
         let primaryButton = app.buttons["signIn.primaryButton"]
         XCTAssertTrue(primaryButton.waitForExistence(timeout: 8), "Sign-in primary button should be present")
@@ -192,7 +221,11 @@ final class BrandingUITests: XCTestCase {
 
         let backButton = app.buttons["player.back"]
         XCTAssertTrue(backButton.waitForExistence(timeout: 8))
-        XCTAssertGreaterThan(backButton.frame.width, 66)
+        // Header controls use the documented 63-point touch target; the
+        // accessibility frame may include the surrounding outline.
+        XCTAssertGreaterThanOrEqual(backButton.frame.width, 63)
+        XCTAssertGreaterThanOrEqual(backButton.frame.height, 63)
+        XCTAssertTrue(backButton.isHittable)
         XCTAssertEqual(app.activityIndicators.count, 0)
     }
 

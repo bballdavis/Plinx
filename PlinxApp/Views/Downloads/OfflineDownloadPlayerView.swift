@@ -114,6 +114,7 @@ private struct OfflineActivePlayerView: View {
             }
         #else
         PlayerWrapper(viewModel: playerViewModel)
+            .plinxVideoPresentation()
             .onDisappear {
                 onPlaybackEnded(
                     playerViewModel.position,

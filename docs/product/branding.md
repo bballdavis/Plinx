@@ -147,8 +147,8 @@ and wordmark need to remain independent. Use
 ### Sizing guidance from current app usage
 
 - `PlinxBrandLogoView` defaults to `maxWidth: 240`
-- sign-in uses a 280-point lockup on compact layouts and a 380-point lockup
-  on spacious iPad layouts so the identity leads the connection headline
+- sign-in uses a 132-point lockup on compact layouts and a 176-point lockup
+  on spacious iPad layouts as a compact anchor above the connection headline
 - the home header lockup fills the existing chrome row: 195 by 52 points at
   the default button size, capped at 56 points high
 - the home header uses the approved lockup mark and wordmark with the internal
@@ -324,7 +324,7 @@ The sticky navigation bar must remain opaque enough to preserve text and logo
 contrast while content scrolls beneath it. Use a near-opaque white surface in
 light mode and the canonical shell in dark mode. Do not make the navigation
 transparent over the homepage hero.
-- contained sign-in portal surfaces
+- the existing tvOS sign-in portal
 - the parental gate
 - selected dedicated marketing artwork
 
@@ -352,27 +352,14 @@ Use this richer treatment for:
 
 Do not use it behind dense content browsing surfaces; it is too loud for content-heavy screens.
 
-### Guided portal sign-in
+### Onboarding surfaces
 
-The sign-in surface uses the guided portal direction:
-
-- a dark `appBackground` shell around one luminous, continuous-corner portal
-- the full-color Plinx logo as the first brand landmark
-- an explicit “Grown-up step” cue before Plex authentication
-- a short title and outcome-oriented follow-up that explains profile selection comes next
-- one oversized, bottom-anchored primary action with a dark teal base and accent-aware stroke/glow
-- errors contained inside the portal immediately above the primary action
-
-The compact portal must remain centered and width-constrained on iPhone,
-expand vertically for Dynamic Type, and scroll rather than clip on compact-height
-devices. The user-selectable accent may tint interactive emphasis, but it must
-not replace the foundational green-to-teal portal gradient.
-
-On iPad, the sign-in surface is an edge-to-edge branded screen rather than an
-iPhone-sized card centered inside a dark surround. Use the full canvas for the
-gradient, increase the logo and display type modestly, and give the primary
-action a wider target while preserving the centered reading order. Keep the
-compact rounded portal treatment for iPhone widths.
+On iPhone and iPad, onboarding sits on the ambient dark shell with a compact
+on-dark identity, left-aligned headline, step indicator, and glass primary
+action. Compact layouts scroll rather than clip at larger Dynamic Type sizes;
+wide iPad layouts can place the next-steps summary beside the sign-in copy.
+Use the [sign-in rules](#sign-in) for the information sheet and sample-library
+entry. There is no bright enclosing portal on these touch-device screens.
 
 On tvOS, adapt the same hierarchy to one wide, overscan-safe portal:
 
@@ -794,23 +781,28 @@ tvOS. Menu dismisses the sheet and returns focus to the originating card.
 
 ## Sign-in
 
-Current sign-in language:
+On iPhone and iPad, sign-in, profile selection, and server selection use the
+quiet onboarding shell: dark ambient background, compact on-dark lockup,
+left-aligned headline, step indicator, and shared glass actions. This ports the
+onboarding design from the visual-refresh branch while keeping dev's current
+session-access revocation behavior. Broader page/Downloads chrome and iCloud
+changes from that branch remain separate integration work.
 
-- dark shell with restrained ambient lime/teal light
-- contained canonical-gradient portal on compact layouts
-- white horizontal lockup on the compact colored portal
-- dark-surface full-color lockup on spacious dark-shell layouts
-- white title/subtitle
-- accent-stroked, glass-adjacent CTA
-
-Rules:
-
-- Sign-in should feel welcoming and premium, not utilitarian.
-- The Plinx lockup is the primary landmark. Use 34-point connection-title type
-  on compact layouts and 44-point type on spacious iPad layouts so the title
-  remains clearly secondary to the logo.
-- The primary CTA should remain visually lighter and friendlier than a harsh solid fill button.
-- Subtitle copy can explain the task, but should stay short and centered.
+- Use a 132-point lockup and 40-point headline on compact layouts; use a
+  176-point lockup and 58-point headline on expanded layouts.
+- Keep Continue with Plex as the one primary action. Larger iPad layouts may
+  place the existing What happens next summary beside or below the copy.
+- Place the 44-point minimum **Sign-in information** control at the top right
+  of the What happens next card on expanded layouts. Compact layouts keep it
+  beside the plex.tv sign-in footnote, using a smaller icon with the same
+  44-point tap target. Its native, scrollable sheet
+  explains Plex login and offers the
+  clearly labeled **Explore the Demo Library** text action. Keep sample access
+  inside this sheet rather than adding a competing large button to sign-in.
+- Give the help sheet a Done action and support ordinary swipe dismissal.
+  Dismissing it must not start a session. Selecting the demo first dismisses
+  the sheet, then starts the sample session.
+- Preserve the existing QR-based tvOS sign-in composition.
 
 ## Parental gate
 
@@ -834,6 +826,10 @@ Rules:
 - This surface must feel clearly separate from kid browsing mode.
 - The gate should look authoritative but not scary.
 - Avoid clutter, extra copy, or unnecessary links.
+- PIN and math entry use the native numeric keyboard on touch devices with a
+  44-point field target. The Done accessory reserves room for its button and
+  the bottom safe area, including when a hardware keyboard is attached.
+- Keep incorrect-PIN feedback visible until the parent begins a new entry.
 
 ## Home
 
@@ -884,6 +880,54 @@ Rules:
   dismisses the detail screen.
 - On tvOS, hero artwork should overscan slightly past the top and right edges so the shell background never peeks through there. The pinned artwork backdrop continues beyond the hero content guide while navigation, identity, and metadata keep their stable positions.
 - tvOS selected media tiles should scale up slightly and use a 4-point solid accent border around the scaled outer artwork bounds plus a short, fully fading accent glow. Reserve at least 24 points around horizontal carousels for the halo; only horizontal carousel clipping may be disabled.
+
+## Expanding iPhone displays
+
+The touch browse roots use the restrained ambient shell across the entire
+display, including the side status area on an open iPhone Duo. Decorative
+backgrounds extend beyond the safe area. The floating bottom navigation is
+centered on the full display, including the side status area; its vertical safe
+inset remains intact. Header actions and other edge controls keep the system's
+safe insets. Do not identify a device model to choose a layout.
+The navigation capsule keeps its normal button proportions: centering it on
+the display must not stretch it across a wide phone window. Flexible tab widths
+shrink only when the available width requires it.
+
+Playback fits the original video aspect ratio into the full display width,
+including the space normally used by the side status area. Letterboxing is
+expected when the screen and video have different proportions. The landscape
+player header and timeline reclaim a large, one-sided status-sidebar inset so
+they span the full display, including on the closed Duo. Ordinary camera/notch
+insets and vertical safe areas remain protected.
+Chrome spacing follows the live container dimensions when opening, closing,
+or rotating the device, with tighter vertical spacing in short landscape windows.
+
+In landscape, a Fit/Fill icon button sits immediately before Settings in the
+player header and uses the same 63-point glass control size. Fit is the default;
+Fill preserves the video's proportions while cropping its edges to cover the
+display. The choice lasts for the current player session, including queue and
+renderer changes, and survives auto-hiding controls. Portrait temporarily uses
+Fit and hides the button; returning to landscape restores the session's choice.
+Only the video render layer changes: controls and separately rendered subtitles
+retain their normal layout. Downloaded playback uses the same control.
+
+Open landscape onboarding uses the tablet composition: sign-in copy and the
+primary action sit beside the next-steps summary; profile and server selection
+place their introduction beside the choices. Intermediate landscape widths use
+tighter gutters and a smaller display headline so both columns fit. Open portrait
+uses the expanded single-column treatment, like a small tablet, rather than
+forcing landscape columns. Closed displays retain compact phone onboarding.
+Compact sign-in places its primary action in a separate lower section: an
+84-point-tall button centered across the display with 24-point side margins,
+followed by the sign-in explanation. This section can extend beneath a lateral
+status region while retaining the bottom safe inset.
+
+Full-screen transition identities, loading animations, and playback buffering
+use the full display center in both closed and open configurations. The static
+launch storyboard already constrains its identity to the root view center;
+SwiftUI transition states must ignore container safe areas to match that anchor.
+Contextual full-width loading states ignore lateral insets; inline indicators
+stay centered within their owning control or row.
 
 ## Settings
 

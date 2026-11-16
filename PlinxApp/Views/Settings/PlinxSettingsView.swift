@@ -98,7 +98,7 @@ private struct SettingsBody: View {
                         Image(systemName: "rectangle.3.group.fill")
                     }
                 }
-                NavigationLink(destination: YoutarrSettingsView()) {
+                NavigationLink(destination: YoutarrSettingsView(configurationStore: DemoFixtureBootstrap.isActive ? DemoPreferences.youtarrStore : YoutarrConfigurationStore())) {
                     Label {
                         Text("youtarr.settings.title", tableName: "Plinx")
                     } icon: {
@@ -267,7 +267,12 @@ private struct SettingsBody: View {
                 }
             } header: {
                 Text("settings.profile.section", tableName: "Plinx")
+            } footer: {
+                if DemoFixtureBootstrap.isActive {
+                    Text("settings.demo.profile", tableName: "Plinx")
+                }
             }
+            .disabled(DemoFixtureBootstrap.isActive)
 
             // MARK: GPL compliance (hidden behind gate)
 
@@ -344,7 +349,8 @@ private struct SettingsBody: View {
                     viewModel: ProfileSwitcherViewModel(
                         context: plexApiContext,
                         sessionManager: sessionManager
-                    )
+                    ),
+                    onClose: { isPresentingProfileSwitcher = false }
                 )
             }
         }
@@ -381,7 +387,7 @@ private struct SettingsBody: View {
                     tvNavigationLink(
                         title: LocalizedStringKey("youtarr.settings.title"),
                         icon: "sparkles.tv",
-                        destination: YoutarrSettingsView()
+                        destination: YoutarrSettingsView(configurationStore: DemoFixtureBootstrap.isActive ? DemoPreferences.youtarrStore : YoutarrConfigurationStore())
                     )
                     .accessibilityIdentifier("settings.youtarr")
                     tvNavigationLink(

@@ -51,7 +51,7 @@ struct KidsMainTabPicker: View {
         #if os(tvOS)
         false
         #else
-        !isRegular && tabs.count >= 4
+        !isRegular && tabs.count >= 3
         #endif
     }
     private var isInline: Bool { placement == .inline }
@@ -140,6 +140,11 @@ struct KidsMainTabPicker: View {
                     .frame(maxWidth: usesCompactDistribution ? .infinity : nil)
             }
         }
+        // Flexible tabs may shrink on a narrow phone, but must not stretch
+        // the capsule merely because the display has extra horizontal room.
+        .frame(maxWidth: usesCompactDistribution
+               ? CGFloat(tabs.count) * buttonMinWidth + CGFloat(max(0, tabs.count - 1)) * hSpacing
+               : nil)
         .padding(.horizontal, contentHorizontalPadding)
         .padding(.vertical, isInline ? 0 : (isHeader ? 5 : (playfulAnimationsEnabled ? (isRegular ? 12 : 10) : 10)))
 
@@ -147,6 +152,8 @@ struct KidsMainTabPicker: View {
             row
         } else {
             pickerSurface(row)
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("main.navigation.surface")
                 .frame(maxWidth: isHeader ? .infinity : nil, alignment: .center)
                 .padding(.horizontal, containerHorizontalPadding)
                 .padding(.bottom, isHeader ? 0 : 1)

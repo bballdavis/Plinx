@@ -246,6 +246,42 @@ This catches regressions that only appear at one size class.
 ./scripts/ui_tests.sh --live
 ```
 
+## Documentation screenshots
+
+The README and product tour share images in `docs/assets/screenshots/`.
+Capture the built-in demo through
+`LaunchSmokeUITests/test_demoModeRendersProductionHomeAndRealPlayback` on both
+iPhone and iPad. This test enters through Sign-in information, opens the
+production Home and detail screens, and starts the real player with original
+bundled sample video. It saves named screenshot attachments at each step.
+`test_playerFitFillSurvivesHiddenControls` adds landscape Fit/Fill captures.
+
+Use an available simulator ID from `xcrun simctl list devices available`:
+
+```bash
+source scripts/build_environment.sh
+xcodebuild test \
+  -project PlinxApp/Plinx.xcodeproj -scheme Plinx-iOS \
+  -destination "platform=iOS Simulator,id=$PLINX_CAPTURE_DEVICE_ID" \
+  -derivedDataPath "$PLINX_XCODE_DERIVED_DATA_PATH" \
+  -resultBundlePath /tmp/plinx-demo-capture.xcresult \
+  -only-testing:Plinx-iOS-UITests/LaunchSmokeUITests/test_demoModeRendersProductionHomeAndRealPlayback \
+  CODE_SIGNING_ALLOWED=NO
+xcrun xcresulttool export attachments \
+  --path /tmp/plinx-demo-capture.xcresult \
+  --output-path /tmp/plinx-demo-attachments
+```
+
+Use a fresh result path for each run. After the test passes, inspect the named
+images and copy the selected captures to the shared documentation directory.
+The attachments use the full display to avoid rotated app-window crops on
+iPad. Normalize image orientation before stripping metadata; otherwise removing
+the orientation tag can leave a landscape capture sideways.
+Keep captions explicit that these are sample-library screenshots. Strip PNG
+metadata with `scripts/release/strip_png_metadata.py` before committing.
+Docusaurus copies these assets with `docs/`; do not duplicate them in
+`website/` or promote regression mock artwork into release screenshots.
+
 ## Re-Recording Snapshots
 
 Use recording mode only when a visual change is intentional:

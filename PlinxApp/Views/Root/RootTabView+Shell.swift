@@ -36,6 +36,10 @@ extension RootTabView {
                     onSelect: handleTabSelection,
                     onAction: handleBottomAction
                 )
+                // Center the floating navigation on the physical display,
+                // rather than the safe region beside Duo's status sidebar.
+                .frame(maxWidth: .infinity)
+                .ignoresSafeArea(.container, edges: .horizontal)
             }
         #endif
     }
@@ -178,6 +182,7 @@ extension RootTabView {
                         isWatchedDisplay(displayItem)
                     }
                 )
+                .background(PlinxAmbientBackground(intensity: .restrained))
                 .toolbar(.hidden, for: .navigationBar)
                 .navigationDestination(for: MainCoordinator.Route.self) { route in
                     destination(for: route)
@@ -218,6 +223,7 @@ extension RootTabView {
                         selectedQuickActionMedia = displayItem
                     }
                 )
+                .background(PlinxAmbientBackground(intensity: .restrained))
                 .toolbar(.hidden, for: .navigationBar)
                 .navigationDestination(for: MainCoordinator.Route.self) { route in
                     destination(for: route)
@@ -256,6 +262,7 @@ extension RootTabView {
                     },
                     contentFocusRequest: libraryContentFocusRequest
                 )
+                .background(PlinxAmbientBackground(intensity: .restrained))
                 .toolbar(.hidden, for: .navigationBar)
                 .navigationDestination(for: Library.self) { library in
                     PlinxLibraryDetailView(
@@ -300,6 +307,7 @@ extension RootTabView {
                     }
                 #else
                 PlinxDownloadsGridView()
+                    .background(PlinxAmbientBackground(intensity: .restrained))
                     .toolbar(.hidden, for: .navigationBar)
                     .navigationDestination(for: MainCoordinator.Route.self) { route in
                         destination(for: route)
@@ -324,6 +332,7 @@ extension RootTabView {
                         },
                         contentFocusRequest: exploreContentFocusRequest
                     )
+                    .background(PlinxAmbientBackground(intensity: .restrained))
                 }
                 .id(youtarrStoredBaseURL)
                 .opacity(activeRootTab == .seerrDiscover ? 1 : 0)
@@ -518,7 +527,7 @@ extension RootTabView {
             youtarrExploreConfiguration = testConfiguration
             return
         }
-        let store = YoutarrConfigurationStore()
+        let store = DemoFixtureBootstrap.isActive ? DemoPreferences.youtarrStore : YoutarrConfigurationStore()
         let configuration = try? store.load()
         isYoutarrConfigured = configuration != nil
         youtarrExploreConfiguration = configuration

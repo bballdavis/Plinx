@@ -56,4 +56,25 @@ for runner in run_iphone_sim.sh run_ipad_sim.sh; do
     || fail "$runner generic preflight failed"
 done
 
+# Release source verification ignores local graph metadata while still
+# rejecting edits to the pinned engine's source.
+pairing_root="$TEMP_ROOT/pairing"
+mkdir -p "$pairing_root/Plinx/scripts" "$pairing_root/Plinx/config" "$pairing_root/strimr"
+cp "$PROJECT_ROOT/scripts/verify_release_dependency_state.sh" "$pairing_root/Plinx/scripts/"
+git -C "$pairing_root/strimr" init --quiet
+printf '%s\n' 'pinned source' >"$pairing_root/strimr/Engine.swift"
+git -C "$pairing_root/strimr" add Engine.swift
+git -C "$pairing_root/strimr" -c user.name=Fixture -c user.email=fixture@example.invalid \
+  commit --quiet -m 'Pinned fixture'
+printf 'STRIMR_COMMIT=%s\n' "$(git -C "$pairing_root/strimr" rev-parse HEAD)" \
+  >"$pairing_root/Plinx/config/release-dependencies.env"
+mkdir -p "$pairing_root/strimr/.code-review-graph"
+printf '%s\n' 'local graph cache' >"$pairing_root/strimr/.code-review-graph/graph.db"
+bash "$pairing_root/Plinx/scripts/verify_release_dependency_state.sh" >"$TEMP_ROOT/pairing.log" 2>&1 \
+  || fail "release verification rejected local graph metadata"
+printf '%s\n' 'changed source' >"$pairing_root/strimr/Engine.swift"
+if bash "$pairing_root/Plinx/scripts/verify_release_dependency_state.sh" >"$TEMP_ROOT/pairing.log" 2>&1; then
+  fail "release verification accepted modified engine source"
+fi
+
 echo "Tooling contracts passed"

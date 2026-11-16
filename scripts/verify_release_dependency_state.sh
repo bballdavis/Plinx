@@ -24,6 +24,7 @@ git -C "$STRIMR_DIR" archive "$STRIMR_COMMIT" | tar -xf - -C "$expected_strimr"
 diff_options=(
   -qr
   -x .git
+  -x .code-review-graph
   -x .DS_Store
   -x .build
   -x build

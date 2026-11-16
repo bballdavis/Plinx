@@ -68,10 +68,21 @@ struct PlinxApp: App {
     /// parent explicitly turns this off.
     @AppStorage("plinx.excludeUnrated") private var excludeUnrated = true
 
+    @AppStorage("plinx.maxMovieRating", store: DemoPreferences.defaults) private var demoMovieRatingRaw = PlinxRating.pg.rawValue
+    @AppStorage("plinx.maxTVRating", store: DemoPreferences.defaults) private var demoTVRatingRaw = PlinxRating.tvPg.rawValue
+    @AppStorage("plinx.excludeUnrated", store: DemoPreferences.defaults) private var demoExcludeUnrated = true
+    #if !os(tvOS)
+    @AppStorage("plinx.babyLockEnabled", store: DemoPreferences.defaults) private var demoBabyLockEnabled = false
+    #endif
+
+    private var isDemoSession: Bool {
+        DemoFixtureBootstrap.isActive && sessionManager.plexServer?.clientIdentifier == DemoFixtureBootstrap.serverIdentifier
+    }
+
     private var safetyPolicy: SafetyPolicy {
-        let movieRating = PlinxRating.from(contentRating: maxMovieRatingRaw) ?? .g
-        let tvRating = PlinxRating.from(contentRating: maxTVRatingRaw) ?? .tvY
-        return SafetyPolicy.ratingOnly(maxMovie: movieRating, maxTV: tvRating, allowUnrated: !excludeUnrated)
+        let movieRating = PlinxRating.from(contentRating: isDemoSession ? demoMovieRatingRaw : maxMovieRatingRaw) ?? .g
+        let tvRating = PlinxRating.from(contentRating: isDemoSession ? demoTVRatingRaw : maxTVRatingRaw) ?? .tvY
+        return SafetyPolicy.ratingOnly(maxMovie: movieRating, maxTV: tvRating, allowUnrated: !(isDemoSession ? demoExcludeUnrated : excludeUnrated))
     }
 
     /// ── Plinx Playback / Lifecycle ──────────────────────────────────────
@@ -145,15 +156,16 @@ struct PlinxApp: App {
     var body: some Scene {
         WindowGroup {
             PlinxContentView()
+                .defaultAppStorage(isDemoSession ? DemoPreferences.defaults : .standard)
                 // ── Strimr service injection ────────────────────────
                 .environment(plexApiContext)
                 .environment(sessionManager)
-                .environment(settingsManager)
+                .environment(isDemoSession ? DemoPreferences.settings : settingsManager)
                 .environment(libraryStore)
                 .environmentObject(mainCoordinator)
                 .environment(sharePlayCoordinator)
                 .environment(downloadManager)
-                .environment(parentalAccessCoordinator)
+                .environment(isDemoSession ? DemoPreferences.parentalAccess : parentalAccessCoordinator)
                 .environment(downloadOwnershipStore)
                 .environment(sessionAccessCoordinator)
                 .environment(\.sharePlayPresentationPolicy, .hidden)
@@ -175,6 +187,7 @@ struct PlinxApp: App {
                 .onChange(of: scenePhase) { _, newPhase in
                     if newPhase != .active {
                         parentalAccessCoordinator.lock()
+                        DemoPreferences.parentalAccess.lock()
                     }
                 }
             // ── Lifecycle hardening ─────────────────────────────
@@ -196,7 +209,7 @@ struct PlinxApp: App {
             #endif
             #if !os(tvOS)
             // ── Touch-only baby lock overlay ───────────────────
-                .babyLock(isEnabled: $babyLockEnabled)
+                .babyLock(isEnabled: isDemoSession ? $demoBabyLockEnabled : $babyLockEnabled)
             #endif
         }
     }

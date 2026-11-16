@@ -24,20 +24,15 @@ documented root-level commands when one exists.
 
 Build and test scripts build from local files only. It's your responsibility to ensure the sibling `../strimr` checkout is on the correct branch and in a clean state before running any build command.
 
-**Branch selection:**
-- Working on **Plinx `main`** branch? Use **`plinx-patches`** branch in strimr:
-  ```bash
-  cd ../strimr
-  git checkout plinx-patches
-  git pull origin plinx-patches
-  ```
+**Branch selection:** use `STRIMR_BRANCH` and `STRIMR_COMMIT` from the current
+Plinx checkout's `config/release-dependencies.env`. The stable patch train is
+`plinx-patches`; new engine development uses `dev-plinx`. A Plinx feature branch
+can continue to build against the stable pin. Do not run an unconditional
+`git pull` to select a moving dependency head.
 
-- Working on **Plinx `dev`** branch? Use **`dev-plinx`** branch in strimr:
-  ```bash
-  cd ../strimr
-  git checkout dev-plinx
-  git pull origin dev-plinx
-  ```
+Keep Strimr's `origin` pointed at the writable fork and `upstream` at the
+original project. See [local setup](../docs/development/setup.md) for the exact
+remote and tracking-branch commands.
 
 **Before building:**
 ```bash

@@ -58,12 +58,10 @@ final class BrandingAssetsTests: XCTestCase {
     }
 
     func test_brandHierarchyMetrics_keepSignInAndHomeIdentityProminent() {
-        XCTAssertEqual(PlinxBrandLayoutMetrics.signInCompactLogoWidth, 320)
-        XCTAssertEqual(PlinxBrandLayoutMetrics.signInExpandedLogoWidth, 380)
-        XCTAssertLessThan(
-            PlinxBrandLayoutMetrics.signInExpandedTitleSize,
-            PlinxBrandLayoutMetrics.signInExpandedLogoWidth
-        )
+        XCTAssertEqual(PlinxBrandLayoutMetrics.signInCompactLogoWidth, 132)
+        XCTAssertEqual(PlinxBrandLayoutMetrics.signInExpandedLogoWidth, 176)
+        XCTAssertEqual(PlinxBrandLayoutMetrics.signInCompactTitleSize, 40)
+        XCTAssertEqual(PlinxBrandLayoutMetrics.signInExpandedTitleSize, 58)
 
         XCTAssertEqual(
             PlinxBrandLayoutMetrics.homeHeaderLogoHeight(chromeButtonSideLength: 52),
