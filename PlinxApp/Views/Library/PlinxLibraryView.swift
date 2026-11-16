@@ -34,6 +34,7 @@ struct PlinxLibraryView: View {
                     accessibilityIdentifier: "library.loading"
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .ignoresSafeArea(.container, edges: .horizontal)
             } else if let error = viewModel.errorMessage, viewModel.libraries.isEmpty {
                 PlinxErrorView(message: error) {
                     Task { await viewModel.load() }

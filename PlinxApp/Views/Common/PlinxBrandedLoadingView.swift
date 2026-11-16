@@ -31,9 +31,12 @@ struct PlinxBrandedLoadingView: View {
                 .background {
                     PlinxAmbientBackground(intensity: .hero)
                 }
+                .ignoresSafeArea(.container)
         case .content:
             contentLoading
                 .padding(24)
+                .frame(maxWidth: .infinity)
+                .ignoresSafeArea(.container, edges: .horizontal)
         }
     }
 

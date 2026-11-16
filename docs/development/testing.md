@@ -78,6 +78,11 @@ Use `--full` when changing the Strimr pin, branch pairing, XcodeGen source
 roots, or a Plinx↔Strimr seam. The focused `StrimrUpgradeSeamTests` remain the
 behavioral coverage for testable upstream seams.
 
+`scripts/verify_release_dependency_state.sh` separately compares the sibling
+source with the exact Git archive. It excludes local build/tool metadata,
+including `.code-review-graph/`, while still rejecting source differences.
+`scripts/tests/test_tooling_contracts.sh` checks both cases in isolated fixtures.
+
 ### Snapshot tests
 
 ```bash
@@ -226,19 +231,76 @@ PLINX_PLEX_TOKEN: "your-plex-auth-token"
 
 Keep the real `test_creds.yaml` local only.
 
+## Parental PIN Keyboard
+
+`BrandingUITests/test_parentalPIN_numericKeyboardAndDoneStayVisible` uses an
+isolated PIN fixture to check that tapping the field exposes tappable numeric
+keys, Done stays inside the screen, an incorrect PIN keeps the gate locked,
+and the correct PIN unlocks it. Enable Simulator's software keyboard before
+running this interaction check; hardware-keyboard mode can keep the requested
+number pad offscreen. The fixture never reads or changes the family's PIN.
+
 ## App Review Demo Fixtures
 
-The production connection screen includes **Explore the Demo Library**. This
-path uses the same SessionManager, LibraryStore, production browse/detail
-views, safety decorators, and playback authorization boundary as a connected
-session, but serves fictional content through a Plinx-owned in-process
-fixture transport. It is credential-free and does not contact Plex or persist
-the synthetic token.
+The iPhone/iPad connection screen's **Sign-in information** button opens login
+guidance and the **Explore the Demo Library** action. That action opens the
+production browse, detail, authorization, player, and download flows. A
+Plinx-owned service binds only to loopback and serves original bundled MP4s
+with byte-range support. There is no Plex account or external media dependency.
+The sample movie/episode are 90 seconds with visible motion/time, two quiet
+audio tracks, and captions. Regenerate them on macOS using
+`python3 scripts/release/generate_demo_media.py /path/to/ffmpeg`.
+FFmpeg is a development tool only; the app bundles the generated media.
+The sample JSON Youtarr catalog is in the same resource directory, with
+in-memory request mutations and no external download scheduling.
 
-The fixture transport is covered by `PlinxApp/UnitTests/DemoFixtureTests.swift`.
-Use the UI test
-`LaunchSmokeUITests/test_demoModeRendersProductionHomeAndSyntheticPlayback` when
-the iOS simulator and the pinned sibling Strimr checkout are available.
+The XcodeGen resource patcher must include the `DemoMedia` folder in the iOS
+resource phase. Regenerate the project after resource/source changes.
+`DemoFixtureTests` checks real media tracks, HTTP byte ranges, episode queue
+identity, mixed-rating filtering, every movie/TV ceiling pair and both unrated modes
+through the production catalog loader, TV season/episode rating propagation,
+sample request lifecycle over HTTP, preference
+isolation, and a production download followed by file playback after stopping
+the sample server. The production download test uses the host app's manager
+and deletes its sample file afterward.
+
+Run `LaunchSmokeUITests/test_demoModeRendersProductionHomeAndRealPlayback` on
+both iPhone and iPad. It verifies help can be dismissed without starting a session, enters via
+information → Explore the Demo Library, captures both sign-in/help, and checks
+the production player controls. The engine integration test separately checks
+real progression, seeking, pause, and the volume limit. It saves a player screenshot.
+Also perform the fresh-install release checklist in the
+[review runbook](../release/app-store.md#reviewer-access). The demo PIN is 2468;
+demo preferences/PIN reset on entry, while sample downloads persist until
+removed. tvOS still uses the live-account review path.
+
+## Expanding iPhone display checks
+
+For iPhone Duo layout changes, check both Closed and Open in Device Hub, then
+open and close the device during playback. Confirm the video resizes without
+restarting, the timeline and Back/Settings controls remain visible, and exiting
+playback restores the browse navigation. Check Home, Library, and Explore for
+continuous ambient backgrounds underneath the side status area. Repeat the
+player check on a conventional iPhone in portrait and landscape and on iPad.
+
+The Duo simulator has multiple displays. If the screenshot tool cannot select
+one, use `xcrun simctl io <UDID> screenshot --display=<display-id> <output.png>`;
+the error from an unqualified capture lists the available display IDs. Capture
+the active display rather than interpreting an inactive black display as a
+rendering failure. `PlinxPlayerControlLayoutTests` covers the geometry-driven
+chrome spacing independently of a model identifier.
+
+`LaunchSmokeUITests/test_playerFitFillSurvivesHiddenControls` launches the
+production demo player directly through the `demoPlayer` UI-test screen. It
+switches Fit to Fill and back, checks that Fill survives hidden controls, and
+captures both modes for visual inspection. Player layout unit tests
+exercise native and sample-buffer video layers, late layer attachment, a
+renderer replacement, source gravity resets, and observer teardown. The Plinx
+adapter identifies Aether's public render view and updates AVFoundation video
+gravity; it does not resize the player hierarchy or change the paired Strimr pin.
+The focused player UI check also verifies that the landscape timeline centers
+on the display and that Settings remains tappable in the reclaimed status area.
+Inset policy tests cover both sidebar sides, portrait, and ordinary phone notches.
 
 ## CI Notes
 

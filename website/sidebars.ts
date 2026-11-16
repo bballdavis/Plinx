@@ -93,6 +93,8 @@ const sidebars: SidebarsConfig = {
             'maintenance/strimr-contributions/download-queue-transcoding',
             'maintenance/strimr-contributions/plex-authentication-product-identity',
             'maintenance/strimr-contributions/season-download-selection',
+            'maintenance/strimr-contributions/download-enrollment-and-access-scoping',
+            'maintenance/strimr-contributions/player-title-interaction-lifetime',
           ],
         },
         {

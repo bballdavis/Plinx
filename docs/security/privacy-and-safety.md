@@ -41,6 +41,19 @@ Safety behavior should fail closed whenever possible. If filtering metadata is m
 
 All libraries are visible by default, but visibility is independent from content authorization. Default ceilings are G and TV-Y; parents can raise either ceiling in protected settings. Unrated/unknown media—including clips and home videos—is excluded unless a parent opts in.
 
+## Local sample library
+
+The iPhone/iPad demo serves original bundled videos and synthetic Plex/Youtarr
+responses from an in-app listener bound only to `127.0.0.1`. It needs no account
+or external service. Sample requests are held in memory and never schedule an
+external video download. The listener stops on demo sign-out.
+
+Demo rating settings, library visibility, player preferences, and parental PIN
+use a separate preferences domain and in-memory PIN store. They reset on entry;
+the demo PIN is 2468. Sample downloads persist under the demo server/profile
+identity and are unavailable to personal profiles. Entering the demo does not
+replace the family's saved offline-session identity.
+
 ## External Link Policy
 
 - No external links in kid-facing UI.

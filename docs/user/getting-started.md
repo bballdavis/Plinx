@@ -17,6 +17,10 @@ You need:
 
 ## First-time setup
 
+On iPhone and iPad, the connection screen shows three steps: connect your
+account, choose a profile, and choose a server. **Sign-in information** explains
+Plex setup and offers a sample library you can explore first.
+
 1. Sign in with the Plex account used to manage your server.
 2. Choose a Plex Home profile. Protected profiles require their Plex PIN.
 3. Choose the Plex Media Server to use.
@@ -27,6 +31,21 @@ You need:
 The first setup screen is intentionally a grown-up step. Once configured,
 children see the Plinx browsing experience rather than account-management
 choices.
+
+## Try Plinx without an account
+
+On iPhone or iPad, tap **Sign-in information**, then **Explore the Demo Library**.
+The sample library includes movies, episodes, collections, playlists, and a
+sample Explore catalog. Its original 90-second videos support playback,
+seeking, audio tracks, captions, and downloads without an external server.
+Sample requests stay in the demo and do not request external videos.
+
+The demo parental PIN is **2468**. Demo controls are separate from your family's
+settings and reset when you enter the demo again. Sample downloads remain
+until deleted; re-enter the demo after relaunch to access them. Sign out through
+Settings to return to account setup. Apple TV requires a Plex account.
+
+See the [product tour](product-tour.md) for screenshots.
 
 ## Choose a device
 

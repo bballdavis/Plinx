@@ -81,6 +81,8 @@ struct PlinxContentView: View {
             switch uiTestScreenOverride {
             case "parentalGate":
                 ParentalGateUITestHarness()
+            case "parentalPINGate":
+                ParentalGateUITestHarness(pin: "2468")
             case "signIn":
                 SignInView(
                     viewModel: PlinxSignInViewModel(
@@ -210,6 +212,8 @@ struct PlinxContentView: View {
                 PlinxDownloadsGridView()
             case "seasonDownloadOffline":
                 SeasonDownloadUITestHarness()
+            case "demoPlayer":
+                demoPlayerPreview
             #endif
             default:
                 sessionContent
@@ -359,6 +363,28 @@ struct PlinxContentView: View {
     private var homeLoadingPreview: some View {
         PlinxBrandedLoadingView(context: .appTransition)
     }
+
+    #if os(iOS)
+    /// Launch the real local demo player directly for focused playback UI
+    /// checks, without making those checks depend on onboarding navigation.
+    private var demoPlayerPreview: some View {
+        PlinxBrandedLoadingView(context: .appTransition)
+            .task {
+                while sessionManager.status == .hydrating {
+                    try? await Task.sleep(for: .milliseconds(25))
+                    guard !Task.isCancelled else { return }
+                }
+                await DemoFixtureBootstrap.start(sessionManager: sessionManager, context: plexApiContext)
+                guard DemoFixtureBootstrap.isActive, sessionManager.status == .ready else { return }
+                let launcher = PlaybackLauncher(
+                    context: plexApiContext,
+                    coordinator: mainCoordinator,
+                    safetyPolicy: .ratingOnly(maxMovie: .pg, maxTV: .tvPg, allowUnrated: false)
+                )
+                await launcher.play(ratingKey: "moonbound", type: .movie, shouldResumeFromOffset: false)
+            }
+    }
+    #endif
 
     private var appHydratingPreview: some View {
         PlinxBrandedLoadingView(context: .appTransition)
@@ -516,13 +542,13 @@ private struct ParentalGateUITestHarness: View {
     @FocusState private var focusedShellTarget: PlinxTVShellFocusTarget?
     #endif
 
-    init() {
+    init(pin: String? = nil) {
         let suiteName = "com.bballdavis.plinx.ui-tests.parental-gate"
         let defaults = UserDefaults(suiteName: suiteName) ?? .standard
         defaults.removePersistentDomain(forName: suiteName)
         _parentalAccessCoordinator = State(
             initialValue: ParentalAccessCoordinator(
-                store: EmptyParentalPINStore(),
+                store: FixtureParentalPINStore(pin: pin),
                 legacyDefaults: defaults
             )
         )
@@ -623,9 +649,10 @@ private struct ParentalGateUITestHarness: View {
     #endif
 }
 
-private struct EmptyParentalPINStore: ParentalPINStoring {
+private struct FixtureParentalPINStore: ParentalPINStoring {
+    let pin: String?
     func readPIN() throws -> String? {
-        nil
+        pin
     }
 
     func writePIN(_: String) throws {}

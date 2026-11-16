@@ -15,6 +15,13 @@
   --plinx-surface: #ffffff;
 }
 
+/* Phone captures stay readable beside the guide without filling a desktop
+   viewport; tablet captures continue to use the article width. */
+.theme-doc-markdown img[src*="/iphone-"] {
+  width: min(100%, 360px);
+  height: auto;
+}
+
 [data-theme='dark'] {
   --ifm-color-primary: var(--plinx-brand-lime);
   --ifm-color-primary-dark: #8ed668;

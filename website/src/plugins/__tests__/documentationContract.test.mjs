@@ -10,10 +10,10 @@ const read = (relativePath) => fs.readFileSync(path.join(repositoryRoot, relativ
 
 test('every active Strimr contribution plan is navigable and the retired plan is archived', () => {
   const sidebar = read('website/sidebars.ts');
-  for (const number of ['01', '02', '03', '04', '06', '07', '08', '09', '10', '11', '12', '13']) {
-    const file = fs.readdirSync(path.join(repositoryRoot, 'docs/maintenance/strimr-contributions'))
-      .find((entry) => entry.startsWith(`${number}-`));
-    assert.ok(file, `missing contribution plan ${number}`);
+  const plans = fs.readdirSync(path.join(repositoryRoot, 'docs/maintenance/strimr-contributions'))
+    .filter((entry) => entry.endsWith('.md'));
+  assert.ok(plans.length > 0, 'missing contribution plans');
+  for (const file of plans) {
     assert.ok(
       sidebar.includes(`strimr-contributions/${file.replace(/^\d+-/, '').replace(/\.md$/, '')}`),
       `${file} is not in the sidebar`,

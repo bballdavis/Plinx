@@ -94,6 +94,7 @@ public struct PlinxLoadingStateView: View {
                 .padding(24)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background { PlinxAmbientBackground(intensity: .hero) }
+                .ignoresSafeArea(.container)
         } else {
             indicator
         }
