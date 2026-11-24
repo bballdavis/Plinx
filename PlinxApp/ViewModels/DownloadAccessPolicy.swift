@@ -205,6 +205,11 @@ struct DownloadAccessPolicy {
 extension SessionManager {
     var plinxDownloadOwnerIdentity: DownloadOwnerIdentity? {
         guard let serverIdentifier = plexServer?.clientIdentifier else { return nil }
+        if DemoFixtureBootstrap.isActive,
+           serverIdentifier == DemoFixtureBootstrap.serverIdentifier,
+           authToken == DemoFixtureBootstrap.serverToken {
+            return DownloadOwnerIdentity(serverIdentifier: serverIdentifier, profileIdentifier: "demo-family")
+        }
         let profileIdentifier = user?.uuid
             ?? user?.id.map(String.init)
             ?? user?.username

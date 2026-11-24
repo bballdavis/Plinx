@@ -43,7 +43,7 @@ final class DemoFixtureTests: XCTestCase {
         XCTAssertNil(DemoFixtureServer.byteRange("items=0-1", length: 1_000))
     }
 
-    func testSectionsFixtureContainsThreeSafeLibraries() throws {
+    func testSectionsFixtureIncludesDedicatedRatingLibraries() throws {
         let request = URLRequest(url: URL(string: "http://\(DemoFixtureBootstrap.serverHost)/library/sections/all")!)
         let response = DemoFixtureCatalog.response(for: request)
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: response.data) as? [String: Any])
@@ -51,8 +51,8 @@ final class DemoFixtureTests: XCTestCase {
         let sections = try XCTUnwrap(container["Directory"] as? [[String: Any]])
 
         XCTAssertEqual(response.statusCode, 200)
-        XCTAssertEqual(sections.count, 3)
-        XCTAssertEqual(sections.compactMap { $0["title"] as? String }, ["Family Movies", "Family TV", "Learning Videos"])
+        XCTAssertEqual(sections.count, 5)
+        XCTAssertEqual(sections.compactMap { $0["title"] as? String }, ["Family Movies", "Family TV", "Learning Videos", "Rating Test Movies", "Rating Test TV"])
     }
 
     func testDemoHomeContainsContinueWatchingAndEnoughRows() throws {

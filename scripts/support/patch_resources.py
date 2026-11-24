@@ -17,6 +17,7 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 PBXPROJ = ROOT_DIR / "PlinxApp/Plinx.xcodeproj/project.pbxproj"
 
 FILE_REFS = {
+    "demo_media": ("F10000000000000000000006", "DemoMedia", "folder", "Resources/DemoMedia"),
     "plinx_strings": ("F10000000000000000000001", "Plinx.strings", "text.plist.strings", "Resources/en.lproj/Plinx.strings"),
     "local_strings": ("F10000000000000000000002", "Localizable.xcstrings", "text.json.xcstrings", "../../strimr/Localizable.xcstrings"),
     "assets": ("F10000000000000000000003", "Assets.xcassets", "folder.assetcatalog", "Resources/Assets.xcassets"),
@@ -26,6 +27,7 @@ FILE_REFS = {
 }
 
 IOS_BUILD_FILES = {
+    "demo_media": ("F10000000000000000000016", "DemoMedia in Resources"),
     "plinx_strings": ("F10000000000000000000011", "Plinx.strings in Resources"),
     "local_strings": ("F10000000000000000000012", "Localizable.xcstrings in Resources"),
     "assets": ("F10000000000000000000013", "Assets.xcassets in Resources"),

@@ -30,6 +30,17 @@ Repos/
 
 Plinx runtime builds expect the sibling checkout at `../strimr`.
 
+Use the writable fork (`bballdavis/strimr`) as `origin` and the original project
+(`wunax/strimr`) as `upstream`. Set `remote.pushDefault=origin` in the sibling
+checkout to keep normal pushes directed to the fork. Keep local tracking
+branches for both patch trains. The [setup guide](setup.md) includes commands
+for a new computer.
+
+Check the current Plinx configuration before switching Strimr. A Plinx feature
+branch can still use the stable pairing; its branch name alone does not change
+`STRIMR_BRANCH`. Fetching remotes is safe for inspection and does not authorize
+advancing the pin or aligning divergent patch trains.
+
 ## Verification Commands
 
 ```bash

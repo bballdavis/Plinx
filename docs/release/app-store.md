@@ -8,11 +8,11 @@ uses calendar versioning; see the [versioning and release guide](../development/
 ## Positioning
 
 - **Name:** Plinx
-- **Subtitle:** A Plex app for the family
+- **Subtitle:** Family media, parent managed
 - **Primary category:** Entertainment
 - **Kids Category:** No
-- **Promotional text:** A focused Plex experience with parent-managed libraries, content ratings, and an adjustable in-app playback level.
-- **Keywords:** `plex,family,parental controls,video,media,offline,streaming,home server`
+- **Promotional text:** Your family media with parent-managed libraries, content ratings, and an adjustable in-app playback level.
+- **Keywords:** `family,parental controls,video,media,offline,streaming,home server`
 
 ### Description
 

@@ -17,6 +17,10 @@ You need:
 
 ## First-time setup
 
+On iPhone and iPad, the connection screen shows three steps: connect your
+account, choose a profile, and choose a server. **Sign-in information** explains
+Plex setup and offers a sample library you can explore first.
+
 1. Sign in with the Plex account used to manage your server.
 2. Choose a Plex Home profile. Protected profiles require their Plex PIN.
 3. Choose the Plex Media Server to use.

@@ -53,6 +53,11 @@ Treat as the source for reference brand artwork used in docs, store material, an
 
 Reference material only. These are useful for docs and store assets but should not become behavioral specifications when code, tests, or current assets disagree.
 
+The README and product tour share curated demo captures under
+`docs/assets/screenshots/`. Docusaurus copies them with the canonical docs;
+there is no second image inventory in `website/`. Regression fixture captures
+remain under `screenshots/fixtures/`, separate from approved release imagery.
+
 ### `scripts/`
 
 Canonical for developer workflows. If a command is expected to be repeated, documented, or used in CI, prefer putting it behind a script here instead of burying it in ad hoc notes.

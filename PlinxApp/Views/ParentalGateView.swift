@@ -33,7 +33,7 @@ struct ParentalGateView: View {
     }
 
     private var usePIN: Bool { parentalAccessCoordinator.hasPIN }
-    private let entryFieldSize = CGSize(width: 100, height: 32)
+    private let entryFieldSize = CGSize(width: 100, height: 44)
     private let entryFieldSlotHeight: CGFloat = 72
 
     var body: some View {
@@ -110,7 +110,9 @@ struct ParentalGateView: View {
                 #endif
             }
             .onChange(of: pinEntry) { _, _ in
-                pinError = false
+                if !pinEntry.isEmpty {
+                    pinError = false
+                }
             }
 
             if pinError {
@@ -422,6 +424,8 @@ private struct NumberPadEntryField: UIViewRepresentable {
         let textField = UITextField(frame: .zero)
         textField.delegate = context.coordinator
         textField.borderStyle = .roundedRect
+        textField.backgroundColor = .white
+        textField.textColor = .black
         textField.keyboardType = .numberPad
         textField.keyboardAppearance = .light
         textField.returnKeyType = .done
@@ -432,10 +436,10 @@ private struct NumberPadEntryField: UIViewRepresentable {
         textField.placeholder = placeholder
         textField.isSecureTextEntry = isSecure
         textField.accessibilityLabel = accessibilityLabel
+        textField.accessibilityIdentifier = "parentalGate.numberEntry"
         textField.addTarget(context.coordinator, action: #selector(Coordinator.textDidChange(_:)), for: .editingChanged)
         #if !os(tvOS)
         let toolbar = UIToolbar()
-        toolbar.sizeToFit()
         toolbar.items = [
             UIBarButtonItem.flexibleSpace(),
             UIBarButtonItem(
@@ -445,7 +449,7 @@ private struct NumberPadEntryField: UIViewRepresentable {
                 action: #selector(Coordinator.submit)
             )
         ]
-        textField.inputAccessoryView = toolbar
+        textField.inputAccessoryView = NumberPadAccessoryView(toolbar: toolbar)
         #endif
         return textField
     }
@@ -513,3 +517,35 @@ private struct NumberPadEntryField: UIViewRepresentable {
         }
     }
 }
+
+#if !os(tvOS)
+/// Leaves room for modern toolbar buttons and the home indicator, including
+/// when a hardware keyboard hides the software number pad.
+private final class NumberPadAccessoryView: UIInputView {
+    init(toolbar: UIToolbar) {
+        super.init(frame: CGRect(x: 0, y: 0, width: 0, height: 64), inputViewStyle: .keyboard)
+        autoresizingMask = [.flexibleHeight]
+        allowsSelfSizing = true
+        toolbar.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(toolbar)
+        NSLayoutConstraint.activate([
+            toolbar.leadingAnchor.constraint(equalTo: safeAreaLayoutGuide.leadingAnchor),
+            toolbar.trailingAnchor.constraint(equalTo: safeAreaLayoutGuide.trailingAnchor),
+            toolbar.topAnchor.constraint(equalTo: topAnchor),
+            toolbar.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor),
+            toolbar.heightAnchor.constraint(equalToConstant: 64),
+        ])
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    override var intrinsicContentSize: CGSize {
+        CGSize(width: UIView.noIntrinsicMetric, height: 64 + safeAreaInsets.bottom)
+    }
+
+    override func safeAreaInsetsDidChange() {
+        super.safeAreaInsetsDidChange()
+        invalidateIntrinsicContentSize()
+    }
+}
+#endif

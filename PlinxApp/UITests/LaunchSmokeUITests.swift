@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 
 final class LaunchSmokeUITests: XCTestCase {
 
@@ -20,9 +21,31 @@ final class LaunchSmokeUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments += ["--ui-testing", "--disable-animations"]
         app.launch()
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            XCUIDevice.shared.orientation = .landscapeLeft
+        }
 
+        let information = app.buttons["signIn.infoButton"]
+        XCTAssertTrue(information.waitForExistence(timeout: 15))
+        XCTAssertFalse(app.buttons["signIn.demoButton"].exists, "Demo access belongs in sign-in information")
+        let signIn = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        signIn.name = "refreshed-sign-in"
+        signIn.lifetime = .keepAlways
+        add(signIn)
+
+        information.tap()
         let demoButton = app.buttons["signIn.demoButton"]
-        XCTAssertTrue(demoButton.waitForExistence(timeout: 15), "The credential-free demo entry point should be visible")
+        XCTAssertTrue(demoButton.waitForExistence(timeout: 10), "The information sheet must explain and expose demo access")
+        XCTAssertTrue(app.staticTexts["Connect your Plex account"].exists)
+        let help = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        help.name = "sign-in-information"
+        help.lifetime = .keepAlways
+        add(help)
+        app.buttons["signIn.infoDone"].tap()
+        XCTAssertTrue(app.buttons["signIn.primaryButton"].isHittable)
+        XCTAssertFalse(demoButton.exists, "Dismissing help must not start demo mode")
+        information.tap()
+        XCTAssertTrue(demoButton.waitForExistence(timeout: 10))
         demoButton.tap()
 
         XCTAssertTrue(
@@ -30,17 +53,36 @@ final class LaunchSmokeUITests: XCTestCase {
             "Demo mode should render the production Home view from synthetic fixtures",
         )
 
-        let firstCard = app.otherElements["home.card.moviesAndTV.0"].firstMatch
+        let home = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        home.name = "demo-browse-navigation"
+        home.lifetime = .keepAlways
+        add(home)
+        let navigation = app.descendants(matching: .any)["main.navigation.surface"].firstMatch
+        XCTAssertTrue(navigation.exists)
+        XCTAssertEqual(navigation.frame.midX, app.frame.midX, accuracy: 3,
+                       "Floating navigation should center on the full display, including any side status region")
+
+        // The card's artwork and title share the container identifier. The
+        // title is the stable hittable accessibility target on both sizes.
+        let firstCard = app.buttons.matching(identifier: "home.card.moviesAndTV.0")
+            .matching(NSPredicate(format: "label == %@", "Moonbound")).firstMatch
         XCTAssertTrue(firstCard.waitForExistence(timeout: 10), "Demo Home should expose a playable fixture card")
-        firstCard.tap()
+        firstCard.press(forDuration: 0.8)
+        let details = app.buttons["quickAction.option.go-details"]
+        XCTAssertTrue(details.waitForExistence(timeout: 10))
+        details.tap()
 
         XCTAssertTrue(
-            app.otherElements["media.detail.screen"].waitForExistence(timeout: 20),
+            app.descendants(matching: .any)["media.detail.screen"].firstMatch.waitForExistence(timeout: 20),
             "Demo fixture metadata should open the production detail screen",
         )
 
         let playButton = app.buttons["media.detail.play"].firstMatch
         XCTAssertTrue(playButton.waitForExistence(timeout: 20), "Demo detail should expose the production play action")
+        let detail = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        detail.name = "demo-media-detail"
+        detail.lifetime = .keepAlways
+        add(detail)
         playButton.tap()
 
         XCTAssertTrue(

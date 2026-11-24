@@ -15,6 +15,7 @@ Store release is available, contributors can build it from source.
 
 ## Start here
 
+- Preview the interface: [product tour and screenshots](user/product-tour.md)
 - Parents and families: [get started with Plinx](user/getting-started.md)
 - Apple TV households: [use Plinx on Apple TV](user/apple-tv.md)
 - Learn the safety and control model: [parent guide](user/parent-guide.md)
@@ -32,3 +33,8 @@ filtered video discovery and request tracking inside Plinx.
 Learn more in the [Youtarr guide](user/youtarr.md).
 
 Plinx does not operate a media catalog and is not affiliated with Plex.
+
+On iPhone and iPad, **Sign-in information → Explore the Demo Library** opens
+bundled sample media without an account or Internet connection. The demo uses
+the same browsing, playback, parental controls, and download flows as a real
+server, with separate demo settings. See [getting started](user/getting-started.md).

@@ -1,7 +1,102 @@
 @testable import Plinx
 import XCTest
+import AVFoundation
 
 final class PlinxPlayerControlLayoutTests: XCTestCase {
+    func test_landscapePlayerReclaimsEitherSideOfStatusSidebar() {
+        let size = CGSize(width: 578, height: 466)
+        let right = PlinxPlayerControlLayout.reclaimedStatusInsets(
+            size: size, safeArea: .init(top: 0, leading: 0, bottom: 24, trailing: 100)
+        )
+        XCTAssertEqual(size.width + right.leading + right.trailing, 678)
+        XCTAssertEqual(right.bottom, 0, "The home indicator must remain protected")
+        let left = PlinxPlayerControlLayout.reclaimedStatusInsets(
+            size: size, safeArea: .init(top: 0, leading: 100, bottom: 24, trailing: 0)
+        )
+        XCTAssertEqual(left.leading, 100)
+        XCTAssertEqual(left.trailing, 0)
+    }
+
+    func test_playerPreservesPhoneNotchesAndPortraitSafeAreas() {
+        let notch = PlinxPlayerControlLayout.reclaimedStatusInsets(
+            size: CGSize(width: 832, height: 416),
+            safeArea: .init(top: 0, leading: 62, bottom: 21, trailing: 62)
+        )
+        XCTAssertEqual(notch.leading + notch.trailing, 0)
+        let portrait = PlinxPlayerControlLayout.reclaimedStatusInsets(
+            size: CGSize(width: 366, height: 678),
+            safeArea: .init(top: 0, leading: 0, bottom: 24, trailing: 100)
+        )
+        XCTAssertEqual(portrait.trailing, 0)
+    }
+
+    @MainActor
+    func test_videoFillHandlesRendererReplacementAndRestoresFitOnTeardown() {
+        let surface = CALayer()
+        let native = AVPlayerLayer()
+        surface.addSublayer(native)
+        let adapter = PlinxVideoGravityAdapter()
+        adapter.bind(to: surface)
+        XCTAssertEqual(native.videoGravity, .resizeAspect)
+
+        adapter.fillsScreen = true
+        XCTAssertEqual(native.videoGravity, .resizeAspectFill)
+        native.videoGravity = .resizeAspect
+        XCTAssertEqual(native.videoGravity, .resizeAspectFill, "Reloading the source must preserve Fill")
+
+        native.removeFromSuperlayer()
+        let software = AVSampleBufferDisplayLayer()
+        surface.addSublayer(software)
+        XCTAssertEqual(software.videoGravity, .resizeAspectFill)
+        XCTAssertEqual(native.videoGravity, .resizeAspect)
+        adapter.fillsScreen = false
+        XCTAssertEqual(software.videoGravity, .resizeAspect)
+        adapter.fillsScreen = true
+        adapter.unbind()
+        XCTAssertEqual(software.videoGravity, .resizeAspect)
+        software.videoGravity = .resize
+        XCTAssertEqual(software.videoGravity, .resize, "Teardown must release all observers")
+    }
+
+    @MainActor
+    func test_videoFillCanBeSelectedBeforeRendererArrives() {
+        let surface = CALayer()
+        let decoration = CALayer()
+        surface.addSublayer(decoration)
+        let adapter = PlinxVideoGravityAdapter()
+        adapter.fillsScreen = true
+        adapter.bind(to: surface)
+        let native = AVPlayerLayer()
+        surface.addSublayer(native)
+        XCTAssertEqual(native.videoGravity, .resizeAspectFill)
+        XCTAssertEqual(decoration.contentsGravity, .resize)
+        adapter.unbind()
+    }
+
+    func test_onboardingUsesLandscapeColumnsAndExpandedPortrait() {
+        XCTAssertEqual(PlinxOnboardingLayout(width: 851, height: 669), .expandedLandscape)
+        XCTAssertEqual(PlinxOnboardingLayout(width: 569, height: 951), .regular)
+        XCTAssertEqual(PlinxOnboardingLayout(width: 466, height: 678), .compact)
+        XCTAssertEqual(PlinxOnboardingLayout(width: 1180, height: 820), .wide)
+        XCTAssertEqual(PlinxOnboardingLayout(width: 844, height: 390), .regular)
+    }
+
+    func test_chromeReflowsFromClosedPhoneToOpenDisplay() {
+        let closed = PlinxPlayerControlLayout.chromeInsets(width: 390, height: 780)
+        let open = PlinxPlayerControlLayout.chromeInsets(width: 851, height: 669)
+        XCTAssertEqual(closed.horizontal, 16)
+        XCTAssertEqual(open.horizontal, 28)
+        XCTAssertEqual(open.vertical, closed.vertical)
+        XCTAssertEqual(open.bottomSpacing, 18)
+    }
+
+    func test_shortLandscapePreservesRoomForVideoAndTimeline() {
+        let landscape = PlinxPlayerControlLayout.chromeInsets(width: 844, height: 350)
+        XCTAssertEqual(landscape.horizontal, 28)
+        XCTAssertEqual(landscape.vertical, 8)
+        XCTAssertEqual(landscape.bottomSpacing, 10)
+    }
+
     func test_overlayHeaderUsesFiftyPercentEmphasis() {
         XCTAssertEqual(PlinxPlayerControlLayout.emphasisScale, 1.5)
         XCTAssertEqual(PlinxPlayerControlLayout.headerButtonSize, 63)

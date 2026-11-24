@@ -42,6 +42,9 @@ final class PlinxSessionAccessCoordinator {
     }
 
     func recordReadySession(sessionManager: SessionManager) {
+        // Demo can be re-entered offline through its explicit connection action;
+        // never replace a personal offline snapshot with the sample identity.
+        guard sessionManager.plexServer?.clientIdentifier != DemoFixtureBootstrap.serverIdentifier else { return }
         guard sessionManager.status == .ready,
               let identity = sessionManager.plinxDownloadOwnerIdentity,
               let server = sessionManager.plexServer else { return }

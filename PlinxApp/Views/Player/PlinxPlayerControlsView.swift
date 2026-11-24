@@ -55,6 +55,18 @@ struct PlayerControlsView: View {
 
     var body: some View {
         GeometryReader { container in
+            let reclaimed = PlinxPlayerControlLayout.reclaimedStatusInsets(
+                size: container.size,
+                safeArea: container.safeAreaInsets
+            )
+            let chromeSize = CGSize(
+                width: container.size.width + reclaimed.leading + reclaimed.trailing,
+                height: container.size.height
+            )
+            let insets = PlinxPlayerControlLayout.chromeInsets(
+                width: chromeSize.width,
+                height: chromeSize.height
+            )
             ZStack {
                 VStack(spacing: 0) {
                     PlayerControlsHeader(
@@ -63,12 +75,12 @@ struct PlayerControlsView: View {
                         onShowSettings: onShowSettings,
                         isSharePlay: isSharePlay,
                         onTitleInteractionChanged: onTitleInteractionChanged,
-                        containerSize: container.size
+                        containerSize: chromeSize
                     )
 
                     Spacer(minLength: 0)
 
-                    VStack(spacing: 18) {
+                    VStack(spacing: insets.bottomSpacing) {
                         PlayerAuxiliaryControlsRow(
                             isRotationLocked: isRotationLocked,
                             onToggleRotationLock: onToggleRotationLock,
@@ -87,11 +99,12 @@ struct PlayerControlsView: View {
                             playbackPosition: bufferBasePosition,
                             onEditingChanged: onScrubbingChanged
                         )
+                        .accessibilityIdentifier("player.timeline")
                     }
                 }
+                .padding(.horizontal, insets.horizontal)
+                .padding(.vertical, insets.vertical)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 16)
 
                 PrimaryControls(
                     isPaused: isPaused,
@@ -102,10 +115,13 @@ struct PlayerControlsView: View {
                     seekForwardSeconds: seekForwardSeconds
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                .ignoresSafeArea(.container)
             }
             .background {
                 PlayerControlsBackground()
             }
+            .frame(width: chromeSize.width, height: chromeSize.height)
+            .offset(x: -reclaimed.leading)
         }
     }
 }
@@ -159,6 +175,7 @@ private struct PlayerAuxiliaryControlsRow: View {
 }
 
 private struct PlayerControlsHeader: View {
+    @Environment(\.plinxVideoFill) private var videoFill
     var media: MediaItem?
     var onDismiss: () -> Void
     var onShowSettings: () -> Void
@@ -200,10 +217,13 @@ private struct PlayerControlsHeader: View {
                             isSharePlay: isSharePlay,
                             onInteractionChanged: onTitleInteractionChanged
                         )
-                        .frame(maxWidth: PlinxPlayerControlLayout.titleMaxWidth(width: containerSize.width, presentation: presentation))
+                        .frame(maxWidth: PlinxPlayerControlLayout.titleMaxWidth(
+                            width: containerSize.width - (videoFill == nil ? 0 : 75),
+                            presentation: presentation
+                        ))
                     }
                     Spacer(minLength: 12)
-                    PlayerSettingsButton(action: onShowSettings)
+                    trailingButtons
                 }
             }
         }
@@ -216,6 +236,36 @@ private struct PlayerControlsHeader: View {
         HStack {
             dismissButton
             Spacer()
+            trailingButtons
+        }
+    }
+
+    private var trailingButtons: some View {
+        HStack(spacing: 12) {
+            if let videoFill {
+                Button {
+                    onTitleInteractionChanged(true)
+                    videoFill.wrappedValue.toggle()
+                    onTitleInteractionChanged(false)
+                } label: {
+                    let shape = RoundedRectangle(cornerRadius: PlinxPlayerControlLayout.headerCornerRadius, style: .continuous)
+                    Image(systemName: videoFill.wrappedValue
+                          ? "arrow.down.right.and.arrow.up.left"
+                          : "arrow.up.left.and.arrow.down.right")
+                        .font(.system(size: iconSize, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: PlinxPlayerControlLayout.headerButtonSize,
+                               height: PlinxPlayerControlLayout.headerButtonSize)
+                        .background(shape.fill(Color.brandPrimary.opacity(videoFill.wrappedValue ? 0.28 : 0.14)))
+                        .overlay(shape.stroke(Color.brandPrimary.opacity(videoFill.wrappedValue ? 0.85 : 0.42), lineWidth: 1))
+                        .shadow(color: Color.brandPrimary.opacity(0.1), radius: 8, x: 0, y: 5)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("player.videoFit")
+                .accessibilityLabel(Text(videoFill.wrappedValue ? "player.video.fit.action" : "player.video.fill.action", tableName: "Plinx"))
+                .accessibilityValue(Text(videoFill.wrappedValue ? "player.video.fill" : "player.video.fit", tableName: "Plinx"))
+                .accessibilityHint(Text("player.video.fill.hint", tableName: "Plinx"))
+            }
             PlayerSettingsButton(action: onShowSettings)
         }
     }
@@ -231,6 +281,8 @@ private struct PlayerControlsHeader: View {
                 .overlay(chrome.stroke(Color.brandPrimary.opacity(0.42), lineWidth: 1))
                 .shadow(color: Color.brandPrimary.opacity(0.14), radius: 10, x: 0, y: 6)
         }
+        .accessibilityLabel(String(localized: "common.actions.back", table: "Plinx"))
+        .accessibilityIdentifier("player.back")
     }
 }
 
@@ -253,6 +305,7 @@ private struct PrimaryControls: View {
             )
 
             PlayPauseButton(isPaused: isPaused, action: onPlayPause)
+                .accessibilityIdentifier("player.playPause")
 
             PlayerIconButton(
                 systemName: iconName(prefix: "goforward", seconds: seekForwardSeconds),

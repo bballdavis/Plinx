@@ -112,6 +112,11 @@ Use `--full` when changing the Strimr pin, branch pairing, XcodeGen source
 roots, or a Plinx↔Strimr seam. The focused `StrimrUpgradeSeamTests` remain the
 behavioral coverage for testable upstream seams.
 
+`scripts/verify_release_dependency_state.sh` separately compares the sibling
+source with the exact Git archive. It excludes local build/tool metadata,
+including `.code-review-graph/`, while still rejecting source differences.
+`scripts/tests/test_tooling_contracts.sh` checks both cases in isolated fixtures.
+
 ### Snapshot tests
 
 ```bash
@@ -259,6 +264,15 @@ PLINX_PLEX_TOKEN: "your-plex-auth-token"
 ```
 
 Keep the real `test_creds.yaml` local only.
+
+## Parental PIN Keyboard
+
+`BrandingUITests/test_parentalPIN_numericKeyboardAndDoneStayVisible` uses an
+isolated PIN fixture to check that tapping the field exposes tappable numeric
+keys, Done stays inside the screen, an incorrect PIN keeps the gate locked,
+and the correct PIN unlocks it. Enable Simulator's software keyboard before
+running this interaction check; hardware-keyboard mode can keep the requested
+number pad offscreen. The fixture never reads or changes the family's PIN.
 
 ## App Review Demo Fixtures
 

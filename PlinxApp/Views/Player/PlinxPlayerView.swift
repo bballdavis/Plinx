@@ -1,6 +1,11 @@
 import PlinxUI
 import PlinxCore
 import SwiftUI
+#if os(iOS)
+import AetherEngine
+import AVFoundation
+import UIKit
+#endif
 
 /// Plinx-styled player screen.
 ///
@@ -246,6 +251,7 @@ struct PlinxPlayerPlaybackView: View {
                 showsBufferingOverlay: false,
                 isPlaybackAuthorized: isPlaybackAuthorized
             )
+            .plinxVideoPresentation()
             .onDisappear(perform: onExit)
             #endif
 
@@ -273,6 +279,8 @@ struct PlinxVideoBufferingOverlay: View {
             accessibilityIdentifier: "player.buffering.plinx"
         )
         .padding(28)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ignoresSafeArea(.container)
         .allowsHitTesting(false)
     }
 }
@@ -299,6 +307,8 @@ struct PlinxPlaybackLoadingView: View {
                 ),
                 accessibilityIdentifier: "player.loading.plinx"
             )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .ignoresSafeArea(.container)
             .allowsHitTesting(false)
 
             VStack {
@@ -372,3 +382,162 @@ struct PlinxPlaybackPresentationView: View {
         )
     }
 }
+
+#if os(iOS)
+private struct PlinxVideoFillKey: EnvironmentKey {
+    static let defaultValue: Binding<Bool>? = nil
+}
+
+extension EnvironmentValues {
+    var plinxVideoFill: Binding<Bool>? {
+        get { self[PlinxVideoFillKey.self] }
+        set { self[PlinxVideoFillKey.self] = newValue }
+    }
+}
+
+extension View {
+    func plinxVideoPresentation() -> some View {
+        modifier(PlinxVideoPresentationModifier())
+    }
+}
+
+private struct PlinxVideoPresentationModifier: ViewModifier {
+    // The player owns this state, rather than its auto-hiding controls.
+    @State private var fillsScreen = false
+
+    func body(content: Content) -> some View {
+        GeometryReader { geometry in
+            let isLandscape = geometry.size.width > geometry.size.height
+            content
+                .environment(\.plinxVideoFill, isLandscape ? $fillsScreen : nil)
+                .background {
+                    PlinxVideoGravityBridge(fillsScreen: isLandscape && fillsScreen)
+                        .frame(width: 0, height: 0)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+        }
+    }
+}
+
+/// Decorates Aether's public render view using public AVFoundation layer APIs.
+/// Keeping this in Plinx avoids changing Strimr's private engine ownership.
+/// Observe layer replacement and gravity resets so native/software dispatch
+/// changes and subsequent queue items retain the session's presentation mode.
+@MainActor
+final class PlinxVideoGravityAdapter {
+    var fillsScreen = false {
+        didSet { applyGravity() }
+    }
+    private weak var surfaceLayer: CALayer?
+    private weak var videoLayer: CALayer?
+    private var surfaceObservation: NSKeyValueObservation?
+    private var gravityObservation: NSKeyValueObservation?
+
+    func bind(to layer: CALayer) {
+        guard surfaceLayer !== layer else { return }
+        unbind()
+        surfaceLayer = layer
+        surfaceObservation = layer.observe(\.sublayers, options: [.initial, .new]) { [weak self] _, _ in
+            MainActor.assumeIsolated { self?.refreshVideoLayer() }
+        }
+    }
+
+    func unbind() {
+        surfaceObservation = nil
+        gravityObservation = nil
+        setGravity(.resizeAspect, on: videoLayer)
+        videoLayer = nil
+        surfaceLayer = nil
+    }
+
+    private func refreshVideoLayer() {
+        let layer = surfaceLayer?.sublayers?.first {
+            $0 is AVPlayerLayer || $0 is AVSampleBufferDisplayLayer
+        }
+        guard videoLayer !== layer else { applyGravity(); return }
+        gravityObservation = nil
+        setGravity(.resizeAspect, on: videoLayer)
+        videoLayer = layer
+        if let native = layer as? AVPlayerLayer {
+            gravityObservation = native.observe(\.videoGravity, options: [.new]) { [weak self] _, _ in
+                MainActor.assumeIsolated { self?.applyGravity() }
+            }
+        } else if let software = layer as? AVSampleBufferDisplayLayer {
+            gravityObservation = software.observe(\.videoGravity, options: [.new]) { [weak self] _, _ in
+                MainActor.assumeIsolated { self?.applyGravity() }
+            }
+        }
+        applyGravity()
+    }
+
+    private func applyGravity() {
+        setGravity(fillsScreen ? .resizeAspectFill : .resizeAspect, on: videoLayer)
+    }
+
+    private func setGravity(_ gravity: AVLayerVideoGravity, on layer: CALayer?) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        defer { CATransaction.commit() }
+        if let native = layer as? AVPlayerLayer, native.videoGravity != gravity {
+            native.videoGravity = gravity
+        } else if let software = layer as? AVSampleBufferDisplayLayer, software.videoGravity != gravity {
+            software.videoGravity = gravity
+        }
+    }
+}
+
+private struct PlinxVideoGravityBridge: UIViewRepresentable {
+    let fillsScreen: Bool
+
+    func makeUIView(context: Context) -> SurfaceProbe { SurfaceProbe() }
+
+    func updateUIView(_ view: SurfaceProbe, context: Context) {
+        view.adapter.fillsScreen = fillsScreen
+        view.resolveSurface()
+    }
+
+    static func dismantleUIView(_ view: SurfaceProbe, coordinator: ()) {
+        view.adapter.unbind()
+    }
+
+    final class SurfaceProbe: UIView {
+        let adapter = PlinxVideoGravityAdapter()
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            guard window != nil else { adapter.unbind(); return }
+            // SwiftUI may attach the marker before attaching the video view.
+            Task { @MainActor [weak self] in
+                await Task.yield()
+                self?.resolveSurface()
+            }
+        }
+
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            resolveSurface()
+        }
+
+        func resolveSurface() {
+            guard window != nil else { return }
+            var ancestor = superview
+            while let view = ancestor {
+                if let surface = findSurface(in: view) {
+                    adapter.bind(to: surface.layer)
+                    return
+                }
+                ancestor = view.superview
+            }
+        }
+
+        private func findSurface(in view: UIView) -> AetherPlayerView? {
+            if let surface = view as? AetherPlayerView { return surface }
+            for child in view.subviews {
+                if let surface = findSurface(in: child) { return surface }
+            }
+            return nil
+        }
+    }
+}
+#endif

@@ -46,6 +46,12 @@ Its existing back and settings controls and the video title are 50% larger for
 easier reading and targeting without adding a
 second persistent back button or rating chip over the video.
 
+In landscape on iPhone and iPad, the header also offers **Fit** and **Fill**.
+Fit shows the complete frame; Fill crops the edges to cover the display. The
+choice persists when controls hide and returns when you rotate back to
+landscape during the same playback session. Audio tracks and subtitles remain
+available through player Settings.
+
 ## Profiles and servers
 
 Parents can switch Plex Home profiles or Plex servers from protected settings.

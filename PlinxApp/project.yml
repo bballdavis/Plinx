@@ -122,6 +122,8 @@ targets:
       - path: Resources/PrivacyInfo.xcprivacy
       - path: Resources/Assets.xcassets
       - path: Resources/LaunchScreen.storyboard
+      - path: Resources/DemoMedia
+        type: folder
       # Localized strings — listed explicitly because xcodegen skips xcstrings
       # and needs lproj bundles spelled out.
       - path: Resources/en.lproj/Plinx.strings
