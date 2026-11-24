@@ -111,6 +111,37 @@ final class OfflinePlaybackTests: XCTestCase {
         XCTAssertFalse(failed.isPlayable)
     }
 
+    // MARK: - Download tap actions
+
+    func test_tapOnAllowedCompletedDownloadPlays() {
+        let item = makeDownloadItem(id: "a", type: .movie, status: .completed)
+
+        XCTAssertEqual(DownloadTapAction.resolve(for: item, decision: .allowed), .play)
+    }
+
+    func test_tapOnAllowedFailedDownloadOffersRemoveAndRedownload() {
+        let item = makeDownloadItem(id: "a", type: .movie, status: .failed)
+
+        XCTAssertEqual(DownloadTapAction.resolve(for: item, decision: .allowed), .showFailureActions)
+    }
+
+    func test_tapOnInProgressDownloadDoesNothing() {
+        for status in [DownloadStatus.queued, .deciding, .preparing, .downloading] {
+            let item = makeDownloadItem(id: "a", type: .movie, status: status)
+            XCTAssertEqual(DownloadTapAction.resolve(for: item, decision: .allowed), .none, "\(status)")
+        }
+    }
+
+    func test_tapOnDisallowedDownloadDoesNothingEvenWhenFailed() {
+        let decisions: [DownloadAccessDecision] = [.blockedByContentPolicy, .wrongOwner, .missingOwner]
+        for decision in decisions {
+            for status in [DownloadStatus.completed, .failed] {
+                let item = makeDownloadItem(id: "a", type: .movie, status: status)
+                XCTAssertEqual(DownloadTapAction.resolve(for: item, decision: decision), .none)
+            }
+        }
+    }
+
     // MARK: - Download access policy
 
     @MainActor

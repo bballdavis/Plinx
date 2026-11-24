@@ -48,8 +48,18 @@ struct PlayerTimelineView: View {
         )
     }
 
+    private var labelSpacing: CGFloat {
+        #if os(tvOS)
+        6
+        #else
+        // The track sits near the bottom of its touch target, so the time
+        // labels follow directly beneath it.
+        0
+        #endif
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: labelSpacing) {
             #if os(tvOS)
             PlayerRaisedHumpTVTimeline(
                 position: $position,
@@ -102,7 +112,11 @@ struct PlayerTimelineView: View {
             .accessibilityHidden(true)
         }
         .padding(.horizontal, 24)
+        #if os(tvOS)
         .padding(.vertical, 8)
+        #else
+        .padding(.bottom, 8)
+        #endif
     }
 
     #if !os(tvOS)
@@ -147,14 +161,14 @@ private enum PlayerTimelineMetrics {
     static let dotDiameter: CGFloat = 18
     static let baseline: CGFloat = 61
     #else
-    static let controlHeight: CGFloat = 64
-    static let trackThickness: CGFloat = 6
+    static let controlHeight = PlinxPlayerControlLayout.TouchTimeline.controlHeight
+    static let trackThickness = PlinxPlayerControlLayout.TouchTimeline.trackThickness
     static let humpWidth: CGFloat = 56
-    static let humpRise: CGFloat = 22
-    static let crownRadius: CGFloat = 22
+    static let humpRise = PlinxPlayerControlLayout.TouchTimeline.humpRise
+    static let crownRadius = PlinxPlayerControlLayout.TouchTimeline.humpRise
     static let shoulderRadius: CGFloat = 6
     static let dotDiameter: CGFloat = 12
-    static let baseline: CGFloat = 44
+    static let baseline = PlinxPlayerControlLayout.TouchTimeline.baseline
     #endif
 }
 
@@ -173,16 +187,22 @@ private struct PlayerRaisedHumpTrack: View {
                 dotDiameter: PlayerTimelineMetrics.dotDiameter
             )
             let handleX = geometry.handleCenter(position: position)
-            let bufferedWidth = geometry.trackWidth * CGFloat(
-                PlayerTimelinePolicy.bufferedProgress(
+            let humpHalfWidth = PlayerTimelineGeometry.humpHalfWidth(
+                crownRadius: PlayerTimelineMetrics.crownRadius,
+                shoulderRadius: PlayerTimelineMetrics.shoulderRadius
+            )
+            let bufferedSpan = geometry.bufferedSpan(
+                bufferedProgress: PlayerTimelinePolicy.bufferedProgress(
                     bufferedAhead: bufferedAhead,
                     playbackPosition: playbackPosition,
                     duration: duration
-                )
+                ),
+                humpHalfWidth: humpHalfWidth
             )
-            let playedWidth = geometry.trackWidth * CGFloat(
-                PlayerTimelinePolicy.progress(position: position, duration: duration)
-            )
+            // Played color stops at the hump's peak: the peak is the playback
+            // position, so only the hump's leading half reads as played.
+            let playedSpan = geometry.playedSpan(position: position, humpHalfWidth: humpHalfWidth)
+            let drawableSpan = geometry.drawableSpan(humpHalfWidth: humpHalfWidth)
 
             ZStack {
                 ZStack {
@@ -199,8 +219,8 @@ private struct PlayerRaisedHumpTrack: View {
                         handleCenter: handleX
                     )
                     .stroke(Color.white.opacity(0.63), style: timelineStrokeStyle)
-                    .mask(alignment: .leading) {
-                        Rectangle().frame(width: geometry.trackStart + bufferedWidth)
+                    .mask(alignment: .topLeading) {
+                        spanMask(bufferedSpan, height: proxy.size.height)
                     }
 
                     PlayerTimelineCurve(
@@ -209,17 +229,15 @@ private struct PlayerRaisedHumpTrack: View {
                         handleCenter: handleX
                     )
                     .stroke(Color.white, style: timelineStrokeStyle)
-                    .mask(alignment: .leading) {
-                        Rectangle().frame(width: geometry.trackStart + playedWidth)
+                    .mask(alignment: .topLeading) {
+                        spanMask(playedSpan, height: proxy.size.height)
                     }
                     .shadow(color: .black.opacity(0.28), radius: 7, x: 0, y: 4)
-
-                    PlayerTimelineArch(centerX: handleX)
-                        .stroke(Color.white, style: timelineStrokeStyle)
                 }
-                .mask(alignment: .center) {
-                    Rectangle()
-                        .frame(width: geometry.trackWidth, height: proxy.size.height)
+                // The hump may overhang the track ends so it is never cut in
+                // half at the start or end of the video.
+                .mask(alignment: .topLeading) {
+                    spanMask(drawableSpan, height: proxy.size.height)
                 }
 
                 Circle()
@@ -236,6 +254,13 @@ private struct PlayerRaisedHumpTrack: View {
         .frame(maxWidth: .infinity, minHeight: PlayerTimelineMetrics.controlHeight, maxHeight: PlayerTimelineMetrics.controlHeight)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+
+    /// A full-height rectangle covering `span` in the track's coordinates.
+    private func spanMask(_ span: ClosedRange<CGFloat>, height: CGFloat) -> some View {
+        Rectangle()
+            .frame(width: max(span.upperBound - span.lowerBound, 0), height: height)
+            .offset(x: span.lowerBound)
     }
 
     private var timelineStrokeStyle: StrokeStyle {
@@ -267,21 +292,6 @@ private struct PlayerTimelineCurve: Shape {
         if trackEnd > arch.endX {
             path.addLine(to: CGPoint(x: trackEnd, y: baseline))
         }
-        return path
-    }
-}
-
-private struct PlayerTimelineArch: Shape {
-    let centerX: CGFloat
-
-    func path(in rect: CGRect) -> Path {
-        let arch = PlayerTimelineArchGeometry(
-            centerX: centerX,
-            baseline: PlayerTimelineMetrics.baseline
-        )
-        var path = Path()
-        path.move(to: CGPoint(x: arch.startX, y: arch.baseline))
-        arch.add(to: &path)
         return path
     }
 }

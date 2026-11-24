@@ -80,7 +80,7 @@ struct PlayerControlsView: View {
 
                     Spacer(minLength: 0)
 
-                    VStack(spacing: insets.bottomSpacing) {
+                    VStack(spacing: insets.auxiliaryRowSpacing) {
                         PlayerAuxiliaryControlsRow(
                             isRotationLocked: isRotationLocked,
                             onToggleRotationLock: onToggleRotationLock,
@@ -91,6 +91,8 @@ struct PlayerControlsView: View {
                         .padding(.horizontal, 24)
                         .opacity(isScrubbing ? 0 : 1)
                         .allowsHitTesting(!isScrubbing)
+                        // Drawn above the timeline's empty touch headroom.
+                        .zIndex(1)
 
                         PlayerTimelineView(
                             position: $position,
@@ -176,6 +178,7 @@ private struct PlayerAuxiliaryControlsRow: View {
 
 private struct PlayerControlsHeader: View {
     @Environment(\.plinxVideoFill) private var videoFill
+    @Environment(\.plinxPlayerMoreActions) private var moreActions
     var media: MediaItem?
     var onDismiss: () -> Void
     var onShowSettings: () -> Void
@@ -248,17 +251,11 @@ private struct PlayerControlsHeader: View {
                     videoFill.wrappedValue.toggle()
                     onTitleInteractionChanged(false)
                 } label: {
-                    let shape = RoundedRectangle(cornerRadius: PlinxPlayerControlLayout.headerCornerRadius, style: .continuous)
                     Image(systemName: videoFill.wrappedValue
                           ? "arrow.down.right.and.arrow.up.left"
                           : "arrow.up.left.and.arrow.down.right")
                         .font(.system(size: iconSize, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: PlinxPlayerControlLayout.headerButtonSize,
-                               height: PlinxPlayerControlLayout.headerButtonSize)
-                        .background(shape.fill(Color.brandPrimary.opacity(videoFill.wrappedValue ? 0.28 : 0.14)))
-                        .overlay(shape.stroke(Color.brandPrimary.opacity(videoFill.wrappedValue ? 0.85 : 0.42), lineWidth: 1))
-                        .shadow(color: Color.brandPrimary.opacity(0.1), radius: 8, x: 0, y: 5)
+                        .playerHeaderButtonChrome(isActive: videoFill.wrappedValue)
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("player.videoFit")
@@ -266,20 +263,18 @@ private struct PlayerControlsHeader: View {
                 .accessibilityValue(Text(videoFill.wrappedValue ? "player.video.fill" : "player.video.fit", tableName: "Plinx"))
                 .accessibilityHint(Text("player.video.fill.hint", tableName: "Plinx"))
             }
+            if let moreActions {
+                PlayerMoreActionsButton(action: moreActions)
+            }
             PlayerSettingsButton(action: onShowSettings)
         }
     }
 
     private var dismissButton: some View {
         Button(action: onDismiss) {
-            let chrome = RoundedRectangle(cornerRadius: PlinxPlayerControlLayout.headerCornerRadius, style: .continuous)
             Image(systemName: "chevron.backward")
                 .font(.system(size: iconSize, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: PlinxPlayerControlLayout.headerButtonSize, height: PlinxPlayerControlLayout.headerButtonSize)
-                .background(chrome.fill(.thinMaterial))
-                .overlay(chrome.stroke(Color.brandPrimary.opacity(0.42), lineWidth: 1))
-                .shadow(color: Color.brandPrimary.opacity(0.14), radius: 10, x: 0, y: 6)
+                .playerHeaderButtonChrome()
         }
         .accessibilityLabel(String(localized: "common.actions.back", table: "Plinx"))
         .accessibilityIdentifier("player.back")

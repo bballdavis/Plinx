@@ -85,8 +85,8 @@ struct PlayerTimelineGeometry: Equatable {
 
     init(width: CGFloat, duration: Double?, dotDiameter: CGFloat) {
         self.width = max(width.isFinite ? width : 0, 0)
-        // The dot is outside the clipped track layer. Its controlled overhang
-        // preserves an exact 0...duration mapping across the entire track.
+        // The dot and hump overhang the track ends instead of insetting the
+        // track, preserving an exact 0...duration mapping across its width.
         horizontalInset = 0
         self.duration = PlayerTimelinePolicy.validDuration(duration)
     }
@@ -104,6 +104,43 @@ struct PlayerTimelineGeometry: Equatable {
         let x = min(max(touchX, trackStart), trackEnd)
         let progress = Double((x - trackStart) / trackWidth)
         return min(max(progress * duration, 0), duration)
+    }
+
+    /// Half the hump's width: from its peak to where a shoulder fillet meets
+    /// the track tangentially. The crown circle is centered on the baseline,
+    /// so the peak sits directly above the handle.
+    static func humpHalfWidth(crownRadius: CGFloat, shoulderRadius: CGFloat) -> CGFloat {
+        sqrt(crownRadius * crownRadius + 2 * crownRadius * shoulderRadius)
+    }
+
+    /// The hump is symmetric around the playback position, so its peak (the
+    /// midpoint of this span) is exactly where playback is.
+    func humpSpan(position: Double, halfWidth: CGFloat) -> ClosedRange<CGFloat> {
+        let center = handleCenter(position: position)
+        return (center - halfWidth)...(center + halfWidth)
+    }
+
+    /// The horizontal extent the track may draw into. The hump overhangs the
+    /// track ends by its half width, so at 0 and at the duration the full hump
+    /// stays visible with its peak on the track endpoint.
+    func drawableSpan(humpHalfWidth: CGFloat) -> ClosedRange<CGFloat> {
+        (trackStart - humpHalfWidth)...(trackEnd + humpHalfWidth)
+    }
+
+    /// The played color runs from the drawn start to the hump's peak, so the
+    /// leading half of the hump is played and the trailing half is not.
+    func playedSpan(position: Double, humpHalfWidth: CGFloat) -> ClosedRange<CGFloat> {
+        let start = drawableSpan(humpHalfWidth: humpHalfWidth).lowerBound
+        return start...max(start, handleCenter(position: position))
+    }
+
+    /// The buffered tint runs to the buffered position, measured the same way
+    /// as the played span.
+    func bufferedSpan(bufferedProgress: Double, humpHalfWidth: CGFloat) -> ClosedRange<CGFloat> {
+        let start = drawableSpan(humpHalfWidth: humpHalfWidth).lowerBound
+        let progress = bufferedProgress.isFinite ? min(max(bufferedProgress, 0), 1) : 0
+        let end = trackStart + trackWidth * CGFloat(progress)
+        return start...max(start, end)
     }
 
     /// The endpoint target shifts inward instead of being clipped in half.

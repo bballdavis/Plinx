@@ -18,7 +18,8 @@ already on screen instead of replacing them with a disconnected state.
 
 Open Libraries to browse an individual Plex library, its recommendations,
 collections, and full grids. The available sections reflect the current parent
-controls.
+controls. A library's Recommended tab adds a **Recently Added** row only when
+Plex returns no other allowed recommendations for that library.
 
 Collections are hidden by default for new installations. Parents can enable
 them in Settings; an existing saved preference is preserved.
@@ -45,6 +46,11 @@ controls centered over video; they scale up responsively on larger layouts.
 Its existing back and settings controls and the video title are 50% larger for
 easier reading and targeting without adding a
 second persistent back button or rating chip over the video.
+
+On iPhone and iPad, the player header also has a **More Actions** button next
+to Settings for marking a video watched or opening its details. It appears and
+hides with the rest of the player controls. The bump in the timeline marks the
+current playback position at its peak.
 
 In landscape on iPhone and iPad, the header also offers **Fit** and **Fill**.
 Fit shows the complete frame; Fill crops the edges to cover the display. The

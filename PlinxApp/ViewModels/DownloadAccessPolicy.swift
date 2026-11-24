@@ -202,6 +202,22 @@ struct DownloadAccessPolicy {
     }
 }
 
+/// What a tap on a downloads-grid or list entry does.
+///
+/// Only entries the access policy allows are ever actionable. A failed entry
+/// offers Remove and Redownload instead of silently ignoring the tap.
+enum DownloadTapAction: Equatable {
+    case play
+    case showFailureActions
+    case none
+
+    static func resolve(for item: DownloadItem, decision: DownloadAccessDecision) -> DownloadTapAction {
+        guard decision == .allowed else { return .none }
+        if item.isPlayable { return .play }
+        return item.status == .failed ? .showFailureActions : .none
+    }
+}
+
 extension SessionManager {
     var plinxDownloadOwnerIdentity: DownloadOwnerIdentity? {
         guard let serverIdentifier = plexServer?.clientIdentifier else { return nil }

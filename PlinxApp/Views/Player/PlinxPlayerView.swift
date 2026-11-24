@@ -43,6 +43,13 @@ struct PlinxPlayerView: View {
             // the wrapper's safe area so controls avoid the Duo status region
             // and the closed display's camera and home indicator.
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            #if os(iOS)
+            // The More Actions button lives in the player header, so it shows
+            // and hides with the rest of the auto-hiding controls.
+            .environment(\.plinxPlayerMoreActions, moreActionsHandler)
+            .allowsHitTesting(quickActionMedia == nil)
+            .accessibilityHidden(quickActionMedia != nil)
+            #endif
             #if os(tvOS)
             .plinxQuickActionLongPress {
                 guard let media = viewModel.media else { return }
@@ -50,16 +57,6 @@ struct PlinxPlayerView: View {
             }
             .allowsHitTesting(quickActionMedia == nil)
             .accessibilityHidden(quickActionMedia != nil)
-            #endif
-
-            #if !os(tvOS)
-            if let media = viewModel.media,
-               PlinxContentAuthorization.isAllowed(media, policy: safetyPolicy)
-            {
-                playerQuickActionsButton(for: media)
-                    .allowsHitTesting(quickActionMedia == nil)
-                    .accessibilityHidden(quickActionMedia != nil)
-            }
             #endif
 
             if let media = quickActionMedia {
@@ -87,27 +84,14 @@ struct PlinxPlayerView: View {
         }
     }
 
-    @ViewBuilder
-    private func playerQuickActionsButton(for media: MediaItem) -> some View {
-        VStack {
-            HStack {
-                Spacer()
-                Button {
-                    presentQuickActions(for: media)
-                } label: {
-                    Label(
-                        String(localized: "quickActions.moreActions", table: "Plinx"),
-                        systemImage: "ellipsis.circle"
-                    )
-                }
-                .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("player.moreActions")
-            }
-            Spacer()
-        }
-        .padding(.horizontal, 40)
-        .padding(.top, 42)
+    #if os(iOS)
+    private var moreActionsHandler: (() -> Void)? {
+        guard let media = viewModel.media,
+              PlinxContentAuthorization.isAllowed(media, policy: safetyPolicy)
+        else { return nil }
+        return { presentQuickActions(for: media) }
     }
+    #endif
 
     private func presentQuickActions(for media: MediaItem) {
         guard viewModel.media?.id == media.id,
@@ -391,10 +375,21 @@ private struct PlinxVideoFillKey: EnvironmentKey {
     static let defaultValue: Binding<Bool>? = nil
 }
 
+private struct PlinxPlayerMoreActionsKey: EnvironmentKey {
+    static let defaultValue: (() -> Void)? = nil
+}
+
 extension EnvironmentValues {
     var plinxVideoFill: Binding<Bool>? {
         get { self[PlinxVideoFillKey.self] }
         set { self[PlinxVideoFillKey.self] = newValue }
+    }
+
+    /// Opens the player's quick-action menu. `nil` hides the header button,
+    /// for example in offline playback or when the item is not allowed.
+    var plinxPlayerMoreActions: (() -> Void)? {
+        get { self[PlinxPlayerMoreActionsKey.self] }
+        set { self[PlinxPlayerMoreActionsKey.self] = newValue }
     }
 }
 

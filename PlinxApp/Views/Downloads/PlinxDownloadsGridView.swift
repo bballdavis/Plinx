@@ -24,6 +24,8 @@ struct PlinxDownloadsGridView: View {
     @Environment(\.safetyPolicy) private var safetyPolicy
     @EnvironmentObject private var mainCoordinator: MainCoordinator
     @State private var selectedDownload: DownloadItem?
+    @State private var failedDownloadForActions: DownloadItem?
+    @State private var failedDownloadActionError: String?
     @State private var showManage = false
     @State private var layoutMode: LayoutMode = .grid
     @State private var viewportSize: CGSize = .zero
@@ -178,6 +180,38 @@ struct PlinxDownloadsGridView: View {
         .fullScreenCover(item: $selectedDownload) { item in
             OfflineDownloadPlayerView(item: item)
         }
+        .confirmationDialog(
+            Text(failedDownloadForActions?.metadata.title ?? ""),
+            isPresented: Binding(
+                get: { failedDownloadForActions != nil },
+                set: { if !$0 { failedDownloadForActions = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: failedDownloadForActions
+        ) { item in
+            Button(String(localized: "downloads.failed.redownload", table: "Plinx")) {
+                Task { await redownload(item) }
+            }
+            .accessibilityIdentifier("downloads.failed.redownload")
+            Button(String(localized: "downloads.failed.remove", table: "Plinx"), role: .destructive) {
+                Task { await remove(item) }
+            }
+            .accessibilityIdentifier("downloads.failed.remove")
+            Button(String(localized: "common.actions.cancel", table: "Plinx"), role: .cancel) {}
+        } message: { _ in
+            Text("downloads.failed.message", tableName: "Plinx")
+        }
+        .alert(
+            Text("downloads.failed.redownloadError.title", tableName: "Plinx"),
+            isPresented: Binding(
+                get: { failedDownloadActionError != nil },
+                set: { if !$0 { failedDownloadActionError = nil } }
+            )
+        ) {
+            Button(String(localized: "common.actions.ok", table: "Plinx"), role: .cancel) {}
+        } message: {
+            Text(failedDownloadActionError ?? "")
+        }
         .task(id: artworkReconciliationID) {
             if downloadManager.persistedIndexState.permitsOwnershipMigration {
                 downloadOwnershipStore.prune(keeping: Set(downloadManager.items.map(\.id)))
@@ -200,6 +234,45 @@ struct PlinxDownloadsGridView: View {
                 "\(item.id):\(item.metadata.artworkLayoutStyle?.rawValue ?? "unknown")"
             }
             .joined(separator: "|")
+    }
+
+    // MARK: - Tap handling
+
+    private func handleTap(on item: DownloadItem) {
+        switch DownloadTapAction.resolve(for: item, decision: accessPolicy.decision(for: item)) {
+        case .play:
+            selectedDownload = item
+        case .showFailureActions:
+            failedDownloadForActions = item
+        case .none:
+            break
+        }
+    }
+
+    private func remove(_ item: DownloadItem) async {
+        guard accessPolicy.decision(for: item) == .allowed, item.status == .failed else { return }
+        await downloadManager.delete(item)
+    }
+
+    /// Starts a fresh download of the same item, then removes the failed
+    /// entry. Enqueueing first keeps the failed entry when the new request
+    /// cannot start, for example while offline. The new request goes through
+    /// the normal enrollment path, which re-checks content controls against
+    /// the server's current metadata.
+    private func redownload(_ item: DownloadItem) async {
+        guard accessPolicy.decision(for: item) == .allowed, item.status == .failed else { return }
+        guard sessionManager.plinxDownloadOwnerIdentity != nil else {
+            failedDownloadActionError = String(localized: "downloads.ownerUnavailable", table: "Plinx")
+            return
+        }
+        let newDownloadIDs = await downloadManager.enqueueItem(ratingKey: item.ratingKey, context: context)
+        guard !newDownloadIDs.isEmpty else {
+            failedDownloadActionError = String(localized: "downloads.failed.redownloadError.message", table: "Plinx")
+            return
+        }
+        if let current = downloadManager.items.first(where: { $0.id == item.id }) {
+            await downloadManager.delete(current)
+        }
     }
 
     // MARK: - Header
@@ -284,8 +357,7 @@ struct PlinxDownloadsGridView: View {
         cardWidth: CGFloat
     ) -> some View {
         return Button {
-            guard item.isPlayable, accessPolicy.decision(for: item) == .allowed else { return }
-            selectedDownload = item
+            handleTap(on: item)
         } label: {
             // Always use gridPosterHeight so text labels align across mixed portrait/landscape rows.
             // The artwork is centered within the fixed-height area.
@@ -309,8 +381,7 @@ struct PlinxDownloadsGridView: View {
         let posterSize = isPortrait ? CGSize(width: 45, height: 68) : CGSize(width: 78, height: 44)
 
         return Button {
-            guard item.isPlayable, accessPolicy.decision(for: item) == .allowed else { return }
-            selectedDownload = item
+            handleTap(on: item)
         } label: {
             HStack(alignment: .center, spacing: 12) {
                 posterImage(for: item)

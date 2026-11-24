@@ -87,14 +87,32 @@ final class PlinxPlayerControlLayoutTests: XCTestCase {
         XCTAssertEqual(closed.horizontal, 16)
         XCTAssertEqual(open.horizontal, 28)
         XCTAssertEqual(open.vertical, closed.vertical)
-        XCTAssertEqual(open.bottomSpacing, 18)
+        XCTAssertEqual(open.bottomSpacing, 8)
+    }
+
+    func test_lockRowSitsJustAboveTimelineHumpWithoutOverlappingIt() {
+        for size in [CGSize(width: 390, height: 780), CGSize(width: 844, height: 350)] {
+            let insets = PlinxPlayerControlLayout.chromeInsets(width: size.width, height: size.height)
+            let timeline = PlinxPlayerControlLayout.TouchTimeline.self
+            // The row overlaps only the empty headroom above the hump.
+            XCTAssertLessThan(insets.auxiliaryRowSpacing, 0)
+            XCTAssertGreaterThan(insets.auxiliaryRowSpacing + timeline.humpPeakTop, 0)
+            XCTAssertLessThanOrEqual(insets.bottomSpacing, 8)
+        }
+    }
+
+    func test_touchTimelineTrackSitsNearBottomOfFullTouchTarget() {
+        let timeline = PlinxPlayerControlLayout.TouchTimeline.self
+        XCTAssertGreaterThanOrEqual(timeline.controlHeight, 64)
+        XCTAssertLessThanOrEqual(timeline.controlHeight - timeline.baseline, 12)
+        XCTAssertGreaterThan(timeline.humpPeakTop, 0)
     }
 
     func test_shortLandscapePreservesRoomForVideoAndTimeline() {
         let landscape = PlinxPlayerControlLayout.chromeInsets(width: 844, height: 350)
         XCTAssertEqual(landscape.horizontal, 28)
         XCTAssertEqual(landscape.vertical, 8)
-        XCTAssertEqual(landscape.bottomSpacing, 10)
+        XCTAssertEqual(landscape.bottomSpacing, 6)
     }
 
     func test_overlayHeaderUsesFiftyPercentEmphasis() {

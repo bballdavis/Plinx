@@ -791,8 +791,11 @@ tvOS. Menu dismisses the sheet and returns focus to the originating card.
 The More Info page keeps watched state in its shared action row, while the
 Apple TV player opens its quick actions only from a surface-wide Select hold;
 it does not add a persistent More Actions control over video. Player More Info
-dismisses playback before changing root navigation. Other platforms keep their
-existing player action presentation.
+dismisses playback before changing root navigation. On iPhone and iPad, More
+Actions is an ellipsis button in the player header, immediately before Settings.
+It shows and hides with the other auto-hiding player controls and never floats
+over the video on its own. Offline playback, and items the current content
+policy does not allow, omit it.
 
 ## Key Screen Rules
 
@@ -898,6 +901,12 @@ Rules:
 - The first library card column aligns with the leading text inside the hero
   metadata block. Adaptive grids use leading alignment and carousels do not add
   a second leading inset.
+- On iPhone and iPad, library Browse and Collections grids fit as many columns
+  as the width allows (posters at least 104 points wide, 16:9 thumbnails at
+  least 160) and widen the cards so the columns span the full width with
+  equal 12-point gutters. An iPhone in portrait shows three poster columns or
+  two thumbnail columns. If cards reach their maximum width, the grid stays
+  centered.
 - tvOS library detail screens do not add a local Back tile. Move Up from the
   local filter row returns focus to the persistent Library destination; Menu
   dismisses the detail screen.
@@ -933,6 +942,19 @@ renderer changes, and survives auto-hiding controls. Portrait temporarily uses
 Fit and hides the button; returning to landscape restores the session's choice.
 Only the video render layer changes: controls and separately rendered subtitles
 retain their normal layout. Downloaded playback uses the same control.
+
+Every iPhone and iPad player header button (Back, Fit/Fill, More Actions, and
+Settings) uses the Back button's thin-material glass, accent stroke, and
+shadow, so all of them read at the same opacity over video. An active Fit/Fill
+state strengthens only the stroke.
+
+The touch timeline keeps its 64-point touch target, but its track sits near the
+bottom of that target, directly above the elapsed and remaining time labels.
+The rotation lock row sits in the empty space above the timeline hump, a few
+points above the hump's highest point. The hump is centered on the playback
+position: its peak is the current time, the played color stops at the peak, and
+at the start or end of a video the hump extends past the track's end instead of
+being cut in half.
 
 Open landscape onboarding uses the tablet composition: sign-in copy and the
 primary action sit beside the next-steps summary; profile and server selection

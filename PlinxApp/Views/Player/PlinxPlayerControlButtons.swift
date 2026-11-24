@@ -152,6 +152,36 @@ struct SkipMarkerButton: View {
     }
 }
 
+/// The back button's chrome, shared by every header button so they all read
+/// at the same opacity over bright and dark video.
+struct PlayerHeaderButtonChrome: ViewModifier {
+    var isActive = false
+
+    func body(content: Content) -> some View {
+        let chrome = RoundedRectangle(
+            cornerRadius: PlinxPlayerControlLayout.headerCornerRadius,
+            style: .continuous
+        )
+        content
+            .foregroundStyle(.white)
+            .frame(
+                width: PlinxPlayerControlLayout.headerButtonSize,
+                height: PlinxPlayerControlLayout.headerButtonSize
+            )
+            .background(chrome.fill(.thinMaterial))
+            .overlay(
+                chrome.stroke(Color.brandPrimary.opacity(isActive ? 0.85 : 0.42), lineWidth: 1)
+            )
+            .shadow(color: Color.brandPrimary.opacity(0.14), radius: 10, x: 0, y: 6)
+    }
+}
+
+extension View {
+    func playerHeaderButtonChrome(isActive: Bool = false) -> some View {
+        modifier(PlayerHeaderButtonChrome(isActive: isActive))
+    }
+}
+
 struct PlayerSettingsButton: View {
     let action: () -> Void
 
@@ -160,34 +190,29 @@ struct PlayerSettingsButton: View {
 
     var body: some View {
         Button(action: action) {
-            let chrome = RoundedRectangle(
-                cornerRadius: PlinxPlayerControlLayout.headerCornerRadius,
-                style: .continuous
-            )
             Image(systemName: "gearshape")
-                .font(
-                    .system(
-                        size: iconSize,
-                        weight: .semibold
-                    )
-                )
-                .foregroundStyle(.white)
-                .frame(
-                    width: PlinxPlayerControlLayout.headerButtonSize,
-                    height: PlinxPlayerControlLayout.headerButtonSize
-                )
-                .background(chrome.fill(Color.brandPrimary.opacity(0.14)))
-                .overlay(
-                    chrome.stroke(Color.brandPrimary.opacity(0.42), lineWidth: 1)
-                )
-                .shadow(
-                    color: Color.brandPrimary.opacity(0.1),
-                    radius: 8,
-                    x: 0,
-                    y: 5
-                )
+                .font(.system(size: iconSize, weight: .semibold))
+                .playerHeaderButtonChrome()
         }
         .accessibilityLabel(String(localized: "settings.title"))
+        .buttonStyle(.plain)
+    }
+}
+
+struct PlayerMoreActionsButton: View {
+    let action: () -> Void
+
+    @ScaledMetric(relativeTo: .headline) private var iconSize =
+        PlinxPlayerControlLayout.headerIconSize
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "ellipsis")
+                .font(.system(size: iconSize, weight: .semibold))
+                .playerHeaderButtonChrome()
+        }
+        .accessibilityLabel(String(localized: "quickActions.moreActions", table: "Plinx"))
+        .accessibilityIdentifier("player.moreActions")
         .buttonStyle(.plain)
     }
 }

@@ -29,6 +29,35 @@ enum LibraryCardLayoutPolicy {
         prefersLandscape(for: library)
     }
 
+    /// Column count and card width for a library poster grid.
+    struct GridMetrics: Equatable {
+        let columnCount: Int
+        let cardWidth: CGFloat
+        let spacing: CGFloat
+
+        /// The width the columns and gutters occupy. When the card width hits
+        /// its cap this is narrower than the container, so the grid is centered.
+        var contentWidth: CGFloat {
+            CGFloat(columnCount) * cardWidth + CGFloat(max(columnCount - 1, 0)) * spacing
+        }
+    }
+
+    /// Fits as many columns as `minimumCardWidth` allows, then widens the cards
+    /// so the columns span the full width with equal gutters. Portrait posters
+    /// and 16:9 thumbnails use separate minimums, so an iPhone in portrait shows
+    /// three poster columns or two thumbnail columns instead of a narrow,
+    /// left-aligned block.
+    static func gridMetrics(availableWidth: CGFloat, usesLandscapeCards: Bool) -> GridMetrics {
+        let spacing: CGFloat = 12
+        let minimumWidth: CGFloat = usesLandscapeCards ? 160 : 104
+        let maximumWidth: CGFloat = usesLandscapeCards ? 300 : 180
+        let width = availableWidth.isFinite ? max(availableWidth, 0) : 0
+        let columns = max(1, Int(((width + spacing) / (minimumWidth + spacing)).rounded(.down)))
+        let fittedWidth = (width - CGFloat(columns - 1) * spacing) / CGFloat(columns)
+        let cardWidth = max(min(fittedWidth, maximumWidth), 1).rounded(.down)
+        return GridMetrics(columnCount: columns, cardWidth: cardWidth, spacing: spacing)
+    }
+
     static func maximumBannerArtworkDisplayCount(userInterfaceIdiom: UIUserInterfaceIdiom) -> Int {
         userInterfaceIdiom == .phone ? 3 : 5
     }

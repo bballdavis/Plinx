@@ -78,6 +78,60 @@ final class LibraryCardLayoutPolicyTests: XCTestCase {
         )
     }
 
+    // MARK: - Grid metrics
+
+    func test_gridMetrics_iPhonePortraitPostersFillWidthInThreeColumns() {
+        // 393pt iPhone minus 16pt padding on each side.
+        let metrics = LibraryCardLayoutPolicy.gridMetrics(availableWidth: 361, usesLandscapeCards: false)
+
+        XCTAssertEqual(metrics.columnCount, 3)
+        XCTAssertEqual(metrics.cardWidth, 112)
+        XCTAssertLessThanOrEqual(metrics.contentWidth, 361)
+        XCTAssertLessThan(361 - metrics.contentWidth, CGFloat(metrics.columnCount))
+    }
+
+    func test_gridMetrics_narrowPhoneUsesWiderEvenlySpacedColumns() {
+        let metrics = LibraryCardLayoutPolicy.gridMetrics(availableWidth: 288, usesLandscapeCards: false)
+
+        XCTAssertEqual(metrics.columnCount, 2)
+        XCTAssertEqual(metrics.cardWidth, 138)
+        XCTAssertEqual(metrics.contentWidth, 288)
+    }
+
+    func test_gridMetrics_landscapeThumbnailsUseTwoColumnsOnPhone() {
+        let metrics = LibraryCardLayoutPolicy.gridMetrics(availableWidth: 361, usesLandscapeCards: true)
+
+        XCTAssertEqual(metrics.columnCount, 2)
+        XCTAssertEqual(metrics.cardWidth, 174)
+        XCTAssertLessThanOrEqual(metrics.contentWidth, 361)
+    }
+
+    func test_gridMetrics_iPadAddsColumnsInsteadOfOversizedCards() {
+        let posters = LibraryCardLayoutPolicy.gridMetrics(availableWidth: 788, usesLandscapeCards: false)
+        let thumbnails = LibraryCardLayoutPolicy.gridMetrics(availableWidth: 788, usesLandscapeCards: true)
+
+        XCTAssertEqual(posters.columnCount, 6)
+        XCTAssertEqual(thumbnails.columnCount, 4)
+        XCTAssertLessThanOrEqual(posters.contentWidth, 788)
+        XCTAssertLessThanOrEqual(thumbnails.contentWidth, 788)
+    }
+
+    func test_gridMetrics_capsCardWidthAndLeavesSlackForCentering() {
+        let metrics = LibraryCardLayoutPolicy.gridMetrics(availableWidth: 200, usesLandscapeCards: false)
+
+        XCTAssertEqual(metrics.columnCount, 1)
+        XCTAssertEqual(metrics.cardWidth, 180)
+        XCTAssertEqual(metrics.contentWidth, 180)
+    }
+
+    func test_gridMetrics_degenerateWidthsStaySafe() {
+        for width in [0, -10, CGFloat.nan, .infinity] {
+            let metrics = LibraryCardLayoutPolicy.gridMetrics(availableWidth: width, usesLandscapeCards: false)
+            XCTAssertEqual(metrics.columnCount, 1)
+            XCTAssertGreaterThanOrEqual(metrics.cardWidth, 1)
+        }
+    }
+
     private func assertDetailSurfaces(
         for library: Library,
         useLandscape: Bool,

@@ -102,3 +102,109 @@ final class HomeRecentlyAddedProjectionTests: XCTestCase {
         ))
     }
 }
+
+final class LibraryRecommendationFallbackPolicyTests: XCTestCase {
+    private let title = "Recently Added"
+
+    func test_currentHubsWithContentAreNeverReplacedByDiscoveryRow() {
+        let current = [
+            Hub(id: "hub.movie.recentlyreleased", title: "Recently Released", items: [item("a")]),
+            Hub(id: "hub.movie.genre", title: "Comedy", items: [item("b")]),
+        ]
+
+        let merged = LibraryRecommendationFallbackPolicy.mergingDiscoveryHub(
+            into: current,
+            candidates: [item("c"), item("d")],
+            title: title
+        )
+
+        XCTAssertEqual(merged.map(\.id), current.map(\.id))
+    }
+
+    func test_emptyHubsGainDiscoveryRow() {
+        let merged = LibraryRecommendationFallbackPolicy.mergingDiscoveryHub(
+            into: [],
+            candidates: [item("c"), item("d")],
+            title: title
+        )
+
+        XCTAssertEqual(merged.map(\.id), [LibraryRecommendationFallbackPolicy.discoveryHubID])
+        XCTAssertEqual(merged.first?.items.map(\.id), ["c", "d"])
+    }
+
+    func test_continueWatchingOnlyGainsDiscoveryRowWithoutDuplicates() {
+        let current = [Hub(id: "hub.movie.inprogress", title: "Continue Watching", items: [item("a")])]
+
+        let merged = LibraryRecommendationFallbackPolicy.mergingDiscoveryHub(
+            into: current,
+            candidates: [item("a"), item("b")],
+            title: title
+        )
+
+        XCTAssertEqual(merged.map(\.id), ["hub.movie.inprogress", LibraryRecommendationFallbackPolicy.discoveryHubID])
+        XCTAssertEqual(merged.last?.items.map(\.id), ["b"])
+    }
+
+    func test_noCandidatesLeavesHubsUnchanged() {
+        let merged = LibraryRecommendationFallbackPolicy.mergingDiscoveryHub(
+            into: [],
+            candidates: [],
+            title: title
+        )
+
+        XCTAssertTrue(merged.isEmpty)
+    }
+
+    /// Regression: the loader used to merge into a snapshot taken before its
+    /// catalog await. When a concurrent load filled the real hubs meanwhile,
+    /// the stale empty snapshot plus the discovery row replaced them.
+    func test_mergeAfterConcurrentLoadKeepsLoadedHubs() {
+        let staleSnapshot: [Hub] = []
+        XCTAssertTrue(LibraryRecommendationFallbackPolicy.needsDiscoveryHub(staleSnapshot))
+
+        let loadedMeanwhile = [Hub(id: "hub.movie.genre", title: "Comedy", items: [item("b")])]
+        let merged = LibraryRecommendationFallbackPolicy.mergingDiscoveryHub(
+            into: loadedMeanwhile,
+            candidates: [item("c")],
+            title: title
+        )
+
+        XCTAssertEqual(merged.map(\.id), ["hub.movie.genre"])
+    }
+
+    private func item(_ id: String) -> MediaDisplayItem {
+        .playable(MediaItem(
+            id: id,
+            guid: "plex://\(id)",
+            summary: nil,
+            title: id,
+            type: .movie,
+            parentRatingKey: nil,
+            grandparentRatingKey: nil,
+            genres: [],
+            year: nil,
+            duration: nil,
+            videoResolution: nil,
+            rating: nil,
+            ratings: [],
+            contentRating: "G",
+            studio: nil,
+            tagline: nil,
+            thumbPath: nil,
+            artPath: nil,
+            ultraBlurColors: nil,
+            viewOffset: nil,
+            viewCount: nil,
+            childCount: nil,
+            leafCount: nil,
+            viewedLeafCount: nil,
+            grandparentTitle: nil,
+            parentTitle: nil,
+            parentIndex: nil,
+            index: nil,
+            grandparentThumbPath: nil,
+            grandparentArtPath: nil,
+            parentThumbPath: nil
+        ))
+    }
+}

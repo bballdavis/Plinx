@@ -69,6 +69,11 @@
 "downloads.status.transcoding %lld" = "Transcoding %lld%%";
 "downloads.status.downloading %lld" = "Downloading %lld%%";
 "downloads.status.failed" = "Download failed";
+"downloads.failed.message" = "This download didn't finish. You can try it again or remove it.";
+"downloads.failed.redownload" = "Redownload";
+"downloads.failed.remove" = "Remove";
+"downloads.failed.redownloadError.title" = "Couldn't restart download";
+"downloads.failed.redownloadError.message" = "Check your connection to your Plex server and try again.";
 "downloads.blockedByContentControls" = "This item is blocked by the current content controls.";
 "downloads.ownerUnavailable" = "Select a Plex profile and server before downloading.";
 "downloads.offline.unavailable.title" = "Downloaded video unavailable";

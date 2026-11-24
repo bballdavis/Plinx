@@ -42,8 +42,13 @@ quality, source and estimated sizes, final size, savings, and any reason Plinx
 used Original instead.
 
 This flow requires Plex Media Server 1.41.9 or newer and a Plex account that is
-permitted to use server downloads/transcoding. A failed item remains visible in
-the parent-gated Manage Downloads screen so it can be removed and retried.
+permitted to use server downloads/transcoding. A failed item stays on the
+Downloads tab marked **Download failed**. Tap it to choose **Redownload**, which
+starts a fresh download and then removes the failed one, or **Remove**. A
+redownload rechecks the current content rules and needs a connection to the
+same server and profile. If it cannot start, the failed item stays so you can
+try again later. Failed items also appear in the parent-gated Manage Downloads
+screen.
 
 ## Download rules
 

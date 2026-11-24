@@ -43,6 +43,63 @@ final class PlayerTimelineTests: XCTestCase {
         XCTAssertEqual(geometry.handleCenter(position: 50), 160, accuracy: 0.001)
     }
 
+    func test_humpPeakIsTheMidpointAtThePlaybackPosition() {
+        let geometry = PlayerTimelineGeometry(width: 320, duration: 100, dotDiameter: 12)
+        let halfWidth = PlayerTimelineGeometry.humpHalfWidth(crownRadius: 22, shoulderRadius: 6)
+
+        for position in [0.0, 12.5, 50, 87.5, 100] {
+            let span = geometry.humpSpan(position: position, halfWidth: halfWidth)
+            let midpoint = (span.lowerBound + span.upperBound) / 2
+            XCTAssertEqual(midpoint, geometry.handleCenter(position: position), accuracy: 0.001, "\(position)")
+            XCTAssertEqual(span.upperBound - span.lowerBound, halfWidth * 2, accuracy: 0.001)
+        }
+    }
+
+    func test_humpHalfWidthMeetsShoulderTangentially() {
+        // A shoulder fillet of radius r touching a crown circle of radius R
+        // centered on the baseline sits sqrt(R^2 + 2Rr) from the peak.
+        XCTAssertEqual(
+            PlayerTimelineGeometry.humpHalfWidth(crownRadius: 22, shoulderRadius: 6),
+            sqrt(22 * 22 + 2 * 22 * 6),
+            accuracy: 0.001
+        )
+    }
+
+    func test_playedColorEndsAtHumpPeakNotItsTrailingEdge() {
+        let geometry = PlayerTimelineGeometry(width: 320, duration: 100, dotDiameter: 12)
+        let halfWidth = PlayerTimelineGeometry.humpHalfWidth(crownRadius: 22, shoulderRadius: 6)
+
+        for position in [0.0, 40, 100] {
+            let played = geometry.playedSpan(position: position, humpHalfWidth: halfWidth)
+            let hump = geometry.humpSpan(position: position, halfWidth: halfWidth)
+            let peak = (hump.lowerBound + hump.upperBound) / 2
+            XCTAssertEqual(played.upperBound, peak, accuracy: 0.001, "\(position)")
+            XCTAssertLessThan(played.upperBound, hump.upperBound)
+            XCTAssertLessThanOrEqual(played.lowerBound, hump.lowerBound)
+        }
+    }
+
+    func test_humpStaysFullyVisibleAtTrackEndpoints() {
+        let geometry = PlayerTimelineGeometry(width: 320, duration: 100, dotDiameter: 12)
+        let halfWidth = PlayerTimelineGeometry.humpHalfWidth(crownRadius: 22, shoulderRadius: 6)
+        let drawable = geometry.drawableSpan(humpHalfWidth: halfWidth)
+
+        for position in [0.0, 100] {
+            let hump = geometry.humpSpan(position: position, halfWidth: halfWidth)
+            XCTAssertGreaterThanOrEqual(hump.lowerBound, drawable.lowerBound - 0.001)
+            XCTAssertLessThanOrEqual(hump.upperBound, drawable.upperBound + 0.001)
+        }
+    }
+
+    func test_bufferedSpanUsesTrackProgressAndSanitizesInput() {
+        let geometry = PlayerTimelineGeometry(width: 320, duration: 100, dotDiameter: 12)
+        let halfWidth: CGFloat = 20
+
+        XCTAssertEqual(geometry.bufferedSpan(bufferedProgress: 0.5, humpHalfWidth: halfWidth).upperBound, 160, accuracy: 0.001)
+        XCTAssertEqual(geometry.bufferedSpan(bufferedProgress: 2, humpHalfWidth: halfWidth).upperBound, 320, accuracy: 0.001)
+        XCTAssertEqual(geometry.bufferedSpan(bufferedProgress: .nan, humpHalfWidth: halfWidth).upperBound, 0, accuracy: 0.001)
+    }
+
     func test_touchMappingClampsOvershootToVideoEndpoints() {
         let geometry = PlayerTimelineGeometry(width: 320, duration: 100, dotDiameter: 12)
 

@@ -20,7 +20,32 @@ enum PlinxPlayerControlLayout {
     struct ChromeInsets: Equatable {
         let horizontal: CGFloat
         let vertical: CGFloat
+        /// Clear space between the auxiliary row (rotation lock, badges, skip
+        /// button) and the top of the timeline hump at its highest point.
         let bottomSpacing: CGFloat
+
+        /// The stack spacing between the auxiliary row and the timeline. It
+        /// is negative: the row sits inside the empty touch headroom above the
+        /// hump so the lock button reads as attached to the timeline while the
+        /// timeline keeps its full touch target.
+        var auxiliaryRowSpacing: CGFloat {
+            bottomSpacing - TouchTimeline.humpPeakTop
+        }
+    }
+
+    /// Vertical geometry of the iOS touch timeline. The control keeps a 64pt
+    /// touch target, and its visible track sits near the bottom so it hugs the
+    /// elapsed and remaining time labels below it.
+    enum TouchTimeline {
+        static let controlHeight: CGFloat = 64
+        static let baseline: CGFloat = 52
+        static let humpRise: CGFloat = 22
+        static let trackThickness: CGFloat = 6
+
+        /// Distance from the control's top edge to the top of the hump stroke.
+        static var humpPeakTop: CGFloat {
+            baseline - humpRise - trackThickness / 2
+        }
     }
 
     /// The hidden Duo status sidebar can leave a large, one-sided lateral
@@ -40,7 +65,7 @@ enum PlinxPlayerControlLayout {
         ChromeInsets(
             horizontal: width >= 700 ? 28 : 16,
             vertical: height < 450 ? 8 : 16,
-            bottomSpacing: height < 450 ? 10 : 18
+            bottomSpacing: height < 450 ? 6 : 8
         )
     }
 

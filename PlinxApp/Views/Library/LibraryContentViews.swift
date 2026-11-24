@@ -1,6 +1,7 @@
 import PlinxCore
 import PlinxUI
 import SwiftUI
+import UIKit
 
 #if !os(tvOS)
 struct PlinxLibraryRecommendedContentView: View {
@@ -134,6 +135,24 @@ struct PlinxLibraryRecommendedContentView: View {
     }
 }
 
+private let libraryGridHorizontalPadding: CGFloat = 16
+
+/// The width left for grid columns inside the scroll view's horizontal padding.
+/// Before the first layout pass reports a width, fall back to the screen width
+/// so the first frame already uses the final column count.
+@MainActor
+private func libraryGridAvailableWidth(containerWidth: CGFloat) -> CGFloat {
+    let width = containerWidth > 0 ? containerWidth : UIScreen.main.bounds.width
+    return max(width - libraryGridHorizontalPadding * 2, 0)
+}
+
+private func libraryGridColumns(_ metrics: LibraryCardLayoutPolicy.GridMetrics) -> [GridItem] {
+    Array(
+        repeating: GridItem(.fixed(metrics.cardWidth), spacing: metrics.spacing, alignment: .top),
+        count: metrics.columnCount
+    )
+}
+
 struct PlinxLibraryBrowseContentView: View {
     @State var viewModel: LibraryBrowseViewModel
     let onSelectMedia: (MediaDisplayItem) -> Void
@@ -150,16 +169,21 @@ struct PlinxLibraryBrowseContentView: View {
         return false
     }
 
+    @State private var gridContainerWidth: CGFloat = 0
+
+    private var gridMetrics: LibraryCardLayoutPolicy.GridMetrics {
+        LibraryCardLayoutPolicy.gridMetrics(
+            availableWidth: libraryGridAvailableWidth(containerWidth: gridContainerWidth),
+            usesLandscapeCards: usesLandscapeCards
+        )
+    }
+
     private var cardWidth: CGFloat {
-        usesLandscapeCards ? 180 : 112
+        gridMetrics.cardWidth
     }
 
     private var cardHeight: CGFloat? {
         usesLandscapeCards ? cardWidth * 9 / 16 : nil
-    }
-
-    private var gridColumns: [GridItem] {
-        [GridItem(.adaptive(minimum: cardWidth, maximum: cardWidth), spacing: 12, alignment: .top)]
     }
 
     var body: some View {
@@ -177,7 +201,7 @@ struct PlinxLibraryBrowseContentView: View {
                     )
                 }
 
-                LazyVGrid(columns: gridColumns, spacing: 16) {
+                LazyVGrid(columns: libraryGridColumns(gridMetrics), spacing: 16) {
                     ForEach(Array(viewModel.browseItems.enumerated()), id: \.element.id) { index, item in
                         browseCard(item)
                             .task {
@@ -192,10 +216,13 @@ struct PlinxLibraryBrowseContentView: View {
                             .frame(maxWidth: .infinity)
                     }
                 }
+                .frame(width: gridMetrics.contentWidth)
+                .frame(maxWidth: .infinity, alignment: .center)
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, libraryGridHorizontalPadding)
             .padding(.top, 16)
         }
+        .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { gridContainerWidth = $0 }
         .overlay {
             if viewModel.isLoading, viewModel.browseItems.isEmpty {
                 PlinxLoadingStateView(
@@ -261,9 +288,13 @@ struct PlinxLibraryCollectionsContentView: View {
     let onLongPressMedia: (MediaDisplayItem) -> Void
     let topContent: AnyView
 
-    private let cardWidth: CGFloat = 112
-    private var gridColumns: [GridItem] {
-        [GridItem(.adaptive(minimum: cardWidth, maximum: cardWidth), spacing: 12, alignment: .top)]
+    @State private var gridContainerWidth: CGFloat = 0
+
+    private var gridMetrics: LibraryCardLayoutPolicy.GridMetrics {
+        LibraryCardLayoutPolicy.gridMetrics(
+            availableWidth: libraryGridAvailableWidth(containerWidth: gridContainerWidth),
+            usesLandscapeCards: false
+        )
     }
 
     var body: some View {
@@ -271,9 +302,9 @@ struct PlinxLibraryCollectionsContentView: View {
             VStack(alignment: .leading, spacing: 16) {
                 topContent
 
-                LazyVGrid(columns: gridColumns, spacing: 16) {
+                LazyVGrid(columns: libraryGridColumns(gridMetrics), spacing: 16) {
                     ForEach(viewModel.items) { media in
-                        PlinxLibraryPortraitMediaCard(media: media, width: cardWidth, showsLabels: true) {
+                        PlinxLibraryPortraitMediaCard(media: media, width: gridMetrics.cardWidth, showsLabels: true) {
                             onSelectMedia(media)
                         }
                         .plinxQuickActionLongPress { onLongPressMedia(media) }
@@ -289,10 +320,13 @@ struct PlinxLibraryCollectionsContentView: View {
                             .frame(maxWidth: .infinity)
                     }
                 }
+                .frame(width: gridMetrics.contentWidth)
+                .frame(maxWidth: .infinity, alignment: .center)
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, libraryGridHorizontalPadding)
             .padding(.top, 16)
         }
+        .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { gridContainerWidth = $0 }
         .overlay {
             if viewModel.isLoading, viewModel.items.isEmpty {
                 PlinxLoadingStateView(
