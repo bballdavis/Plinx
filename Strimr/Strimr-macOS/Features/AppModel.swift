@@ -1,0 +1,332 @@
+import AetherEngine
+import Observation
+import SwiftUI
+
+@MainActor
+@Observable
+final class AppModel: PlaybackPresenting {
+    static let playerWindowID = "player"
+
+    private struct MediaRouteEntry {
+        let media: MediaIdentity
+        let depth: Int
+    }
+
+    enum SidebarItem: Hashable, Identifiable {
+        case home
+        case discover
+        case search
+        case downloads
+        case libraries
+        case favorites
+        case liveTV
+        case library(LibraryIdentity)
+        case settings
+
+        var id: String {
+            switch self {
+            case .home: "home"
+            case .discover: "discover"
+            case .search: "search"
+            case .downloads: "downloads"
+            case .libraries: "libraries"
+            case .favorites: "favorites"
+            case .liveTV: "liveTV"
+            case let .library(identity): "library-\(identity.stableKey)"
+            case .settings: "settings"
+            }
+        }
+    }
+
+    /// Server-bound routes carry their server: the destination is shown with that server's services.
+    enum Route: Hashable {
+        case media(PlayableMediaItem)
+        case collection(CollectionMediaItem)
+        case playlist(PlaylistMediaItem)
+        case hub(Hub)
+        case person(Person, ServerIdentity)
+        case library(Library)
+        case seerr(SeerrMedia)
+        case seerrRequests
+
+        var server: ServerIdentity? {
+            switch self {
+            case let .media(media): media.identity.server
+            case let .collection(collection): collection.server
+            case let .playlist(playlist): playlist.server
+            case let .hub(hub): hub.server
+            case let .person(_, server): server
+            case let .library(library): library.server
+            case .seerr, .seerrRequests: nil
+            }
+        }
+    }
+
+    struct PlayerPresentation {
+        let id = UUID()
+        let shouldResumeFromOffset: Bool
+        let notice: String?
+        let localMedia: MediaItem?
+        let localPlaybackURL: URL?
+        let localExternalSubtitles: [ExternalSubtitleTrack]
+        let localOwner: MediaOwner?
+        let mediaQueue: PlaybackQueue?
+        let mediaServices: MediaServices?
+        let liveTVContext: LiveTVLaunchContext?
+
+        init(queue: PlaybackQueue, services: MediaServices, shouldResumeFromOffset: Bool, notice: String?) {
+            self.shouldResumeFromOffset = shouldResumeFromOffset
+            self.notice = notice
+            localMedia = nil
+            localPlaybackURL = nil
+            localExternalSubtitles = []
+            localOwner = nil
+            mediaQueue = queue
+            mediaServices = services
+            liveTVContext = nil
+        }
+
+        init(
+            localMedia: MediaItem,
+            localPlaybackURL: URL,
+            localExternalSubtitles: [ExternalSubtitleTrack],
+            localOwner: MediaOwner?,
+        ) {
+            shouldResumeFromOffset = true
+            notice = nil
+            self.localMedia = localMedia
+            self.localPlaybackURL = localPlaybackURL
+            self.localExternalSubtitles = localExternalSubtitles
+            self.localOwner = localOwner
+            mediaQueue = nil
+            mediaServices = nil
+            liveTVContext = nil
+        }
+
+        init(request: LocalPlaybackRequest) {
+            shouldResumeFromOffset = request.resumes
+            notice = nil
+            localMedia = request.media
+            localPlaybackURL = request.url
+            localExternalSubtitles = request.externalSubtitles
+            localOwner = request.owner
+            mediaQueue = nil
+            mediaServices = nil
+            liveTVContext = nil
+        }
+
+        init(liveTVContext: LiveTVLaunchContext, services: MediaServices) {
+            shouldResumeFromOffset = false
+            notice = nil
+            localMedia = nil
+            localPlaybackURL = nil
+            localExternalSubtitles = []
+            localOwner = nil
+            mediaQueue = nil
+            mediaServices = services
+            self.liveTVContext = liveTVContext
+        }
+    }
+
+    var selection: SidebarItem = .home {
+        didSet {
+            if selection != oldValue {
+                pendingStartupSelection = nil
+            }
+        }
+    }
+
+    var playerPresentation: PlayerPresentation? {
+        didSet {
+            if playerPresentation != nil {
+                pendingStartupSelection = nil
+            }
+        }
+    }
+
+    private var paths: [SidebarItem: NavigationPath] = [:] {
+        didSet {
+            if paths[.home]?.isEmpty == false {
+                pendingStartupSelection = nil
+            }
+        }
+    }
+
+    private var mediaRouteEntries: [SidebarItem: [MediaRouteEntry]] = [:]
+    @ObservationIgnored private let settingsManager: SettingsManager
+    /// Discover and Live TV only appear once Seerr and the servers have answered, so they are opened when they show
+    /// up, unless the user has picked another item meanwhile.
+    @ObservationIgnored private var pendingStartupSelection: SidebarItem?
+
+    init(settingsManager: SettingsManager) {
+        self.settingsManager = settingsManager
+        applyStartupScreen(settingsManager.interface)
+    }
+
+    private func applyStartupScreen(_ interface: InterfaceSettings) {
+        switch interface.startupScreen {
+        case .home:
+            break
+        case .search:
+            selection = .search
+        case .downloads:
+            selection = .downloads
+        case .libraries:
+            selection = .libraries
+        case .favorites:
+            selection = .favorites
+        case .discover:
+            if interface.displaySeerrDiscoverTab {
+                pendingStartupSelection = .discover
+            }
+        case .liveTV:
+            if interface.displayLiveTVTab {
+                pendingStartupSelection = .liveTV
+            }
+        }
+    }
+
+    func openPendingStartupSelection(_ candidate: SidebarItem) {
+        guard pendingStartupSelection == candidate else { return }
+        selection = candidate
+    }
+
+    var externalPlayer: ExternalPlayer? {
+        settingsManager.playback.resolvedExternalPlayer
+    }
+
+    func pathBinding(for item: SidebarItem) -> Binding<NavigationPath> {
+        Binding(
+            get: { self.paths[item] ?? NavigationPath() },
+            set: { newValue in
+                self.paths[item] = newValue
+                self.pruneMediaRouteEntries(for: item, maximumDepth: newValue.count)
+            },
+        )
+    }
+
+    func showMedia(_ media: MediaDisplayItem) {
+        switch media {
+        case let .playable(item):
+            guard let playable = PlayableMediaItem(mediaItem: item) else { return }
+            append(.media(playable))
+        case let .collection(collection):
+            append(.collection(collection))
+        case let .playlist(playlist):
+            append(.playlist(playlist))
+        }
+    }
+
+    func showMedia(_ media: MediaItem) {
+        guard let playable = PlayableMediaItem(mediaItem: media) else { return }
+        append(.media(playable))
+    }
+
+    func returnToSeries(_ series: PlayableMediaItem) {
+        guard let destinationDepth = mediaRouteEntries[selection]?
+            .last(where: { $0.media == series.identity })?
+            .depth
+        else {
+            append(.media(series))
+            return
+        }
+
+        var path = paths[selection] ?? NavigationPath()
+        let numberOfRoutes = path.count - destinationDepth
+        guard numberOfRoutes > 0 else { return }
+        path.removeLast(numberOfRoutes)
+        paths[selection] = path
+        pruneMediaRouteEntries(for: selection, maximumDepth: destinationDepth)
+    }
+
+    func showHub(_ hub: Hub) {
+        append(.hub(hub))
+    }
+
+    func showPerson(_ person: Person, server: ServerIdentity) {
+        append(.person(person, server))
+    }
+
+    func showLibrary(_ library: Library) {
+        append(.library(library))
+    }
+
+    func showSeerr(_ media: SeerrMedia) {
+        append(.seerr(media))
+    }
+
+    func showSeerrRequests() {
+        append(.seerrRequests)
+    }
+
+    func showDownloadedPlayer(
+        media: MediaItem,
+        url: URL,
+        externalSubtitles: [ExternalSubtitleTrack],
+        owner: MediaOwner?,
+    ) {
+        playerPresentation = PlayerPresentation(
+            localMedia: media,
+            localPlaybackURL: url,
+            localExternalSubtitles: externalSubtitles,
+            localOwner: owner,
+        )
+    }
+
+    func showLocalPlayer(_ request: LocalPlaybackRequest) {
+        playerPresentation = PlayerPresentation(request: request)
+    }
+
+    func showPlayer(
+        for queue: PlaybackQueue,
+        services: MediaServices,
+        shouldResumeFromOffset: Bool,
+        notice: String?,
+    ) {
+        playerPresentation = PlayerPresentation(
+            queue: queue,
+            services: services,
+            shouldResumeFromOffset: shouldResumeFromOffset,
+            notice: notice,
+        )
+    }
+
+    func openExternalPlayer(_ request: ExternalLaunchRequest) async -> Bool {
+        await ExternalPlayerApps.open(request)
+    }
+
+    func showLivePlayer(context: LiveTVLaunchContext, services: MediaServices) {
+        playerPresentation = PlayerPresentation(liveTVContext: context, services: services)
+    }
+
+    func resetLiveTVNavigation() {
+        paths[.liveTV] = NavigationPath()
+        if selection == .liveTV {
+            selection = .home
+        }
+    }
+
+    func resetPlayer(ifPresenting presentationID: UUID? = nil) {
+        if let presentationID, playerPresentation?.id != presentationID {
+            return
+        }
+        playerPresentation = nil
+    }
+
+    private func append(_ route: Route) {
+        var path = paths[selection] ?? NavigationPath()
+        path.append(route)
+        paths[selection] = path
+
+        if case let .media(media) = route {
+            pruneMediaRouteEntries(for: selection, maximumDepth: path.count - 1)
+            mediaRouteEntries[selection, default: []].append(
+                MediaRouteEntry(media: media.identity, depth: path.count),
+            )
+        }
+    }
+
+    private func pruneMediaRouteEntries(for item: SidebarItem, maximumDepth: Int) {
+        mediaRouteEntries[item]?.removeAll { $0.depth > maximumDepth }
+    }
+}

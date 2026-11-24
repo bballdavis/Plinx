@@ -1,0 +1,228 @@
+import SwiftUI
+
+enum PlayerMediaInfoLayout {
+    /// Artwork beside every detail; fits short, wide surfaces such as the tvOS info tab.
+    case wide
+    /// Artwork beside the headline, with the synopsis below; fits sheets and popovers.
+    case stacked
+}
+
+@MainActor
+struct PlayerMediaInfoView<Accessory: View>: View {
+    let media: MediaItem
+    let services: MediaServices?
+    var layout: PlayerMediaInfoLayout = .stacked
+    var summaryLineLimit: Int?
+    /// Actions such as restarting from the beginning: beside the details in the wide layout, below them otherwise.
+    @ViewBuilder var accessory: Accessory
+
+    @Environment(SettingsManager.self) private var settingsManager
+
+    private var isEpisode: Bool {
+        media.type == .episode
+    }
+
+    var body: some View {
+        switch layout {
+        case .wide:
+            HStack(spacing: artworkSpacing) {
+                HStack(alignment: .top, spacing: artworkSpacing) {
+                    artwork
+                    VStack(alignment: .leading, spacing: 14) {
+                        headline
+                        descriptiveDetails
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                accessory
+            }
+        case .stacked:
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(alignment: .top, spacing: artworkSpacing) {
+                    artwork
+                    headline
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                descriptiveDetails
+                accessory
+            }
+        }
+    }
+
+    private var headline: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if isEpisode, let seriesTitle = media.grandparentTitle {
+                Text(seriesTitle)
+                    .font(.facts.weight(.semibold))
+                    .foregroundStyle(.textSecondary)
+                    .lineLimit(1)
+            }
+
+            Text(media.title)
+                .font(.sectionTitle)
+                .lineLimit(2)
+
+            if let metadataText {
+                Text(metadataText)
+                    .font(.facts)
+                    .foregroundStyle(.textSecondary)
+            }
+
+            if !media.ratings.isEmpty {
+                HStack(spacing: 16) {
+                    ForEach(Array(media.ratings.enumerated()), id: \.offset) { _, rating in
+                        MediaRatingLabel(rating: rating, iconHeight: ratingIconHeight)
+                    }
+                }
+                .font(.facts)
+                .padding(.top, 2)
+            }
+        }
+    }
+
+    private var descriptiveDetails: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if !isEpisode, let tagline = media.tagline, !tagline.isEmpty {
+                Text(tagline)
+                    .font(.bodyText.italic())
+                    .foregroundStyle(.textSecondary)
+            }
+
+            if media.shouldHideSpoilerSummary(at: settingsManager.interface.spoilerProtection) {
+                Label("media.spoilerProtection.summaryHidden", systemImage: "eye.slash")
+                    .font(.bodyText)
+                    .foregroundStyle(.textSecondary)
+            } else if let summary = media.summary, !summary.isEmpty {
+                Text(summary)
+                    .font(.bodyText)
+                    .lineLimit(summaryLineLimit)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if !media.genres.isEmpty {
+                Text(media.genres.joined(separator: ", "))
+                    .font(.facts)
+                    .foregroundStyle(.textSecondary)
+                    .lineLimit(1)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var artwork: some View {
+        if let services {
+            MediaImageView(
+                viewModel: MediaImageViewModel(
+                    services: services,
+                    artworkKind: isEpisode ? .art : .thumb,
+                    media: .playable(media),
+                ),
+            )
+            .frame(width: artworkSize.width, height: artworkSize.height)
+            .mediaArtworkStyle(.compact)
+            .accessibilityHidden(true)
+        }
+    }
+
+    private var metadataText: String? {
+        media.playerMetadataText
+    }
+
+    private var artworkSize: CGSize {
+        let width: CGFloat = if isEpisode {
+            #if os(tvOS)
+                420
+            #elseif os(macOS)
+                180
+            #else
+                160
+            #endif
+        } else {
+            #if os(tvOS)
+                200
+            #elseif os(macOS)
+                100
+            #else
+                92
+            #endif
+        }
+        return CGSize(width: width, height: isEpisode ? width * 9 / 16 : width * 3 / 2)
+    }
+
+    private var artworkSpacing: CGFloat {
+        #if os(tvOS)
+            40
+        #else
+            16
+        #endif
+    }
+
+    private var ratingIconHeight: CGFloat {
+        #if os(tvOS)
+            24
+        #else
+            16
+        #endif
+    }
+}
+
+extension PlayerMediaInfoView where Accessory == EmptyView {
+    init(
+        media: MediaItem,
+        services: MediaServices?,
+        layout: PlayerMediaInfoLayout = .stacked,
+        summaryLineLimit: Int? = nil,
+    ) {
+        self.init(media: media, services: services, layout: layout, summaryLineLimit: summaryLineLimit) {
+            EmptyView()
+        }
+    }
+}
+
+/// Seeks back to the start without leaving the player, as the info tab of the tvOS system player does.
+struct PlayerRestartButton: View {
+    /// Close to the start, the timeline already gets there in one move.
+    static let minimumPosition: Double = 30
+
+    static func isAvailable(at position: Double) -> Bool {
+        position >= minimumPosition
+    }
+
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label("common.actions.playFromStart", systemImage: "arrow.counterclockwise")
+        }
+        .actionButtonStyle(.secondary)
+    }
+}
+
+extension MediaItem {
+    var playerMetadataText: String? {
+        var items: [String] = []
+
+        if let episodeLabel = tertiaryLabel {
+            items.append(episodeLabel)
+        }
+
+        if let releaseDate {
+            // Release dates are calendar days anchored to UTC midnight; formatting them in the local
+            // time zone would shift them to the previous day west of Greenwich.
+            let style = Date.FormatStyle(date: .long, time: .omitted, timeZone: .gmt)
+            items.append(String(localized: "player.info.releaseDate \(releaseDate.formatted(style))"))
+        } else if let year {
+            items.append(String(year))
+        }
+
+        if let duration, duration > 0 {
+            items.append(duration.mediaDurationText())
+        }
+
+        if let contentRating, !contentRating.isEmpty {
+            items.append(contentRating)
+        }
+
+        return items.isEmpty ? nil : items.joined(separator: " · ")
+    }
+}

@@ -1,0 +1,263 @@
+import SwiftUI
+
+@MainActor
+struct SettingsInterfaceView: View {
+    @Environment(SessionManager.self) private var sessionManager
+    let settingsManager: SettingsManager
+    let libraryStore: LibraryStore
+
+    var body: some View {
+        List {
+            Section {
+                NavigationLink("settings.interface.homeRows.title") {
+                    HomeRowsSettingsView(
+                        sessionManager: sessionManager,
+                        settingsManager: settingsManager,
+                    )
+                }
+                Picker(
+                    "settings.interface.continueWatchingAction",
+                    selection: Binding(
+                        get: { settingsManager.interface.continueWatchingAction },
+                        set: { settingsManager.setContinueWatchingAction($0) },
+                    ),
+                ) {
+                    ForEach(ContinueWatchingAction.allCases, id: \.self) { action in
+                        Text(action.title).tag(action)
+                    }
+                }
+                Toggle(
+                    "settings.interface.mergeNextUp",
+                    isOn: Binding(
+                        get: { settingsManager.interface.mergesNextUpIntoContinueWatching },
+                        set: { settingsManager.setMergesNextUpIntoContinueWatching($0) },
+                    ),
+                )
+            } header: {
+                Text("settings.interface.homeRows.section")
+            } footer: {
+                Text("settings.interface.mergeNextUp.footer")
+            }
+
+            Section {
+                Toggle(
+                    "settings.interface.displayCollections",
+                    isOn: Binding(
+                        get: { settingsManager.interface.displayCollections },
+                        set: { settingsManager.setDisplayCollections($0) },
+                    ),
+                )
+                Toggle(
+                    "settings.interface.displayPlaylists",
+                    isOn: Binding(
+                        get: { settingsManager.interface.displayPlaylists },
+                        set: { settingsManager.setDisplayPlaylists($0) },
+                    ),
+                )
+            }
+
+            Section {
+                Picker(
+                    "settings.interface.startupScreen",
+                    selection: Binding(
+                        get: { settingsManager.interface.startupScreen },
+                        set: { settingsManager.setStartupScreen($0) },
+                    ),
+                ) {
+                    ForEach(StartupScreen.selectableCases, id: \.self) { screen in
+                        Text(screen.title).tag(screen)
+                    }
+                }
+                #if os(iOS)
+                    Toggle(
+                        "settings.interface.displayFavoritesTab",
+                        isOn: Binding(
+                            get: { settingsManager.interface.displayFavoritesTab },
+                            set: { settingsManager.setDisplayFavoritesTab($0) },
+                        ),
+                    )
+                    Toggle(
+                        "settings.interface.displayDownloadsTab",
+                        isOn: Binding(
+                            get: { settingsManager.interface.displayDownloadsTab },
+                            set: { settingsManager.setDisplayDownloadsTab($0) },
+                        ),
+                    )
+                #endif
+                Toggle(
+                    "settings.interface.displayLiveTVTab",
+                    isOn: Binding(
+                        get: { settingsManager.interface.displayLiveTVTab },
+                        set: { settingsManager.setDisplayLiveTVTab($0) },
+                    ),
+                )
+                if settingsManager.interface.displayLiveTVTab {
+                    Toggle(
+                        "settings.interface.liveTVGuideCategoryTint",
+                        isOn: Binding(
+                            get: { settingsManager.interface.tintsLiveTVGuideCategories },
+                            set: { settingsManager.setTintsLiveTVGuideCategories($0) },
+                        ),
+                    )
+                }
+            } header: {
+                Text("settings.interface.tabs.section")
+            }
+
+            Section {
+                Picker(
+                    "settings.interface.spoilerProtection.title",
+                    selection: Binding(
+                        get: { settingsManager.interface.spoilerProtection },
+                        set: { settingsManager.setSpoilerProtection($0) },
+                    ),
+                ) {
+                    ForEach(SpoilerProtectionLevel.allCases, id: \.self) { level in
+                        Text(level.title).tag(level)
+                    }
+                }
+            } footer: {
+                Text("settings.interface.spoilerProtection.description")
+            }
+
+            Section {
+                Picker(
+                    "settings.interface.seriesArtwork.landscape",
+                    selection: Binding(
+                        get: { settingsManager.interface.landscapeEpisodeArtwork },
+                        set: { settingsManager.setLandscapeEpisodeArtwork($0) },
+                    ),
+                ) {
+                    ForEach(LandscapeEpisodeArtwork.allCases, id: \.self) { artwork in
+                        Text(artwork.title).tag(artwork)
+                    }
+                }
+                Picker(
+                    "settings.interface.seriesArtwork.portrait",
+                    selection: Binding(
+                        get: { settingsManager.interface.portraitEpisodeArtwork },
+                        set: { settingsManager.setPortraitEpisodeArtwork($0) },
+                    ),
+                ) {
+                    ForEach(PortraitEpisodeArtwork.allCases, id: \.self) { artwork in
+                        Text(artwork.title).tag(artwork)
+                    }
+                }
+            } header: {
+                Text("settings.interface.seriesArtwork.title")
+            } footer: {
+                Text("settings.interface.seriesArtwork.description")
+            }
+
+            Section {
+                Toggle(
+                    "settings.interface.groupSearchResults",
+                    isOn: Binding(
+                        get: { settingsManager.interface.groupsSearchResults },
+                        set: { settingsManager.setGroupsSearchResults($0) },
+                    ),
+                )
+            } footer: {
+                Text("settings.interface.groupSearchResults.footer")
+            }
+
+            Section {
+                Toggle(
+                    "settings.interface.titleLogo",
+                    isOn: Binding(
+                        get: { settingsManager.interface.showsTitleLogo },
+                        set: { settingsManager.setShowsTitleLogo($0) },
+                    ),
+                )
+            } footer: {
+                Text("settings.interface.titleLogo.footer")
+            }
+
+            Section {
+                Toggle(
+                    "settings.interface.cardLabels",
+                    isOn: Binding(
+                        get: { settingsManager.interface.showsCardLabels },
+                        set: { settingsManager.setShowsCardLabels($0) },
+                    ),
+                )
+            } footer: {
+                Text("settings.interface.cardLabels.footer")
+            }
+
+            Section {
+                Toggle(
+                    "settings.interface.watchStatusBadges",
+                    isOn: Binding(
+                        get: { settingsManager.interface.showsWatchStatusBadges },
+                        set: { settingsManager.setShowsWatchStatusBadges($0) },
+                    ),
+                )
+            } footer: {
+                Text("settings.interface.watchStatusBadges.footer")
+            }
+
+            Section {
+                Picker(
+                    "settings.interface.posterSize",
+                    selection: Binding(
+                        get: { settingsManager.interface.posterSize },
+                        set: { settingsManager.setPosterSize($0) },
+                    ),
+                ) {
+                    ForEach(PosterSize.allCases, id: \.self) { option in
+                        Text(option.title).tag(option)
+                    }
+                }
+            } footer: {
+                Text("settings.interface.posterSize.footer")
+            }
+
+            Section {
+                Picker(
+                    "settings.interface.themeMusic",
+                    selection: Binding(
+                        get: { settingsManager.interface.themeMusicVolume },
+                        set: { settingsManager.setThemeMusicVolume($0) },
+                    ),
+                ) {
+                    ForEach(ThemeMusicVolume.allCases, id: \.self) { option in
+                        Text(option.title).tag(option)
+                    }
+                }
+            } footer: {
+                Text("settings.interface.themeMusic.footer")
+            }
+
+            Section {
+                NavigationLink("settings.interface.manageLibraries") {
+                    LibrariesSettingsView(
+                        settingsManager: settingsManager,
+                        libraryStore: libraryStore,
+                    )
+                }
+                Picker(
+                    "settings.interface.libraries.defaultLayout",
+                    selection: Binding(
+                        get: { settingsManager.interface.libraryDefaultLayout },
+                        set: { settingsManager.setLibraryDefaultLayout($0) },
+                    ),
+                ) {
+                    ForEach(LibraryDefaultLayout.allCases, id: \.self) { option in
+                        Text(option.title).tag(option)
+                    }
+                }
+                Button("settings.interface.libraries.resetLayouts \(settingsManager.customLibraryLayoutCount)") {
+                    settingsManager.resetLibraryLayouts()
+                }
+                .disabled(settingsManager.customLibraryLayoutCount == 0)
+            } header: {
+                Text("settings.interface.libraries.section")
+            } footer: {
+                Text("settings.interface.libraries.footer")
+            }
+        }
+        .insetListStyle()
+        .navigationTitle("settings.interface.title")
+    }
+}

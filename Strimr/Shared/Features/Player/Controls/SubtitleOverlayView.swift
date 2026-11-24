@@ -1,0 +1,699 @@
+import AetherEngine
+import Combine
+import SwiftAssRenderer
+import SwiftUI
+
+#if canImport(UIKit)
+    import UIKit
+#elseif canImport(AppKit)
+    import AppKit
+#endif
+
+struct SubtitleOverlayView: View {
+    let cues: [SubtitleCue]
+    let currentTime: Double
+    let maxCueDuration: Double
+    let appearance: SubtitleAppearance
+    /// Height the visible player controls take at the bottom, 0 when they are hidden.
+    let controlsInset: CGFloat
+    var minimumBottomInset: CGFloat = 0
+    let videoSize: CGSize?
+    let assRenderer: AssSubtitlesRenderer?
+    let activeSubtitleCodec: String?
+    var videoZoomScale = 1.0
+    /// Shown while no cue is on screen, so the appearance settings can be judged between two lines of dialogue.
+    var samplePreviewText: String?
+    /// Width a panel covers on the trailing side, which text subtitles stay clear of.
+    var textTrailingInset: CGFloat = 0
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        if let assRenderer {
+            GeometryReader { geometry in
+                // libass lays the picture out from these margins, so dialogue stays on screen when a zoom
+                // crops the picture while signs keep following it.
+                let margins = SubtitleGeometry.frameMargins(
+                    picture: videoRect(in: geometry.size),
+                    in: geometry.size,
+                )
+                // A track switch swaps renderers within one update, so the host view must be rebuilt
+                // rather than kept subscribed to the freed one.
+                ASSRenderedSubtitles(
+                    renderer: assRenderer,
+                    margins: margins,
+                    useMargins: SubtitleGeometry.cropsPicture(margins),
+                )
+                .id(ObjectIdentifier(assRenderer))
+            }
+            .clipped()
+            .allowsHitTesting(false)
+        } else {
+            cueOverlay
+        }
+    }
+
+    private var cueOverlay: some View {
+        ZStack {
+            GeometryReader { geometry in
+                Color.clear
+                    .overlay(alignment: .topLeading) {
+                        let images = activeImages
+                        let bounds = CGRect(origin: .zero, size: geometry.size)
+                        let frames = SubtitleGeometry.keptVisible(
+                            placedImageFrames(
+                                images.map { imageFrame($0.image, in: geometry.size) },
+                                in: bounds,
+                            ),
+                            in: bounds,
+                        )
+                        ForEach(Array(zip(images, frames)), id: \.0.id) { item, frame in
+                            imageView(item.image, frame: frame)
+                        }
+                    }
+            }
+            .clipped()
+            .ignoresSafeArea()
+
+            GeometryReader { geometry in
+                let bottomInset = SubtitleGeometry.textBottomInset(
+                    margin: appearance.bottomMargin,
+                    screenHeight: geometry.size.height,
+                    controlsInset: controlsInset,
+                    minimumInset: minimumBottomInset,
+                )
+                Color.clear
+                    .overlay(alignment: appearance.verticalPosition.alignment) {
+                        let lines = displayedTextLines
+                        if !lines.isEmpty {
+                            VStack(spacing: 8) {
+                                ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                                    SubtitleTextView(text: line, appearance: appearance)
+                                }
+                            }
+                            .frame(maxWidth: max(0, geometry.size.width - textTrailingInset - 48))
+                            .padding(.trailing, textTrailingInset)
+                            .padding(.top, appearance.verticalPosition == .top ? 48 : 0)
+                            .padding(.bottom, appearance.verticalPosition == .bottom ? bottomInset : 0)
+                            .animation(Motion.animation(Motion.panel, reduceMotion: reduceMotion), value: bottomInset)
+                        }
+                    }
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    private var displayedTextLines: [AttributedString] {
+        let lines = activeTextLines
+        guard lines.isEmpty, activeImages.isEmpty, let samplePreviewText else { return lines }
+        return [AttributedString(samplePreviewText)]
+    }
+
+    private var activeTextLines: [AttributedString] {
+        activeCues.compactMap { cue in
+            switch cue.body {
+            case let .text(text):
+                let displayText = isASSTrackActive ? strippedASSText(text) : text
+                let cleaned = displayText.trimmingCharacters(in: .whitespacesAndNewlines)
+                return cleaned.isEmpty ? nil : AttributedString(cleaned)
+            case let .richText(runs):
+                let text = attributedText(runs)
+                let isBlank = String(text.characters).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                return isBlank ? nil : text
+            case .image:
+                return nil
+            }
+        }
+    }
+
+    private func attributedText(_ runs: [SubtitleTextRun]) -> AttributedString {
+        var result = AttributedString()
+        for run in runs {
+            var part = AttributedString(run.text)
+            var intent: InlinePresentationIntent = []
+            if run.isBold {
+                intent.insert(.stronglyEmphasized)
+            }
+            if run.isItalic {
+                intent.insert(.emphasized)
+            }
+            if !intent.isEmpty {
+                part.inlinePresentationIntent = intent
+            }
+            if run.isUnderlined {
+                part.swiftUI.underlineStyle = .single
+            }
+            if run.isStruckThrough {
+                part.swiftUI.strikethroughStyle = .single
+            }
+            result += part
+        }
+        return result
+    }
+
+    private var activeImages: [(id: SubtitleCue.ID, image: SubtitleImage)] {
+        activeCues.compactMap { cue in
+            if case let .image(image) = cue.body {
+                return (cue.id, image)
+            }
+            return nil
+        }
+    }
+
+    private var isASSTrackActive: Bool {
+        activeSubtitleCodec == "ass" || activeSubtitleCodec == "ssa"
+    }
+
+    private func strippedASSText(_ rawText: String) -> String {
+        var lines: [String] = []
+        for line in rawText.split(separator: "\n") {
+            let fields = line.split(separator: ",", maxSplits: 8, omittingEmptySubsequences: false)
+            guard fields.count == 9, Int(fields[0]) != nil else {
+                lines.append(String(line))
+                continue
+            }
+
+            var text = String(fields[8])
+            text = text.replacingOccurrences(of: "\\N", with: "\n")
+            text = text.replacingOccurrences(of: "\\n", with: "\n")
+            text = text.replacingOccurrences(of: "\\h", with: " ")
+            text = text.replacingOccurrences(of: "\\{[^}]*\\}", with: "", options: .regularExpression)
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                lines.append(trimmed)
+            }
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    private var activeCues: [SubtitleCue] {
+        guard !cues.isEmpty else { return [] }
+
+        var low = 0
+        var high = cues.count
+        while low < high {
+            let mid = (low + high) / 2
+            if cues[mid].startTime > currentTime {
+                high = mid
+            } else {
+                low = mid + 1
+            }
+        }
+
+        var result: [SubtitleCue] = []
+        var index = low - 1
+        while index >= 0, cues[index].startTime >= currentTime - maxCueDuration {
+            if cues[index].endTime >= currentTime {
+                result.append(cues[index])
+            }
+            index -= 1
+        }
+        return result.reversed()
+    }
+
+    private func imageView(_ image: SubtitleImage, frame: CGRect) -> some View {
+        Image(decorative: image.cgImage, scale: 1, orientation: .up)
+            .resizable()
+            .interpolation(.high)
+            .frame(
+                width: frame.width,
+                height: frame.height,
+            )
+            .colorMultiply(appearance.brightness.multiplier)
+            .offset(
+                x: frame.minX,
+                y: frame.minY,
+            )
+    }
+
+    private func placedImageFrames(_ frames: [CGRect], in bounds: CGRect) -> [CGRect] {
+        guard appearance.verticalPosition == .bottom,
+              let bottomInset = SubtitleGeometry.chosenBottomInset(
+                  margin: appearance.bottomMargin,
+                  screenHeight: bounds.height,
+                  controlsInset: controlsInset,
+                  minimumInset: minimumBottomInset,
+              )
+        else { return frames }
+        return SubtitleGeometry.placingLowerFrames(frames, bottomInset: bottomInset, in: bounds)
+    }
+
+    private func videoRect(in overlaySize: CGSize) -> CGRect {
+        zoomedRect(aspectFitRect(for: videoSize, in: overlaySize), in: overlaySize)
+    }
+
+    private func aspectFitRect(for contentSize: CGSize?, in overlaySize: CGSize) -> CGRect {
+        guard let contentSize,
+              contentSize.width > 0,
+              contentSize.height > 0,
+              overlaySize.width > 0,
+              overlaySize.height > 0
+        else {
+            return CGRect(origin: .zero, size: overlaySize)
+        }
+
+        let scale = min(
+            overlaySize.width / contentSize.width,
+            overlaySize.height / contentSize.height,
+        )
+        let fittedSize = CGSize(
+            width: contentSize.width * scale,
+            height: contentSize.height * scale,
+        )
+        return CGRect(
+            x: (overlaySize.width - fittedSize.width) / 2,
+            y: (overlaySize.height - fittedSize.height) / 2,
+            width: fittedSize.width,
+            height: fittedSize.height,
+        )
+    }
+
+    private func zoomedRect(_ rect: CGRect, in overlaySize: CGSize) -> CGRect {
+        SubtitleGeometry.zoomed(rect, by: videoZoomScale, in: overlaySize)
+    }
+
+    private func imageFrame(_ image: SubtitleImage, in overlaySize: CGSize) -> CGRect {
+        let canvasSize = image.canvasSize.width > 0 && image.canvasSize.height > 0
+            ? image.canvasSize
+            : videoSize
+        // Keep differently shaped canvases fitted so lower-bar cues stay visible.
+        var canvasRect = aspectFitRect(for: canvasSize, in: overlaySize)
+        if let canvasSize, let videoSize,
+           canvasSize.width > 0, canvasSize.height > 0,
+           videoSize.width > 0, videoSize.height > 0
+        {
+            let canvasAspectRatio = canvasSize.width / canvasSize.height
+            let videoAspectRatio = videoSize.width / videoSize.height
+            // Allow small differences from rounded video dimensions.
+            if abs(canvasAspectRatio / videoAspectRatio - 1) < 0.01 {
+                canvasRect = zoomedRect(canvasRect, in: overlaySize)
+            }
+        }
+
+        return CGRect(
+            x: canvasRect.minX + image.position.minX * canvasRect.width,
+            y: canvasRect.minY + image.position.minY * canvasRect.height,
+            width: image.position.width * canvasRect.width,
+            height: image.position.height * canvasRect.height,
+        )
+    }
+}
+
+private struct ASSRenderedSubtitles: PlatformViewRepresentable {
+    let renderer: AssSubtitlesRenderer
+    let margins: FrameMargins
+    let useMargins: Bool
+
+    #if canImport(UIKit)
+        func makeUIView(context _: Context) -> ASSFrameHostView {
+            renderer.setFrameMargins(margins, useMargins: useMargins)
+            return ASSFrameHostView(renderer: renderer)
+        }
+
+        func updateUIView(_: ASSFrameHostView, context _: Context) {
+            renderer.setFrameMargins(margins, useMargins: useMargins)
+        }
+    #elseif canImport(AppKit)
+        func makeNSView(context _: Context) -> ASSFrameHostView {
+            renderer.setFrameMargins(margins, useMargins: useMargins)
+            return ASSFrameHostView(renderer: renderer)
+        }
+
+        func updateNSView(_: ASSFrameHostView, context _: Context) {
+            renderer.setFrameMargins(margins, useMargins: useMargins)
+        }
+    #endif
+}
+
+private final class ASSFrameHostView: PlatformView {
+    private let renderer: AssSubtitlesRenderer
+    private let imageView = PlatformImageView()
+    private var lastRenderBounds = CGRect.zero
+    private var cancellables: Set<AnyCancellable> = []
+
+    init(renderer: AssSubtitlesRenderer) {
+        self.renderer = renderer
+        super.init(frame: .zero)
+
+        #if canImport(UIKit)
+            backgroundColor = .clear
+            isUserInteractionEnabled = false
+        #elseif canImport(AppKit)
+            wantsLayer = true
+            layer?.backgroundColor = NSColor.clear.cgColor
+        #endif
+
+        addSubview(imageView)
+        renderer.framesPublisher()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] image in
+                self?.handleFrameChanged(image)
+            }
+            .store(in: &cancellables)
+    }
+
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    #if canImport(UIKit)
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            layoutRenderer()
+        }
+    #elseif canImport(AppKit)
+        override func layout() {
+            super.layout()
+            layoutRenderer()
+        }
+
+        override func hitTest(_: NSPoint) -> NSView? {
+            nil
+        }
+    #endif
+
+    private func layoutRenderer() {
+        guard !bounds.isEmpty else { return }
+
+        if !lastRenderBounds.isEmpty, imageView.image != nil, lastRenderBounds != bounds {
+            let ratioX = bounds.width / lastRenderBounds.width
+            let ratioY = bounds.height / lastRenderBounds.height
+            let frame = imageView.frame
+            imageView.frame = CGRect(
+                x: frame.origin.x * ratioX,
+                y: frame.origin.y * ratioY,
+                width: frame.width * ratioX,
+                height: frame.height * ratioY,
+            ).integral
+        }
+        renderer.setCanvasSize(bounds.size, scale: displayScale)
+    }
+
+    private var displayScale: CGFloat {
+        #if canImport(UIKit)
+            traitCollection.displayScale
+        #elseif canImport(AppKit)
+            window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
+        #endif
+    }
+
+    private func handleFrameChanged(_ image: ProcessedImage?) {
+        guard let image else {
+            imageView.isHidden = true
+            imageView.image = nil
+            return
+        }
+        lastRenderBounds = bounds
+        imageView.frame = imageFrame(image.imageRect)
+        #if canImport(UIKit)
+            imageView.image = PlatformImage(cgImage: image.image)
+        #elseif canImport(AppKit)
+            imageView.image = PlatformImage(cgImage: image.image, size: image.imageRect.size)
+        #endif
+        imageView.isHidden = false
+    }
+
+    private func imageFrame(_ rect: CGRect) -> CGRect {
+        #if canImport(UIKit)
+            rect
+        #elseif canImport(AppKit)
+            CGRect(
+                x: rect.minX,
+                y: bounds.height - rect.maxY,
+                width: rect.width,
+                height: rect.height,
+            )
+        #endif
+    }
+}
+
+struct SubtitleTextView: View {
+    let text: AttributedString
+    let appearance: SubtitleAppearance
+
+    init(text: AttributedString, appearance: SubtitleAppearance) {
+        self.text = text
+        self.appearance = appearance
+    }
+
+    init(text: String, appearance: SubtitleAppearance) {
+        self.init(text: AttributedString(text), appearance: appearance)
+    }
+
+    var body: some View {
+        edgedText
+            .colorMultiply(appearance.brightness.multiplier)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 5)
+            .background(
+                .black.opacity(appearance.backgroundStrength.opacity),
+                in: RoundedRectangle(cornerRadius: 6),
+            )
+    }
+
+    @ViewBuilder
+    private var edgedText: some View {
+        switch appearance.edgeStyle {
+        case .shadow:
+            styledText(color: appearance.textColor.swiftUIColor)
+                .shadow(color: .black.opacity(0.9), radius: 3, x: 0, y: 1)
+        case .outline:
+            ZStack {
+                ForEach(Array(outlineOffsets.enumerated()), id: \.offset) { _, offset in
+                    styledText(color: .black)
+                        .offset(x: offset.width, y: offset.height)
+                        .accessibilityHidden(true)
+                }
+
+                styledText(color: appearance.textColor.swiftUIColor)
+            }
+        case .none:
+            styledText(color: appearance.textColor.swiftUIColor)
+        }
+    }
+
+    private func styledText(color: Color) -> some View {
+        Text(text)
+            .font(
+                .system(
+                    size: CGFloat(appearance.fontSize),
+                    weight: appearance.fontWeight.swiftUIWeight,
+                ),
+            )
+            .foregroundStyle(color)
+            .multilineTextAlignment(.center)
+    }
+
+    private var outlineOffsets: [CGSize] {
+        let width: CGFloat = 1.5
+        return [
+            CGSize(width: -width, height: -width),
+            CGSize(width: 0, height: -width),
+            CGSize(width: width, height: -width),
+            CGSize(width: -width, height: 0),
+            CGSize(width: width, height: 0),
+            CGSize(width: -width, height: width),
+            CGSize(width: 0, height: width),
+            CGSize(width: width, height: width),
+        ]
+    }
+}
+
+struct SubtitleAppearancePreview: View {
+    let appearance: SubtitleAppearance
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [.indigo.opacity(0.8), .black],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing,
+            )
+
+            GeometryReader { geometry in
+                SubtitleTextView(
+                    text: String(localized: "settings.playback.subtitles.preview.sample"),
+                    appearance: appearance,
+                )
+                .frame(
+                    maxWidth: .infinity,
+                    maxHeight: .infinity,
+                    alignment: appearance.verticalPosition.alignment,
+                )
+                .padding([.horizontal, .top], 20)
+                .padding(.bottom, bottomPadding(height: geometry.size.height))
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .accessibilityLabel("settings.playback.subtitles.preview.title")
+    }
+
+    private func bottomPadding(height: CGFloat) -> CGFloat {
+        guard appearance.verticalPosition == .bottom, let percent = appearance.bottomMargin.percent else { return 20 }
+        return height * CGFloat(percent) / 100
+    }
+}
+
+extension SubtitleTextColor {
+    var localizedName: LocalizedStringKey {
+        switch self {
+        case .white:
+            "settings.playback.subtitles.color.white"
+        case .lightGray:
+            "settings.playback.subtitles.color.lightGray"
+        case .cream:
+            "settings.playback.subtitles.color.cream"
+        case .yellow:
+            "settings.playback.subtitles.color.yellow"
+        case .cyan:
+            "settings.playback.subtitles.color.cyan"
+        case .green:
+            "settings.playback.subtitles.color.green"
+        }
+    }
+
+    var swiftUIColor: Color {
+        switch self {
+        case .white:
+            .white
+        case .lightGray:
+            Color(red: 200 / 255, green: 200 / 255, blue: 200 / 255)
+        case .cream:
+            Color(red: 240 / 255, green: 230 / 255, blue: 200 / 255)
+        case .yellow:
+            .yellow
+        case .cyan:
+            .cyan
+        case .green:
+            Color(red: 155 / 255, green: 227 / 255, blue: 155 / 255)
+        }
+    }
+}
+
+extension SubtitleBrightness {
+    var localizedName: LocalizedStringKey {
+        "settings.playback.subtitles.brightness.percent \(Int((factor * 100).rounded()))"
+    }
+
+    var factor: Double {
+        switch self {
+        case .full:
+            1
+        case .high:
+            0.85
+        case .medium:
+            0.7
+        case .low:
+            0.55
+        }
+    }
+
+    /// Scales RGB rather than alpha, so dimmed text stays opaque over the video and its edge.
+    var multiplier: Color {
+        Color(white: factor)
+    }
+}
+
+extension SubtitleFontWeight {
+    var localizedName: LocalizedStringKey {
+        switch self {
+        case .regular:
+            "settings.playback.subtitles.weight.regular"
+        case .medium:
+            "settings.playback.subtitles.weight.medium"
+        case .semibold:
+            "settings.playback.subtitles.weight.semibold"
+        case .bold:
+            "settings.playback.subtitles.weight.bold"
+        }
+    }
+
+    var swiftUIWeight: Font.Weight {
+        switch self {
+        case .regular:
+            .regular
+        case .medium:
+            .medium
+        case .semibold:
+            .semibold
+        case .bold:
+            .bold
+        }
+    }
+}
+
+extension SubtitleBackgroundStrength {
+    var localizedName: LocalizedStringKey {
+        switch self {
+        case .none:
+            "settings.playback.subtitles.background.none"
+        case .subtle:
+            "settings.playback.subtitles.background.subtle"
+        case .standard:
+            "settings.playback.subtitles.background.standard"
+        case .strong:
+            "settings.playback.subtitles.background.strong"
+        }
+    }
+
+    var opacity: Double {
+        switch self {
+        case .none:
+            0
+        case .subtle:
+            0.2
+        case .standard:
+            0.35
+        case .strong:
+            0.65
+        }
+    }
+}
+
+extension SubtitleEdgeStyle {
+    var localizedName: LocalizedStringKey {
+        switch self {
+        case .shadow:
+            "settings.playback.subtitles.edge.shadow"
+        case .outline:
+            "settings.playback.subtitles.edge.outline"
+        case .none:
+            "settings.playback.subtitles.edge.none"
+        }
+    }
+}
+
+extension SubtitleBottomMargin {
+    var localizedName: LocalizedStringKey {
+        if let percent {
+            "settings.playback.subtitles.bottomMargin.percent \(percent)"
+        } else {
+            "settings.playback.subtitles.bottomMargin.automatic"
+        }
+    }
+}
+
+extension SubtitleVerticalPosition {
+    var localizedName: LocalizedStringKey {
+        switch self {
+        case .bottom:
+            "settings.playback.subtitles.position.bottom"
+        case .middle:
+            "settings.playback.subtitles.position.middle"
+        case .top:
+            "settings.playback.subtitles.position.top"
+        }
+    }
+
+    var alignment: Alignment {
+        switch self {
+        case .bottom:
+            .bottom
+        case .middle:
+            .center
+        case .top:
+            .top
+        }
+    }
+}

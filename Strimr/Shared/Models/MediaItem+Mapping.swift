@@ -1,0 +1,97 @@
+import Foundation
+
+extension MediaItem {
+    init(plexItem: PlexItem, server: ServerIdentity? = nil) {
+        let type: MediaKind = if plexItem.type == .clip || plexItem.subtype == .clip {
+            .clip
+        } else {
+            plexItem.type.mediaKind
+        }
+        let isPlayed = switch type {
+        case .movie, .episode, .clip:
+            (plexItem.viewCount ?? 0) > 0
+        case .series, .season:
+            if let leafCount = plexItem.leafCount,
+               let viewedLeafCount = plexItem.viewedLeafCount,
+               leafCount > 0
+            {
+                leafCount == viewedLeafCount
+            } else {
+                false
+            }
+        case .collection, .playlist, .folder, .unknown:
+            false
+        }
+        let unplayedItemCount: Int? = if let leafCount = plexItem.leafCount,
+                                         let viewedLeafCount = plexItem.viewedLeafCount
+        {
+            max(0, leafCount - viewedLeafCount)
+        } else {
+            nil
+        }
+
+        self.init(
+            id: plexItem.ratingKey,
+            identity: MediaIdentity(
+                server: server ?? ServerIdentity(provider: .plex, id: "plex"),
+                itemID: plexItem.ratingKey,
+            ),
+            guid: plexItem.guid,
+            summary: plexItem.summary,
+            title: plexItem.title,
+            editionTitle: plexItem.editionTitle,
+            type: type,
+            parentRatingKey: plexItem.parentRatingKey,
+            grandparentRatingKey: plexItem.grandparentRatingKey,
+            genres: plexItem.genres?.map(\.tag) ?? [],
+            year: plexItem.year,
+            releaseDate: plexItem.originallyAvailableAt.flatMap(PlexDate.date(from:)),
+            duration: plexItem.duration.map { TimeInterval($0) / 1000 },
+            videoResolution: plexItem.media?.first?.videoResolution,
+            rating: plexItem.rating ?? plexItem.audienceRating,
+            ratings: plexItem.ratings?.compactMap {
+                MediaRating(imageIdentifier: $0.image, value: $0.value)
+            } ?? [],
+            contentRating: plexItem.contentRating,
+            studio: plexItem.studio,
+            tagline: plexItem.tagline,
+            thumbPath: plexItem.thumb,
+            artPath: plexItem.art ?? plexItem.thumb,
+            artworkCornerColors: plexItem.ultraBlurColors,
+            viewOffset: plexItem.viewOffset.map { TimeInterval($0) / 1000 },
+            viewCount: plexItem.viewCount,
+            childCount: plexItem.childCount,
+            leafCount: plexItem.leafCount,
+            viewedLeafCount: plexItem.viewedLeafCount,
+            watchState: MediaWatchState(
+                isPlayed: isPlayed,
+                playCount: plexItem.viewCount ?? 0,
+                resumePosition: plexItem.viewOffset.map { TimeInterval($0) / 1000 },
+                unplayedItemCount: unplayedItemCount,
+                isFavorite: false,
+            ),
+            grandparentTitle: plexItem.grandparentTitle,
+            parentTitle: plexItem.parentTitle,
+            parentIndex: plexItem.parentIndex,
+            index: plexItem.index,
+            grandparentThumbPath: plexItem.grandparentThumb,
+            grandparentArtPath: plexItem.grandparentArt,
+            parentThumbPath: plexItem.parentThumb,
+            librarySectionID: plexItem.librarySectionID.map(String.init),
+            librarySectionTitle: plexItem.librarySectionTitle,
+            lastViewedAt: plexItem.lastViewedAt.map { Date(timeIntervalSince1970: TimeInterval($0)) },
+            externalIDs: ExternalIDs(plexGuids: plexItem.guids?.map(\.id) ?? []),
+            themePath: plexItem.theme ?? plexItem.parentTheme ?? plexItem.grandparentTheme,
+            logoPath: plexItem.images?.first { $0.type == "clearLogo" }?.url.absoluteString,
+        )
+    }
+}
+
+nonisolated enum PlexDate {
+    /// Plex sends calendar dates (`yyyy-MM-dd`) without a time zone; they are anchored to UTC midnight.
+    private static let calendarDate = Date.ISO8601FormatStyle(timeZone: .gmt).year().month().day()
+
+    static func date(from value: String) -> Date? {
+        try? calendarDate.parse(String(value.prefix(10)))
+    }
+}

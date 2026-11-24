@@ -1,0 +1,130 @@
+import Observation
+import SwiftUI
+
+struct MediaDetailView: View {
+    @EnvironmentObject private var coordinator: MainCoordinator
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(MediaServices.self) private var mediaServices
+    @Environment(\.dismiss) private var dismiss
+    @State var viewModel: MediaDetailViewModel
+    @State private var isSummaryExpanded = false
+    @State private var isShowingSubtitleSearch = false
+    @State private var containerSize: CGSize = .zero
+    private let onPlay: (String, MediaKind) -> Void
+    private let onPlayFromStart: (String, MediaKind) -> Void
+    private let onShuffle: (String, MediaKind) -> Void
+    private let onSelectMedia: (MediaDisplayItem) -> Void
+    private let onSelectParentSeries: (PlayableMediaItem) -> Void
+    private let onSelectPerson: (Person) -> Void
+
+    init(
+        viewModel: MediaDetailViewModel,
+        onPlay: @escaping (String, MediaKind) -> Void = { _, _ in },
+        onPlayFromStart: @escaping (String, MediaKind) -> Void = { _, _ in },
+        onShuffle: @escaping (String, MediaKind) -> Void = { _, _ in },
+        onSelectMedia: @escaping (MediaDisplayItem) -> Void = { _ in },
+        onSelectParentSeries: @escaping (PlayableMediaItem) -> Void = { _ in },
+        onSelectPerson: @escaping (Person) -> Void = { _ in },
+    ) {
+        _viewModel = State(initialValue: viewModel)
+        self.onPlay = onPlay
+        self.onPlayFromStart = onPlayFromStart
+        self.onShuffle = onShuffle
+        self.onSelectMedia = onSelectMedia
+        self.onSelectParentSeries = onSelectParentSeries
+        self.onSelectPerson = onSelectPerson
+    }
+
+    var body: some View {
+        @Bindable var bindableViewModel = viewModel
+
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                MediaDetailHeaderSection(
+                    viewModel: bindableViewModel,
+                    isSummaryExpanded: $isSummaryExpanded,
+                    heroHeight: LayoutMetrics.detailHeroHeight(for: containerSize),
+                    onPlay: onPlay,
+                    onPlayFromStart: onPlayFromStart,
+                    onShuffle: onShuffle,
+                    onSelectParentSeries: {
+                        guard let parentSeries = bindableViewModel.parentSeries else { return }
+                        onSelectParentSeries(parentSeries)
+                    },
+                    onSearchSubtitles: { isShowingSubtitleSearch = true },
+                )
+
+                if [.show, .season].contains(bindableViewModel.media.type) {
+                    SeasonEpisodesSection(
+                        viewModel: bindableViewModel,
+                        onSelectSeason: { onSelectMedia(.playable($0)) },
+                        onSelectEpisode: { onSelectMedia(.playable($0)) },
+                    )
+                }
+
+                CastSection(
+                    viewModel: bindableViewModel,
+                    onSelectPerson: onSelectPerson,
+                )
+
+                ExtrasSection(viewModel: bindableViewModel) { extra in
+                    onPlay(extra.id, .clip)
+                }
+
+                RelatedHubsSection(
+                    viewModel: bindableViewModel,
+                    onSelectMedia: onSelectMedia,
+                )
+
+                DetailFactsSection(viewModel: bindableViewModel)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 32)
+            }
+        }
+        .ignoresSafeArea(edges: .top)
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { containerSize = $0 }
+        .sheet(isPresented: $isShowingSubtitleSearch) {
+            if let ratingKey = bindableViewModel.trackRatingKey {
+                SubtitleSearchView(
+                    itemID: ratingKey,
+                    titlePlaceholder: bindableViewModel.subtitleSearchTitlePlaceholder,
+                    services: mediaServices,
+                ) { _ in
+                    await bindableViewModel.refreshTrackSelectionAfterSubtitleAttachment()
+                }
+            }
+        }
+        .task {
+            await bindableViewModel.loadDetailsIfNeeded()
+        }
+        .onChange(of: mediaServices.mediaRevision) {
+            guard !bindableViewModel.wasDeleted else {
+                dismiss()
+                return
+            }
+            let changedMediaID = mediaServices.lastChangedMediaID
+            Task { await bindableViewModel.refreshAfterMediaChange(itemID: changedMediaID) }
+        }
+        .onAppear {
+            Task { await bindableViewModel.refreshIfNeeded() }
+        }
+        .onChange(of: coordinator.isPresentingPlayer) { _, isPresenting in
+            guard !isPresenting else { return }
+            Task { await bindableViewModel.loadDetails() }
+        }
+        .onChange(of: scenePhase) { _, newValue in
+            guard newValue == .active else { return }
+            Task { await bindableViewModel.refreshIfNeeded() }
+        }
+        .onConnectivityChange(of: mediaServices.identity) { _ in
+            Task { await bindableViewModel.refreshSilently() }
+        }
+        .background(gradientBackground(for: bindableViewModel))
+        .themeMusic(for: bindableViewModel.media.mediaItem)
+    }
+
+    private func gradientBackground(for viewModel: MediaDetailViewModel) -> some View {
+        MediaBackdropGradient(colors: viewModel.backdropGradient)
+            .ignoresSafeArea()
+    }
+}

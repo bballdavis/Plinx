@@ -1,0 +1,1457 @@
+import Foundation
+import Observation
+import SwiftUI
+
+enum MediaDetailResolutionMode {
+    case seriesRoot
+    case selectedMedia
+}
+
+struct MediaDetailPlaybackTarget {
+    let item: MediaItem
+    let type: MediaKind
+    let shouldResumeFromOffset: Bool
+}
+
+@MainActor
+@Observable
+final class MediaDetailViewModel {
+    @ObservationIgnored private let services: MediaServices
+    @ObservationIgnored private let resolutionMode: MediaDetailResolutionMode
+    @ObservationIgnored private let copyFinder: MediaCopyFinder?
+    @ObservationIgnored private let onSelectCopy: ((MediaItem) -> Void)?
+    @ObservationIgnored private var copiesTask: Task<Void, Never>?
+    /// Copies of the title on the profile's servers, shown in the Version menu.
+    private(set) var copies: [MediaCopy] = []
+    @ObservationIgnored private var editionsTask: Task<Void, Never>?
+    /// Other editions of the title in its library, each its own item with its own progress.
+    private(set) var otherEditions: [MediaItem] = []
+    @ObservationIgnored private var backdropSourcePath: String?
+    @ObservationIgnored private let requestedEpisodeID: String?
+    @ObservationIgnored private var prefersOnDeckSeason = false
+
+    var media: PlayableMediaItem
+    var parentSeries: PlayableMediaItem?
+    var onDeckItem: MediaItem?
+    private var fallbackPlaybackTarget: MediaDetailPlaybackTarget?
+    var heroImageURL: URL?
+    var isLoading = false
+    var errorMessage: String?
+    var backdropGradient: [Color] = []
+    var seasons: [MediaItem] = []
+    var episodes: [MediaItem] = []
+    var cast: [CastMember] = []
+    var relatedHubs: [Hub] = []
+    var extras: [MediaItem] = []
+    var selectedSeasonId: String?
+    var isLoadingSeasons = false
+    var isLoadingEpisodes = false
+    var isLoadingRelatedHubs = false
+    var seasonsErrorMessage: String?
+    var episodesErrorMessage: String?
+    var relatedHubsErrorMessage: String?
+    var isLoadingExtras = false
+    var audioTracks: [MediaTrackMetadata] = []
+    var subtitleTracks: [MediaTrackMetadata] = []
+    var selectedAudioStreamID: Int?
+    var selectedSubtitleStreamID: Int?
+    var isLoadingTracks = false
+    var isUpdatingTracks = false
+    private(set) var versions: [MediaFileVersion] = []
+    private(set) var selectedVersionID: String?
+    /// The version "Automatic" resolves to, ignoring any saved preference.
+    private(set) var automaticVersionID: String?
+    private(set) var hasVersionPreference = false
+    var trackSelectionErrorMessage: String?
+    var fileInfo: MediaFileInfo?
+    var isLoadingFileInfo = false
+    var fileInfoErrorMessage: String?
+    @ObservationIgnored private var trackPartFile: String?
+    @ObservationIgnored private(set) var trackRatingKey: String?
+    @ObservationIgnored private var requestedTrackRatingKey: String?
+    @ObservationIgnored private var requestedFileInfoID: String?
+    @ObservationIgnored private var fileInfoMediaID: String?
+    private var updatingWatchStatusIds: Set<String> = []
+    var watchActionErrorMessage: String?
+    var isLoadingWatchlistStatus = false
+    var isUpdatingWatchlistStatus = false
+    private var isWatchlisted = false
+    var isLoadingFavoriteStatus = false
+    var isUpdatingFavoriteStatus = false
+    private(set) var isFavorite = false
+    var favoriteActionErrorMessage: String?
+    /// Bumped each time a watched or favorite change is confirmed, to drive success feedback.
+    private(set) var confirmedActionCount = 0
+    private var favoriteStatusByID: [String: Bool] = [:]
+    private var loadingFavoriteStatusIDs: Set<String> = []
+    private var updatingFavoriteStatusIDs: Set<String> = []
+    @ObservationIgnored private var refreshGate = AutomaticRefreshGate()
+    @ObservationIgnored private var hasLoadedDetails = false
+    @ObservationIgnored private var hasAppliedDetails = false
+    @ObservationIgnored private var extrasTask: Task<Void, Never>?
+    @ObservationIgnored private var extrasLoadedFor: MediaIdentity?
+
+    deinit {
+        extrasTask?.cancel()
+        copiesTask?.cancel()
+        editionsTask?.cancel()
+    }
+
+    init(
+        media: PlayableMediaItem,
+        services: MediaServices,
+        resolutionMode: MediaDetailResolutionMode = .seriesRoot,
+        copyFinder: MediaCopyFinder? = nil,
+        onSelectCopy: ((MediaItem) -> Void)? = nil,
+    ) {
+        self.media = media
+        self.services = services
+        self.resolutionMode = resolutionMode
+        self.copyFinder = copyFinder
+        self.onSelectCopy = onSelectCopy
+        requestedEpisodeID = resolutionMode == .seriesRoot && media.type == .episode
+            && media.metadataRatingKey != media.id ? media.id : nil
+        _ = resolveArtwork()
+    }
+
+    var server: ServerIdentity {
+        services.identity
+    }
+
+    var quickActions: MediaQuickActions {
+        MediaQuickActions(services: services)
+    }
+
+    var canManageMedia: Bool {
+        !quickActions.manageActions(for: media.mediaItem).isEmpty
+    }
+
+    /// The media this page shows, or its series, was deleted from the server from the app.
+    var wasDeleted: Bool {
+        let deleted = services.deletedMediaIDs
+        return deleted.contains(media.id) || parentSeries.map { deleted.contains($0.id) } == true
+    }
+
+    /// Reloads when a media this page shows was changed on the server from the app.
+    func refreshAfterMediaChange(itemID: String?) async {
+        guard let itemID, shownMediaIDs.contains(itemID), !wasDeleted else { return }
+        // A regular reload keeps the tracks, file info and extras of an unchanged item, which an analysis or a
+        // refresh may have changed.
+        fileInfoMediaID = nil
+        extrasLoadedFor = nil
+        await loadDetails(preservingExistingContent: true)
+        await refreshTrackSelectionAfterSubtitleAttachment()
+    }
+
+    /// The episode offered for playback can belong to a season other than the one listed.
+    var shownMediaIDs: Set<String> {
+        Set(
+            [media.id, media.metadataRatingKey, parentSeries?.id, onDeckItem?.id, requestedEpisodeID]
+                .compactMap(\.self) + seasons.map(\.id) + episodes.map(\.id),
+        )
+    }
+
+    private var detailTargetID: String {
+        resolutionMode == .seriesRoot ? media.metadataRatingKey : media.id
+    }
+
+    func loadDetails() async {
+        _ = refreshGate.startInitialLoadIfNeeded()
+        await loadDetails(preservingExistingContent: false)
+    }
+
+    /// The page reappears when a pushed page is popped; reloading it then would clear its content
+    /// and lose the scroll position.
+    func loadDetailsIfNeeded() async {
+        guard !hasLoadedDetails else { return }
+        // A previous load cancelled midway left content on screen: finish it without clearing.
+        if hasAppliedDetails {
+            await refreshSilently()
+        } else {
+            await loadDetails()
+        }
+    }
+
+    /// Reloads without clearing what is on screen, e.g. after the server became reachable again.
+    func refreshSilently() async {
+        await loadDetails(preservingExistingContent: true)
+    }
+
+    /// Follows the next episode into its season, since playback may have finished the current one.
+    func reloadAfterPlayback() async {
+        prefersOnDeckSeason = true
+        defer { prefersOnDeckSeason = false }
+        await loadDetails()
+    }
+
+    func refreshIfNeeded(now: Date = Date()) async {
+        guard refreshGate.shouldRefresh(now: now, isLoading: isLoading) else { return }
+        await loadDetails(preservingExistingContent: true)
+    }
+
+    private func loadDetails(preservingExistingContent: Bool) async {
+        await loadCommonDetails(preservingExistingContent: preservingExistingContent)
+    }
+
+    func loadSeasonsIfNeeded(forceReload: Bool = false, preservingExistingContent: Bool = false) async {
+        guard media.type == .show, forceReload || seasons.isEmpty else { return }
+        await fetchSeasons(preservingExistingContent: preservingExistingContent)
+    }
+
+    func selectSeason(id: String) async {
+        guard selectedSeasonId != id else { return }
+        prefersOnDeckSeason = false
+        selectedSeasonId = id
+        episodes = []
+        episodesErrorMessage = nil
+        await fetchEpisodes(for: id)
+    }
+
+    func toggleWatchStatus(for target: MediaItem? = nil) async {
+        let item = target ?? media.mediaItem
+        await setWatchStatus(!isWatched(item), for: item)
+    }
+
+    func markWatched(for target: MediaItem? = nil) async {
+        await setWatchStatus(true, for: target)
+    }
+
+    func markUnwatched(for target: MediaItem? = nil) async {
+        await setWatchStatus(false, for: target)
+    }
+
+    private func setWatchStatus(_ played: Bool, for target: MediaItem? = nil) async {
+        let item = target ?? media.mediaItem
+        guard !isUpdatingWatchStatus(for: item) else { return }
+
+        updatingWatchStatusIds.insert(item.id)
+        watchActionErrorMessage = nil
+        defer { updatingWatchStatusIds.remove(item.id) }
+
+        switch await quickActions.setPlayed(played, for: item) {
+        case .succeeded:
+            confirmedActionCount += 1
+            await loadCommonDetails(preservingExistingContent: true)
+        case let .failed(message):
+            watchActionErrorMessage = message
+        case .cancelled:
+            break
+        }
+    }
+
+    func toggleWatchlistStatus() async {
+        guard !isUpdatingWatchlistStatus else { return }
+
+        isUpdatingWatchlistStatus = true
+        defer { isUpdatingWatchlistStatus = false }
+
+        do {
+            try await services.detail.setWatchlisted(!isWatchlisted, media: media.mediaItem)
+            await loadWatchlistStatus()
+        } catch {
+            guard !Task.isCancelled, !error.isCancellation else { return }
+            ErrorReporter.capture(error)
+        }
+    }
+
+    func toggleFavoriteStatus(for target: MediaItem? = nil) async {
+        let item = target ?? media.mediaItem
+        guard shouldShowFavoriteButton(for: item) else { return }
+
+        let isPrimaryItem = item.id == media.mediaItem.id
+        if isPrimaryItem {
+            guard !isUpdatingFavoriteStatus else { return }
+            isUpdatingFavoriteStatus = true
+        }
+        guard updatingFavoriteStatusIDs.insert(item.id).inserted else {
+            if isPrimaryItem {
+                isUpdatingFavoriteStatus = false
+            }
+            return
+        }
+
+        favoriteActionErrorMessage = nil
+        defer {
+            updatingFavoriteStatusIDs.remove(item.id)
+            if isPrimaryItem {
+                isUpdatingFavoriteStatus = false
+            }
+        }
+
+        let updatedValue = !isFavorite(for: item)
+        switch await quickActions.setFavorite(updatedValue, for: item) {
+        case .succeeded:
+            confirmedActionCount += 1
+            favoriteStatusByID[item.id] = updatedValue
+            if isPrimaryItem {
+                isFavorite = updatedValue
+            }
+        case let .failed(message):
+            favoriteActionErrorMessage = message
+        case .cancelled:
+            break
+        }
+    }
+
+    func artworkPath(for media: MediaItem, spoilerProtection: SpoilerProtectionLevel = .off) -> String? {
+        if media.isSpoilerProtected(at: spoilerProtection) {
+            return media.spoilerProtectedArtworkPath(at: spoilerProtection)
+        }
+        return media.thumbPath ?? media.parentThumbPath ?? media.grandparentThumbPath
+    }
+
+    func heroImageURL(spoilerProtection: SpoilerProtectionLevel) -> URL? {
+        guard media.mediaItem.isSpoilerProtected(at: spoilerProtection) else {
+            return heroImageURL
+        }
+
+        let path = media.mediaItem.grandparentArtPath
+            ?? parentSeries?.artPath
+            ?? media.mediaItem.grandparentThumbPath
+        return services.artwork.artworkURL(path: path, width: 1400, height: 800)
+    }
+
+    func heroArtworkPath(spoilerProtection: SpoilerProtectionLevel) -> String? {
+        if media.mediaItem.isSpoilerProtected(at: spoilerProtection) {
+            return media.mediaItem.grandparentArtPath
+                ?? parentSeries?.artPath
+                ?? media.mediaItem.grandparentThumbPath
+        }
+        if resolutionMode == .selectedMedia, [.season, .episode].contains(media.type) {
+            return media.mediaItem.grandparentArtPath ?? parentSeries?.artPath ?? media.artPath
+        }
+        return media.artPath ?? media.thumbPath
+    }
+
+    @discardableResult
+    private func resolveArtwork() -> String? {
+        let artPath: String? = if resolutionMode == .selectedMedia, [.season, .episode].contains(media.type) {
+            media.mediaItem.grandparentArtPath ?? parentSeries?.artPath ?? media.artPath
+        } else {
+            media.artPath
+        }
+        let resolvedPath = artPath ?? media.thumbPath
+
+        heroImageURL = services.artwork.artworkURL(path: artPath, width: 1400, height: 800)
+            ?? services.artwork.artworkURL(path: media.thumbPath, width: 1400, height: 800)
+        resolveGradient()
+        return resolvedPath
+    }
+
+    private func resolveGradient() {
+        let colors = MediaBackdropGradient.colors(for: .playable(media.mediaItem))
+        if colors.count == 4 {
+            backdropSourcePath = nil
+            backdropGradient = colors
+        }
+    }
+
+    private func loadBackdropGradient(path: String?) async {
+        let providerColors = MediaBackdropGradient.colors(for: .playable(media.mediaItem))
+        if providerColors.count == 4 {
+            backdropSourcePath = nil
+            backdropGradient = providerColors
+            return
+        }
+
+        guard let path else {
+            backdropSourcePath = nil
+            backdropGradient = []
+            return
+        }
+        guard backdropSourcePath != path else { return }
+
+        backdropSourcePath = path
+        backdropGradient = []
+
+        // Offline, the art may never have been cached while the poster was.
+        let candidates = [path, media.thumbPath].compactMap(\.self).reduce(into: [String]()) { paths, candidate in
+            if !paths.contains(candidate) {
+                paths.append(candidate)
+            }
+        }
+        for candidate in candidates {
+            let colors = await sampledBackdropColors(path: candidate)
+            guard !Task.isCancelled, backdropSourcePath == path else { return }
+            if colors.count == 4 {
+                backdropGradient = colors
+                return
+            }
+        }
+        // Lets a later reload, e.g. once the server is reachable again, retry the same path.
+        backdropSourcePath = nil
+    }
+
+    private func sampledBackdropColors(path: String) async -> [Color] {
+        guard let resource = try? await services.artwork.artwork(path: path, width: 300, height: 169) else {
+            return []
+        }
+        return await (try? ImageCornerColorSampler.colors(from: resource)) ?? []
+    }
+
+    private func loadWatchlistStatus() async {
+        guard [.movie, .show].contains(media.type), services.detail.supportsWatchlist else {
+            isWatchlisted = false
+            return
+        }
+
+        isLoadingWatchlistStatus = true
+        defer { isLoadingWatchlistStatus = false }
+
+        do {
+            isWatchlisted = try await services.detail.isWatchlisted(media.mediaItem)
+        } catch {
+            guard !Task.isCancelled, !error.isCancellation else { return }
+            isWatchlisted = false
+            ErrorReporter.capture(error)
+        }
+    }
+
+    private func loadFavoriteStatus() async {
+        guard shouldShowFavoriteButton else {
+            isFavorite = false
+            return
+        }
+
+        isLoadingFavoriteStatus = true
+        defer { isLoadingFavoriteStatus = false }
+
+        do {
+            isFavorite = try await services.favorites.isFavorite(media.mediaItem)
+            favoriteStatusByID[media.mediaItem.id] = isFavorite
+        } catch {
+            guard !Task.isCancelled, !error.isCancellation else { return }
+            isFavorite = false
+            ErrorReporter.capture(error)
+        }
+    }
+
+    func loadFavoriteStatus(for item: MediaItem) async {
+        guard shouldShowFavoriteButton(for: item) else { return }
+        guard item.id != media.mediaItem.id else {
+            await loadFavoriteStatus()
+            return
+        }
+        guard loadingFavoriteStatusIDs.insert(item.id).inserted else { return }
+        defer { loadingFavoriteStatusIDs.remove(item.id) }
+
+        do {
+            favoriteStatusByID[item.id] = try await services.favorites.isFavorite(item)
+        } catch {
+            guard !Task.isCancelled, !error.isCancellation else { return }
+            ErrorReporter.capture(error)
+        }
+    }
+
+    func isFavorite(for item: MediaItem) -> Bool {
+        if item.id == media.mediaItem.id {
+            return isFavorite
+        }
+        return favoriteStatusByID[item.id] ?? item.watchState.isFavorite
+    }
+
+    func isLoadingFavoriteStatus(for item: MediaItem) -> Bool {
+        item.id == media.mediaItem.id
+            ? isLoadingFavoriteStatus
+            : loadingFavoriteStatusIDs.contains(item.id)
+    }
+
+    func isUpdatingFavoriteStatus(for item: MediaItem) -> Bool {
+        updatingFavoriteStatusIDs.contains(item.id)
+    }
+
+    var runtimeText: String? {
+        guard let duration = media.duration else { return nil }
+        return duration.mediaDurationText()
+    }
+
+    var yearText: String? {
+        media.year.map(String.init)
+    }
+
+    var ratingText: String? {
+        media.rating.map { String(format: "%.1f", $0) }
+    }
+
+    var selectedSeason: MediaItem? {
+        seasons.first(where: { $0.id == selectedSeasonId })
+    }
+
+    var selectedSeasonTitle: String {
+        selectedSeason?.title ?? String(localized: "media.detail.season")
+    }
+
+    func detailPrimaryLabel(spoilerProtection: SpoilerProtectionLevel) -> String {
+        guard resolutionMode == .selectedMedia, [.season, .episode].contains(media.type) else {
+            return media.primaryLabel
+        }
+        return media.mediaItem.spoilerSafeTitle(at: spoilerProtection)
+    }
+
+    var detailSecondaryLabel: String? {
+        guard resolutionMode == .selectedMedia else { return media.secondaryLabel }
+
+        switch media.type {
+        case .season:
+            return media.mediaItem.parentTitle
+        case .episode:
+            return media.mediaItem.grandparentTitle ?? media.mediaItem.parentTitle
+        case .movie, .show:
+            return media.secondaryLabel
+        case .clip:
+            return media.secondaryLabel
+        }
+    }
+
+    var detailTertiaryLabel: String? {
+        media.tertiaryLabel
+    }
+
+    func runtimeText(for item: MediaItem) -> String? {
+        guard let duration = item.duration else { return nil }
+        return duration.mediaDurationText()
+    }
+
+    func canOpenPerson(_ person: Person) -> Bool {
+        #if os(tvOS)
+            true
+        #else
+            (services.detail as? CachedDetailService)?.canOpenPerson(id: person.id) ?? true
+        #endif
+    }
+
+    func castImageURL(for member: CastMember, width: Int = 200, height: Int = 260) -> URL? {
+        services.artwork.artworkURL(path: member.thumbPath, width: width, height: height)
+    }
+
+    var primaryActionTitle: String {
+        guard let target = primaryPlaybackTarget else {
+            return String(localized: "common.actions.play")
+        }
+
+        return target.shouldResumeFromOffset && hasProgress(for: target.item)
+            ? String(localized: "common.actions.resume")
+            : String(localized: "common.actions.play")
+    }
+
+    /// One-line title for compact play buttons: "Play S2 · E1" on a series or season, "Resume" or "Play" otherwise.
+    var primaryActionCompactTitle: String {
+        guard [.show, .season].contains(media.type), let episode = primaryPlaybackTarget?.item.tertiaryLabel else {
+            return primaryActionTitle
+        }
+        return String(localized: "media.detail.primaryAction.episode \(primaryActionTitle) \(episode)")
+    }
+
+    /// Time left on the item the play button resumes; nil when it starts from the beginning.
+    var primaryActionRemainingTime: String? {
+        guard let target = primaryPlaybackTarget, target.shouldResumeFromOffset else { return nil }
+        return target.item.shortRemainingTimeText
+    }
+
+    var primaryActionProgress: Double? {
+        guard let target = primaryPlaybackTarget, target.shouldResumeFromOffset else { return nil }
+        return progressFraction(for: target.item)
+    }
+
+    var shouldShowPlayFromStartButton: Bool {
+        guard let target = primaryPlaybackTarget, target.shouldResumeFromOffset else { return false }
+        return shouldShowPlayFromStartButton(for: target.item)
+    }
+
+    func shouldShowPlayFromStartButton(for item: MediaItem) -> Bool {
+        hasProgress(for: item)
+    }
+
+    var primaryActionRatingKey: String? {
+        primaryPlaybackTarget?.item.id
+    }
+
+    var primaryActionType: MediaKind? {
+        primaryPlaybackTarget?.type
+    }
+
+    var primaryActionItem: MediaItem? {
+        primaryPlaybackTarget?.item
+    }
+
+    var hasTrackSelection: Bool {
+        !audioTracks.isEmpty || !subtitleTracks.isEmpty
+    }
+
+    var canShowFileInfo: Bool {
+        [.movie, .episode, .clip].contains(media.type)
+    }
+
+    func canShowFileInfo(for item: MediaItem) -> Bool {
+        [.movie, .episode, .clip].contains(item.type)
+    }
+
+    var canSearchSubtitles: Bool {
+        services.detail.supportsRemoteSubtitleSearch
+            && services.authorization.canManageSubtitles
+            && (trackRatingKey ?? primaryActionRatingKey) != nil
+    }
+
+    var subtitleSearchTitlePlaceholder: String {
+        trackPartFile.map { URL(fileURLWithPath: $0).lastPathComponent } ?? media.title
+    }
+
+    func hasTrackSelection(for ratingKey: String) -> Bool {
+        trackRatingKey == ratingKey && hasTrackSelection
+    }
+
+    var selectedAudioTrackTitle: String? {
+        selectedTrackTitle(in: audioTracks, id: selectedAudioStreamID)
+    }
+
+    var selectedSubtitleTrackTitle: String {
+        selectedTrackTitle(in: subtitleTracks, id: selectedSubtitleStreamID)
+            ?? String(localized: "player.settings.subtitles.off")
+    }
+
+    private var rememberedTrackSelectionScope: TrackSelectionScope? {
+        switch media.type {
+        case .movie:
+            .media(media.mediaItem.identity)
+        case .show:
+            .series(media.mediaItem.identity)
+        case .season, .episode:
+            media.mediaItem.hierarchy.seriesID.map(TrackSelectionScope.series)
+        case .clip:
+            nil
+        }
+    }
+
+    private var trackSelectionAccountIdentifier: String {
+        services.trackSelectionAccountIdentifier ?? "default"
+    }
+
+    func selectAudioStream(id: Int) async {
+        guard
+            let ratingKey = trackRatingKey,
+            selectedAudioStreamID != id
+        else { return }
+        let previousID = selectedAudioStreamID
+        selectedAudioStreamID = id
+        isUpdatingTracks = true
+        trackSelectionErrorMessage = nil
+        defer { isUpdatingTracks = false }
+
+        do {
+            try await services.detail.selectAudioTrack(id: id, itemID: ratingKey, versionID: selectedVersionID)
+            if trackRatingKey == ratingKey,
+               let track = audioTracks.first(where: { $0.id == id }),
+               let scope = rememberedTrackSelectionScope,
+               let coordinator = services.trackSelectionCoordinator
+            {
+                coordinator.rememberAudio(
+                    track,
+                    forScope: scope,
+                    server: services.identity,
+                    accountIdentifier: trackSelectionAccountIdentifier,
+                )
+                await synchronizeServerTrackMemory(for: .audio)
+            }
+        } catch {
+            guard !Task.isCancelled, !error.isCancellation else {
+                if trackRatingKey == ratingKey {
+                    selectedAudioStreamID = previousID
+                }
+                return
+            }
+            if trackRatingKey == ratingKey {
+                selectedAudioStreamID = previousID
+                trackSelectionErrorMessage = error.localizedDescription
+            }
+            ErrorReporter.capture(error)
+        }
+    }
+
+    func selectSubtitleStream(id: Int?) async {
+        guard
+            let ratingKey = trackRatingKey,
+            selectedSubtitleStreamID != id
+        else { return }
+        let previousID = selectedSubtitleStreamID
+        selectedSubtitleStreamID = id
+        isUpdatingTracks = true
+        trackSelectionErrorMessage = nil
+        defer { isUpdatingTracks = false }
+
+        do {
+            try await services.detail.selectSubtitleTrack(
+                id: id,
+                itemID: ratingKey,
+                versionID: selectedVersionID,
+            )
+            let selectedTrack = id.flatMap { selectedID in
+                subtitleTracks.first(where: { $0.id == selectedID })
+            }
+            if trackRatingKey == ratingKey,
+               id == nil || selectedTrack != nil,
+               let scope = rememberedTrackSelectionScope,
+               let coordinator = services.trackSelectionCoordinator
+            {
+                coordinator.rememberSubtitle(
+                    selectedTrack,
+                    forScope: scope,
+                    server: services.identity,
+                    accountIdentifier: trackSelectionAccountIdentifier,
+                )
+                await synchronizeServerTrackMemory(for: .subtitle)
+            }
+        } catch {
+            guard !Task.isCancelled, !error.isCancellation else {
+                if trackRatingKey == ratingKey {
+                    selectedSubtitleStreamID = previousID
+                }
+                return
+            }
+            if trackRatingKey == ratingKey {
+                selectedSubtitleStreamID = previousID
+                trackSelectionErrorMessage = error.localizedDescription
+            }
+            ErrorReporter.capture(error)
+        }
+    }
+
+    func loadTrackSelection(for ratingKey: String) async {
+        guard trackRatingKey != ratingKey else { return }
+        await loadTrackSelection(for: ratingKey, preservingExistingContent: false)
+    }
+
+    var showsVersionSelection: Bool {
+        versions.count > 1 || (listsCopiesWithVersions && !copies.isEmpty)
+    }
+
+    /// A series copy is the whole series on another server, not a version of the episode the version menu describes,
+    /// so it goes in the more menu instead.
+    var listsCopiesWithVersions: Bool {
+        media.type != .show
+    }
+
+    /// Copies grouped by server, in the order of their best copy.
+    var copiesByServer: [(serverName: String, copies: [MediaCopy])] {
+        var order: [ServerIdentity] = []
+        var grouped: [ServerIdentity: [MediaCopy]] = [:]
+        for copy in copies {
+            if grouped[copy.server] == nil {
+                order.append(copy.server)
+            }
+            grouped[copy.server, default: []].append(copy)
+        }
+        return order.compactMap { server in
+            grouped[server].map { ($0[0].serverName, $0) }
+        }
+    }
+
+    /// With the displayed copy's server offline, Play offers a reachable copy instead.
+    var reachableCopyReplacingUnavailableServer: MediaCopy? {
+        guard let copyFinder, !copyFinder.sessionManager.registry.readyServers.contains(services.identity) else {
+            return nil
+        }
+        return copies.first(where: \.isReachable)
+    }
+
+    /// Opens the copy's own page, served by its server.
+    func selectCopy(_ copy: MediaCopy) {
+        onSelectCopy?(copy.media)
+    }
+
+    /// Opens the edition's own page.
+    func selectEdition(_ edition: MediaItem) {
+        onSelectCopy?(edition)
+    }
+
+    private func loadOtherEditions(of item: MediaItem) {
+        editionsTask?.cancel()
+        editionsTask = Task { [weak self, services] in
+            do {
+                let editions = try await services.detail.otherEditions(of: item)
+                guard !Task.isCancelled else { return }
+                self?.otherEditions = editions
+            } catch {
+                guard !Task.isCancelled, !error.isCancellation else { return }
+                ErrorReporter.capture(error)
+            }
+        }
+    }
+
+    private func loadCopies(of item: MediaItem) {
+        guard let copyFinder, [.movie, .show, .episode].contains(media.type) else { return }
+        copiesTask?.cancel()
+        copiesTask = Task { [weak self] in
+            let copies = await copyFinder.copies(of: item)
+            guard !Task.isCancelled else { return }
+            self?.copies = copies
+            guard !copies.isEmpty else { return }
+            let detailed = await copyFinder.withDetails(copies)
+            guard !Task.isCancelled else { return }
+            self?.copies = detailed
+        }
+    }
+
+    var versionLabels: [String] {
+        MediaFileVersion.displayLabels(for: versions)
+    }
+
+    var selectedVersion: MediaFileVersion? {
+        version(withID: selectedVersionID)
+    }
+
+    var automaticVersion: MediaFileVersion? {
+        version(withID: automaticVersionID)
+    }
+
+    var selectedVersionShortLabel: String {
+        selectedVersion?.shortLabel ?? String(localized: "media.versions.title")
+    }
+
+    /// Version count for the badge, only when the detail page shows a single playable item.
+    var versionCountBadge: Int? {
+        guard [.movie, .episode].contains(media.type),
+              trackRatingKey == media.id,
+              versions.count > 1
+        else { return nil }
+        return versions.count
+    }
+
+    func activeVersionID(for target: MediaItem?) -> String? {
+        trackRatingKey == (target ?? media.mediaItem).id ? selectedVersionID : nil
+    }
+
+    /// Saves the version for the movie or series, or forgets it when `id` is nil ("Automatic").
+    func selectVersion(id: String?) async {
+        guard let ratingKey = trackRatingKey else { return }
+        let targetID = id ?? automaticVersionID
+        if let scope = rememberedTrackSelectionScope {
+            if let id {
+                guard let version = version(withID: id), version.isAvailable else { return }
+                services.rememberVersion(version, for: scope)
+            } else {
+                services.forgetVersion(for: scope)
+            }
+        }
+        hasVersionPreference = id != nil
+        guard targetID != selectedVersionID else { return }
+        await loadTrackSelection(for: ratingKey, versionID: targetID)
+    }
+
+    private func version(withID id: String?) -> MediaFileVersion? {
+        guard let id else { return nil }
+        return versions.first { $0.matchesVersionID(id) }
+    }
+
+    func loadFileInfo(forceReload: Bool = false) async {
+        await loadFileInfo(for: nil, forceReload: forceReload)
+    }
+
+    func loadFileInfo(for target: MediaItem?, forceReload: Bool = false) async {
+        let target = target ?? media.mediaItem
+        guard canShowFileInfo(for: target) else {
+            fileInfo = nil
+            fileInfoErrorMessage = nil
+            return
+        }
+
+        let mediaID = target.id
+        guard forceReload || fileInfo == nil || fileInfoMediaID != mediaID, !isLoadingFileInfo else { return }
+
+        if fileInfoMediaID != mediaID {
+            fileInfo = nil
+            fileInfoErrorMessage = nil
+        }
+
+        requestedFileInfoID = mediaID
+        isLoadingFileInfo = true
+        fileInfoErrorMessage = nil
+        defer {
+            if requestedFileInfoID == mediaID || requestedFileInfoID == nil {
+                isLoadingFileInfo = false
+            }
+        }
+
+        do {
+            let result = try await services.detail.fileInfo(for: target)
+            guard requestedFileInfoID == mediaID, !Task.isCancelled else { return }
+            fileInfo = result
+            fileInfoMediaID = mediaID
+        } catch {
+            guard !Task.isCancelled, !error.isCancellation, requestedFileInfoID == mediaID else { return }
+            fileInfo = nil
+            fileInfoErrorMessage = error.localizedDescription
+            ErrorReporter.capture(error)
+        }
+    }
+
+    func refreshTrackSelectionAfterSubtitleAttachment() async {
+        guard let ratingKey = trackRatingKey ?? primaryActionRatingKey else { return }
+        await loadTrackSelection(for: ratingKey, preservingExistingContent: false)
+    }
+
+    var primaryActionInitialPosition: Double {
+        guard let target = primaryPlaybackTarget, target.shouldResumeFromOffset else { return 0 }
+        return Double(target.item.viewOffset ?? 0)
+    }
+
+    var shouldPlayPrimaryActionFromStart: Bool {
+        guard let target = primaryPlaybackTarget else { return false }
+        return !target.shouldResumeFromOffset
+    }
+
+    var isWatched: Bool {
+        isWatched(media.mediaItem)
+    }
+
+    func playbackRatingKey() async -> String? {
+        primaryActionRatingKey
+    }
+
+    private var primaryPlaybackTarget: MediaDetailPlaybackTarget? {
+        switch media.type {
+        case .movie, .episode, .clip:
+            return MediaDetailPlaybackTarget(
+                item: media.mediaItem,
+                type: media.mediaKind,
+                shouldResumeFromOffset: true,
+            )
+        case .show, .season:
+            if let onDeckItem {
+                return MediaDetailPlaybackTarget(
+                    item: onDeckItem,
+                    type: onDeckItem.type,
+                    shouldResumeFromOffset: true,
+                )
+            }
+            return fallbackPlaybackTarget
+        }
+    }
+
+    var watchActionTitle: String {
+        watchActionTitle(for: media.mediaItem)
+    }
+
+    var watchActionIcon: String {
+        watchActionIcon(for: media.mediaItem)
+    }
+
+    var watchlistActionTitle: String {
+        isWatchlisted
+            ? String(localized: "media.detail.watchlist.remove")
+            : String(localized: "media.detail.watchlist.add")
+    }
+
+    var watchlistActionIcon: String {
+        isWatchlisted ? "bookmark.fill" : "bookmark"
+    }
+
+    var favoriteActionTitle: String {
+        favoriteActionTitle(for: media.mediaItem)
+    }
+
+    var favoriteActionIcon: String {
+        favoriteActionIcon(for: media.mediaItem)
+    }
+
+    var shouldShowFavoriteButton: Bool {
+        shouldShowFavoriteButton(for: media.mediaItem)
+    }
+
+    func favoriteActionTitle(for item: MediaItem) -> String {
+        favoriteAction(for: item).title
+    }
+
+    func favoriteActionIcon(for item: MediaItem) -> String {
+        favoriteAction(for: item).systemImage
+    }
+
+    private func favoriteAction(for item: MediaItem) -> MediaQuickAction {
+        isFavorite(for: item) ? .removeFavorite : .addFavorite
+    }
+
+    func shouldShowFavoriteButton(for item: MediaItem) -> Bool {
+        quickActions.canFavorite(item)
+    }
+
+    var shouldShowWatchlistButton: Bool {
+        services.detail.supportsWatchlist && [.movie, .show].contains(media.type)
+            && media.plexGuidID != nil
+    }
+
+    var isUpdatingWatchStatus: Bool {
+        isUpdatingWatchStatus(for: media.mediaItem)
+    }
+
+    func isWatched(_ item: MediaItem) -> Bool {
+        item.isFullyWatched
+    }
+
+    func watchActionTitle(for item: MediaItem) -> String {
+        watchAction(for: item).title
+    }
+
+    func watchActionIcon(for item: MediaItem) -> String {
+        watchAction(for: item).systemImage
+    }
+
+    private func watchAction(for item: MediaItem) -> MediaQuickAction {
+        isWatched(item) ? .markUnwatched : .markWatched
+    }
+
+    func isUpdatingWatchStatus(for item: MediaItem) -> Bool {
+        updatingWatchStatusIds.contains(item.id)
+    }
+
+    var shouldShowBothWatchActions: Bool {
+        shouldShowBothWatchActions(for: media.mediaItem)
+    }
+
+    func shouldShowBothWatchActions(for item: MediaItem) -> Bool {
+        hasProgress(for: item)
+    }
+
+    func progressFraction(for item: MediaItem) -> Double? {
+        guard let percentage = item.viewProgressPercentage else { return nil }
+        return min(1, max(0, percentage / 100))
+    }
+
+    private func hasProgress(for item: MediaItem?) -> Bool {
+        guard let viewOffset = item?.viewOffset else { return false }
+        return viewOffset > 0
+    }
+
+    private func fetchSeasons(preservingExistingContent: Bool) async {
+        isLoadingSeasons = true
+        seasonsErrorMessage = nil
+        episodesErrorMessage = nil
+        defer { isLoadingSeasons = false }
+
+        do {
+            let fetchedSeasons = try await services.detail.seasons(for: media.mediaItem)
+            let previousSelectedSeasonId = selectedSeasonId
+            seasons = fetchedSeasons
+
+            guard !fetchedSeasons.isEmpty else {
+                selectedSeasonId = nil
+                episodes = []
+                return
+            }
+
+            let nextSeasonId = preferredSeasonId(in: fetchedSeasons)
+            selectedSeasonId = nextSeasonId
+            let shouldPreserveEpisodes = preservingExistingContent
+                && previousSelectedSeasonId == nextSeasonId
+                && !episodes.isEmpty
+
+            if !shouldPreserveEpisodes {
+                episodes = []
+            }
+
+            if let seasonId = nextSeasonId {
+                await fetchEpisodes(for: seasonId, preservingExistingContent: shouldPreserveEpisodes)
+            } else {
+                episodes = []
+            }
+        } catch {
+            guard !Task.isCancelled, !error.isCancellation else { return }
+            ErrorReporter.capture(error)
+            if preservingExistingContent, !seasons.isEmpty {
+                seasonsErrorMessage = nil
+            } else {
+                seasons = []
+                selectedSeasonId = nil
+                episodes = []
+                seasonsErrorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func preferredSeasonId(in fetchedSeasons: [MediaItem]) -> String? {
+        Self.preferredSeasonID(
+            in: fetchedSeasons,
+            selected: selectedSeasonId,
+            onDeck: onDeckItem,
+            prefersOnDeckSeason: prefersOnDeckSeason,
+        )
+    }
+
+    static func preferredSeasonID(
+        in seasons: [MediaItem],
+        selected: String?,
+        onDeck: MediaItem?,
+        prefersOnDeckSeason: Bool,
+    ) -> String? {
+        let selectedSeason = selected.flatMap { id in seasons.first(where: { $0.id == id }) }
+        let onDeckSeason = onDeck?.parentIndex.flatMap { index in seasons.first(where: { $0.index == index }) }
+
+        if prefersOnDeckSeason, let onDeckSeason {
+            return onDeckSeason.id
+        }
+
+        return selectedSeason?.id
+            ?? onDeckSeason?.id
+            ?? seasons.first(where: { ($0.index ?? 0) > 0 })?.id
+            ?? seasons.first?.id
+    }
+
+    private func fetchEpisodes(for seasonId: String, preservingExistingContent: Bool = false) async {
+        isLoadingEpisodes = true
+        episodesErrorMessage = nil
+        defer { isLoadingEpisodes = false }
+
+        do {
+            guard let season = seasons.first(where: { $0.id == seasonId })
+                ?? (media.id == seasonId ? media.mediaItem : nil)
+            else { return }
+            let fetchedEpisodes = try await services.detail.episodes(
+                for: season,
+                seriesID: parentSeries?.id ?? media.id,
+            )
+
+            guard selectedSeasonId == seasonId else { return }
+            episodes = fetchedEpisodes
+        } catch {
+            guard !Task.isCancelled, !error.isCancellation else { return }
+            ErrorReporter.capture(error)
+            if selectedSeasonId == seasonId {
+                if preservingExistingContent, !episodes.isEmpty {
+                    episodesErrorMessage = nil
+                } else {
+                    episodes = []
+                    episodesErrorMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    private func resolveFallbackPlaybackTarget(preservingExistingContent: Bool) async {
+        guard onDeckItem == nil else {
+            fallbackPlaybackTarget = nil
+            return
+        }
+
+        switch media.type {
+        case .movie, .episode, .clip:
+            fallbackPlaybackTarget = nil
+        case .season:
+            fallbackPlaybackTarget = playbackFallback(from: episodes, sortBySeason: false)
+        case .show:
+            do {
+                let allEpisodes = try await services.detail.allEpisodes(for: media.mediaItem)
+                let regularEpisodes = allEpisodes.filter { ($0.parentIndex ?? 0) > 0 }
+                let eligibleEpisodes = regularEpisodes.isEmpty ? allEpisodes : regularEpisodes
+                fallbackPlaybackTarget = playbackFallback(from: eligibleEpisodes, sortBySeason: true)
+            } catch {
+                guard !Task.isCancelled, !error.isCancellation else { return }
+                ErrorReporter.capture(error)
+                if !preservingExistingContent {
+                    fallbackPlaybackTarget = nil
+                }
+            }
+        }
+    }
+
+    private func loadTrackSelection(preservingExistingContent: Bool) async {
+        guard let ratingKey = primaryActionRatingKey else {
+            clearTrackSelection()
+            return
+        }
+
+        await loadTrackSelection(for: ratingKey, preservingExistingContent: preservingExistingContent)
+    }
+
+    private func loadTrackSelection(
+        for ratingKey: String,
+        preservingExistingContent: Bool,
+        versionID requestedVersionID: String? = nil,
+    ) async {
+        if preservingExistingContent, trackRatingKey == ratingKey, hasTrackSelection, requestedVersionID == nil {
+            return
+        }
+
+        requestedTrackRatingKey = ratingKey
+        isLoadingTracks = true
+        trackSelectionErrorMessage = nil
+        defer {
+            if requestedTrackRatingKey == ratingKey || requestedTrackRatingKey == nil {
+                isLoadingTracks = false
+            }
+        }
+
+        do {
+            let selection = try await versionedTrackSelection(itemID: ratingKey, versionID: requestedVersionID)
+            guard requestedTrackRatingKey == ratingKey else { return }
+
+            trackRatingKey = ratingKey
+            versions = selection.versions
+            selectedVersionID = selection.versionID
+            automaticVersionID = selection.defaultVersionID
+            trackPartFile = selection.filePath
+            audioTracks = selection.audioTracks
+            subtitleTracks = selection.subtitleTracks
+            let rememberedSelection = rememberedTrackSelectionScope.flatMap { scope in
+                services.trackSelectionCoordinator?.resolvedSelection(
+                    for: scope,
+                    audioTracks: selection.audioTracks,
+                    subtitleTracks: selection.subtitleTracks,
+                    server: services.identity,
+                    accountIdentifier: trackSelectionAccountIdentifier,
+                    matchingAcrossItems: media.type != .movie,
+                )
+            }
+            selectedAudioStreamID = rememberedSelection?.audioTrackID ?? selection.selectedAudioTrackID
+            selectedSubtitleStreamID = if rememberedSelection?.subtitleIsOff == true {
+                nil
+            } else {
+                rememberedSelection?.subtitleTrackID ?? selection.selectedSubtitleTrackID
+            }
+        } catch {
+            guard !Task.isCancelled, !error.isCancellation else { return }
+            ErrorReporter.capture(error)
+            guard requestedTrackRatingKey == ratingKey else { return }
+            if requestedVersionID != nil, trackRatingKey == ratingKey {
+                trackSelectionErrorMessage = error.localizedDescription
+            } else if !preservingExistingContent || trackRatingKey != ratingKey {
+                clearTrackSelection()
+                // Track selection needs the server; offline the section simply disappears.
+                guard !(error is any ExpectedConnectivityError) else { return }
+                trackSelectionErrorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func loadTrackSelection(for ratingKey: String, versionID: String?) async {
+        isUpdatingTracks = true
+        defer { isUpdatingTracks = false }
+        await loadTrackSelection(for: ratingKey, preservingExistingContent: true, versionID: versionID)
+    }
+
+    /// Without an explicit version, applies the saved preference the same way playback will.
+    private func versionedTrackSelection(itemID: String, versionID: String?) async throws -> MediaTrackSelection {
+        if let versionID {
+            return try await services.detail.trackSelection(itemID: itemID, versionID: versionID)
+        }
+        let selection = try await services.detail.trackSelection(itemID: itemID, versionID: nil)
+        let preference = rememberedTrackSelectionScope.flatMap(services.versionPreference(for:))
+        hasVersionPreference = preference != nil
+        guard let preference, selection.versions.count > 1 else { return selection }
+        let resolved = MediaVersionResolver.resolve(.preferred(preference), in: selection.versions) { versions in
+            versions.first { version in selection.defaultVersionID.map(version.matchesVersionID) ?? false }
+        }
+        guard let resolvedID = resolved?.id, resolvedID != selection.versionID else { return selection }
+        return try await services.detail.trackSelection(itemID: itemID, versionID: resolvedID)
+    }
+
+    private func synchronizeServerTrackMemory(for kind: PlaybackTrackKind) async {
+        guard services.trackSelectionCoordinator?.isEnabled == true,
+              let memoryService = services.playback as? any MediaTrackSelectionMemoryService
+        else { return }
+        do {
+            try await memoryService.enableTrackSelectionMemory(for: kind)
+        } catch {
+            guard !Task.isCancelled, !error.isCancellation else { return }
+            ErrorReporter.capture(error)
+        }
+    }
+
+    private func clearTrackSelection() {
+        requestedTrackRatingKey = nil
+        trackRatingKey = nil
+        trackPartFile = nil
+        audioTracks = []
+        subtitleTracks = []
+        selectedAudioStreamID = nil
+        selectedSubtitleStreamID = nil
+        versions = []
+        selectedVersionID = nil
+        automaticVersionID = nil
+    }
+
+    private func selectedTrackTitle(in tracks: [MediaTrackMetadata], id: Int?) -> String? {
+        guard let id, let stream = tracks.first(where: { $0.id == id }) else { return nil }
+        return stream.displayTitle.isEmpty ? stream.title ?? stream.language ?? stream.codec.uppercased() : stream
+            .summaryTitle
+    }
+
+    private func playbackFallback(
+        from episodes: [MediaItem],
+        sortBySeason: Bool,
+    ) -> MediaDetailPlaybackTarget? {
+        let sortedEpisodes = episodes.sorted { lhs, rhs in
+            if sortBySeason {
+                let lhsSeason = lhs.parentIndex ?? Int.max
+                let rhsSeason = rhs.parentIndex ?? Int.max
+                if lhsSeason != rhsSeason {
+                    return lhsSeason < rhsSeason
+                }
+            }
+
+            let lhsEpisode = lhs.index ?? Int.max
+            let rhsEpisode = rhs.index ?? Int.max
+            if lhsEpisode != rhsEpisode {
+                return lhsEpisode < rhsEpisode
+            }
+            return lhs.id < rhs.id
+        }
+
+        guard let item = sortedEpisodes.first(where: { !$0.isFullyWatched }) ?? sortedEpisodes.first else {
+            return nil
+        }
+
+        return MediaDetailPlaybackTarget(
+            item: item,
+            type: item.type,
+            shouldResumeFromOffset: !item.isFullyWatched,
+        )
+    }
+
+    private func loadCommonDetails(preservingExistingContent: Bool) async {
+        isLoading = true
+        errorMessage = nil
+        if !preservingExistingContent {
+            cast = []
+            relatedHubs = []
+            fileInfo = nil
+            fileInfoMediaID = nil
+            fileInfoErrorMessage = nil
+            extrasTask?.cancel()
+            extras = []
+            extrasLoadedFor = nil
+            onDeckItem = nil
+            fallbackPlaybackTarget = nil
+        }
+        defer { isLoading = false }
+
+        #if !os(tvOS)
+            if !preservingExistingContent, detailTargetID == media.id,
+               let cached = (services.detail as? CachedDetailService)?.cachedDetails(for: media.mediaItem)
+            {
+                parentSeries = cached.parentSeries.flatMap(PlayableMediaItem.init)
+                seasons = cached.seasons
+                episodes = cached.episodes
+                cast = cached.cast
+            }
+        #endif
+
+        do {
+            let target = detailTargetID == media.id
+                ? media.mediaItem
+                : try await services.detail.mediaItem(id: detailTargetID)
+            async let requestedEpisode = loadRequestedEpisode()
+            let content = try await services.detail.details(for: target)
+            let onDeck = await Self.playbackEpisode(requested: requestedEpisode, onDeck: content.onDeck)
+            guard !Task.isCancelled else { return }
+            hasAppliedDetails = true
+            if let mapped = PlayableMediaItem(mediaItem: content.media) {
+                media = mapped
+            }
+            parentSeries = content.parentSeries.flatMap(PlayableMediaItem.init)
+            onDeckItem = onDeck
+            seasons = content.seasons
+            episodes = Self.episodesAfterLoading(
+                content.episodes,
+                current: episodes,
+                mediaType: media.type,
+                preservingExistingContent: preservingExistingContent,
+            )
+            cast = content.cast
+            relatedHubs = content.relatedHubs
+            relatedHubsErrorMessage = nil
+            loadExtras(for: media.mediaItem)
+            loadCopies(of: media.mediaItem)
+            loadOtherEditions(of: media.mediaItem)
+
+            switch media.type {
+            case .show:
+                selectedSeasonId = preferredSeasonId(in: seasons)
+                if let selectedSeasonId {
+                    await fetchEpisodes(for: selectedSeasonId, preservingExistingContent: preservingExistingContent)
+                }
+            case .season where resolutionMode == .selectedMedia:
+                selectedSeasonId = media.id
+            case .movie, .episode, .season, .clip:
+                selectedSeasonId = nil
+            }
+
+            await resolveFallbackPlaybackTarget(preservingExistingContent: preservingExistingContent)
+            await loadTrackSelection(preservingExistingContent: preservingExistingContent)
+            await loadWatchlistStatus()
+            await loadFavoriteStatus()
+            let artworkPath = resolveArtwork()
+            await loadBackdropGradient(path: artworkPath)
+            guard !Task.isCancelled else { return }
+            hasLoadedDetails = true
+        } catch {
+            guard !Task.isCancelled, !error.isCancellation else { return }
+            ErrorReporter.capture(error)
+            if !preservingExistingContent {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    /// A series opened from an episode card offers that episode until it is watched, so the page
+    /// matches the card rather than the server's own next episode. A rewatched episode stays marked
+    /// as watched while in progress, so its resume position keeps it offered.
+    static func playbackEpisode(requested: MediaItem?, onDeck: MediaItem?) -> MediaItem? {
+        guard let requested, !requested.isFullyWatched || (requested.viewOffset ?? 0) > 0 else { return onDeck }
+        return requested
+    }
+
+    /// A series' details carry no episodes: they come from `fetchEpisodes`. Clearing them on a refresh
+    /// would rebuild the episode rail and lose its focus and the episode the page shows.
+    static func episodesAfterLoading(
+        _ loaded: [MediaItem],
+        current: [MediaItem],
+        mediaType: PlayableItemType,
+        preservingExistingContent: Bool,
+    ) -> [MediaItem] {
+        guard preservingExistingContent, mediaType == .show else { return loaded }
+        return current
+    }
+
+    private func loadRequestedEpisode() async -> MediaItem? {
+        guard let requestedEpisodeID else { return nil }
+        do {
+            return try await services.detail.mediaItem(id: requestedEpisodeID)
+        } catch {
+            guard !Task.isCancelled, !error.isCancellation else { return nil }
+            ErrorReporter.capture(error)
+            return nil
+        }
+    }
+
+    private func loadExtras(for target: MediaItem) {
+        guard target.type == .movie || target.type == .series else {
+            extrasTask?.cancel()
+            extras = []
+            extrasLoadedFor = nil
+            isLoadingExtras = false
+            return
+        }
+
+        guard extrasLoadedFor != target.identity else { return }
+
+        extrasTask?.cancel()
+        extras = []
+        isLoadingExtras = true
+        let targetIdentity = target.identity
+        extrasTask = Task { [weak self] in
+            guard let self else { return }
+
+            do {
+                let fetchedExtras = try await services.detail.fetchExtras(for: target)
+                guard !Task.isCancelled, media.identity == targetIdentity else { return }
+                extras = fetchedExtras.filter { $0.type == .clip }
+            } catch {
+                guard !Task.isCancelled, !error.isCancellation, media.identity == targetIdentity else { return }
+                extras = []
+                ErrorReporter.capture(error)
+            }
+
+            guard !Task.isCancelled, media.identity == targetIdentity else { return }
+            extrasLoadedFor = targetIdentity
+            isLoadingExtras = false
+        }
+    }
+}

@@ -1,0 +1,1727 @@
+import AetherEngine
+import Foundation
+
+@MainActor
+final class JellyfinMediaServiceAdapter: MediaHomeService, MediaLibraryService, MediaSearchService,
+    MediaArtworkService, MediaDetailService, MediaPlaybackService, MediaDownloadService,
+    AdvancedLibraryBrowseService, MediaFavoritesService, MediaAuthorizationService,
+    MediaTrackSelectionMemoryService
+{
+    private static let artworkCache: NSCache<NSURL, NSData> = {
+        let cache = NSCache<NSURL, NSData>()
+        cache.totalCostLimit = 64 * 1024 * 1024
+        return cache
+    }()
+
+    /// Bounds artwork requested without a size: sharp on a 4K tvOS card, small enough to decode quickly.
+    private static let defaultArtworkSide = 1080
+
+    private let context: JellyfinAPIContext
+    private let catalog: JellyfinCatalogService
+    private let playbackService: JellyfinPlaybackService
+    private let server: ServerIdentity
+    private var activePlans: [String: JellyfinPlaybackPlan] = [:]
+    private var trackSelectionOverrides: [String: JellyfinTrackSelectionOverride] = [:]
+    private var enabledTrackSelectionMemory: Set<PlaybackTrackKind> = []
+    weak var services: MediaServices?
+
+    init(context: JellyfinAPIContext, server: ServerIdentity) {
+        self.context = context
+        self.server = server
+        catalog = JellyfinCatalogService(context: context)
+        playbackService = JellyfinPlaybackService(context: context)
+    }
+
+    var supportsWatchlist: Bool {
+        false
+    }
+
+    var supportsFavorites: Bool {
+        true
+    }
+
+    var supportsRemoteSubtitleSearch: Bool {
+        true
+    }
+
+    var supportsAdvancedSubtitleSearch: Bool {
+        false
+    }
+
+    var serverAccessGeneration: Int {
+        0
+    }
+
+    var authorization: MediaAuthorization {
+        context.authorization
+    }
+
+    func serverAccessRecoveryError(from _: Error) -> MediaServerAccessRecoveryError? {
+        nil
+    }
+
+    func recoverServerAccessIfUnauthorized() async throws -> Bool {
+        false
+    }
+
+    func forceServerAccessRecovery() async throws {}
+
+    func items(in hub: Hub, startIndex: Int, limit: Int) async throws -> MediaPage<MediaDisplayItem> {
+        let start = min(startIndex, hub.items.count)
+        let end = min(start + limit, hub.items.count)
+        return MediaPage(
+            items: Array(hub.items[start ..< end]),
+            startIndex: start,
+            totalCount: hub.items.count,
+        )
+    }
+
+    func mediaItem(id: String) async throws -> MediaItem {
+        try await MediaItem(jellyfinItem: catalog.item(id: id), server: server)
+    }
+
+    func libraryID(for media: MediaItem) async throws -> String? {
+        try await catalog.libraryID(itemID: media.id)
+    }
+
+    func fetchExtras(for media: MediaItem) async throws -> [MediaItem] {
+        try await catalog.extras(for: media.id).map { MediaItem(jellyfinItem: $0, server: server) }
+    }
+
+    func favorites() async throws -> [MediaItem] {
+        try await catalog.favoriteItems().map { MediaItem(jellyfinItem: $0, server: server) }
+    }
+
+    func isFavorite(_ media: MediaItem) async throws -> Bool {
+        try await catalog.isFavorite(itemID: media.id)
+    }
+
+    func setFavorite(_ favorite: Bool, media: MediaItem) async throws {
+        try await catalog.setFavorite(favorite, itemID: media.id)
+    }
+
+    func searchSubtitles(
+        itemID: String,
+        language: String,
+        hearingImpaired: Bool,
+        forced: Bool,
+        title _: String?,
+    ) async throws -> [RemoteSubtitleResult] {
+        let values: [JellyfinRemoteSubtitle] = try await context.get(
+            path: ["Items", itemID, "RemoteSearch", "Subtitles", language],
+        )
+        return values.filter { value in
+            (!forced || value.isForced == true)
+                && (!hearingImpaired || value.hearingImpaired == true)
+        }.map { value in
+            RemoteSubtitleResult(
+                id: value.id,
+                title: value.name ?? value.providerName ?? value.id,
+                language: value.threeLetterISOLanguageName,
+                codec: value.format ?? "",
+                providerTitle: value.providerName,
+                isExactMatch: value.isHashMatch == true,
+                matchScore: value.downloadCount.map(Double.init),
+                isForced: value.isForced == true,
+            )
+        }
+    }
+
+    func installSubtitle(itemID: String, result: RemoteSubtitleResult) async throws {
+        try await context.send(
+            path: ["Items", itemID, "RemoteSearch", "Subtitles", result.id],
+            method: "POST",
+        )
+    }
+
+    func loadHome(
+        hiddenLibraryIDs: Set<String>,
+        includesPlaylists _: Bool,
+        shownRowIDs _: Set<String>,
+        mergesNextUp: Bool,
+    ) async throws -> HomeContent {
+        async let watchingRows = loadWatchingRows(hiddenLibraryIDs: hiddenLibraryIDs, mergesNextUp: mergesNextUp)
+        let visibleLibraries = try await catalog.libraries().filter {
+            !hiddenLibraryIDs.contains($0.id)
+                && ($0.collectionType?.lowercased() == "movies" || $0.collectionType?.lowercased() == "tvshows")
+        }
+        var rows = try await watchingRows
+        let latest = try await withThrowingTaskGroup(of: (Int, JellyfinItem, [JellyfinItem]).self) { group in
+            for (index, library) in visibleLibraries.enumerated() {
+                group.addTask { [catalog] in
+                    let items = try await catalog.latest(
+                        parentID: library.id,
+                    )
+                    return (index, library, items)
+                }
+            }
+            var values: [(Int, JellyfinItem, [JellyfinItem])] = []
+            for try await value in group {
+                values.append(value)
+            }
+            return values.sorted { $0.0 < $1.0 }
+        }
+        rows.append(contentsOf: latest.compactMap { _, library, items in
+            guard !items.isEmpty else { return nil }
+            let latestHub = hub(
+                id: "jellyfin.latest.\(library.id)",
+                title: String(localized: "jellyfin.home.latestIn \(library.name)"),
+                items: items,
+            )
+            guard latestHub.hasItems else { return nil }
+            return HomeRow.providerHub(
+                server: server,
+                hub: latestHub,
+            )
+        })
+
+        return HomeContent(rows: rows)
+    }
+
+    func loadFeaturedCandidates(hiddenLibraryIDs: Set<String>) async throws -> [FeaturedCandidate] {
+        try await JellyfinFeaturedService(catalog: catalog, server: server)
+            .candidates(hiddenLibraryIDs: hiddenLibraryIDs)
+    }
+
+    func loadWatchingRows(hiddenLibraryIDs _: Set<String>, mergesNextUp: Bool) async throws -> [HomeRow] {
+        if mergesNextUp {
+            let continueHub = try await hub(
+                id: "jellyfin.resume",
+                title: String(localized: "jellyfin.home.resume"),
+                items: catalog.continueWatching(),
+            )
+            return continueHub.hasItems ? [.continueWatching(server: server, hub: continueHub)] : []
+        }
+        async let resumeItems = catalog.resume()
+        async let nextUpItems = catalog.nextUp()
+        let resumeHub = try await hub(
+            id: "jellyfin.resume",
+            title: String(localized: "jellyfin.home.resume"),
+            items: resumeItems,
+        )
+        let nextUpHub = try await hub(
+            id: "jellyfin.nextUp",
+            title: String(localized: "jellyfin.home.nextUp"),
+            items: nextUpItems,
+        )
+        var rows: [HomeRow] = []
+        if resumeHub.hasItems {
+            rows.append(.continueWatching(server: server, hub: resumeHub))
+        }
+        if nextUpHub.hasItems {
+            rows.append(.nextUp(server: server, hub: nextUpHub))
+        }
+        return rows
+    }
+
+    func libraries() async throws -> [Library] {
+        try await catalog.libraries().map { Library(jellyfinItem: $0, server: server) }
+    }
+
+    func preview(for library: Library) async throws -> LibraryPreview? {
+        let type = switch library.type {
+        case .series: "Series"
+        case .collection: "BoxSet"
+        case .playlist: "Playlist"
+        default: "Movie"
+        }
+        let result = try await catalog.items(
+            parentID: library.id,
+            includeTypes: type,
+            limit: LibraryPreview.artworkCount,
+            sortBy: "Random",
+        )
+        let artworkKind: MediaImageViewModel.ArtworkKind = switch library.type {
+        case .collection, .playlist: .thumb
+        default: .art
+        }
+        var artworks: [ArtworkResource] = []
+        for item in result.items {
+            guard let media = MediaDisplayItem(jellyfinItem: item, server: server),
+                  let artwork = try await artwork(for: media, kind: artworkKind, width: 1280, height: 720)
+            else { continue }
+            artworks.append(artwork)
+        }
+        return LibraryPreview(artworks: artworks, itemCount: result.totalRecordCount)
+    }
+
+    func recommended(in library: Library, mergesNextUp: Bool) async throws -> [Hub] {
+        switch library.type {
+        case .series where mergesNextUp:
+            async let continueItems = catalog.continueWatching(parentID: library.id, resumeLimit: 3, nextUpLimit: 24)
+            async let latestItems = catalog.latest(
+                types: "Episode",
+                parentID: library.id,
+                limit: 30,
+            )
+            return try await [
+                hubIfNotEmpty(
+                    id: "jellyfin.library.inProgress.\(library.id)",
+                    title: String(localized: "jellyfin.home.resume"),
+                    items: continueItems,
+                ),
+                hubIfNotEmpty(
+                    id: "jellyfin.library.latestEpisodes.\(library.id)",
+                    title: String(localized: "jellyfin.library.recentlyAdded"),
+                    items: latestItems,
+                ),
+            ].compactMap(\.self)
+        case .series:
+            async let resumableItems = catalog.resumable(
+                parentID: library.id,
+                includeTypes: "Episode",
+                limit: 3,
+            )
+            async let latestItems = catalog.latest(
+                types: "Episode",
+                parentID: library.id,
+                limit: 30,
+            )
+            async let nextUpItems = catalog.nextUp(parentID: library.id, limit: 24)
+
+            return try await [
+                hubIfNotEmpty(
+                    id: "jellyfin.library.inProgress.\(library.id)",
+                    title: String(localized: "jellyfin.home.resume"),
+                    items: resumableItems,
+                ),
+                hubIfNotEmpty(
+                    id: "jellyfin.library.latestEpisodes.\(library.id)",
+                    title: String(localized: "jellyfin.library.recentlyAdded"),
+                    items: latestItems,
+                ),
+                hubIfNotEmpty(
+                    id: "jellyfin.library.nextUp.\(library.id)",
+                    title: String(localized: "jellyfin.home.nextUp"),
+                    items: nextUpItems,
+                ),
+            ].compactMap(\.self)
+        default:
+            async let resumableItems = catalog.resumable(
+                parentID: library.id,
+                includeTypes: "Movie",
+                limit: 3,
+            )
+            async let latestItems = catalog.latest(
+                types: "Movie",
+                parentID: library.id,
+                limit: 18,
+            )
+            async let recommendations = catalog.movieRecommendations(categoryLimit: 6, itemLimit: 6)
+
+            var hubs = try await [
+                hubIfNotEmpty(
+                    id: "jellyfin.library.inProgress.\(library.id)",
+                    title: String(localized: "jellyfin.home.resume"),
+                    items: resumableItems,
+                ),
+                hubIfNotEmpty(
+                    id: "jellyfin.library.latestMovies.\(library.id)",
+                    title: String(localized: "jellyfin.library.recentlyAdded"),
+                    items: latestItems,
+                ),
+            ].compactMap(\.self)
+            try await hubs.append(contentsOf: recommendations.enumerated().compactMap { index, recommendation in
+                guard !recommendation.items.isEmpty else { return nil }
+                return hub(
+                    id: "jellyfin.library.recommendation.\(recommendation.categoryID ?? String(index))",
+                    title: recommendationTitle(for: recommendation),
+                    items: recommendation.items,
+                )
+            })
+            return hubs
+        }
+    }
+
+    func items(
+        in library: Library,
+        parentID: String?,
+        startIndex: Int,
+        limit: Int,
+    ) async throws -> MediaPage<MediaDisplayItem> {
+        let includeTypes = switch library.type {
+        case .series:
+            parentID == nil ? "Series" : "Series,Season,Episode"
+        case .collection:
+            "BoxSet"
+        case .playlist:
+            "Playlist"
+        default:
+            "Movie"
+        }
+        let response = try await catalog.items(
+            parentID: parentID ?? library.id,
+            includeTypes: includeTypes,
+            recursive: parentID == nil || library.type == .collection || library.type == .playlist,
+            startIndex: startIndex,
+            limit: limit,
+        )
+        return MediaPage(
+            items: response.items.compactMap { MediaDisplayItem(jellyfinItem: $0, server: server) },
+            startIndex: response.startIndex ?? startIndex,
+            totalCount: response.totalRecordCount,
+        )
+    }
+
+    func browseItems(
+        in library: Library,
+        parentID: String?,
+        query: LibraryBrowseQuery,
+        startIndex: Int,
+        limit: Int,
+    ) async throws -> MediaPage<MediaDisplayItem> {
+        let includeTypes = browseIncludeTypes(for: library, parentID: parentID)
+        let sort = browseSort(for: query, library: library)
+        var filters: [String] = []
+        switch query.watchStatus {
+        case .all:
+            break
+        case .unplayed:
+            filters.append("IsUnplayed")
+        case .played:
+            filters.append("IsPlayed")
+        }
+        if query.isResumable {
+            filters.append("IsResumable")
+        }
+
+        let response = try await catalog.items(
+            parentID: parentID ?? library.id,
+            includeTypes: includeTypes,
+            recursive: parentID == nil || library.type == .collection || library.type == .playlist,
+            startIndex: startIndex,
+            limit: limit,
+            sortBy: sort.keys.joined(separator: ","),
+            sortOrder: sort.directions.joined(separator: ","),
+            filters: filters,
+            isFavorite: query.isFavorite,
+            genreIDs: query.genreIDs,
+            years: query.years,
+        )
+        return MediaPage(
+            items: response.items.compactMap { MediaDisplayItem(jellyfinItem: $0, server: server) },
+            startIndex: response.startIndex ?? startIndex,
+            totalCount: response.totalRecordCount,
+        )
+    }
+
+    func browseFilterOptions(in library: Library) async throws -> LibraryBrowseFilterOptions {
+        try await catalog.browseFilterOptions(
+            parentID: library.id,
+            includeTypes: library.type == .series ? "Series" : "Movie",
+        )
+    }
+
+    func collections(in _: Library) async throws -> [CollectionMediaItem] {
+        try await catalog.items(includeTypes: "BoxSet", limit: 100).items.compactMap {
+            guard case let .collection(item) = MediaDisplayItem(jellyfinItem: $0, server: server) else { return nil }
+            return item
+        }
+    }
+
+    func playlists(in _: Library) async throws -> [PlaylistMediaItem] {
+        try await catalog.playlists().compactMap {
+            guard case let .playlist(item) = MediaDisplayItem(jellyfinItem: $0, server: server) else { return nil }
+            return item
+        }
+    }
+
+    func search(query: String, kinds: Set<MediaKind>) async throws -> [MediaDisplayItem] {
+        let response = try await catalog.items(
+            includeTypes: searchTypes(for: kinds),
+            searchTerm: query,
+            limit: 100,
+        )
+        return response.items.compactMap { MediaDisplayItem(jellyfinItem: $0, server: server) }
+    }
+
+    func artwork(
+        for media: MediaDisplayItem,
+        kind: MediaImageViewModel.ArtworkKind,
+        width: Int?,
+        height: Int?,
+    ) async throws -> ArtworkResource? {
+        let path = kind == .thumb ? media.preferredThumbPath : media.preferredArtPath
+        return try await artwork(path: path, width: width, height: height)
+    }
+
+    func artworkURL(path _: String?, width _: Int?, height _: Int?) -> URL? {
+        nil
+    }
+
+    func artwork(path: String?, width: Int?, height: Int?) async throws -> ArtworkResource? {
+        guard let path, let descriptor = JellyfinArtworkPath.parse(path) else { return nil }
+        var query = [URLQueryItem(name: "quality", value: "90")]
+        if let descriptorTag = descriptor.tag {
+            query.append(URLQueryItem(name: "tag", value: descriptorTag))
+        }
+        // Without a size Jellyfin serves the original (often 2000×3000 posters), which made card rails decode
+        // tens of megabytes per item and stutter on focus moves; Plex likewise transcodes to a default size.
+        let isUnsized = width == nil && height == nil
+        if let maxWidth = isUnsized ? Self.defaultArtworkSide : width {
+            query.append(URLQueryItem(name: "maxWidth", value: String(maxWidth)))
+        }
+        if let maxHeight = isUnsized ? Self.defaultArtworkSide : height {
+            query.append(URLQueryItem(name: "maxHeight", value: String(maxHeight)))
+        }
+        var imagePath = ["Items", descriptor.ownerID, "Images", descriptor.type]
+        if let imageIndex = descriptor.index {
+            imagePath.append(String(imageIndex))
+        }
+        let url = try context.url(path: imagePath, query: query)
+        // tvOS skips the offline artwork cache, and hero art is too large for URLCache: without this, every focus
+        // move re-downloaded it.
+        if let cached = Self.artworkCache.object(forKey: url as NSURL) {
+            return .data(cached as Data)
+        }
+        let request = try context.mediaRequest(url: url)
+        let data = try await context.data(for: request)
+        Self.artworkCache.setObject(data as NSData, forKey: url as NSURL, cost: data.count)
+        return .data(data)
+    }
+
+    func themeMusicURL(path: String) -> URL? {
+        guard let access = try? context.externalMediaAccess() else { return nil }
+        return try? JellyfinAPIContext.makeURL(
+            baseURL: access.baseURL,
+            path: ["Audio", path, "stream"],
+            query: [
+                URLQueryItem(name: "static", value: "true"),
+                URLQueryItem(name: "api_key", value: access.token),
+            ],
+        )
+    }
+
+    func themePath(for media: MediaItem) async -> String? {
+        do {
+            return try await catalog.themeSongs(itemID: media.id).first?.id
+        } catch {
+            if !Task.isCancelled, !error.isCancellation {
+                ErrorReporter.capture(error)
+            }
+            return nil
+        }
+    }
+
+    func details(for media: MediaItem) async throws -> MediaDetailContent {
+        let item = try await catalog.item(id: media.id)
+        let mapped = MediaItem(jellyfinItem: item, server: server)
+        let seasons: [MediaItem]
+        let episodes: [MediaItem]
+        switch item.kind {
+        case .series:
+            seasons = try await catalog.seasons(seriesID: item.id).map { MediaItem(jellyfinItem: $0, server: server) }
+            episodes = []
+        case .season:
+            seasons = []
+            let seriesID = item.seriesID ?? item.parentID
+            episodes = if let seriesID {
+                try await catalog.episodes(seriesID: seriesID, seasonID: item.id)
+                    .map { MediaItem(jellyfinItem: $0, server: server) }
+            } else {
+                []
+            }
+        default:
+            seasons = []
+            episodes = []
+        }
+        let related = try await catalog.similar(itemID: item.id)
+        let relatedHub = related.isEmpty ? [] : [hub(
+            id: "jellyfin.similar.\(item.id)",
+            title: String(localized: "jellyfin.detail.similar"),
+            items: related,
+        )]
+        let onDeck = item.kind == .series
+            ? try await catalog.continueEpisode(seriesID: item.id)
+            : nil
+        return try await MediaDetailContent(
+            media: mapped,
+            parentSeries: parentSeries(for: item),
+            onDeck: onDeck.map { MediaItem(jellyfinItem: $0, server: server) },
+            seasons: seasons,
+            episodes: episodes,
+            cast: (item.people ?? []).map {
+                CastMember(
+                    id: $0.id,
+                    personID: $0.id,
+                    name: $0.name,
+                    character: $0.role,
+                    thumbPath: JellyfinArtworkPath.make(
+                        ownerID: $0.id,
+                        type: "Primary",
+                        tag: $0.primaryImageTag,
+                    ),
+                )
+            },
+            relatedHubs: relatedHub,
+        )
+    }
+
+    func fileInfo(for media: MediaItem) async throws -> MediaFileInfo? {
+        let item = try await catalog.item(id: media.id)
+        guard let sources = item.mediaSources, !sources.isEmpty else { return nil }
+        return MediaFileInfo(versions: sources.map(Self.mapFileInfoVersion))
+    }
+
+    private func parentSeries(for item: JellyfinItem) async throws -> MediaItem? {
+        let seriesID: String?
+        switch item.kind {
+        case .season:
+            seriesID = item.seriesID ?? item.parentID
+        case .episode:
+            if let itemSeriesID = item.seriesID {
+                seriesID = itemSeriesID
+            } else if let seasonID = item.parentID {
+                let season = try await catalog.item(id: seasonID)
+                seriesID = season.seriesID ?? season.parentID
+            } else {
+                seriesID = nil
+            }
+        case .movie, .series, .clip, .collection, .playlist, .folder, .unknown:
+            seriesID = nil
+        }
+
+        guard let seriesID else { return nil }
+        return try await MediaItem(jellyfinItem: catalog.item(id: seriesID), server: server)
+    }
+
+    func seasons(for series: MediaItem) async throws -> [MediaItem] {
+        try await catalog.seasons(seriesID: series.id).map { MediaItem(jellyfinItem: $0, server: server) }
+    }
+
+    func episodes(for season: MediaItem, seriesID: String?) async throws -> [MediaItem] {
+        guard let seriesID = seriesID ?? season.grandparentRatingKey ?? season.parentRatingKey else { return [] }
+        return try await catalog.episodes(seriesID: seriesID, seasonID: season.id)
+            .map { MediaItem(jellyfinItem: $0, server: server) }
+    }
+
+    func allEpisodes(for series: MediaItem) async throws -> [MediaItem] {
+        try await catalog.episodes(seriesID: series.id)
+            .filter { $0.kind == .episode }
+            .map { MediaItem(jellyfinItem: $0, server: server) }
+    }
+
+    func setPlayed(_ played: Bool, itemID: String) async throws {
+        try await catalog.markPlayed(itemID: itemID, played: played)
+    }
+
+    func isWatchlisted(_: MediaItem) async throws -> Bool {
+        false
+    }
+
+    func setWatchlisted(_: Bool, media _: MediaItem) async throws {}
+
+    func trackSelection(itemID: String, versionID: String?) async throws -> MediaTrackSelection {
+        let item = try await catalog.item(id: itemID)
+        let sources = item.mediaSources ?? []
+        let versions = sources.map(Self.mapFileInfoVersion)
+        let defaultVersion = MediaVersionResolver.resolve(.automatic, in: versions, default: Self.defaultVersion)
+        let source = Self.source(
+            in: sources,
+            versions: versions,
+            request: versionID.map { .explicit(versionID: $0) } ?? .automatic,
+        )
+        let overrideKey = Self.trackSelectionKey(itemID: itemID, versionID: source?.id)
+        let streams = source?.mediaStreams ?? []
+        let audioTracks = streams
+            .filter { $0.type.lowercased() == "audio" }
+            .map { MediaTrackMetadata(jellyfinStream: $0) }
+        let subtitleTracks = streams
+            .filter { $0.type.lowercased() == "subtitle" }
+            .map { MediaTrackMetadata(jellyfinStream: $0) }
+        let validAudioIndices = Set(audioTracks.compactMap(\.id))
+        let validSubtitleIndices = Set(subtitleTracks.compactMap(\.id))
+        let selectionOverride = validatedTrackSelectionOverride(
+            for: overrideKey,
+            validAudioIndices: validAudioIndices,
+            validSubtitleIndices: validSubtitleIndices,
+        )
+        let defaultAudioTrackID = source?.defaultAudioStreamIndex.flatMap { index in
+            validAudioIndices.contains(index) ? index : nil
+        }
+        let defaultSubtitleTrackID = source?.serverSubtitleIndex(validIndices: validSubtitleIndices)
+        let selectedAudioTrackID = selectionOverride?.audioStreamIndex
+            ?? defaultAudioTrackID
+            ?? audioTracks.first(where: \.isDefault)?.id
+            ?? audioTracks.first?.id
+        let selectedSubtitleTrackID: Int? = switch selectionOverride?.subtitlePreference {
+        case .off:
+            nil
+        case let .stream(index):
+            index
+        case .serverDefault, nil:
+            defaultSubtitleTrackID
+        }
+
+        return MediaTrackSelection(
+            itemID: itemID,
+            filePath: nil,
+            audioTracks: audioTracks,
+            subtitleTracks: subtitleTracks,
+            selectedAudioTrackID: selectedAudioTrackID,
+            selectedSubtitleTrackID: selectedSubtitleTrackID,
+            versions: versions,
+            versionID: source?.id,
+            defaultVersionID: defaultVersion?.id,
+        )
+    }
+
+    func selectAudioTrack(id: Int, itemID: String, versionID: String?) async throws {
+        let key = Self.trackSelectionKey(itemID: itemID, versionID: versionID)
+        var selectionOverride = trackSelectionOverrides[key] ?? JellyfinTrackSelectionOverride()
+        selectionOverride.audioStreamIndex = id
+        trackSelectionOverrides[key] = selectionOverride
+    }
+
+    func selectSubtitleTrack(id: Int?, itemID: String, versionID: String?) async throws {
+        let key = Self.trackSelectionKey(itemID: itemID, versionID: versionID)
+        var selectionOverride = trackSelectionOverrides[key] ?? JellyfinTrackSelectionOverride()
+        selectionOverride.subtitlePreference = id.map(JellyfinSubtitleStreamPreference.stream) ?? .off
+        trackSelectionOverrides[key] = selectionOverride
+    }
+
+    func enableTrackSelectionMemory(for kind: PlaybackTrackKind) async throws {
+        guard !enabledTrackSelectionMemory.contains(kind) else { return }
+        try await context.enableTrackSelectionMemory(for: kind)
+        enabledTrackSelectionMemory.insert(kind)
+    }
+
+    func collectionItems(id: String) async throws -> [MediaDisplayItem] {
+        try await childItems(id: id)
+    }
+
+    func person(id: String) async throws -> Person {
+        let value: JellyfinPerson = try await context.get(path: ["Persons", id])
+        return Person(jellyfinPerson: value)
+    }
+
+    func personMedia(id: String) async throws -> [MediaDisplayItem] {
+        try await catalog.items(includeTypes: "Movie,Series,Episode", personID: id, limit: 100).items
+            .compactMap { MediaDisplayItem(jellyfinItem: $0, server: server) }
+    }
+
+    func queue(startingWith media: MediaItem, shuffle: Bool) async throws -> PlaybackQueue {
+        let item = try await catalog.item(id: media.id)
+        let queue = try await catalog.playbackQueue(startingWith: item)
+        // A shuffled series starts anywhere, not at its next episode.
+        let startID = shuffle ? media.id : queue.startItemID ?? media.id
+        return PlaybackQueue(
+            media: queue.items.map { MediaItem(jellyfinItem: $0, server: server) },
+            startingAt: startID,
+            shuffle: shuffle,
+        )
+    }
+
+    func queue(playlistID: String, startingWith entry: PlaylistEntry) async throws -> PlaybackQueue {
+        let values = try await catalog.playlistItems(id: playlistID, fields: "Chapters,Trickplay")
+            .filter(\.isPlayable)
+        let entries = JellyfinPlaylistService.entries(from: values, server: server)
+        let queueItems = values.map {
+            PlaybackQueueItem(
+                id: UUID(),
+                media: MediaItem(jellyfinItem: $0, server: server),
+                providerQueueItemID: nil,
+            )
+        }
+        return PlaybackQueue(
+            id: UUID(),
+            items: queueItems,
+            currentIndex: entries.firstIndex(where: { $0.id == entry.id }) ?? 0,
+            isShuffled: false,
+        )
+    }
+
+    func queue(startingWith itemID: String, kind _: MediaKind, shuffle: Bool) async throws -> PlaybackQueue {
+        let item = try await catalog.item(id: itemID)
+        return try await queue(startingWith: MediaItem(jellyfinItem: item, server: server), shuffle: shuffle)
+    }
+
+    func prepare(
+        media: MediaItem,
+        resume: Bool,
+        quality: TranscodeQualityPreset,
+        trackPreference: MediaTrackPreference?,
+        version: MediaVersionRequest,
+    ) async throws -> PlaybackPlan {
+        let item = try await catalog.item(id: media.id)
+        let sources = item.mediaSources ?? []
+        let versions = sources.map(Self.mapFileInfoVersion)
+        let requestedSource = Self.source(in: sources, versions: versions, request: version)
+        let plan = try await playbackService.prepare(
+            item: item,
+            resume: resume,
+            trackSelection: trackSelectionOverrides[
+                Self.trackSelectionKey(itemID: item.id, versionID: requestedSource?.id),
+            ],
+            trackPreference: trackPreference,
+            quality: quality,
+            mediaSourceID: requestedSource?.id,
+        )
+        activePlans[plan.playSessionID] = plan
+        let segments = await (try? catalog.mediaSegments(itemID: item.id)) ?? []
+        let tracks = plan.mediaStreams.sorted { lhs, rhs in
+            let lhsPriority = lhs.type.lowercased() == "subtitle" && lhs.isExternal == true ? 0 : 1
+            let rhsPriority = rhs.type.lowercased() == "subtitle" && rhs.isExternal == true ? 0 : 1
+            return lhsPriority == rhsPriority ? lhs.index < rhs.index : lhsPriority < rhsPriority
+        }.compactMap { stream -> PlaybackTrack? in
+            let kind: PlaybackTrackKind
+            switch stream.type.lowercased() {
+            case "audio": kind = .audio
+            case "subtitle": kind = .subtitle
+            default: return nil
+            }
+            return PlaybackTrack(
+                id: "jellyfin.\(stream.index)",
+                sourceIndex: stream.index,
+                kind: kind,
+                isExternal: stream.isExternal == true,
+                title: stream.displayTitle ?? stream.language ?? stream.codec ?? "",
+                name: stream.title,
+                language: stream.language,
+                codec: stream.codec,
+                isDefault: stream.isDefault ?? false,
+                isForced: stream.isForced ?? false,
+                isHearingImpaired: stream.isHearingImpaired ?? false,
+            )
+        }
+        let scrubSource: ScrubThumbnailSource? = {
+            guard let variants = item.trickplay?[plan.mediaSourceID],
+                  let info = variants.values
+                      .filter({ $0.width > 0 && $0.height > 0 && $0.interval > 0 })
+                      .sorted(by: { lhs, rhs in
+                          let lhsDistance = abs(lhs.width - 320)
+                          let rhsDistance = abs(rhs.width - 320)
+                          return lhsDistance == rhsDistance ? lhs.width < rhs.width : lhsDistance < rhsDistance
+                      })
+                      .first,
+                  let directoryURL = try? context.url(
+                      path: ["Videos", item.id, "Trickplay", String(info.width)],
+                  )
+            else { return nil }
+            return .jellyfin(JellyfinTrickplaySource(
+                directoryURL: directoryURL,
+                headers: plan.headers,
+                cacheKey: "\(server.id):\(item.id):\(plan.mediaSourceID):\(info.width)",
+                mediaSourceID: plan.mediaSourceID,
+                width: info.width,
+                height: info.height,
+                tileColumns: info.tileWidth,
+                tileRows: info.tileHeight,
+                thumbnailCount: info.thumbnailCount,
+                intervalMilliseconds: info.interval,
+            ))
+        }()
+        return PlaybackPlan(
+            media: MediaItem(jellyfinItem: item, server: server),
+            url: plan.url,
+            httpHeaders: plan.headers,
+            method: plan.method,
+            requestedQuality: plan.requestedQuality,
+            effectiveQuality: plan.effectiveQuality,
+            qualityFallbackMessage: plan.qualityFallbackMessage,
+            mediaSourceID: plan.mediaSourceID,
+            playSessionID: plan.playSessionID,
+            transcodeSessionID: plan.method == .transcode ? plan.playSessionID : nil,
+            initialPosition: plan.initialPosition,
+            selectedAudioIndex: plan.preferredAudioStreamIndex,
+            selectedSubtitleIndex: plan.preferredSubtitleStreamIndex,
+            subtitleSelectionIsOff: plan.subtitleSelectionIsOff,
+            tracks: tracks,
+            externalSubtitles: plan.externalSubtitles,
+            chapters: plan.chapters.enumerated().map { index, chapter in
+                let nextStart = plan.chapters.indices.contains(index + 1)
+                    ? plan.chapters[index + 1].startTime
+                    : item.duration ?? (chapter.startTime + 1)
+                let hasImage = chapter.imagePath?.isEmpty == false
+                    || chapter.imageTag?.isEmpty == false
+                return MediaChapter(
+                    id: String(chapter.startPositionTicks),
+                    title: chapter.name ?? "",
+                    index: index + 1,
+                    startTime: chapter.startTime,
+                    endTime: max(chapter.startTime + 0.001, nextStart),
+                    image: nil,
+                    thumbPath: hasImage
+                        ? JellyfinArtworkPath.makeChapter(
+                            ownerID: item.id,
+                            index: index,
+                            tag: chapter.imageTag,
+                        )
+                        : nil,
+                )
+            },
+            skipSegments: segments.compactMap { segment in
+                let kind: SkipSegment.Kind
+                switch segment.type.lowercased() {
+                case "intro": kind = .intro
+                case "outro", "credits": kind = .credits
+                case "commercial": kind = .commercial
+                default: return nil
+                }
+                return SkipSegment(
+                    id: segment.id ?? "\(segment.type).\(segment.startTicks)",
+                    kind: kind,
+                    startTime: JellyfinTime.seconds(fromTicks: segment.startTicks),
+                    endTime: JellyfinTime.seconds(fromTicks: segment.endTicks),
+                )
+            },
+            scrubThumbnailSource: scrubSource,
+            versions: versions,
+            versionID: plan.mediaSourceID,
+        )
+    }
+
+    func release(plan: PlaybackPlan) async {
+        guard let playSessionID = plan.playSessionID else { return }
+        activePlans[playSessionID] = nil
+        guard plan.method == .transcode else { return }
+        do {
+            try await context.stopEncoding(playSessionID: playSessionID)
+        } catch {
+            guard !Task.isCancelled, !error.isCancellation else { return }
+            ErrorReporter.capture(error)
+        }
+    }
+
+    func externalPlaybackTarget(
+        for media: MediaItem,
+        version: MediaVersionRequest,
+    ) async throws -> ExternalPlaybackTarget {
+        let item = try await catalog.item(id: media.id)
+        let access = try context.externalMediaAccess()
+        let url = try Self.externalPlaybackURL(
+            item: item,
+            version: version,
+            baseURL: access.baseURL,
+            token: access.token,
+        )
+        var target = ExternalPlaybackTarget(url: url, media: media)
+        target.subtitles = try Self.externalSubtitleURLs(
+            item: item,
+            version: version,
+            baseURL: access.baseURL,
+            token: access.token,
+        )
+        return target
+    }
+
+    /// The container extension tells the player the file format.
+    static func externalPlaybackURL(
+        item: JellyfinItem,
+        version: MediaVersionRequest,
+        baseURL: URL,
+        token: String,
+    ) throws -> URL {
+        let sources = item.mediaSources ?? []
+        guard let source = source(in: sources, versions: sources.map(mapFileInfoVersion), request: version) else {
+            throw ExternalPlaybackError.noPlayableSource
+        }
+        let container = MediaVersionSignature.normalizedContainer(source.container)
+        return try JellyfinAPIContext.makeURL(
+            baseURL: baseURL,
+            path: ["Videos", item.id, container.isEmpty ? "stream" : "stream.\(container)"],
+            query: [
+                URLQueryItem(name: "Static", value: "true"),
+                URLQueryItem(name: "MediaSourceId", value: source.id),
+                URLQueryItem(name: "api_key", value: token),
+            ],
+        )
+    }
+
+    /// External text subtitles converted to SRT by the server: the player reads the embedded tracks from the file
+    /// itself. The source default comes first.
+    static func externalSubtitleURLs(
+        item: JellyfinItem,
+        version: MediaVersionRequest,
+        baseURL: URL,
+        token: String,
+    ) throws -> [URL] {
+        let sources = item.mediaSources ?? []
+        guard let source = source(in: sources, versions: sources.map(mapFileInfoVersion), request: version) else {
+            return []
+        }
+        let external = (source.mediaStreams ?? []).filter { $0.isExternal == true && $0.isDownloadableTextSubtitle }
+        let ordered = external.filter { $0.index == source.defaultSubtitleStreamIndex }
+            + external.filter { $0.index != source.defaultSubtitleStreamIndex }
+        return try ordered.map { stream in
+            try JellyfinAPIContext.makeURL(
+                baseURL: baseURL,
+                path: ["Videos", item.id, source.id, "Subtitles", String(stream.index), "0", "Stream.srt"],
+                query: [URLQueryItem(name: "api_key", value: token)],
+            )
+        }
+    }
+
+    private static func defaultVersion(_ versions: [MediaFileVersion]) -> MediaFileVersion? {
+        versions.first(where: { $0.supportsDirectPlay == true }) ?? versions.first
+    }
+
+    /// Sources are picked by id: plugins may reorder the sources of merged items between requests.
+    private static func source(
+        in sources: [JellyfinMediaSource],
+        versions: [MediaFileVersion],
+        request: MediaVersionRequest,
+    ) -> JellyfinMediaSource? {
+        guard let versionID = MediaVersionResolver.resolve(request, in: versions, default: defaultVersion)?.id else {
+            return defaultVersion(versions).flatMap { version in sources.first { $0.id == version.id } }
+        }
+        return sources.first { $0.id.caseInsensitiveCompare(versionID) == .orderedSame }
+    }
+
+    private static func trackSelectionKey(itemID: String, versionID: String?) -> String {
+        guard let versionID else { return itemID }
+        return "\(itemID)|\(versionID.lowercased())"
+    }
+
+    private static func mapFileInfoVersion(_ source: JellyfinMediaSource) -> MediaFileVersion {
+        let streams = source.mediaStreams ?? []
+        let video = streams.first(where: { $0.type.lowercased() == "video" })
+        let audio = streams.first(where: { $0.type.lowercased() == "audio" })
+        let duration = source.runTimeTicks.map { JellyfinTime.seconds(fromTicks: $0) }
+        let frameRate = video.flatMap { $0.realFrameRate ?? $0.averageFrameRate }
+
+        return MediaFileVersion(
+            id: source.id,
+            title: source.name,
+            container: source.container,
+            bitrateKbps: source.bitrate.map(Self.kilobitsPerSecond),
+            duration: duration,
+            width: video?.width,
+            height: video?.height,
+            aspectRatio: video?.aspectRatio,
+            videoResolution: source.videoResolution,
+            videoCodec: video?.codec,
+            videoProfile: video?.profile,
+            videoFrameRate: frameRate.map(Self.formatFrameRate),
+            audioCodec: audio?.codec,
+            audioProfile: audio?.profile,
+            audioChannels: audio?.channels,
+            parts: [MediaFilePart(
+                id: source.id,
+                path: source.path,
+                sizeBytes: source.size,
+                container: source.container,
+                duration: duration,
+                exists: nil,
+                accessible: nil,
+                streams: streams.map {
+                    Self.mapFileInfoStream(
+                        $0,
+                        defaultAudioIndex: source.defaultAudioStreamIndex,
+                        defaultSubtitleIndex: source.defaultSubtitleStreamIndex,
+                    )
+                },
+            )],
+            attachments: (source.mediaAttachments ?? []).map {
+                MediaFileAttachment(
+                    index: $0.index,
+                    fileName: $0.fileName,
+                    mimeType: $0.mimeType,
+                    codec: $0.codec ?? $0.codecTag,
+                )
+            },
+            supportsDirectPlay: source.supportsDirectPlay,
+        )
+    }
+
+    private static func mapFileInfoStream(
+        _ stream: JellyfinMediaStream,
+        defaultAudioIndex: Int?,
+        defaultSubtitleIndex: Int?,
+    ) -> MediaFileStream {
+        let kind: MediaFileStreamKind = switch stream.type.lowercased() {
+        case "video":
+            .video
+        case "audio":
+            .audio
+        case "subtitle":
+            .subtitle
+        default:
+            .other
+        }
+        let isDefault: Bool? = switch kind {
+        case .audio:
+            stream.isDefault ?? defaultAudioIndex.map { $0 == stream.index }
+        case .subtitle:
+            stream.isDefault ?? defaultSubtitleIndex.map { $0 == stream.index }
+        default:
+            stream.isDefault
+        }
+
+        return MediaFileStream(
+            kind: kind,
+            id: String(stream.index),
+            index: stream.index,
+            title: stream.title,
+            displayTitle: stream.displayTitle,
+            codec: stream.codec,
+            codecTag: stream.codecTag,
+            profile: stream.profile,
+            language: stream.language,
+            languageCode: stream.language,
+            bitrateKbps: stream.bitrate.map(Self.kilobitsPerSecond),
+            isDefault: isDefault,
+            isForced: stream.isForced,
+            isSelected: isDefault,
+            isExternal: stream.isExternal ?? (stream.deliveryMethod?.lowercased() == "external"),
+            isHearingImpaired: stream.isHearingImpaired,
+            width: stream.width,
+            height: stream.height,
+            frameRate: stream.realFrameRate ?? stream.averageFrameRate,
+            bitDepth: stream.bitDepth,
+            dynamicRange: Self.dynamicRange(for: stream),
+            pixelFormat: stream.pixelFormat,
+            colorSpace: stream.colorSpace,
+            colorTransfer: stream.colorTransfer,
+            aspectRatio: stream.aspectRatio,
+            channels: stream.channels,
+            channelLayout: stream.channelLayout,
+            sampleRate: stream.sampleRate,
+            spatialFormat: stream.spatialFormat,
+            subtitleFormat: stream.subtitleFormat ?? (kind == .subtitle ? stream.codec : nil),
+            path: stream.path ?? stream.deliveryURL,
+        )
+    }
+
+    private static func kilobitsPerSecond(_ bitsPerSecond: Int) -> Int {
+        max(1, Int((Double(bitsPerSecond) / 1000).rounded()))
+    }
+
+    private static func formatFrameRate(_ frameRate: Double) -> String {
+        String(format: "%.3g fps", frameRate)
+    }
+
+    private static func dynamicRange(for stream: JellyfinMediaStream) -> String? {
+        let value = stream.videoRangeType ?? stream.videoRange
+        switch value?.lowercased() {
+        case "4", "dovi", "dolbyvision":
+            return "Dolby Vision"
+        case "2", "hdr10":
+            return "HDR10"
+        case "3", "hlg":
+            return "HLG"
+        case "5", "doviwithhdr10":
+            return "Dolby Vision (HDR10)"
+        case "6", "doviwithhlg":
+            return "Dolby Vision (HLG)"
+        case "7", "doviwithsdr":
+            return "Dolby Vision (SDR)"
+        case "8", "doviwithel":
+            return "Dolby Vision (EL)"
+        case "9", "doviwithhdr10plus":
+            return "Dolby Vision (HDR10+)"
+        case "10", "doviwithelhdr10plus":
+            return "Dolby Vision (EL/HDR10+)"
+        case "12", "hdr10plus", "hdr10+":
+            return "HDR10+"
+        case nil, "", "0", "1", "unknown", "sdr":
+            return nil
+        default:
+            return value
+        }
+    }
+
+    private func validatedTrackSelectionOverride(
+        for itemID: String,
+        validAudioIndices: Set<Int>,
+        validSubtitleIndices: Set<Int>,
+    ) -> JellyfinTrackSelectionOverride? {
+        guard var selectionOverride = trackSelectionOverrides[itemID] else { return nil }
+
+        if let audioIndex = selectionOverride.audioStreamIndex,
+           !validAudioIndices.contains(audioIndex)
+        {
+            selectionOverride.audioStreamIndex = nil
+        }
+        if case let .stream(subtitleIndex) = selectionOverride.subtitlePreference,
+           !validSubtitleIndices.contains(subtitleIndex)
+        {
+            selectionOverride.subtitlePreference = .serverDefault
+        }
+
+        trackSelectionOverrides[itemID] = selectionOverride
+        return selectionOverride
+    }
+
+    func reportStarted(
+        plan: PlaybackPlan,
+        position: TimeInterval,
+        isPaused: Bool,
+        currentSelection: PlaybackStreamSelection?,
+    ) async throws {
+        guard let source = sourcePlan(for: plan) else { return }
+        try await playbackService.reportStarted(
+            plan: source,
+            position: position,
+            isPaused: isPaused,
+            currentSelection: currentSelection,
+        )
+    }
+
+    func reportProgress(
+        plan: PlaybackPlan,
+        position: TimeInterval,
+        isPaused: Bool,
+        currentSelection: PlaybackStreamSelection?,
+    ) async throws {
+        guard let source = sourcePlan(for: plan) else { return }
+        try await playbackService.reportProgress(
+            plan: source,
+            position: position,
+            isPaused: isPaused,
+            currentSelection: currentSelection,
+        )
+    }
+
+    func reportStopped(
+        plan: PlaybackPlan,
+        position: TimeInterval,
+        currentSelection: PlaybackStreamSelection?,
+    ) async throws {
+        guard let source = sourcePlan(for: plan) else { return }
+        defer { activePlans[source.playSessionID] = nil }
+        try await playbackService.reportStopped(
+            plan: source,
+            position: position,
+            currentSelection: currentSelection,
+        )
+    }
+
+    func externalSubtitles(media: MediaItem) async throws -> [PlayerExternalSubtitle] {
+        try await playbackService.externalSubtitles(item: catalog.item(id: media.id))
+    }
+
+    func reportItemPlayback(
+        itemID: String,
+        state: ItemPlaybackReportState,
+        position: TimeInterval,
+        duration _: TimeInterval?,
+        isPaused: Bool,
+    ) async throws {
+        let path: [String] = switch state {
+        case .started:
+            ["Sessions", "Playing"]
+        case .progress:
+            ["Sessions", "Playing", "Progress"]
+        case .stopped:
+            ["Sessions", "Playing", "Stopped"]
+        }
+        let body = try JSONEncoder().encode(JellyfinItemPlaybackReport(
+            itemID: itemID,
+            positionTicks: JellyfinTime.ticks(fromSeconds: position),
+            isPaused: state == .stopped || isPaused,
+        ))
+        try await context.send(path: path, method: "POST", body: body)
+    }
+
+    /// Uses `UserData` rather than `Sessions/Playing*`, which would date the event at send time and bump PlayCount.
+    func pushItemPosition(
+        itemID: String,
+        position: TimeInterval,
+        duration _: TimeInterval?,
+        at date: Date,
+    ) async throws {
+        guard let userID = context.connection?.userID else { throw JellyfinAPIError.authenticationRequired }
+        let body = try JSONEncoder().encode(JellyfinUserDataUpdate(
+            playbackPositionTicks: JellyfinTime.ticks(fromSeconds: position),
+            lastPlayedDate: JellyfinDate.string(from: date),
+        ))
+        try await context.send(
+            path: ["UserItems", itemID, "UserData"],
+            method: "POST",
+            query: [URLQueryItem(name: "userId", value: userID)],
+            body: body,
+        )
+    }
+
+    func markItemWatched(itemID: String, at date: Date) async throws {
+        guard let userID = context.connection?.userID else { throw JellyfinAPIError.authenticationRequired }
+        try await context.send(
+            path: ["UserPlayedItems", itemID],
+            method: "POST",
+            query: [
+                URLQueryItem(name: "userId", value: userID),
+                URLQueryItem(name: "datePlayed", value: JellyfinDate.string(from: date)),
+            ],
+        )
+    }
+
+    func serverWatchState(itemID: String) async throws -> ServerItemWatchState {
+        let item = try await catalog.item(id: itemID)
+        return ServerItemWatchState(
+            viewOffset: item.resumePosition,
+            viewCount: item.userData?.playCount ?? 0,
+            isPlayed: item.userData?.played ?? false,
+            lastViewedAt: item.userData?.lastPlayedDate,
+        )
+    }
+
+    func prepareDownload(
+        itemID: String,
+        quality: TranscodeQualityPreset,
+        tracks: MediaTrackPreference,
+        version: MediaVersionRequest,
+    ) async throws -> MediaDownloadPreparation {
+        let item = try await catalog.item(id: itemID)
+        guard item.isPlayable, item.canDownload != false else {
+            throw JellyfinAPIError.permissionDenied
+        }
+        let media = MediaItem(jellyfinItem: item, server: server)
+        let sources = item.mediaSources ?? []
+        let versions = sources.map(Self.mapFileInfoVersion)
+        let selectedSource = Self.source(in: sources, versions: versions, request: version)
+        let selectedVersion = selectedSource.flatMap { source in versions.first { $0.id == source.id } }
+        let versionLabel = versions.count > 1 ? selectedVersion?.displayLabel(among: versions) : nil
+        guard !quality.isOriginal,
+              let source = selectedSource,
+              !source.satisfiesDownloadQuality(quality)
+        else {
+            let url = try originalDownloadURL(item: item, source: selectedSource)
+            return try MediaDownloadPreparation(
+                media: media,
+                requestedQuality: quality,
+                effectiveQuality: quality.isOriginal ? .original : quality,
+                request: context.mediaRequest(url: url),
+                remoteReference: nil,
+                sidecars: selectedSource.map {
+                    try downloadSidecars(itemID: item.id, source: $0, selectedSubtitle: nil)
+                } ?? [],
+                audioTitle: nil,
+                subtitleTitle: nil,
+                versionID: selectedSource?.id,
+                versionLabel: versionLabel,
+            )
+        }
+
+        let audio = source.resolveAudioStream(preference: tracks)
+        let subtitle = source.resolveSubtitleStream(preference: tracks.subtitle)
+        let playSessionID = UUID().uuidString.lowercased()
+        var query = [
+            URLQueryItem(name: "Static", value: "false"),
+            URLQueryItem(name: "MediaSourceId", value: source.id),
+            URLQueryItem(name: "PlaySessionId", value: playSessionID),
+            URLQueryItem(name: "VideoCodec", value: "h264"),
+            URLQueryItem(name: "AudioCodec", value: "aac"),
+            URLQueryItem(name: "AllowVideoStreamCopy", value: "false"),
+            URLQueryItem(name: "AllowAudioStreamCopy", value: "false"),
+            URLQueryItem(name: "AudioBitRate", value: "192000"),
+            URLQueryItem(name: "TranscodingMaxAudioChannels", value: "6"),
+        ]
+        if let bitrate = quality.maximumVideoBitrateKbps {
+            query.append(URLQueryItem(name: "VideoBitRate", value: String(bitrate * 1000)))
+        }
+        if let width = quality.maximumWidth {
+            query.append(URLQueryItem(name: "MaxWidth", value: String(width)))
+        }
+        if let height = quality.maximumHeight {
+            query.append(URLQueryItem(name: "MaxHeight", value: String(height)))
+        }
+        if let audio {
+            query.append(URLQueryItem(name: "AudioStreamIndex", value: String(audio.index)))
+        }
+
+        let url = try context.url(path: ["Videos", item.id, "stream.mp4"], query: query)
+        let sidecars = try downloadSidecars(itemID: item.id, source: source, selectedSubtitle: subtitle)
+
+        return try MediaDownloadPreparation(
+            media: media,
+            requestedQuality: quality,
+            effectiveQuality: quality,
+            request: context.mediaRequest(url: url),
+            remoteReference: .jellyfin(playSessionID: playSessionID),
+            sidecars: sidecars,
+            audioTitle: audio?.displayTitle ?? audio?.title ?? audio?.language,
+            subtitleTitle: subtitle?.displayTitle ?? subtitle?.title ?? subtitle?.language,
+            versionID: source.id,
+            versionLabel: versionLabel,
+        )
+    }
+
+    /// `Items/{id}/Download` always serves the primary file; other versions go through a static stream.
+    private func originalDownloadURL(item: JellyfinItem, source: JellyfinMediaSource?) throws -> URL {
+        guard let source, source.id.caseInsensitiveCompare(item.id) != .orderedSame else {
+            return try context.url(path: ["Items", item.id, "Download"])
+        }
+        let container = MediaVersionSignature.normalizedContainer(source.container)
+        return try context.url(
+            path: ["Videos", item.id, container.isEmpty ? "stream" : "stream.\(container)"],
+            query: [
+                URLQueryItem(name: "Static", value: "true"),
+                URLQueryItem(name: "MediaSourceId", value: source.id),
+            ],
+        )
+    }
+
+    func refreshDownloadPreparation(
+        _: MediaDownloadRemoteReference,
+    ) async throws -> MediaDownloadPreparationUpdate {
+        .failed(message: String(localized: "downloads.status.failed"))
+    }
+
+    func downloadSidecars(
+        itemID: String,
+        tracks: MediaTrackPreference,
+        versionID: String?,
+        isTranscoded: Bool,
+    ) async throws -> [MediaDownloadSidecar] {
+        let item = try await catalog.item(id: itemID)
+        let sources = item.mediaSources ?? []
+        guard let source = Self.source(
+            in: sources,
+            versions: sources.map(Self.mapFileInfoVersion),
+            request: versionID.map { .explicit(versionID: $0) } ?? .automatic,
+        ) else { return [] }
+        let selectedSubtitle: JellyfinMediaStream? = if isTranscoded, case .track = tracks.subtitle {
+            source.resolveSubtitleStream(preference: tracks.subtitle)
+        } else {
+            nil
+        }
+        return try downloadSidecars(itemID: item.id, source: source, selectedSubtitle: selectedSubtitle)
+    }
+
+    /// The transcoded video carries no subtitles, so a selected embedded track is fetched as a file too.
+    private func downloadSidecars(
+        itemID: String,
+        source: JellyfinMediaSource,
+        selectedSubtitle: JellyfinMediaStream?,
+    ) throws -> [MediaDownloadSidecar] {
+        var streams = (source.mediaStreams ?? []).filter { $0.isExternal == true && $0.isDownloadableTextSubtitle }
+        if let selectedSubtitle, !streams.contains(where: { $0.index == selectedSubtitle.index }) {
+            streams.insert(selectedSubtitle, at: 0)
+        }
+        return try streams.map { try makeDownloadSidecar(itemID: itemID, source: source, subtitle: $0) }
+    }
+
+    private func makeDownloadSidecar(
+        itemID: String,
+        source: JellyfinMediaSource,
+        subtitle stream: JellyfinMediaStream,
+    ) throws -> MediaDownloadSidecar {
+        let fileExtension = stream.downloadSubtitleExtension
+        let subtitleURL: URL = if let deliveryURL = stream.deliveryURL,
+                                  let resolved = URL(string: deliveryURL, relativeTo: context.connection?.baseURL)?
+                                      .absoluteURL
+        {
+            resolved
+        } else {
+            try context.url(path: [
+                "Videos", itemID, source.id, "Subtitles", String(stream.index), "0",
+                "Stream.\(fileExtension)",
+            ])
+        }
+        return try MediaDownloadSidecar(
+            request: context.mediaRequest(url: subtitleURL),
+            fileExtension: fileExtension,
+            title: stream.displayTitle ?? stream.title,
+            language: stream.language,
+            codec: stream.codec ?? fileExtension,
+            isForced: stream.isForced == true,
+            isHearingImpaired: stream.isHearingImpaired == true,
+        )
+    }
+
+    func cancelDownloadPreparation(_ reference: MediaDownloadRemoteReference) async {
+        guard case let .jellyfin(playSessionID) = reference else { return }
+        do {
+            try await context.stopEncoding(playSessionID: playSessionID)
+        } catch {
+            guard !Task.isCancelled, !error.isCancellation else { return }
+            ErrorReporter.capture(error)
+        }
+    }
+
+    func downloadableItems(itemID: String, kind: MediaKind) async throws -> [MediaItem] {
+        let item = try await catalog.item(id: itemID)
+        if kind == .movie || kind == .episode {
+            return [MediaItem(jellyfinItem: item, server: server)]
+        }
+        let items = if item.kind == .series {
+            try await catalog.episodes(seriesID: item.id)
+        } else {
+            try await catalog.playbackQueue(startingWith: item).items
+        }
+        return items
+            .filter(\.isPlayable)
+            .map { MediaItem(jellyfinItem: $0, server: server) }
+    }
+
+    private func sourcePlan(for plan: PlaybackPlan) -> JellyfinPlaybackPlan? {
+        plan.playSessionID.flatMap { activePlans[$0] }
+    }
+
+    private func childItems(id: String) async throws -> [MediaDisplayItem] {
+        try await catalog.items(
+            parentID: id,
+            includeTypes: "Movie,Series,Season,Episode",
+            recursive: false,
+            limit: 500,
+        ).items.compactMap { MediaDisplayItem(jellyfinItem: $0, server: server) }
+    }
+
+    private func hub(id: String, title: String, items: [JellyfinItem]) -> Hub {
+        Hub(
+            id: id,
+            key: id,
+            hubKey: nil,
+            title: title,
+            size: items.count,
+            more: false,
+            items: items.compactMap { MediaDisplayItem(jellyfinItem: $0, server: server) },
+            server: server,
+        )
+    }
+
+    private func hubIfNotEmpty(id: String, title: String, items: [JellyfinItem]) -> Hub? {
+        guard !items.isEmpty else { return nil }
+        return hub(id: id, title: title, items: items)
+    }
+
+    private func recommendationTitle(for recommendation: JellyfinRecommendation) -> String {
+        guard let name = recommendation.baselineItemName, !name.isEmpty else {
+            return String(localized: "jellyfin.library.recommendations")
+        }
+        switch recommendation.recommendationType {
+        case "SimilarToRecentlyPlayed":
+            return String(localized: "jellyfin.library.recommendation.becauseWatched \(name)")
+        case "SimilarToLikedItem":
+            return String(localized: "jellyfin.library.recommendation.becauseLiked \(name)")
+        case "HasDirectorFromRecentlyPlayed", "HasLikedDirector":
+            return String(localized: "jellyfin.library.recommendation.directedBy \(name)")
+        case "HasActorFromRecentlyPlayed", "HasLikedActor":
+            return String(localized: "jellyfin.library.recommendation.starring \(name)")
+        default:
+            return String(localized: "jellyfin.library.recommendations")
+        }
+    }
+
+    private func browseIncludeTypes(for library: Library, parentID: String?) -> String {
+        switch library.type {
+        case .series:
+            parentID == nil ? "Series" : "Series,Season,Episode"
+        case .collection:
+            "BoxSet"
+        case .playlist:
+            "Playlist"
+        default:
+            "Movie"
+        }
+    }
+
+    private func browseSort(
+        for query: LibraryBrowseQuery,
+        library: Library,
+    ) -> (keys: [String], directions: [String]) {
+        let primaryKey: String = switch query.sort {
+        case .name:
+            "SortName"
+        case .releaseDate:
+            "PremiereDate"
+        case .dateAdded:
+            "DateCreated"
+        case .rating:
+            "CommunityRating"
+        case .datePlayed:
+            library.type == .series ? "SeriesDatePlayed" : "DatePlayed"
+        case .playCount:
+            "PlayCount"
+        case .lastContentAdded:
+            "DateLastContentAdded"
+        }
+        let primaryDirection = query.sortDirection == .ascending ? "Ascending" : "Descending"
+        guard query.sort != .name else {
+            return ([primaryKey], [primaryDirection])
+        }
+        if library.type == .movie {
+            return ([primaryKey, "SortName", "ProductionYear"], [primaryDirection, "Ascending", "Ascending"])
+        }
+        return ([primaryKey, "SortName"], [primaryDirection, "Ascending"])
+    }
+
+    private func searchTypes(for kinds: Set<MediaKind>) -> String {
+        guard !kinds.isEmpty else { return "Movie,Series,Season,Episode,BoxSet,Playlist" }
+        return kinds.map {
+            switch $0 {
+            case .movie: "Movie"
+            case .series: "Series"
+            case .season: "Season"
+            case .episode: "Episode"
+            case .clip: "Video"
+            case .collection: "BoxSet"
+            case .playlist: "Playlist"
+            case .folder: "Folder"
+            case .unknown: ""
+            }
+        }.filter { !$0.isEmpty }.joined(separator: ",")
+    }
+}
+
+private extension JellyfinMediaSource {
+    func satisfiesDownloadQuality(_ quality: TranscodeQualityPreset) -> Bool {
+        guard let maximumBitrate = quality.maximumVideoBitrateKbps,
+              let maximumWidth = quality.maximumWidth,
+              let maximumHeight = quality.maximumHeight,
+              let video = mediaStreams?.first(where: { $0.type.lowercased() == "video" }),
+              let width = video.width,
+              let height = video.height
+        else { return false }
+        let sourceBitrate = bitrate ?? mediaStreams?.compactMap(\.bitrate).reduce(0, +)
+        guard let sourceBitrate else { return false }
+        return sourceBitrate <= (maximumBitrate + 192) * 1000
+            && width <= maximumWidth
+            && height <= maximumHeight
+    }
+
+    func resolveAudioStream(preference: MediaTrackPreference) -> JellyfinMediaStream? {
+        let audio = (mediaStreams ?? []).filter { $0.type.lowercased() == "audio" }
+        if let index = preference.audioStreamIndex,
+           let exact = audio.first(where: { $0.index == index })
+        {
+            return exact
+        }
+        if let language = preference.audioLanguage,
+           let match = audio.first(where: {
+               $0.language?.localizedCaseInsensitiveCompare(language) == .orderedSame
+                   &&
+                   (preference.audioTitle == nil || $0.displayTitle == preference.audioTitle || $0
+                       .title == preference.audioTitle)
+           }) ?? audio.first(where: { $0.language?.localizedCaseInsensitiveCompare(language) == .orderedSame })
+        {
+            return match
+        }
+        return defaultAudioStreamIndex.flatMap { index in audio.first(where: { $0.index == index }) }
+            ?? audio.first(where: { $0.isDefault == true })
+            ?? audio.first
+    }
+
+    func resolveSubtitleStream(
+        preference: MediaSubtitlePreference,
+    ) -> JellyfinMediaStream? {
+        guard case let .track(index, language, title, codec, isForced, _) = preference else { return nil }
+        let subtitles = (mediaStreams ?? []).filter { stream in
+            stream.type.lowercased() == "subtitle" && stream.isDownloadableTextSubtitle
+        }
+        if let index, let exact = subtitles.first(where: { $0.index == index }) {
+            return exact
+        }
+        return subtitles.first(where: {
+            $0.language?.localizedCaseInsensitiveCompare(language ?? "") == .orderedSame
+                && $0.isForced == isForced
+                && ($0.codec?.localizedCaseInsensitiveCompare(codec) == .orderedSame)
+                && (title == nil || $0.displayTitle == title || $0.title == title)
+        }) ?? subtitles.first(where: {
+            $0.language?.localizedCaseInsensitiveCompare(language ?? "") == .orderedSame
+                && $0.isForced == isForced
+        })
+    }
+}
+
+extension JellyfinMediaStream {
+    var isDownloadableTextSubtitle: Bool {
+        guard type.lowercased() == "subtitle" else { return false }
+        let normalized = codec?.lowercased() ?? ""
+        return ["srt", "subrip", "ass", "ssa", "vtt", "webvtt"].contains(normalized)
+    }
+
+    var downloadSubtitleExtension: String {
+        switch codec?.lowercased() {
+        case "subrip": "srt"
+        case "webvtt": "vtt"
+        case "ssa": "ssa"
+        case "ass": "ass"
+        default: codec?.lowercased() ?? "srt"
+        }
+    }
+}
+
+@MainActor
+enum JellyfinMediaServicesFactory {
+    static func make(
+        context: JellyfinAPIContext,
+        capabilities: ProviderCapabilities,
+        trackSelectionCoordinator: TrackSelectionCoordinator? = nil,
+        versionSelectionStore: MediaVersionSelectionStore? = nil,
+    ) -> MediaServices? {
+        guard let connection = context.connection else { return nil }
+        let adapter = JellyfinMediaServiceAdapter(context: context, server: connection.serverIdentity)
+        let favorites = JellyfinFavoritesService(
+            context: context,
+            server: connection.serverIdentity,
+        )
+        let liveTV = JellyfinLiveTVService(context: context, server: connection.serverIdentity)
+        let playlists = JellyfinPlaylistService(context: context, server: connection.serverIdentity)
+        #if os(tvOS)
+            let decorated = (
+                home: adapter as any MediaHomeService,
+                library: adapter as any MediaLibraryService,
+                search: adapter as any MediaSearchService,
+                artwork: adapter as any MediaArtworkService,
+                detail: adapter as any MediaDetailService,
+                favorites: favorites as any MediaFavoritesService,
+                playlists: playlists as any MediaPlaylistService,
+            )
+        #else
+            let decorated = OfflineServiceDecorators(
+                owner: MediaOwner(server: connection.serverIdentity, userID: connection.userID),
+                home: adapter,
+                library: adapter,
+                search: adapter,
+                artwork: adapter,
+                detail: adapter,
+                favorites: favorites,
+                playlists: playlists,
+            )
+        #endif
+        let services = MediaServices(
+            provider: .jellyfin,
+            identity: connection.serverIdentity,
+            serverName: connection.serverName,
+            capabilities: capabilities,
+            home: decorated.home,
+            library: decorated.library,
+            search: decorated.search,
+            artwork: decorated.artwork,
+            detail: decorated.detail,
+            favorites: decorated.favorites,
+            playlists: decorated.playlists,
+            playback: adapter,
+            liveTV: liveTV,
+            downloads: adapter,
+            authorization: adapter,
+            management: JellyfinManagementService(context: context),
+            trackSelectionCoordinator: trackSelectionCoordinator,
+            trackSelectionAccountIdentifier: connection.userID,
+            versionSelectionStore: versionSelectionStore,
+        )
+        adapter.services = services
+        services.availabilityProbeURL = { [weak context] in
+            context?.connection?.baseURL.appendingPathComponent("System/Info/Public")
+        }
+        return services
+    }
+}
+
+private struct JellyfinItemPlaybackReport: Encodable {
+    let itemID: String
+    let positionTicks: Int64
+    let isPaused: Bool
+    let playMethod = "DirectPlay"
+    let canSeek = true
+
+    private enum CodingKeys: String, CodingKey {
+        case itemID = "ItemId"
+        case positionTicks = "PositionTicks"
+        case isPaused = "IsPaused"
+        case playMethod = "PlayMethod"
+        case canSeek = "CanSeek"
+    }
+}
+
+private struct JellyfinUserDataUpdate: Encodable {
+    let playbackPositionTicks: Int64
+    let lastPlayedDate: String
+
+    private enum CodingKeys: String, CodingKey {
+        case playbackPositionTicks = "PlaybackPositionTicks"
+        case lastPlayedDate = "LastPlayedDate"
+    }
+}

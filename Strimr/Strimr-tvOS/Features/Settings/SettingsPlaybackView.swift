@@ -1,0 +1,249 @@
+import SwiftUI
+
+@MainActor
+struct SettingsPlaybackView: View {
+    @Environment(SettingsManager.self) private var settingsManager
+    @Environment(ServerRegistry.self) private var registry
+    @Environment(SettingsNavigation.self) private var navigation
+
+    private var viewModel: SettingsViewModel {
+        SettingsViewModel(settingsManager: settingsManager)
+    }
+
+    /// Commercial markers come from DVR recordings in practice, so the setting stays hidden without Live TV.
+    private var hasLiveTV: Bool {
+        !registry.liveTVServices.isEmpty
+    }
+
+    var body: some View {
+        SettingsList {
+            externalPlayerSection
+
+            Section {
+                SettingsPicker(
+                    "settings.playback.playerStyle",
+                    selection: viewModel.playerControlsStyleBinding,
+                    options: PlayerControlsStyle.allCases,
+                ) { style in
+                    Text(style.title)
+                }
+                .settingsFocus("settings.playback.playerStyle")
+            } header: {
+                Text("settings.playback.appearance.title")
+            } footer: {
+                Text("settings.playback.playerStyle.footer")
+            }
+
+            Section {
+                SettingsPicker(
+                    "settings.playback.quality",
+                    selection: viewModel.qualityPresetBinding,
+                    options: Array(TranscodeQualityPreset.displayOrder),
+                ) { preset in
+                    Text(preset.title)
+                }
+                .settingsFocus("settings.playback.quality")
+            } footer: {
+                Text("settings.playback.quality.footer")
+            }
+
+            Section {
+                SettingsPicker(
+                    "settings.playback.readAhead",
+                    selection: viewModel.readAheadBinding,
+                    options: PlaybackReadAhead.allCases,
+                ) { option in
+                    Text(option.title)
+                }
+                .settingsFocus("settings.playback.readAhead")
+            } footer: {
+                Text("settings.playback.readAhead.footer")
+            }
+
+            Section {
+                SettingsPicker(
+                    "settings.playback.nextEpisodeAutoplay",
+                    selection: viewModel.nextEpisodeAutoplayBinding,
+                    options: Array(viewModel.nextEpisodeAutoplayOptions),
+                ) { option in
+                    Text(option.title)
+                }
+                .settingsFocus("settings.playback.nextEpisodeAutoplay")
+
+                SettingsPicker(
+                    "settings.playback.defaultSpeed",
+                    selection: viewModel.defaultPlaybackRateBinding,
+                    options: PlaybackSpeedOptions.all.map(\.rate),
+                ) { rate in
+                    Text("player.settings.speed.value \(PlaybackSpeedOption(rate: rate).valueText)")
+                }
+                .settingsFocus("settings.playback.defaultSpeed")
+
+                SettingsPicker(
+                    "settings.playback.defaultSleepTimer",
+                    selection: viewModel.defaultSleepTimerBinding,
+                    options: viewModel.defaultSleepTimerOptions,
+                ) { option in
+                    Text(viewModel.defaultSleepTimerTitle(option))
+                }
+                .settingsFocus("settings.playback.defaultSleepTimer")
+            }
+
+            Section {
+                Toggle("settings.playback.autoSkipIntros", isOn: viewModel.autoSkipIntrosBinding)
+                    .settingsFocus("settings.playback.autoSkipIntros")
+                Toggle("settings.playback.autoSkipCredits", isOn: viewModel.autoSkipCreditsBinding)
+                    .settingsFocus("settings.playback.autoSkipCredits")
+                if hasLiveTV {
+                    Toggle("settings.playback.autoSkipCommercials", isOn: viewModel.autoSkipCommercialsBinding)
+                        .settingsFocus("settings.playback.autoSkipCommercials")
+                }
+            } header: {
+                Text("settings.playback.skipping.title")
+            } footer: {
+                if hasLiveTV {
+                    Text("settings.playback.autoSkipCommercials.footer")
+                }
+            }
+
+            if hasLiveTV {
+                Section {
+                    Toggle("settings.playback.transcodeLiveTV", isOn: viewModel.transcodeLiveTVBinding)
+                        .settingsFocus("settings.playback.transcodeLiveTV")
+                } header: {
+                    Text("settings.playback.liveTV.title")
+                } footer: {
+                    Text("settings.playback.transcodeLiveTV.footer")
+                }
+            }
+
+            Section("settings.playback.remote.title") {
+                SettingsPicker(
+                    "settings.playback.rewind",
+                    selection: viewModel.rewindBinding,
+                    options: Array(viewModel.seekOptions),
+                ) { seconds in
+                    Text("settings.playback.seconds \(seconds)")
+                }
+                .settingsFocus("settings.playback.rewind")
+
+                SettingsPicker(
+                    "settings.playback.fastForward",
+                    selection: viewModel.fastForwardBinding,
+                    options: Array(viewModel.seekOptions),
+                ) { seconds in
+                    Text("settings.playback.seconds \(seconds)")
+                }
+                .settingsFocus("settings.playback.fastForward")
+
+                SettingsPicker(
+                    "settings.playback.centerClick",
+                    selection: viewModel.centerClickActionBinding,
+                    options: PlayerCenterClickAction.allCases,
+                ) { action in
+                    Text(action.title)
+                }
+                .settingsFocus("settings.playback.centerClick")
+            }
+
+            Section("settings.playback.timeline.title") {
+                Toggle(
+                    "settings.playback.showChaptersOnTimeline",
+                    isOn: viewModel.showChaptersOnTimelineBinding,
+                )
+                .settingsFocus("settings.playback.showChaptersOnTimeline")
+                Toggle(
+                    "settings.playback.showSkipSegmentsOnTimeline",
+                    isOn: viewModel.showSkipSegmentsOnTimelineBinding,
+                )
+                .settingsFocus("settings.playback.showSkipSegmentsOnTimeline")
+                Toggle(
+                    "settings.playback.showEndsAtTime",
+                    isOn: viewModel.showEndsAtTimeBinding,
+                )
+                .settingsFocus("settings.playback.showEndsAtTime")
+            }
+
+            Section("settings.playback.overlay.title") {
+                Toggle(
+                    "settings.playback.showClock",
+                    isOn: viewModel.showClockBinding,
+                )
+                .settingsFocus("settings.playback.showClock")
+                Toggle(isOn: viewModel.showInfoWhenPausedBinding) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("settings.playback.showInfoWhenPaused")
+                        Text("settings.playback.showInfoWhenPaused.description")
+                            .font(.facts)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .settingsFocus("settings.playback.showInfoWhenPaused")
+            }
+
+            scrubThumbnailSection
+        }
+    }
+
+    private var externalPlayerSection: some View {
+        Section {
+            Button {
+                navigation.push("settings.playback.externalPlayer.title") {
+                    ExternalPlayerOptionsView(viewModel: viewModel)
+                }
+            } label: {
+                HStack(spacing: 20) {
+                    Text("settings.playback.externalPlayer.title")
+                    Spacer(minLength: 16)
+                    Text(viewModel.title(for: viewModel.selectedExternalPlayerOption))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.trailing)
+                    Image(systemName: "chevron.right")
+                        .font(.cardMetadata.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .settingsFocus("settings.playback.externalPlayer", isDefault: true)
+
+            if let customPlayer = viewModel.customExternalPlayer {
+                Button("settings.playback.externalPlayer.custom.edit") {
+                    navigation.push("settings.playback.externalPlayer.custom.title") {
+                        CustomExternalPlayerView(player: customPlayer) { player in
+                            viewModel.saveCustomExternalPlayer(player)
+                        }
+                    }
+                }
+                .settingsFocus("settings.playback.externalPlayer.custom.edit")
+            }
+        } footer: {
+            if let footer = viewModel.externalPlayerFooter {
+                Text(footer)
+            }
+        }
+    }
+
+    private var scrubThumbnailSection: some View {
+        Section {
+            Toggle(isOn: viewModel.showScrubThumbnailPreviewsBinding) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("settings.playback.scrubThumbnails")
+                    Text("settings.playback.scrubThumbnails.description")
+                        .font(.facts)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .settingsFocus("settings.playback.scrubThumbnails")
+
+            Toggle(isOn: viewModel.generateMissingScrubThumbnailPreviewsBinding) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("settings.playback.generateMissingScrubThumbnails")
+                    Text("settings.playback.generateMissingScrubThumbnails.description")
+                        .font(.facts)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .settingsFocus("settings.playback.generateMissingScrubThumbnails")
+            .disabled(!viewModel.showsScrubThumbnailPreviews)
+        }
+    }
+}

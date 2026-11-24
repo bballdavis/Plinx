@@ -1,0 +1,155 @@
+import Observation
+import SwiftUI
+
+struct PersonDetailView: View {
+    @State var viewModel: PersonDetailViewModel
+    let onSelectMedia: (MediaDisplayItem) -> Void
+
+    private var columnSpacing: CGFloat {
+        #if os(tvOS)
+            32
+        #else
+            12
+        #endif
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: contentSpacing) {
+                header
+                mediaContent
+            }
+            .padding(.horizontal, horizontalPadding)
+            .padding(.vertical, verticalPadding)
+        }
+        .navigationTitle(viewModel.person.name)
+        #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+        #endif
+            .task {
+                await viewModel.load()
+            }
+    }
+
+    private var header: some View {
+        HStack(spacing: headerSpacing) {
+            portrait
+
+            Text(viewModel.person.name)
+                .font(.heroTitle)
+                .foregroundStyle(.textPrimary)
+                .lineLimit(3)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var mediaContent: some View {
+        if viewModel.isLoading, viewModel.items.isEmpty {
+            ProgressView("person.detail.loading")
+                .frame(maxWidth: .infinity, minHeight: 180)
+        } else if let errorMessage = viewModel.mediaErrorMessage, viewModel.items.isEmpty {
+            ContentUnavailableView(
+                errorMessage,
+                systemImage: "exclamationmark.triangle.fill",
+                description: Text("common.errors.tryAgainLater"),
+            )
+            .symbolRenderingMode(.multicolor)
+            .frame(maxWidth: .infinity, minHeight: 240)
+        } else if viewModel.items.isEmpty {
+            ContentUnavailableView(
+                "person.detail.empty",
+                systemImage: "film.stack",
+            )
+            .frame(maxWidth: .infinity, minHeight: 240)
+        } else {
+            PosterGrid(spacing: columnSpacing, rowSpacing: gridSpacing) { cardWidth in
+                ForEach(viewModel.items, id: \.id) { item in
+                    PortraitMediaCard(
+                        media: item,
+                        width: cardWidth,
+                        showsLabels: true,
+                    ) {
+                        onSelectMedia(item)
+                    }
+                }
+            }
+        }
+    }
+
+    private var portrait: some View {
+        ZStack {
+            Circle()
+                .fill(.surfaceSubtle)
+
+            if viewModel.imageResource != nil {
+                ArtworkResourceView(resource: viewModel.imageResource)
+            } else {
+                portraitPlaceholder
+            }
+        }
+        .frame(width: portraitSize, height: portraitSize)
+        .clipShape(Circle())
+    }
+
+    private var portraitPlaceholder: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "person.fill")
+                .font(.title)
+                .foregroundStyle(.textTertiary)
+            Text("media.detail.cast.noPhoto")
+                .font(.cardMetadata)
+                .foregroundStyle(.textTertiary)
+        }
+    }
+
+    private var portraitSize: CGFloat {
+        #if os(tvOS)
+            180
+        #elseif os(macOS)
+            140
+        #else
+            112
+        #endif
+    }
+
+    private var headerSpacing: CGFloat {
+        #if os(tvOS)
+            32
+        #else
+            20
+        #endif
+    }
+
+    private var contentSpacing: CGFloat {
+        #if os(tvOS)
+            48
+        #else
+            24
+        #endif
+    }
+
+    private var gridSpacing: CGFloat {
+        #if os(tvOS)
+            32
+        #else
+            16
+        #endif
+    }
+
+    private var horizontalPadding: CGFloat {
+        #if os(tvOS)
+            48
+        #else
+            LayoutMetrics.pageMargin
+        #endif
+    }
+
+    private var verticalPadding: CGFloat {
+        #if os(tvOS)
+            48
+        #else
+            16
+        #endif
+    }
+}

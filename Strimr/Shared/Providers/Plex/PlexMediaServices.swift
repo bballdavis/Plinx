@@ -1,0 +1,1676 @@
+import AetherEngine
+import Foundation
+
+@MainActor
+final class PlexMediaServiceAdapter: MediaHomeService, MediaLibraryService, MediaSearchService,
+    MediaArtworkService, MediaDetailService, MediaPlaybackService, MediaDownloadService,
+    PlexAdvancedLibraryService, MediaAuthorizationService
+{
+    private static let defaultArtworkSide = 1080
+
+    private let context: PlexAPIContext
+    private let server: ServerIdentity
+    private let playbackSessionID = UUID().uuidString
+    private var queueItemIDs: [String: Int] = [:]
+    private var subtitleResults: [String: PlexSubtitleSearchResult] = [:]
+    private var downloadQueueID: Int?
+    private let isServerAdministrator: Bool
+    private var allowsMediaDeletion = false
+    weak var services: MediaServices?
+
+    init(context: PlexAPIContext, server: ServerIdentity, isServerAdministrator: Bool = false) {
+        self.context = context
+        self.server = server
+        self.isServerAdministrator = isServerAdministrator
+    }
+
+    var supportsWatchlist: Bool {
+        true
+    }
+
+    var supportsRemoteSubtitleSearch: Bool {
+        true
+    }
+
+    var supportsAdvancedSubtitleSearch: Bool {
+        true
+    }
+
+    var serverAccessGeneration: Int {
+        context.serverAccessGeneration
+    }
+
+    var authorization: MediaAuthorization {
+        .plex(isAdministrator: isServerAdministrator, allowsMediaDeletion: allowsMediaDeletion)
+    }
+
+    /// The deletion setting is only exposed by the server's root, so it is read once after connecting.
+    func loadDeletionSetting() async {
+        guard isServerAdministrator else { return }
+        do {
+            let root = try await LibraryManagementRepository(context: context).getServerRoot()
+            allowsMediaDeletion = root.mediaContainer.allowMediaDeletion == true
+        } catch {
+            guard !Task.isCancelled, !error.isCancellation else { return }
+            ErrorReporter.capture(error)
+        }
+    }
+
+    func serverAccessRecoveryError(from error: Error) -> MediaServerAccessRecoveryError? {
+        guard let error = error as? PlexServerAccessRecoveryError else { return nil }
+        switch error {
+        case .accountUnauthorized:
+            return .accountUnauthorized
+        case .serverUnavailable:
+            return .serverUnavailable
+        case .connectionFailed:
+            return .connectionFailed
+        }
+    }
+
+    func recoverServerAccessIfUnauthorized() async throws -> Bool {
+        do {
+            return try await context.validateCurrentServerAccess()
+        } catch {
+            throw serverAccessRecoveryError(from: error) ?? error
+        }
+    }
+
+    func forceServerAccessRecovery() async throws {
+        do {
+            try await context.forceRefreshCurrentServerAccess()
+        } catch {
+            throw serverAccessRecoveryError(from: error) ?? error
+        }
+    }
+
+    func items(in hub: Hub, startIndex: Int, limit: Int) async throws -> MediaPage<MediaDisplayItem> {
+        guard let endpoint = PlexEndpoint(key: hub.key) else { throw PlexAPIError.invalidURL }
+        let response = try await HubRepository(context: context).getHubItems(
+            path: endpoint.path,
+            queryItems: endpoint.queryItems.filter { $0.name != "count" },
+            pagination: PlexPagination(start: startIndex, size: limit),
+        )
+        return MediaPage(
+            items: (response.mediaContainer.metadata ?? [])
+                .filter(\.type.isSupported)
+                .compactMap(mapDisplayItem),
+            startIndex: startIndex,
+            totalCount: response.mediaContainer.totalSize ?? response.mediaContainer.size,
+        )
+    }
+
+    func mediaItem(id: String) async throws -> MediaItem {
+        let response = try await MetadataRepository(context: context).getMetadata(ratingKey: id)
+        guard let item = response.mediaContainer.metadata?.first else { throw PlexAPIError.invalidResponse }
+        return MediaItem(plexItem: item, server: server)
+    }
+
+    func libraryID(for media: MediaItem) async throws -> String? {
+        if let librarySectionID = media.librarySectionID {
+            return librarySectionID
+        }
+        // Items shared one by one carry no section; they are browsed in the shared library.
+        return try await mediaItem(id: media.id).librarySectionID ?? PlexSharedLibrary.id
+    }
+
+    func fetchExtras(for media: MediaItem) async throws -> [MediaItem] {
+        let response = try await MetadataRepository(context: context).getMetadataExtras(ratingKey: media.id)
+        return (response.mediaContainer.metadata ?? [])
+            .filter {
+                ($0.type == .clip || $0.subtype == .clip)
+                    && $0.media?.contains(where: { !$0.parts.isEmpty }) == true
+            }
+            .map { MediaItem(plexItem: $0, server: server) }
+    }
+
+    func otherEditions(of media: MediaItem) async throws -> [MediaItem] {
+        let type: String? = switch media.type {
+        case .movie: "1"
+        case .series: "2"
+        case .season: "3"
+        case .episode: "4"
+        case .clip, .collection, .playlist, .folder, .unknown: nil
+        }
+        // Local guids are unique to each item, so no other edition can share them.
+        guard let type, !media.guid.hasPrefix("local://"),
+              let sectionID = media.librarySectionID.flatMap(Int.init)
+        else { return [] }
+        let response = try await SectionRepository(context: context).getSectionsItems(
+            sectionId: sectionID,
+            params: .init(type: type, guid: media.guid),
+        )
+        return (response.mediaContainer.metadata ?? [])
+            .map(mapMediaItem)
+            .filter { $0.id != media.id }
+            .sorted(by: MediaItem.editionOrder)
+    }
+
+    func searchSubtitles(
+        itemID: String,
+        language: String,
+        hearingImpaired: Bool,
+        forced: Bool,
+        title: String?,
+    ) async throws -> [RemoteSubtitleResult] {
+        let values = try await SubtitleRepository(context: context).search(
+            ratingKey: itemID,
+            language: language,
+            hearingImpaired: hearingImpaired,
+            forced: forced,
+            title: title,
+        )
+        return values.map { value in
+            let id = "plex.\(value.id)"
+            subtitleResults[id] = value
+            return RemoteSubtitleResult(
+                id: id,
+                title: value.title ?? value.extendedDisplayTitle ?? value.displayTitle,
+                language: value.language,
+                codec: value.codec,
+                providerTitle: value.providerTitle,
+                matchScore: value.score,
+                isForced: value.forced == true,
+            )
+        }
+    }
+
+    func installSubtitle(itemID: String, result: RemoteSubtitleResult) async throws {
+        guard let value = subtitleResults[result.id] else { throw PlexAPIError.invalidResponse }
+        try await SubtitleRepository(context: context).attach(
+            ratingKey: itemID,
+            result: value,
+            searchedLanguage: result.language ?? "",
+            searchedHearingImpaired: false,
+            searchedForced: false,
+        )
+    }
+
+    func loadHome(
+        hiddenLibraryIDs: Set<String>,
+        includesPlaylists: Bool,
+        shownRowIDs: Set<String>,
+        mergesNextUp _: Bool,
+    ) async throws -> HomeContent {
+        let repository = try HubRepository(context: context)
+        let sections = try await SectionRepository(context: context).getSections().mediaContainer.directory ?? []
+        let visibleSections = sections.filter { !hiddenLibraryIDs.contains($0.key) }
+        guard !hidesEveryLibrary(hiddenLibraryIDs: hiddenLibraryIDs, visibleSections: visibleSections) else {
+            return HomeContent(rows: [])
+        }
+        let params = hubParams(hiddenLibraryIDs: hiddenLibraryIDs, visibleSections: visibleSections)
+        async let continueRows = continueWatchingRows(params: params)
+        async let promotedResponse = repository.getPromotedHub(
+            params: params,
+            includeLibraryPlaylists: includesPlaylists,
+        )
+        var rows = try await continueRows
+        let promoted = try await promotedResponse.mediaContainer.hub ?? []
+        var rowIDs = Set<String>()
+        rows.append(contentsOf: homeRows(from: promoted, sections: visibleSections)
+            .filter { rowIDs.insert($0.id).inserted })
+
+        let missingRowIDs = shownRowIDs.subtracting(rowIDs)
+        let prefix = HomeRow.hubRowIDPrefix(server: server)
+        let missingSectionIDs = Set(missingRowIDs.compactMap { rowID in
+            rowID.hasPrefix(prefix) ? HomeRow.plexSectionID(fromHubID: String(rowID.dropFirst(prefix.count))) : nil
+        })
+        let shownRows = try await sectionHubRows(in: visibleSections.filter { missingSectionIDs.contains($0.key) })
+        rows.append(contentsOf: shownRows.filter { missingRowIDs.contains($0.id) && rowIDs.insert($0.id).inserted })
+        return HomeContent(rows: rows)
+    }
+
+    func loadWatchingRows(hiddenLibraryIDs: Set<String>, mergesNextUp _: Bool) async throws -> [HomeRow] {
+        // The sections are only needed to scope the hub to the visible libraries.
+        guard !hiddenLibraryIDs.isEmpty else { return try await continueWatchingRows(params: nil) }
+        let sections = try await SectionRepository(context: context).getSections().mediaContainer.directory ?? []
+        let visibleSections = sections.filter { !hiddenLibraryIDs.contains($0.key) }
+        guard !hidesEveryLibrary(hiddenLibraryIDs: hiddenLibraryIDs, visibleSections: visibleSections) else {
+            return []
+        }
+        return try await continueWatchingRows(
+            params: hubParams(hiddenLibraryIDs: hiddenLibraryIDs, visibleSections: visibleSections),
+        )
+    }
+
+    private func hubParams(hiddenLibraryIDs: Set<String>, visibleSections: [PlexSection]) -> HubRepository.HubParams? {
+        hiddenLibraryIDs.isEmpty ? nil : HubRepository.HubParams(sectionIds: visibleSections.compactMap { Int($0.key) })
+    }
+
+    /// Plex drops an empty section filter, so with every library hidden the hubs would show them all.
+    private func hidesEveryLibrary(hiddenLibraryIDs: Set<String>, visibleSections: [PlexSection]) -> Bool {
+        !hiddenLibraryIDs.isEmpty && !visibleSections.contains { Int($0.key) != nil }
+    }
+
+    var supportsContinueWatchingRemoval: Bool {
+        true
+    }
+
+    func removeFromContinueWatching(itemID: String) async throws {
+        try await HubRepository(context: context).removeFromContinueWatching(ratingKey: itemID)
+    }
+
+    private func continueWatchingRows(params: HubRepository.HubParams?) async throws -> [HomeRow] {
+        let response = try await HubRepository(context: context).getContinueWatchingHub(params: params)
+        guard let continueHub = response.mediaContainer.hub?.first.map({ Hub(plexHub: $0, server: server) }),
+              continueHub.hasItems
+        else { return [] }
+        return [.continueWatching(server: server, hub: continueHub)]
+    }
+
+    func loadFeaturedCandidates(hiddenLibraryIDs: Set<String>) async throws -> [FeaturedCandidate] {
+        try await PlexFeaturedService(context: context, server: server).candidates(hiddenLibraryIDs: hiddenLibraryIDs)
+    }
+
+    func homeRowCatalog(hiddenLibraryIDs: Set<String>) async throws -> [HomeRow] {
+        let sections = try await SectionRepository(context: context).getSections().mediaContainer.directory ?? []
+        var rowIDs = Set<String>()
+        return try await sectionHubRows(in: sections
+            .filter { $0.type.isSupported && !hiddenLibraryIDs.contains($0.key) })
+            .filter { rowIDs.insert($0.id).inserted }
+    }
+
+    /// The hubs of each library, whether or not the server puts them on its home. A library that fails to load is
+    /// skipped so it does not take the other rows down.
+    private func sectionHubRows(in sections: [PlexSection]) async throws -> [HomeRow] {
+        let hubsBySection = await withTaskGroup(of: (String, [PlexHub]).self) { group in
+            for section in sections {
+                guard let sectionID = Int(section.key) else { continue }
+                group.addTask { @MainActor [self] in
+                    do {
+                        let response = try await HubRepository(context: context).getSectionHubs(sectionId: sectionID)
+                        return (section.key, response.mediaContainer.hub ?? [])
+                    } catch {
+                        if !Task.isCancelled, !error.isCancellation {
+                            ErrorReporter.capture(error)
+                        }
+                        return (section.key, [])
+                    }
+                }
+            }
+            var values: [String: [PlexHub]] = [:]
+            for await (sectionID, hubs) in group {
+                values[sectionID] = hubs
+            }
+            return values
+        }
+        try Task.checkCancellation()
+        return sections.flatMap { section in
+            homeRows(from: hubsBySection[section.key] ?? [], sections: [section])
+        }
+    }
+
+    private func homeRows(from hubs: [PlexHub], sections: [PlexSection]) -> [HomeRow] {
+        let sectionsByID = Dictionary(sections.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first })
+        return hubs
+            // Continue Watching and playlists have their own rows.
+            .filter { $0.type != "playlist" && !$0.hubIdentifier.contains(".inprogress.") && $0.size > 0 }
+            .map { Hub(plexHub: $0, server: server) }
+            .filter(\.hasItems)
+            .map { hub in
+                var row = HomeRow.providerHub(server: server, hub: hub)
+                let section = HomeRow.plexSectionID(fromHubID: hub.id).flatMap { sectionsByID[$0] }
+                row.libraryName = section?.title
+                row.isExcludedFromServerHome = (section?.hidden ?? 0) > 0
+                return row
+            }
+    }
+
+    func libraries() async throws -> [Library] {
+        let repository = try SectionRepository(context: context)
+        async let hasSharedItems = hasSharedItems(repository: repository)
+        let sections = try await repository.getSections().mediaContainer.directory ?? []
+        let libraries = sections.filter(\.type.isSupported).map { Library(plexSection: $0, server: server) }
+        guard await hasSharedItems else { return libraries }
+        return libraries + [Library(
+            id: PlexSharedLibrary.id,
+            title: String(localized: "library.shared.title"),
+            type: .unknown,
+            isShared: true,
+            server: server,
+        )]
+    }
+
+    /// Best effort: servers without the shared view answer with an error, and simply show no shared library.
+    private func hasSharedItems(repository: SectionRepository) async -> Bool {
+        let response = try? await repository.getItems(
+            path: PlexSharedLibrary.browsePath,
+            params: .init(type: PlexSharedLibrary.videoTypes),
+            pagination: PlexPagination(start: 0, size: 1),
+        )
+        return response?.mediaContainer.metadata?.isEmpty == false
+    }
+
+    func preview(for library: Library) async throws -> LibraryPreview? {
+        guard let path = library.plexBrowsePath else { return nil }
+        let response = try await SectionRepository(context: context).getItems(
+            path: path,
+            // Paginated rather than limited: `limit` also caps `totalSize`, which the tile shows as the count.
+            params: .init(sort: "random", type: library.isShared ? PlexSharedLibrary.videoTypes : "1,2"),
+            pagination: PlexPagination(start: 0, size: LibraryPreview.artworkCount),
+        )
+        var artworks: [ArtworkResource] = []
+        for item in response.mediaContainer.metadata ?? [] {
+            guard let path = item.art ?? item.thumb,
+                  let artwork = try await artwork(path: path, width: 1280, height: 720)
+            else { continue }
+            artworks.append(artwork)
+        }
+        return LibraryPreview(artworks: artworks, itemCount: response.mediaContainer.totalSize)
+    }
+
+    func recommended(in library: Library, mergesNextUp _: Bool) async throws -> [Hub] {
+        guard let sectionID = library.sectionId else { return [] }
+        let response = try await HubRepository(context: context).getSectionHubs(sectionId: sectionID)
+        return (response.mediaContainer.hub ?? []).map { Hub(plexHub: $0, server: server) }
+    }
+
+    func items(
+        in library: Library,
+        parentID _: String?,
+        startIndex: Int,
+        limit: Int,
+    ) async throws -> MediaPage<MediaDisplayItem> {
+        guard let path = library.plexBrowsePath else {
+            throw PlexAPIError.missingConnection
+        }
+        let type = if library.isShared {
+            PlexSharedLibrary.videoTypes
+        } else {
+            library.type == .series ? "2" : "1"
+        }
+        let response = try await SectionRepository(context: context).getItems(
+            path: path,
+            params: .init(type: type),
+            pagination: PlexPagination(start: startIndex, size: limit),
+        )
+        let items = (response.mediaContainer.metadata ?? []).compactMap(mapDisplayItem)
+        return MediaPage(
+            items: items,
+            startIndex: startIndex,
+            totalCount: response.mediaContainer.totalSize,
+        )
+    }
+
+    func collections(in library: Library) async throws -> [CollectionMediaItem] {
+        guard let sectionID = library.sectionId else { return [] }
+        let response = try await SectionRepository(context: context).getSectionCollections(sectionId: sectionID)
+        return (response.mediaContainer.metadata ?? []).map { CollectionMediaItem(plexItem: $0, server: server) }
+    }
+
+    func playlists(in library: Library) async throws -> [PlaylistMediaItem] {
+        guard let sectionID = library.sectionId else { return [] }
+        return try await PlaylistRepository(context: context).getAllPlaylists(sectionId: sectionID)
+            .map { PlaylistMediaItem(plexItem: $0, server: server) }
+    }
+
+    func advancedBrowse(
+        path: String,
+        queryItems: [URLQueryItem],
+        startIndex: Int,
+        limit: Int,
+    ) async throws -> PlexAdvancedBrowsePage {
+        let response = try await SectionRepository(context: context).getSectionBrowseItems(
+            path: path,
+            queryItems: queryItems,
+            pagination: PlexPagination(start: startIndex, size: limit),
+        )
+        let items = (response.mediaContainer.metadata ?? []).compactMap(mapBrowseItem)
+        let meta = response.mediaContainer.meta
+        return PlexAdvancedBrowsePage(
+            items: items,
+            totalCount: response.mediaContainer.totalSize ?? (startIndex + items.count),
+            meta: PlexSharedLibrary.isSharedPath(path) ? meta.map(PlexSharedLibrary.videoMeta) : meta,
+        )
+    }
+
+    func filterOptions(path: String, queryItems: [URLQueryItem]) async throws -> [PlexFilterDirectory] {
+        try await SectionRepository(context: context).getFilterOptions(path: path, queryItems: queryItems)
+            .mediaContainer.directory ?? []
+    }
+
+    func sectionCharacters(
+        path: String,
+        queryItems: [URLQueryItem],
+    ) async throws -> [PlexAdvancedSectionCharacter] {
+        try await SectionRepository(context: context).getSectionFirstCharacters(path: path, queryItems: queryItems)
+            .mediaContainer.directory?.compactMap { directory in
+                guard let size = directory.size, size > 0 else { return nil }
+                return PlexAdvancedSectionCharacter(
+                    title: directory.title ?? directory.key ?? "#",
+                    size: size,
+                )
+            } ?? []
+    }
+
+    func collectionCharacters(sectionID: Int) async throws -> [PlexAdvancedSectionCharacter] {
+        try await SectionRepository(context: context).getSectionFirstCharacters(
+            sectionId: sectionID,
+            type: 18,
+            includeCollections: true,
+        ).mediaContainer.directory?.compactMap { directory in
+            guard let size = directory.size, size > 0 else { return nil }
+            return PlexAdvancedSectionCharacter(
+                title: directory.title ?? directory.key ?? "#",
+                size: size,
+            )
+        } ?? []
+    }
+
+    func collectionPage(sectionID: Int, startIndex: Int, limit: Int) async throws -> MediaPage<MediaDisplayItem> {
+        let response = try await SectionRepository(context: context).getSectionCollections(
+            sectionId: sectionID,
+            includeCollections: true,
+            pagination: PlexPagination(start: startIndex, size: limit),
+        )
+        return MediaPage(
+            items: (response.mediaContainer.metadata ?? []).compactMap(mapDisplayItem),
+            startIndex: startIndex,
+            totalCount: response.mediaContainer.totalSize,
+        )
+    }
+
+    func search(query: String, kinds: Set<MediaKind>) async throws -> [MediaDisplayItem] {
+        let types: [SearchRepository.SearchType] = if kinds == [.movie] {
+            [.movies]
+        } else if kinds.isEmpty {
+            [.movies, .tv]
+        } else {
+            [.tv]
+        }
+        let response = try await SearchRepository(context: context).search(
+            params: .init(query: query, searchTypes: types, limit: 100),
+        )
+        let items = await withGuids((response.mediaContainer.searchResult ?? []).compactMap(\.metadata))
+        return items
+            .compactMap(mapDisplayItem)
+            .filter { kinds.isEmpty || kinds.contains($0.playableItem?.kind ?? .unknown) }
+    }
+
+    /// `/library/search` ignores `includeGuids`, and without external ids its results never match other providers'
+    /// copies. Best effort: on failure the results stay as they are.
+    private func withGuids(_ items: [PlexItem]) async -> [PlexItem] {
+        let missing = items.filter { $0.guids?.isEmpty ?? true }.map(\.ratingKey)
+        guard !missing.isEmpty,
+              let response = try? await MetadataRepository(context: context).getGuids(ratingKeys: missing)
+        else { return items }
+        let guidsByKey = Dictionary(
+            (response.mediaContainer.metadata ?? []).map { ($0.ratingKey, $0.guids) },
+            uniquingKeysWith: { first, _ in first },
+        )
+        return items.map { item in
+            guard let guids = guidsByKey[item.ratingKey] ?? nil else { return item }
+            var item = item
+            item.guids = guids
+            return item
+        }
+    }
+
+    func artwork(
+        for media: MediaDisplayItem,
+        kind: MediaImageViewModel.ArtworkKind,
+        width: Int?,
+        height: Int?,
+    ) async throws -> ArtworkResource? {
+        try await artwork(
+            path: kind == .thumb ? media.preferredThumbPath : media.preferredArtPath,
+            width: width,
+            height: height,
+        )
+    }
+
+    func artworkURL(path: String?, width: Int?, height: Int?) -> URL? {
+        guard let path, let repository = try? ImageRepository(context: context) else { return nil }
+        // Unsized artwork fits a square box, so posters and landscape art both stay sharp on a 4K tvOS card.
+        let isUnsized = width == nil && height == nil
+        return repository.transcodeImageURL(
+            path: path,
+            width: isUnsized ? Self.defaultArtworkSide : width ?? 240,
+            height: isUnsized ? Self.defaultArtworkSide : height ?? 360,
+            minSize: isUnsized ? 0 : 1,
+            // The transcoder outputs JPEG by default, which would lose the logo's transparency.
+            format: path.contains("/clearLogo") ? "png" : nil,
+        )
+    }
+
+    func artwork(path: String?, width: Int?, height: Int?) async throws -> ArtworkResource? {
+        artworkURL(path: path, width: width, height: height).map(ArtworkResource.url)
+    }
+
+    func themeMusicURL(path: String) -> URL? {
+        try? MediaRepository(context: context).mediaURL(path: path)
+    }
+
+    func details(for media: MediaItem) async throws -> MediaDetailContent {
+        let metadataRepository = try MetadataRepository(context: context)
+        let response = try await metadataRepository.getMetadata(
+            ratingKey: media.id,
+            params: .init(includeOnDeck: true),
+        )
+        let plexItem = response.mediaContainer.metadata?.first
+        let mapped = plexItem.map(mapMediaItem) ?? media
+        let seasons: [MediaItem]
+        let episodes: [MediaItem]
+        switch mapped.type {
+        case .series:
+            seasons = try await metadataRepository.getMetadataChildren(ratingKey: mapped.id)
+                .mediaContainer.metadata?.map(mapMediaItem) ?? []
+            episodes = []
+        case .season:
+            seasons = []
+            episodes = try await metadataRepository.getMetadataChildren(ratingKey: mapped.id)
+                .mediaContainer.metadata?.map(mapMediaItem) ?? []
+        default:
+            seasons = []
+            episodes = []
+        }
+        let related = try await HubRepository(context: context).getRelatedMediaHubs(ratingKey: mapped.id)
+        let cast = plexItem?.roles?.map {
+            CastMember(
+                id: "\($0.id ?? 0)-\($0.tag)",
+                personID: $0.id.map(String.init),
+                name: $0.tag,
+                character: $0.role,
+                thumbPath: $0.thumb,
+            )
+        } ?? []
+        return try await MediaDetailContent(
+            media: mapped,
+            parentSeries: parentSeries(for: mapped),
+            onDeck: plexItem?.onDeck?.metadata.map(mapMediaItem),
+            seasons: seasons,
+            episodes: episodes,
+            cast: cast,
+            relatedHubs: (related.mediaContainer.hub ?? []).map { Hub(plexHub: $0, server: server) },
+        )
+    }
+
+    func seasons(for series: MediaItem) async throws -> [MediaItem] {
+        try await MetadataRepository(context: context).getMetadataChildren(ratingKey: series.id)
+            .mediaContainer.metadata?.map(mapMediaItem) ?? []
+    }
+
+    func episodes(for season: MediaItem, seriesID _: String?) async throws -> [MediaItem] {
+        try await MetadataRepository(context: context).getMetadataChildren(ratingKey: season.id)
+            .mediaContainer.metadata?.map(mapMediaItem) ?? []
+    }
+
+    func allEpisodes(for series: MediaItem) async throws -> [MediaItem] {
+        try await MetadataRepository(context: context).getMetadataGrandChildren(ratingKey: series.id)
+            .mediaContainer.metadata?.map(mapMediaItem).filter { $0.type == .episode } ?? []
+    }
+
+    func setPlayed(_ played: Bool, itemID: String) async throws {
+        let repository = try ScrobbleRepository(context: context)
+        if played {
+            try await repository.markWatched(key: itemID)
+        } else {
+            try await repository.markUnwatched(key: itemID)
+        }
+    }
+
+    func isWatchlisted(_ media: MediaItem) async throws -> Bool {
+        guard let discoverID = media.plexGuidID else { return false }
+        let response = try await DiscoverWatchlistRepository(context: context).getUserState(discoverID: discoverID)
+        return response.mediaContainer.userState?.first?.watchlistedAt != nil
+    }
+
+    func setWatchlisted(_ watchlisted: Bool, media: MediaItem) async throws {
+        guard let discoverID = media.plexGuidID else { return }
+        let repository = try DiscoverWatchlistRepository(context: context)
+        if watchlisted {
+            try await repository.addToWatchlist(ratingKey: discoverID)
+        } else {
+            try await repository.removeFromWatchlist(ratingKey: discoverID)
+        }
+    }
+
+    func trackSelection(itemID: String, versionID: String?) async throws -> MediaTrackSelection {
+        let response = try await MetadataRepository(context: context).getMetadata(
+            ratingKey: itemID,
+            params: .init(checkFiles: true),
+        )
+        let plexMedia = response.mediaContainer.metadata?.first?.media ?? []
+        let versions = plexMedia.map(Self.mapFileInfoVersion)
+        let defaultVersion = MediaVersionResolver.resolve(.automatic, in: versions, default: Self.defaultVersion)
+        let selected = Self.selection(
+            in: plexMedia,
+            versions: versions,
+            request: versionID.map { .explicit(versionID: $0) } ?? .automatic,
+        )
+        let part = selected?.part
+        let streams = part?.stream ?? []
+        let audioTracks = streams.filter { $0.streamType == .audio }.compactMap(MediaTrackMetadata.init)
+        let subtitleTracks = streams.filter { $0.streamType == .subtitle }.compactMap(MediaTrackMetadata.init)
+        return MediaTrackSelection(
+            itemID: itemID,
+            filePath: part?.file,
+            audioTracks: audioTracks,
+            subtitleTracks: subtitleTracks,
+            selectedAudioTrackID: audioTracks.first(where: \.isDefault)?.id ?? audioTracks.first?.id,
+            selectedSubtitleTrackID: subtitleTracks.first(where: \.isDefault)?.id,
+            versions: versions,
+            versionID: selected.map { String($0.media.id) },
+            defaultVersionID: defaultVersion?.id,
+        )
+    }
+
+    func fileInfo(for media: MediaItem) async throws -> MediaFileInfo? {
+        let response = try await MetadataRepository(context: context).getMetadata(
+            ratingKey: media.id,
+            params: .init(checkFiles: true, includeStreams: true),
+        )
+        guard let plexMedia = response.mediaContainer.metadata?.first?.media,
+              !plexMedia.isEmpty
+        else {
+            return nil
+        }
+
+        return MediaFileInfo(versions: plexMedia.map(Self.mapFileInfoVersion))
+    }
+
+    func selectAudioTrack(id: Int, itemID: String, versionID: String?) async throws {
+        let partID = try await mediaPartID(itemID: itemID, versionID: versionID)
+        try await PlaybackRepository(context: context).setPreferredStreams(partId: partID, audioStreamId: id)
+    }
+
+    func selectSubtitleTrack(id: Int?, itemID: String, versionID: String?) async throws {
+        let partID = try await mediaPartID(itemID: itemID, versionID: versionID)
+        try await PlaybackRepository(context: context).setPreferredSubtitleStream(
+            partId: partID,
+            subtitleStreamId: id,
+        )
+    }
+
+    func collectionItems(id: String) async throws -> [MediaDisplayItem] {
+        let response = try await CollectionRepository(context: context).getCollectionChildren(ratingKey: id)
+        return (response.mediaContainer.metadata ?? []).compactMap(mapDisplayItem)
+    }
+
+    func person(id: String) async throws -> Person {
+        let response = try await PersonRepository(context: context).getPerson(id: id)
+        guard let value = response.mediaContainer.directory?.first else {
+            throw PlexAPIError.invalidResponse
+        }
+        return Person(directory: value)
+    }
+
+    func personMedia(id: String) async throws -> [MediaDisplayItem] {
+        let response = try await PersonRepository(context: context).getMedia(id: id)
+        return (response.mediaContainer.metadata ?? []).compactMap(mapDisplayItem)
+    }
+
+    func queue(startingWith media: MediaItem, shuffle: Bool) async throws -> PlaybackQueue {
+        if media.type == .clip {
+            queueItemIDs = [:]
+            let item = PlaybackQueueItem(
+                id: UUID(),
+                media: media,
+                providerQueueItemID: nil,
+            )
+            return PlaybackQueue(
+                id: UUID(),
+                items: [item],
+                currentIndex: 0,
+                isShuffled: shuffle,
+            )
+        }
+
+        let repository = try PlayQueueRepository(context: context)
+        // Queuing the whole show keeps the episodes before this one; shuffled, they would be played too.
+        if media.type == .episode, !shuffle, let showRatingKey = media.grandparentRatingKey {
+            let response = try await repository.createQueue(
+                for: showRatingKey,
+                itemType: .show,
+                startingRatingKey: media.id,
+            )
+            return playbackQueue(from: response, shuffle: false)
+        }
+        let response = try await repository.createQueue(
+            for: media.id,
+            itemType: media.type.plexType,
+            shuffle: shuffle,
+            continuous: media.kind == .episode || media.kind == .series || media.kind == .season,
+        )
+        return playbackQueue(from: response, shuffle: shuffle)
+    }
+
+    func queue(playlistID: String, startingWith entry: PlaylistEntry) async throws -> PlaybackQueue {
+        let response = try await PlayQueueRepository(context: context).createPlaylistQueue(
+            playlistRatingKey: playlistID,
+            startingRatingKey: entry.media.id,
+        )
+        return playbackQueue(from: response, shuffle: false)
+    }
+
+    private func playbackQueue(from response: PlexPlayQueueResponse, shuffle: Bool) -> PlaybackQueue {
+        let queueItems = response.mediaContainer.metadata ?? []
+        // A playlist can list the same item twice; progress reports go to its first occurrence.
+        queueItemIDs = Dictionary(
+            queueItems.compactMap { item in item.playQueueItemID.map { (item.ratingKey, $0) } },
+            uniquingKeysWith: { first, _ in first },
+        )
+        let items = queueItems.map {
+            PlaybackQueueItem(
+                id: UUID(),
+                media: MediaItem(plexItem: $0, server: server),
+                providerQueueItemID: $0.playQueueItemID.map(String.init),
+            )
+        }
+        let selectedRatingKey = response.mediaContainer.playQueueSelectedMetadataItemID
+            ?? queueItems.first(where: {
+                $0.playQueueItemID == response.mediaContainer.playQueueSelectedItemID
+            })?.ratingKey
+        return PlaybackQueue(
+            id: UUID(),
+            items: items,
+            currentIndex: items.firstIndex(where: { $0.media.id == selectedRatingKey }) ?? 0,
+            isShuffled: shuffle,
+        )
+    }
+
+    func queue(startingWith itemID: String, kind _: MediaKind, shuffle: Bool) async throws -> PlaybackQueue {
+        let response = try await MetadataRepository(context: context).getMetadata(ratingKey: itemID)
+        guard let item = response.mediaContainer.metadata?.first else {
+            throw PlexAPIError.invalidResponse
+        }
+        return try await queue(startingWith: MediaItem(plexItem: item, server: server), shuffle: shuffle)
+    }
+
+    func prepare(
+        media: MediaItem,
+        resume: Bool,
+        quality: TranscodeQualityPreset,
+        trackPreference: MediaTrackPreference?,
+        version: MediaVersionRequest,
+    ) async throws -> PlaybackPlan {
+        let response = try await MetadataRepository(context: context).getMetadata(
+            ratingKey: media.id,
+            params: .init(checkFiles: true, includeChapters: true, includeMarkers: true),
+        )
+        guard let item = response.mediaContainer.metadata?.first else { throw PlexAPIError.invalidURL }
+        let plexMedia = item.media ?? []
+        let versions = plexMedia.map(Self.mapFileInfoVersion)
+        guard let selected = Self.selection(in: plexMedia, versions: versions, request: version),
+              let directURL = try MediaRepository(context: context).mediaURL(path: selected.part.key)
+        else { throw PlexAPIError.invalidURL }
+        let selectedMedia = selected.media
+        let part = selected.part
+        let streams = part.stream ?? []
+        let serverAudio = streams.first {
+            $0.streamType == .audio && $0.selected == true
+        }
+        let serverSubtitle = streams.first {
+            $0.streamType == .subtitle && $0.selected == true
+        }
+        let preferredAudio = trackPreference.flatMap {
+            resolveAudioStream(preference: $0, streams: streams)
+        }
+        let preferredSubtitle: PlexPartStream? = switch trackPreference?.subtitle {
+        case .off:
+            nil
+        case .track:
+            trackPreference.flatMap { resolveSubtitleStream(preference: $0, streams: streams) }
+                ?? serverSubtitle
+        case .serverDefault, nil:
+            serverSubtitle
+        }
+        let selectedAudioStream = preferredAudio ?? serverAudio
+        let selectedSubtitleStream = preferredSubtitle
+        if let trackPreference {
+            let shouldUpdateAudio = preferredAudio?.id != serverAudio?.id
+                && preferredAudio?.id != nil
+            let shouldUpdateSubtitle: Bool = switch trackPreference.subtitle {
+            case .off:
+                serverSubtitle != nil
+            case .track:
+                preferredSubtitle?.id != serverSubtitle?.id && preferredSubtitle?.id != nil
+            case .serverDefault:
+                false
+            }
+            if shouldUpdateAudio || shouldUpdateSubtitle {
+                let subtitleStreamID: Int? = switch trackPreference.subtitle {
+                case .off: shouldUpdateSubtitle ? 0 : nil
+                case .track: shouldUpdateSubtitle ? preferredSubtitle?.id : nil
+                case .serverDefault: nil
+                }
+                do {
+                    try await PlaybackRepository(context: context).setPreferredStreams(
+                        partId: part.id,
+                        audioStreamId: shouldUpdateAudio ? preferredAudio?.id : nil,
+                        subtitleStreamId: subtitleStreamID,
+                        applyToAllParts: true,
+                    )
+                } catch {
+                    guard !Task.isCancelled, !error.isCancellation else { throw error }
+                    ErrorReporter.capture(error)
+                }
+            }
+        }
+        let tracks = streams.compactMap { stream -> PlaybackTrack? in
+            let kind: PlaybackTrackKind
+            switch stream.streamType {
+            case .audio: kind = .audio
+            case .subtitle: kind = .subtitle
+            case .video, .unknown: return nil
+            }
+            guard let index = stream.index else { return nil }
+            return PlaybackTrack(
+                id: stream.id.map(String.init) ?? "plex.\(index)",
+                sourceIndex: index,
+                kind: kind,
+                isExternal: stream.key != nil,
+                title: stream.displayTitle,
+                name: stream.title,
+                language: stream.language,
+                codec: stream.codec,
+                isDefault: stream.selected == true,
+                isForced: stream.forced == true,
+                isHearingImpaired: stream.hearingImpaired == true,
+            )
+        }
+        let subtitles = Self.externalSubtitles(in: streams) {
+            try? MediaRepository(context: context).mediaURL(path: $0)
+        }
+        let initialPosition = resume ? item.viewOffset.map { TimeInterval($0) / 1000 } : nil
+        let selectedAudioIndex = selectedAudioStream?.index
+        let selectedSubtitleIndex = selectedSubtitleStream?.id
+        let selectedAudioStreamID = selectedAudioStream?.id
+        let burnsSubtitles = selectedSubtitleStream?.key == nil
+        var playbackURL = directURL
+        var playbackMethod = PlaybackMethod.directPlay
+        var transcodeSessionID: String?
+        var effectiveQuality = TranscodeQualityPreset.original
+        var qualityFallbackMessage: String?
+        if !quality.isOriginal, selectedMedia.satisfies(quality: quality) {
+            effectiveQuality = quality
+        } else if !quality.isOriginal {
+            do {
+                let candidateTranscodeSessionID = UUID().uuidString
+                if let transcodeURL = try await PlaybackRepository(context: context).transcodeURL(
+                    ratingKey: item.ratingKey,
+                    mediaIndex: selected.mediaIndex,
+                    partIndex: selected.partIndex,
+                    quality: quality,
+                    playbackSessionIdentifier: playbackSessionID,
+                    transcodeSessionIdentifier: candidateTranscodeSessionID,
+                    audioStreamID: selectedAudioStreamID,
+                    burnsSubtitles: burnsSubtitles,
+                ) {
+                    playbackURL = transcodeURL
+                    playbackMethod = .transcode
+                    transcodeSessionID = candidateTranscodeSessionID
+                    effectiveQuality = quality
+                } else {
+                    qualityFallbackMessage = String(localized: "player.quality.fallback")
+                }
+            } catch {
+                guard !Task.isCancelled, !error.isCancellation else { throw error }
+                ErrorReporter.capture(error)
+                qualityFallbackMessage = String(localized: "player.quality.fallback")
+            }
+        }
+        let sourceChapters = (item.chapters ?? []).filter(\.isValid)
+        let chapters = sourceChapters.enumerated().map { _, chapter in
+            MediaChapter(
+                id: chapter.stableID,
+                title: "",
+                index: chapter.index,
+                startTime: chapter.startTime,
+                endTime: chapter.endTime,
+                image: nil,
+                thumbPath: chapter.thumb,
+            )
+        }
+        return PlaybackPlan(
+            media: MediaItem(plexItem: item, server: server),
+            url: playbackURL,
+            httpHeaders: [:],
+            method: playbackMethod,
+            requestedQuality: quality,
+            effectiveQuality: effectiveQuality,
+            qualityFallbackMessage: qualityFallbackMessage,
+            mediaSourceID: String(selectedMedia.id),
+            playSessionID: playbackSessionID,
+            transcodeSessionID: transcodeSessionID,
+            initialPosition: initialPosition,
+            selectedAudioIndex: selectedAudioIndex,
+            selectedSubtitleIndex: selectedSubtitleIndex,
+            subtitleSelectionIsOff: trackPreference.map {
+                if case .off = $0.subtitle {
+                    return true
+                }
+                return false
+            } ?? false,
+            tracks: tracks,
+            externalSubtitles: subtitles,
+            chapters: chapters,
+            skipSegments: (item.markers ?? []).compactMap(\.skipSegment),
+            scrubThumbnailSource: PlexBIFSource(partID: part.id, context: context)
+                .map(ScrubThumbnailSource.plex),
+            versions: versions,
+            versionID: String(selectedMedia.id),
+            burnsSubtitles: playbackMethod == .transcode && selectedSubtitleStream != nil && burnsSubtitles,
+        )
+    }
+
+    func release(plan: PlaybackPlan) async {
+        guard plan.method == .transcode,
+              let sessionIdentifier = plan.transcodeSessionID
+        else { return }
+        do {
+            try await PlaybackRepository(context: context).stopTranscode(
+                sessionIdentifier: sessionIdentifier,
+            )
+        } catch {
+            guard !Task.isCancelled, !error.isCancellation else { return }
+            ErrorReporter.capture(error)
+        }
+    }
+
+    func reportStarted(
+        plan: PlaybackPlan,
+        position: TimeInterval,
+        isPaused: Bool,
+        currentSelection _: PlaybackStreamSelection?,
+    ) async throws {
+        try await report(plan: plan, position: position, state: isPaused ? .paused : .playing)
+    }
+
+    func reportProgress(
+        plan: PlaybackPlan,
+        position: TimeInterval,
+        isPaused: Bool,
+        currentSelection _: PlaybackStreamSelection?,
+    ) async throws {
+        try await report(plan: plan, position: position, state: isPaused ? .paused : .playing)
+        if plan.method == .transcode, isPaused, let sessionIdentifier = plan.transcodeSessionID {
+            try? await PlaybackRepository(context: context).pingTranscode(
+                sessionIdentifier: sessionIdentifier,
+            )
+        }
+    }
+
+    func reportStopped(
+        plan: PlaybackPlan,
+        position: TimeInterval,
+        currentSelection _: PlaybackStreamSelection?,
+    ) async throws {
+        try await report(plan: plan, position: position, state: .stopped)
+    }
+
+    func externalSubtitles(media: MediaItem) async throws -> [PlayerExternalSubtitle] {
+        try await prepare(
+            media: media,
+            resume: false,
+            quality: .original,
+            trackPreference: nil,
+            version: services?.versionRequest(for: media) ?? .automatic,
+        ).externalSubtitles
+    }
+
+    func externalPlaybackTarget(
+        for media: MediaItem,
+        version: MediaVersionRequest,
+    ) async throws -> ExternalPlaybackTarget {
+        let response = try await MetadataRepository(context: context).getMetadata(
+            ratingKey: media.id,
+            params: .init(checkFiles: true),
+        )
+        guard let item = response.mediaContainer.metadata?.first else { throw PlexAPIError.invalidResponse }
+        let snapshot = try context.serverAccessSnapshot()
+        let plexMedia = item.media ?? []
+        guard let url = Self.externalPlaybackURL(
+            in: plexMedia,
+            version: version,
+            baseURL: snapshot.baseURL,
+            token: snapshot.authToken,
+        ) else { throw ExternalPlaybackError.noPlayableSource }
+        var target = ExternalPlaybackTarget(url: url, media: media)
+        target.subtitles = Self.externalSubtitleURLs(
+            in: plexMedia,
+            version: version,
+            baseURL: snapshot.baseURL,
+            token: snapshot.authToken,
+        )
+        return target
+    }
+
+    static func externalPlaybackURL(
+        in plexMedia: [PlexMedia],
+        version: MediaVersionRequest,
+        baseURL: URL,
+        token: String,
+    ) -> URL? {
+        guard let selected = selection(in: plexMedia, versions: plexMedia.map(mapFileInfoVersion), request: version),
+              selected.part.isAvailable
+        else { return nil }
+        return MediaRepository.mediaURL(path: selected.part.key, baseURL: baseURL, token: token)
+    }
+
+    /// Plex gives sidecar streams no `index`, so they are tied to the player by their stream id.
+    static func externalSubtitles(
+        in streams: [PlexPartStream],
+        url: (String) -> URL?,
+    ) -> [PlayerExternalSubtitle] {
+        streams.compactMap { stream in
+            guard stream.streamType == .subtitle,
+                  let id = stream.id,
+                  let url = stream.key.flatMap(url)
+            else { return nil }
+            return PlayerExternalSubtitle(
+                track: ExternalSubtitleTrack(
+                    url: url,
+                    name: stream.title ?? stream.displayTitle,
+                    language: stream.language,
+                    isForced: stream.forced == true,
+                    isHearingImpaired: stream.hearingImpaired == true,
+                    formatHint: stream.codec,
+                ),
+                providerStreamID: id,
+            )
+        }
+    }
+
+    /// SRT sidecar files only: the player reads the embedded tracks from the file itself. The server selection
+    /// comes first.
+    static func externalSubtitleURLs(
+        in plexMedia: [PlexMedia],
+        version: MediaVersionRequest,
+        baseURL: URL,
+        token: String,
+    ) -> [URL] {
+        guard let selected = selection(in: plexMedia, versions: plexMedia.map(mapFileInfoVersion), request: version)
+        else { return [] }
+        let sidecars = (selected.part.stream ?? []).filter { stream in
+            stream.streamType == .subtitle && stream.key != nil && stream.codec.lowercased() == "srt"
+        }
+        let ordered = sidecars.filter { $0.selected == true } + sidecars.filter { $0.selected != true }
+        return ordered.compactMap { stream in
+            stream.key.flatMap { MediaRepository.mediaURL(path: $0, baseURL: baseURL, token: token) }
+        }
+    }
+
+    func prepareDownload(
+        itemID: String,
+        quality: TranscodeQualityPreset,
+        tracks _: MediaTrackPreference,
+        version: MediaVersionRequest,
+    ) async throws -> MediaDownloadPreparation {
+        let response = try await MetadataRepository(context: context).getMetadata(
+            ratingKey: itemID,
+            params: .init(checkFiles: true),
+        )
+        guard let item = response.mediaContainer.metadata?.first else { throw PlexAPIError.invalidURL }
+        let plexMedia = item.media ?? []
+        let versions = plexMedia.map(Self.mapFileInfoVersion)
+        let mediaRepository = try MediaRepository(context: context)
+        guard let selected = Self.selection(in: plexMedia, versions: versions, request: version),
+              let url = mediaRepository.mediaURL(path: selected.part.key)
+        else { throw PlexAPIError.invalidURL }
+        let selectedMedia = selected.media
+        let media = MediaItem(plexItem: item, server: server)
+        let selectedVersion = versions[selected.mediaIndex]
+        let versionLabel = versions.count > 1 ? selectedVersion.displayLabel(among: versions) : nil
+        guard !quality.isOriginal, !selectedMedia.satisfies(quality: quality) else {
+            return MediaDownloadPreparation(
+                media: media,
+                requestedQuality: quality,
+                effectiveQuality: quality.isOriginal ? .original : quality,
+                request: URLRequest(url: url),
+                remoteReference: nil,
+                sidecars: Self.downloadSidecars(in: selected.part.stream ?? [], url: mediaRepository.mediaURL),
+                audioTitle: nil,
+                subtitleTitle: nil,
+                versionID: selectedVersion.id,
+                versionLabel: versionLabel,
+            )
+        }
+        let repository = try DownloadQueueRepository(context: context)
+        let queueID: Int
+        if let downloadQueueID {
+            queueID = downloadQueueID
+        } else {
+            queueID = try await repository.createQueue()
+            downloadQueueID = queueID
+        }
+        let queueItemID = try await repository.add(
+            ratingKey: item.ratingKey,
+            queueID: queueID,
+            quality: quality,
+            mediaIndex: selected.mediaIndex,
+            partIndex: selected.partIndex,
+        )
+        return MediaDownloadPreparation(
+            media: media,
+            requestedQuality: quality,
+            effectiveQuality: quality,
+            request: nil,
+            remoteReference: .plex(queueID: queueID, itemID: queueItemID),
+            sidecars: [],
+            audioTitle: nil,
+            subtitleTitle: nil,
+            versionID: selectedVersion.id,
+            versionLabel: versionLabel,
+        )
+    }
+
+    func refreshDownloadPreparation(
+        _ reference: MediaDownloadRemoteReference,
+    ) async throws -> MediaDownloadPreparationUpdate {
+        guard case let .plex(queueID, itemID) = reference else {
+            return .failed(message: String(localized: "downloads.status.failed"))
+        }
+        let repository = try DownloadQueueRepository(context: context)
+        let status = try await repository.status(queueID: queueID, itemID: itemID)
+        if status.hasError {
+            return .failed(message: String(localized: "downloads.status.failed"))
+        }
+        switch status.status {
+        case "available":
+            return try .ready(request: repository.mediaRequest(queueID: queueID, itemID: itemID))
+        case "failed", "error", "cancelled":
+            return .failed(message: String(localized: "downloads.status.failed"))
+        default:
+            return .preparing(progress: status.progress)
+        }
+    }
+
+    func downloadSidecars(
+        itemID: String,
+        tracks _: MediaTrackPreference,
+        versionID: String?,
+        isTranscoded: Bool,
+    ) async throws -> [MediaDownloadSidecar] {
+        // The transcoder muxes every subtitle, external ones included, into the file.
+        guard !isTranscoded else { return [] }
+        let response = try await MetadataRepository(context: context).getMetadata(ratingKey: itemID)
+        let plexMedia = response.mediaContainer.metadata?.first?.media ?? []
+        guard let selected = Self.selection(
+            in: plexMedia,
+            versions: plexMedia.map(Self.mapFileInfoVersion),
+            request: versionID.map { .explicit(versionID: $0) } ?? .automatic,
+        ) else { return [] }
+        let mediaRepository = try MediaRepository(context: context)
+        return Self.downloadSidecars(in: selected.part.stream ?? [], url: mediaRepository.mediaURL)
+    }
+
+    /// Streams with a `key` are the external subtitle files sitting next to the video on the server.
+    static func downloadSidecars(
+        in streams: [PlexPartStream],
+        url: (String) -> URL?,
+    ) -> [MediaDownloadSidecar] {
+        streams.compactMap { stream in
+            guard stream.streamType == .subtitle, let url = stream.key.flatMap(url) else { return nil }
+            let codec = stream.codec.lowercased()
+            let fileExtension = switch codec {
+            case "subrip": "srt"
+            case "webvtt": "vtt"
+            default: codec
+            }
+            return MediaDownloadSidecar(
+                request: URLRequest(url: url),
+                fileExtension: fileExtension,
+                title: stream.title ?? stream.displayTitle,
+                language: stream.language,
+                codec: codec,
+                isForced: stream.forced == true,
+                isHearingImpaired: stream.hearingImpaired == true,
+            )
+        }
+    }
+
+    func cancelDownloadPreparation(_ reference: MediaDownloadRemoteReference) async {
+        guard case let .plex(queueID, itemID) = reference else { return }
+        do {
+            try await DownloadQueueRepository(context: context).delete(
+                queueID: queueID,
+                itemID: itemID,
+            )
+        } catch {
+            guard !Task.isCancelled, !error.isCancellation else { return }
+            ErrorReporter.capture(error)
+        }
+    }
+
+    func downloadableItems(itemID: String, kind: MediaKind) async throws -> [MediaItem] {
+        switch kind {
+        case .movie, .episode:
+            let response = try await MetadataRepository(context: context).getMetadata(ratingKey: itemID)
+            return (response.mediaContainer.metadata ?? []).map(mapMediaItem)
+        case .season:
+            let response = try await MetadataRepository(context: context)
+                .getMetadataChildren(ratingKey: itemID)
+            return (response.mediaContainer.metadata ?? [])
+                .filter { $0.type == .episode }
+                .map(mapMediaItem)
+        case .series:
+            let response = try await MetadataRepository(context: context)
+                .getMetadataChildren(ratingKey: itemID)
+            var items: [MediaItem] = []
+            for season in (response.mediaContainer.metadata ?? []).filter({ $0.type == .season }) {
+                try await items.append(contentsOf: downloadableItems(itemID: season.ratingKey, kind: .season))
+            }
+            return items
+        case .clip, .collection, .playlist, .folder, .unknown:
+            return []
+        }
+    }
+
+    private func resolveAudioStream(
+        preference: MediaTrackPreference,
+        streams: [PlexPartStream],
+    ) -> PlexPartStream? {
+        let audio = streams.filter { $0.streamType == .audio }
+        return TrackSelectionMatcher.bestAudioMatch(
+            preference: preference,
+            candidates: audio,
+            descriptor: { stream in
+                TrackSelectionMatchDescriptor(
+                    exactIdentifiers: stream.id.map { [$0] } ?? [],
+                    language: stream.language,
+                    title: stream.title,
+                    displayTitle: stream.displayTitle,
+                    codec: stream.codec,
+                    isForced: stream.forced,
+                    isHearingImpaired: stream.hearingImpaired,
+                )
+            },
+        )
+    }
+
+    private func resolveSubtitleStream(
+        preference: MediaTrackPreference,
+        streams: [PlexPartStream],
+    ) -> PlexPartStream? {
+        let subtitles = streams.filter { $0.streamType == .subtitle }
+        return TrackSelectionMatcher.bestSubtitleMatch(
+            preference: preference.subtitle,
+            candidates: subtitles,
+            descriptor: { stream in
+                TrackSelectionMatchDescriptor(
+                    exactIdentifiers: stream.id.map { [$0] } ?? [],
+                    language: stream.language,
+                    title: stream.title,
+                    displayTitle: stream.displayTitle,
+                    codec: stream.codec,
+                    isForced: stream.forced,
+                    isHearingImpaired: stream.hearingImpaired,
+                )
+            },
+        )
+    }
+
+    func reportItemPlayback(
+        itemID: String,
+        state: ItemPlaybackReportState,
+        position: TimeInterval,
+        duration: TimeInterval?,
+        isPaused: Bool,
+    ) async throws {
+        let timelineState: PlaybackRepository.PlaybackState = switch state {
+        case .stopped:
+            .stopped
+        case .started, .progress:
+            isPaused ? .paused : .playing
+        }
+        _ = try await PlaybackRepository(context: context).updateTimeline(
+            ratingKey: itemID,
+            state: timelineState,
+            time: max(0, Int(position * 1000)),
+            duration: max(0, Int((duration ?? 0) * 1000)),
+            sessionIdentifier: playbackSessionID,
+            includesKey: true,
+        )
+    }
+
+    func pushItemPosition(
+        itemID: String,
+        position: TimeInterval,
+        duration: TimeInterval?,
+        at _: Date,
+    ) async throws {
+        // Plex ignores client dates: the server records the synchronization time as lastViewedAt.
+        _ = try await PlaybackRepository(context: context).updateTimeline(
+            ratingKey: itemID,
+            state: .stopped,
+            time: max(0, Int(position * 1000)),
+            duration: max(0, Int((duration ?? 0) * 1000)),
+            sessionIdentifier: UUID().uuidString,
+            includesKey: true,
+        )
+    }
+
+    func markItemWatched(itemID: String, at _: Date) async throws {
+        try await ScrobbleRepository(context: context).markWatched(key: itemID)
+    }
+
+    func serverWatchState(itemID: String) async throws -> ServerItemWatchState {
+        let item = try await mediaItem(id: itemID)
+        return ServerItemWatchState(
+            viewOffset: item.viewOffset,
+            viewCount: item.viewCount ?? 0,
+            isPlayed: (item.viewCount ?? 0) > 0,
+            lastViewedAt: item.lastViewedAt,
+        )
+    }
+
+    private func report(
+        plan: PlaybackPlan,
+        position: TimeInterval,
+        state: PlaybackRepository.PlaybackState,
+    ) async throws {
+        _ = try await PlaybackRepository(context: context).updateTimeline(
+            ratingKey: plan.media.id,
+            state: state,
+            time: max(0, Int(position * 1000)),
+            duration: max(0, Int((plan.media.duration ?? 0) * 1000)),
+            sessionIdentifier: playbackSessionID,
+            playQueueItemID: queueItemIDs[plan.media.id],
+        )
+    }
+
+    private func parentSeries(for media: MediaItem) async throws -> MediaItem? {
+        let seriesID: String?
+        switch media.type {
+        case .season:
+            seriesID = media.parentRatingKey
+        case .episode:
+            if let grandparentRatingKey = media.grandparentRatingKey {
+                seriesID = grandparentRatingKey
+            } else if let seasonID = media.parentRatingKey {
+                let season = try await MetadataRepository(context: context).getMetadata(ratingKey: seasonID)
+                    .mediaContainer.metadata?.first
+                seriesID = season?.parentRatingKey
+            } else {
+                seriesID = nil
+            }
+        case .movie, .series, .clip, .collection, .playlist, .folder, .unknown:
+            seriesID = nil
+        }
+        guard let seriesID else { return nil }
+        return try await mediaItem(id: seriesID)
+    }
+
+    private func mediaPartID(itemID: String, versionID: String?) async throws -> Int {
+        let response = try await MetadataRepository(context: context).getMetadata(
+            ratingKey: itemID,
+            params: .init(checkFiles: true),
+        )
+        let plexMedia = response.mediaContainer.metadata?.first?.media ?? []
+        guard let selected = Self.selection(
+            in: plexMedia,
+            versions: plexMedia.map(Self.mapFileInfoVersion),
+            request: versionID.map { .explicit(versionID: $0) } ?? .automatic,
+        ) else {
+            throw PlexAPIError.invalidResponse
+        }
+        return selected.part.id
+    }
+
+    private struct VersionSelection {
+        let mediaIndex: Int
+        let media: PlexMedia
+        let partIndex: Int
+        let part: PlexPart
+    }
+
+    private static func defaultVersion(_ versions: [MediaFileVersion]) -> MediaFileVersion? {
+        versions.first(where: \.isAvailable)
+    }
+
+    /// Positions in `Media` and `Part` are what the transcoder expects as `mediaIndex` and `partIndex`.
+    private static func selection(
+        in plexMedia: [PlexMedia],
+        versions: [MediaFileVersion],
+        request: MediaVersionRequest,
+    ) -> VersionSelection? {
+        guard let version = MediaVersionResolver.resolve(request, in: versions, default: defaultVersion),
+              let mediaIndex = versions.firstIndex(of: version)
+        else {
+            // Every version is unavailable: keep the historical behavior and let playback surface the error.
+            guard let media = plexMedia.first, let part = media.parts.first else { return nil }
+            return VersionSelection(mediaIndex: 0, media: media, partIndex: 0, part: part)
+        }
+        let media = plexMedia[mediaIndex]
+        let partIndex = media.parts.firstIndex(where: \.isAvailable) ?? 0
+        guard media.parts.indices.contains(partIndex) else { return nil }
+        return VersionSelection(
+            mediaIndex: mediaIndex,
+            media: media,
+            partIndex: partIndex,
+            part: media.parts[partIndex],
+        )
+    }
+
+    private static func mapFileInfoVersion(_ media: PlexMedia) -> MediaFileVersion {
+        MediaFileVersion(
+            id: String(media.id),
+            title: media.title,
+            container: media.container,
+            bitrateKbps: media.bitrate,
+            duration: media.duration.map { TimeInterval($0) / 1000 },
+            width: media.width,
+            height: media.height,
+            aspectRatio: media.aspectRatio.map { String(format: "%.2f", $0) },
+            videoResolution: media.videoResolution,
+            videoCodec: media.videoCodec,
+            videoProfile: media.videoProfile,
+            videoFrameRate: media.videoFrameRate,
+            audioCodec: media.audioCodec,
+            audioProfile: media.audioProfile,
+            audioChannels: media.audioChannels,
+            parts: media.parts.map(mapFileInfoPart),
+            attachments: [],
+            isAvailable: media.deletedAt == nil && media.parts.contains(where: \.isAvailable),
+            isOptimized: media.proxyType == 42,
+            optimizationTarget: media.target,
+        )
+    }
+
+    private static func mapFileInfoPart(_ part: PlexPart) -> MediaFilePart {
+        MediaFilePart(
+            id: String(part.id),
+            path: part.file,
+            sizeBytes: part.size,
+            container: part.container,
+            duration: part.duration.map { TimeInterval($0) / 1000 },
+            exists: part.exists,
+            accessible: part.accessible,
+            streams: (part.stream ?? []).map(mapFileInfoStream),
+        )
+    }
+
+    private static func mapFileInfoStream(_ stream: PlexPartStream) -> MediaFileStream {
+        let kind: MediaFileStreamKind = switch stream.streamType {
+        case .video:
+            .video
+        case .audio:
+            .audio
+        case .subtitle:
+            .subtitle
+        case .unknown:
+            .other
+        }
+
+        return MediaFileStream(
+            kind: kind,
+            id: stream.id.map(String.init),
+            index: stream.index,
+            title: stream.title,
+            displayTitle: stream.extendedDisplayTitle ?? stream.displayTitle,
+            codec: stream.codec,
+            codecTag: stream.codecID,
+            profile: stream.profile,
+            language: stream.language,
+            languageCode: stream.languageCode ?? stream.languageTag,
+            bitrateKbps: stream.bitrate,
+            isDefault: stream.isDefault,
+            isForced: stream.forced,
+            isSelected: stream.selected,
+            isExternal: kind == .subtitle && stream.key != nil,
+            isHearingImpaired: stream.hearingImpaired,
+            width: stream.width,
+            height: stream.height,
+            frameRate: stream.frameRate,
+            bitDepth: stream.bitDepth,
+            dynamicRange: Self.plexDynamicRange(stream),
+            pixelFormat: stream.pixelFormat,
+            colorSpace: stream.colorSpace,
+            colorTransfer: stream.colorTransfer,
+            aspectRatio: stream.pixelAspectRatio,
+            channels: stream.channels,
+            channelLayout: stream.audioChannelLayout,
+            sampleRate: stream.samplingRate,
+            spatialFormat: Self.plexSpatialFormat(stream),
+            subtitleFormat: stream.format,
+            path: stream.key,
+        )
+    }
+
+    private static func plexDynamicRange(_ stream: PlexPartStream) -> String? {
+        if stream.dolbyVisionPresent == true {
+            if stream.dolbyVisionCompatibilityID == 1 || stream.dolbyVisionCompatibilityID == 6 {
+                return "Dolby Vision (HDR10)"
+            }
+            return "Dolby Vision"
+        }
+
+        switch stream.colorTransfer?.lowercased() {
+        case "smpte2084":
+            return "HDR10"
+        case "arib-std-b67":
+            return "HLG"
+        default:
+            return nil
+        }
+    }
+
+    private static func plexSpatialFormat(_ stream: PlexPartStream) -> String? {
+        let text = [stream.title, stream.displayTitle, stream.extendedDisplayTitle]
+            .compactMap { $0?.lowercased() }
+            .joined(separator: " ")
+        return text.contains("atmos") ? "Atmos" : nil
+    }
+
+    private func mapMediaItem(_ item: PlexItem) -> MediaItem {
+        MediaItem(plexItem: item, server: server)
+    }
+
+    private func mapDisplayItem(_ item: PlexItem) -> MediaDisplayItem? {
+        MediaDisplayItem(plexItem: item, server: server)
+    }
+
+    private func mapBrowseItem(_ metadata: PlexBrowseMetadata) -> LibraryBrowseItem? {
+        switch metadata {
+        case let .item(item):
+            mapDisplayItem(item).map(LibraryBrowseItem.media)
+        case let .folder(folder):
+            .folder(LibraryBrowseFolderItem(id: folder.key, key: folder.key, title: folder.title))
+        }
+    }
+}
+
+private extension PlexPart {
+    /// Missing `exists`/`accessible` fields count as available.
+    var isAvailable: Bool {
+        exists != false && accessible != false
+    }
+}
+
+private extension PlexMedia {
+    func satisfies(quality: TranscodeQualityPreset) -> Bool {
+        guard let bitrate,
+              let width,
+              let height,
+              let maximumVideoBitrate = quality.maximumVideoBitrateKbps,
+              let maximumWidth = quality.maximumWidth,
+              let maximumHeight = quality.maximumHeight
+        else { return false }
+        return bitrate <= maximumVideoBitrate + 192
+            && width <= maximumWidth
+            && height <= maximumHeight
+    }
+}
+
+@MainActor
+enum PlexMediaServicesFactory {
+    /// - Parameters:
+    ///   - userID: Plex user of the token, which owns the offline data and track preferences of this server.
+    ///   - favoritesProfileID: Strimr profile the local favorites belong to.
+    ///   - isServerAdministrator: The user administers this server, see `PlexServerRights`.
+    static func make(
+        context: PlexAPIContext,
+        serverName: String,
+        userID: String,
+        isServerAdministrator: Bool,
+        favoritesProfileID: String,
+        favoritesStore: FavoritesStore,
+        trackSelectionCoordinator: TrackSelectionCoordinator?,
+        versionSelectionStore: MediaVersionSelectionStore?,
+    ) -> MediaServices? {
+        guard let snapshot = try? context.serverAccessSnapshot() else { return nil }
+        let identity = ServerIdentity(provider: .plex, id: snapshot.serverIdentifier)
+        let adapter = PlexMediaServiceAdapter(
+            context: context,
+            server: identity,
+            isServerAdministrator: isServerAdministrator,
+        )
+        let favorites = PlexFavoritesService(
+            context: context,
+            store: favoritesStore,
+            scope: .plex(serverID: identity.id, profileID: favoritesProfileID),
+        )
+        let liveTV = PlexLiveTVService(context: context)
+        let playlists = PlexPlaylistService(context: context, server: identity)
+        #if os(tvOS)
+            let decorated = (
+                home: adapter as any MediaHomeService,
+                library: adapter as any MediaLibraryService,
+                search: adapter as any MediaSearchService,
+                artwork: adapter as any MediaArtworkService,
+                detail: adapter as any MediaDetailService,
+                favorites: favorites as any MediaFavoritesService,
+                playlists: playlists as any MediaPlaylistService,
+            )
+        #else
+            let decorated = OfflineServiceDecorators(
+                owner: MediaOwner(server: identity, userID: userID),
+                home: adapter,
+                library: adapter,
+                search: adapter,
+                artwork: adapter,
+                detail: adapter,
+                favorites: favorites,
+                playlists: playlists,
+            )
+        #endif
+        let services = MediaServices(
+            provider: .plex,
+            identity: identity,
+            serverName: serverName,
+            capabilities: .plex,
+            home: decorated.home,
+            library: decorated.library,
+            search: decorated.search,
+            artwork: decorated.artwork,
+            detail: decorated.detail,
+            favorites: decorated.favorites,
+            playlists: decorated.playlists,
+            playback: adapter,
+            liveTV: liveTV,
+            downloads: adapter,
+            authorization: adapter,
+            management: PlexManagementService(context: context),
+            trackSelectionCoordinator: trackSelectionCoordinator,
+            trackSelectionAccountIdentifier: userID,
+            versionSelectionStore: versionSelectionStore,
+        )
+        adapter.services = services
+        services.availabilityProbeURL = { [weak context] in
+            context?.baseURLServer?.appendingPathComponent("identity")
+        }
+        Task { await adapter.loadDeletionSetting() }
+        return services
+    }
+}

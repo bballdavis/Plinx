@@ -1,0 +1,298 @@
+import AetherEngine
+import Foundation
+
+enum PlayerVideoScaleMode: String, Codable, CaseIterable, Sendable, Hashable, Identifiable {
+    case fit
+    case fill
+
+    var id: Self {
+        self
+    }
+
+    var feedbackTitle: String {
+        switch self {
+        case .fit: String(localized: "player.feedback.videoScale.fit")
+        case .fill: String(localized: "player.feedback.videoScale.fill")
+        }
+    }
+
+    var feedbackSystemImage: String {
+        switch self {
+        case .fit: "arrow.down.right.and.arrow.up.left"
+        case .fill: "arrow.up.left.and.arrow.down.right"
+        }
+    }
+}
+
+enum PlaybackMethod: String, Sendable {
+    case directPlay
+    case transcode
+    case offline
+}
+
+enum TranscodeQualityPreset: String, Codable, CaseIterable, Sendable, Hashable, Identifiable {
+    case original
+    case p240_320
+    case p360_700
+    case p480_1_5mbps
+    case p720_2mbps
+    case p720_4mbps
+    case p1080_8mbps
+    case p1080_12mbps
+
+    var id: String {
+        rawValue
+    }
+
+    var isOriginal: Bool {
+        self == .original
+    }
+
+    var maximumVideoBitrateKbps: Int? {
+        switch self {
+        case .original: nil
+        case .p240_320: 320
+        case .p360_700: 700
+        case .p480_1_5mbps: 1500
+        case .p720_2mbps: 2000
+        case .p720_4mbps: 4000
+        case .p1080_8mbps: 8000
+        case .p1080_12mbps: 12000
+        }
+    }
+
+    var maximumHeight: Int? {
+        switch self {
+        case .original: nil
+        case .p240_320: 240
+        case .p360_700: 360
+        case .p480_1_5mbps: 480
+        case .p720_2mbps, .p720_4mbps: 720
+        case .p1080_8mbps, .p1080_12mbps: 1080
+        }
+    }
+
+    var maximumWidth: Int? {
+        switch self {
+        case .original: nil
+        case .p240_320: 426
+        case .p360_700: 640
+        case .p480_1_5mbps: 854
+        case .p720_2mbps, .p720_4mbps: 1280
+        case .p1080_8mbps, .p1080_12mbps: 1920
+        }
+    }
+
+    var title: String {
+        guard let bitrate = maximumVideoBitrateKbps,
+              let height = maximumHeight
+        else { return String(localized: "quality.original") }
+        if bitrate < 1000 {
+            return String(localized: "quality.preset.kbps \(String(height)) \(String(bitrate))")
+        }
+        let bitrateText = bitrate == 1500 ? "1.5" : String(bitrate / 1000)
+        return String(localized: "quality.preset.mbps \(String(height)) \(bitrateText)")
+    }
+
+    static let displayOrder: [TranscodeQualityPreset] = [
+        .original,
+        .p1080_12mbps,
+        .p1080_8mbps,
+        .p720_4mbps,
+        .p720_2mbps,
+        .p480_1_5mbps,
+        .p360_700,
+        .p240_320,
+    ]
+}
+
+enum PlaybackTrackKind: String, Sendable {
+    case audio
+    case subtitle
+}
+
+struct PlaybackTrack: Sendable, Hashable, Identifiable {
+    let id: String
+    let sourceIndex: Int
+    let kind: PlaybackTrackKind
+    let isExternal: Bool
+    let title: String
+    let name: String?
+    let language: String?
+    let codec: String?
+    let isDefault: Bool
+    let isForced: Bool
+    let isHearingImpaired: Bool
+}
+
+struct MediaTrackMetadata: Sendable, Hashable, Identifiable {
+    let id: Int?
+    let sourceIndex: Int?
+    let codec: String
+    let title: String?
+    let displayTitle: String
+    let language: String?
+    let isDefault: Bool
+    let isForced: Bool
+    let isHearingImpaired: Bool
+
+    /// The stream's own name (e.g. "VFQ", "Forced"), unless the display title already shows it.
+    var secondaryTitle: String? {
+        guard let title = title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty,
+              displayTitle.range(of: title, options: .caseInsensitive) == nil
+        else { return nil }
+        return title
+    }
+
+    /// Display title and stream name on one line, for places that cannot show a second line.
+    var summaryTitle: String {
+        guard !displayTitle.isEmpty else { return title ?? "" }
+        guard let secondaryTitle else { return displayTitle }
+        return "\(secondaryTitle) · \(displayTitle)"
+    }
+}
+
+struct MediaChapter: Sendable, Hashable, Identifiable {
+    let id: String
+    let title: String
+    let index: Int
+    let startTime: TimeInterval
+    let endTime: TimeInterval
+    let image: ArtworkReference?
+    let thumbPath: String?
+
+    var stableID: String {
+        id
+    }
+
+    var isValid: Bool {
+        startTime >= 0 && endTime > startTime
+    }
+
+    func contains(time: TimeInterval) -> Bool {
+        time >= startTime && time < endTime
+    }
+}
+
+struct SkipSegment: Sendable, Hashable, Identifiable {
+    enum Kind: String, Sendable, Hashable {
+        case intro
+        case credits
+        case commercial
+    }
+
+    let id: String
+    let kind: Kind
+    let startTime: TimeInterval
+    let endTime: TimeInterval
+
+    var isIntro: Bool {
+        kind == .intro
+    }
+
+    var isCredits: Bool {
+        kind == .credits
+    }
+
+    var isCommercial: Bool {
+        kind == .commercial
+    }
+
+    var skipTitle: String {
+        switch kind {
+        case .intro: String(localized: "player.skip.intro")
+        case .credits: String(localized: "player.skip.credits")
+        case .commercial: String(localized: "player.skip.commercial")
+        }
+    }
+
+    var automaticSkipConfirmation: String {
+        switch kind {
+        case .intro: String(localized: "player.skip.intro.automaticConfirmation")
+        case .credits: String(localized: "player.skip.credits.automaticConfirmation")
+        case .commercial: String(localized: "player.skip.commercial.automaticConfirmation")
+        }
+    }
+
+    func contains(time: TimeInterval) -> Bool {
+        time >= startTime && time <= endTime
+    }
+}
+
+struct PlaybackPlan: Sendable {
+    let media: MediaItem
+    let url: URL
+    let httpHeaders: [String: String]
+    let method: PlaybackMethod
+    let requestedQuality: TranscodeQualityPreset
+    let effectiveQuality: TranscodeQualityPreset
+    let qualityFallbackMessage: String?
+    let mediaSourceID: String?
+    let playSessionID: String?
+    let transcodeSessionID: String?
+    let initialPosition: TimeInterval?
+    let selectedAudioIndex: Int?
+    let selectedSubtitleIndex: Int?
+    let subtitleSelectionIsOff: Bool
+    let tracks: [PlaybackTrack]
+    let externalSubtitles: [PlayerExternalSubtitle]
+    let chapters: [MediaChapter]
+    let skipSegments: [SkipSegment]
+    let scrubThumbnailSource: ScrubThumbnailSource?
+    let versions: [MediaFileVersion]
+    /// The version actually played.
+    let versionID: String?
+    /// The server draws the selected subtitle into the transcoded picture.
+    var burnsSubtitles = false
+
+    /// Servers do not always name the track they picked: the player then starts on the default or the first one.
+    func audioLanguage(sourceIndex: Int?) -> String? {
+        let audio = tracks.filter { $0.kind == .audio }
+        let track = audio.first { $0.sourceIndex == sourceIndex } ?? audio.first(where: \.isDefault) ?? audio.first
+        return track?.language
+    }
+
+    var existingSubtitles: [AutomaticSubtitleSearch.ExistingSubtitle] {
+        tracks.filter { $0.kind == .subtitle }.map {
+            AutomaticSubtitleSearch.ExistingSubtitle(language: $0.language, isForced: $0.isForced)
+        } + externalSubtitles.map {
+            AutomaticSubtitleSearch.ExistingSubtitle(language: $0.track.language, isForced: $0.track.isForced)
+        }
+    }
+}
+
+struct PlaybackQueueItem: Sendable, Equatable, Identifiable {
+    let id: UUID
+    let media: MediaItem
+    let providerQueueItemID: String?
+}
+
+struct PlaybackQueue: Sendable, Equatable {
+    let id: UUID
+    var items: [PlaybackQueueItem]
+    var currentIndex: Int
+    var isShuffled: Bool
+}
+
+extension PlaybackQueue {
+    /// Starts at `startID` and keeps what precedes it. Shuffled, `startID` plays first and only what follows
+    /// it is shuffled, so nothing unplayed shows up as already played.
+    init(media: [MediaItem], startingAt startID: String?, shuffle: Bool) {
+        var media = media
+        var currentIndex = media.firstIndex { $0.id == startID }
+        if shuffle {
+            if let index = currentIndex {
+                media = [media[index]] + media[(index + 1)...].shuffled()
+            } else {
+                media.shuffle()
+            }
+            currentIndex = 0
+        }
+        self.init(
+            id: UUID(),
+            items: media.map { PlaybackQueueItem(id: UUID(), media: $0, providerQueueItemID: nil) },
+            currentIndex: currentIndex ?? 0,
+            isShuffled: shuffle,
+        )
+    }
+}

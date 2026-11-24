@@ -1,0 +1,726 @@
+import Foundation
+
+@MainActor
+struct JellyfinCatalogService {
+    private let context: JellyfinAPIContext
+
+    init(context: JellyfinAPIContext) {
+        self.context = context
+    }
+
+    func libraries() async throws -> [JellyfinItem] {
+        let response: JellyfinQueryResult<JellyfinItem> = try await context.get(
+            path: ["UserViews"],
+            query: commonUserQuery,
+        )
+        // Jellyfin-compatible servers such as AIOStreams can return the same view twice.
+        var seenIDs = Set<String>()
+        return response.items.filter {
+            guard seenIDs.insert($0.id).inserted else { return false }
+            let type = $0.type?.lowercased()
+            let collectionType = $0.collectionType?.lowercased()
+            return (type == "collectionfolder" || type == "userview")
+                && ["movies", "tvshows", "boxsets", "playlists"].contains(collectionType ?? "")
+        }
+    }
+
+    func resume(limit: Int = 20) async throws -> [JellyfinItem] {
+        let response: JellyfinQueryResult<JellyfinItem> = try await context.get(
+            path: ["UserItems", "Resume"],
+            query: commonUserQuery + [
+                URLQueryItem(name: "IncludeItemTypes", value: "Movie,Episode"),
+                URLQueryItem(name: "Limit", value: String(limit)),
+                URLQueryItem(name: "Fields", value: Self.cardFields),
+                URLQueryItem(name: "MediaTypes", value: "Video"),
+            ],
+        )
+        return response.items
+    }
+
+    func resumable(
+        parentID: String,
+        includeTypes: String,
+        limit: Int,
+    ) async throws -> [JellyfinItem] {
+        guard let userID = context.connection?.userID else {
+            throw JellyfinAPIError.authenticationRequired
+        }
+        let response: JellyfinQueryResult<JellyfinItem> = try await context.get(
+            path: ["Users", userID, "Items"],
+            query: [
+                URLQueryItem(name: "SortBy", value: "DatePlayed"),
+                URLQueryItem(name: "SortOrder", value: "Descending"),
+                URLQueryItem(name: "IncludeItemTypes", value: includeTypes),
+                URLQueryItem(name: "Filters", value: "IsResumable"),
+                URLQueryItem(name: "Limit", value: String(limit)),
+                URLQueryItem(name: "Recursive", value: "true"),
+                URLQueryItem(name: "Fields", value: Self.cardFields),
+                URLQueryItem(name: "CollapseBoxSetItems", value: "false"),
+                URLQueryItem(name: "ParentId", value: parentID),
+                URLQueryItem(name: "EnableImages", value: "true"),
+                URLQueryItem(name: "EnableTotalRecordCount", value: "false"),
+            ],
+        )
+        return response.items
+    }
+
+    func nextUp(
+        seriesID: String? = nil,
+        parentID: String? = nil,
+        limit: Int = 20,
+        includesResumable: Bool = false,
+    ) async throws -> [JellyfinItem] {
+        var query = commonUserQuery + [
+            URLQueryItem(name: "Limit", value: String(limit)),
+            URLQueryItem(name: "Fields", value: Self.cardFields),
+            URLQueryItem(name: "EnableResumable", value: String(includesResumable)),
+        ]
+        if let seriesID {
+            query.append(URLQueryItem(name: "SeriesId", value: seriesID))
+        }
+        if let parentID {
+            query.append(URLQueryItem(name: "ParentId", value: parentID))
+        }
+        let response: JellyfinQueryResult<JellyfinItem> = try await context.get(
+            path: ["Shows", "NextUp"],
+            query: query,
+        )
+        return response.items
+    }
+
+    func continueEpisode(seriesID: String) async throws -> JellyfinItem? {
+        async let nextUpItems = nextUp(seriesID: seriesID, limit: 1, includesResumable: true)
+        async let resumableItems = resumable(parentID: seriesID, includeTypes: "Episode", limit: 1)
+        let nextUp = try await nextUpItems.first
+        do {
+            return try await Self.continueEpisode(nextUp: nextUp, resumable: resumableItems.first)
+        } catch {
+            guard !error.isCancellation else { throw error }
+            ErrorReporter.capture(error)
+            return nextUp
+        }
+    }
+
+    /// Next Up only follows the last fully played episode, so it offers the first episode of a show
+    /// started mid-way even though a later episode is in progress.
+    static func continueEpisode(nextUp: JellyfinItem?, resumable: JellyfinItem?) -> JellyfinItem? {
+        guard let resumable else { return nextUp }
+        guard let nextUp else { return resumable }
+        return episodeOrder(resumable) >= episodeOrder(nextUp) ? resumable : nextUp
+    }
+
+    private static func episodeOrder(_ item: JellyfinItem) -> (Int, Int) {
+        (item.parentIndexNumber ?? 0, item.indexNumber ?? 0)
+    }
+
+    /// Continue Watching and Next Up as one row, the way Plex shows it: one episode per series, the series watched
+    /// most recently first.
+    func continueWatching(parentID: String? = nil, resumeLimit: Int = 20, nextUpLimit: Int = 20) async throws
+        -> [JellyfinItem]
+    {
+        async let resumeItems = inProgress(parentID: parentID, limit: resumeLimit)
+        async let nextUpItems = nextUp(parentID: parentID, limit: nextUpLimit)
+        async let playedItems = recentlyPlayedEpisodes(parentID: parentID)
+        let resume = try await resumeItems
+        let nextUp = try await nextUpItems
+        let played: [JellyfinItem]
+        // Only orders the row: without it, Next Up keeps the server's order.
+        do {
+            played = try await playedItems
+        } catch {
+            guard !error.isCancellation else { throw error }
+            ErrorReporter.capture(error)
+            played = []
+        }
+        return Self.continueWatching(resume: resume, nextUp: nextUp, playedEpisodes: played)
+    }
+
+    /// - Parameters:
+    ///   - resume: in-progress items, most recently played first.
+    ///   - nextUp: next episodes, the series watched most recently first.
+    ///   - playedEpisodes: recently played episodes. Next Up episodes were never played, so they take the date their
+    ///     series was last watched.
+    static func continueWatching(
+        resume: [JellyfinItem],
+        nextUp: [JellyfinItem],
+        playedEpisodes: [JellyfinItem],
+    ) -> [JellyfinItem] {
+        var seriesDates: [String: Date] = [:]
+        for item in playedEpisodes + resume {
+            guard let seriesID = item.seriesID, let date = item.userData?.lastPlayedDate else { continue }
+            seriesDates[seriesID] = max(seriesDates[seriesID] ?? date, date)
+        }
+
+        var entries: [(item: JellyfinItem, date: Date?, nextUpRank: Int)] = []
+        var entryIndexBySeries: [String: Int] = [:]
+        for item in resume {
+            if let seriesID = item.seriesID {
+                guard entryIndexBySeries[seriesID] == nil else { continue }
+                entryIndexBySeries[seriesID] = entries.count
+            }
+            let date = item.seriesID.flatMap { seriesDates[$0] } ?? item.userData?.lastPlayedDate
+            entries.append((item, date, .max))
+        }
+        // Series too old to be among the played episodes keep Next Up's own order, taking the date of the series
+        // before them, or of the first dated one when they lead.
+        var previousNextUpDate = nextUp.lazy.compactMap { $0.seriesID.flatMap { seriesDates[$0] } }.first
+        for (rank, item) in nextUp.enumerated() {
+            guard let seriesID = item.seriesID else { continue }
+            if let index = entryIndexBySeries[seriesID] {
+                if let episode = continueEpisode(nextUp: item, resumable: entries[index].item) {
+                    entries[index].item = episode
+                }
+                entries[index].nextUpRank = rank
+                previousNextUpDate = entries[index].date ?? previousNextUpDate
+                continue
+            }
+            let date = seriesDates[seriesID] ?? previousNextUpDate
+            entryIndexBySeries[seriesID] = entries.count
+            entries.append((item, date, rank))
+            previousNextUpDate = date
+        }
+
+        return entries.enumerated().sorted { lhs, rhs in
+            switch (lhs.element.date, rhs.element.date) {
+            case let (left?, right?) where left != right:
+                left > right
+            case (_?, nil):
+                true
+            case (nil, _?):
+                false
+            default:
+                // A series that took the date of another one is at least as recent: Next Up decides between them.
+                (lhs.element.nextUpRank, lhs.offset) < (rhs.element.nextUpRank, rhs.offset)
+            }
+        }.map(\.element.item)
+    }
+
+    private func inProgress(parentID: String?, limit: Int) async throws -> [JellyfinItem] {
+        guard let parentID else { return try await resume(limit: limit) }
+        return try await resumable(parentID: parentID, includeTypes: "Episode", limit: limit)
+    }
+
+    private func recentlyPlayedEpisodes(parentID: String?, limit: Int = 100) async throws -> [JellyfinItem] {
+        guard let userID = context.connection?.userID else {
+            throw JellyfinAPIError.authenticationRequired
+        }
+        var query = [
+            URLQueryItem(name: "SortBy", value: "DatePlayed"),
+            URLQueryItem(name: "SortOrder", value: "Descending"),
+            URLQueryItem(name: "IncludeItemTypes", value: "Episode"),
+            URLQueryItem(name: "Filters", value: "IsPlayed"),
+            URLQueryItem(name: "Recursive", value: "true"),
+            URLQueryItem(name: "Limit", value: String(limit)),
+            URLQueryItem(name: "Fields", value: "SeriesId"),
+            URLQueryItem(name: "EnableUserData", value: "true"),
+            URLQueryItem(name: "EnableImages", value: "false"),
+            URLQueryItem(name: "EnableTotalRecordCount", value: "false"),
+        ]
+        if let parentID {
+            query.append(URLQueryItem(name: "ParentId", value: parentID))
+        }
+        let response: JellyfinQueryResult<JellyfinItem> = try await context.get(
+            path: ["Users", userID, "Items"],
+            query: query,
+        )
+        return response.items
+    }
+
+    func latest(
+        types: String? = nil,
+        parentID: String? = nil,
+        limit: Int = 20,
+    ) async throws -> [JellyfinItem] {
+        guard let userID = context.connection?.userID else {
+            throw JellyfinAPIError.authenticationRequired
+        }
+        var query = commonUserQuery + [
+            URLQueryItem(name: "Limit", value: String(limit)),
+            URLQueryItem(name: "Fields", value: Self.cardFields),
+            URLQueryItem(name: "EnableImages", value: "true"),
+        ]
+        if let types {
+            query.append(URLQueryItem(name: "IncludeItemTypes", value: types))
+        }
+        if let parentID {
+            query.append(URLQueryItem(name: "ParentId", value: parentID))
+        }
+        let list: JellyfinItemList<JellyfinItem> = try await context.get(
+            path: ["Users", userID, "Items", "Latest"],
+            query: query,
+        )
+        return list.items
+    }
+
+    func movieRecommendations(
+        categoryLimit: Int = 6,
+        itemLimit: Int = 6,
+    ) async throws -> [JellyfinRecommendation] {
+        guard let userID = context.connection?.userID else {
+            throw JellyfinAPIError.authenticationRequired
+        }
+        return try await context.get(
+            path: ["Movies", "Recommendations"],
+            query: [
+                URLQueryItem(name: "userId", value: userID),
+                URLQueryItem(name: "categoryLimit", value: String(categoryLimit)),
+                URLQueryItem(name: "ItemLimit", value: String(itemLimit)),
+                URLQueryItem(name: "Fields", value: Self.cardFields),
+                URLQueryItem(name: "ImageTypeLimit", value: "1"),
+                URLQueryItem(name: "EnableImageTypes", value: "Primary,Backdrop,Banner,Thumb,Logo"),
+            ],
+        )
+    }
+
+    func items(
+        parentID: String? = nil,
+        includeTypes: String,
+        searchTerm: String? = nil,
+        personID: String? = nil,
+        recursive: Bool = true,
+        startIndex: Int = 0,
+        limit: Int = 100,
+        sortBy: String? = nil,
+        sortOrder: String? = nil,
+        filters: [String] = [],
+        isFavorite: Bool = false,
+        genreIDs: Set<String> = [],
+        years: Set<Int> = [],
+    ) async throws -> JellyfinQueryResult<JellyfinItem> {
+        guard let userID = context.connection?.userID else {
+            throw JellyfinAPIError.authenticationRequired
+        }
+        var query = [
+            URLQueryItem(name: "Recursive", value: recursive ? "true" : "false"),
+            URLQueryItem(name: "IncludeItemTypes", value: includeTypes),
+            URLQueryItem(name: "StartIndex", value: String(startIndex)),
+            URLQueryItem(name: "Limit", value: String(limit)),
+            URLQueryItem(name: "Fields", value: Self.cardFields),
+            URLQueryItem(name: "EnableUserData", value: "true"),
+            URLQueryItem(name: "EnableImages", value: "true"),
+            URLQueryItem(name: "SortBy", value: sortBy ?? (searchTerm == nil ? "SortName" : "SearchScore,SortName")),
+            URLQueryItem(name: "SortOrder", value: sortOrder ?? "Ascending"),
+        ]
+        if let parentID {
+            query.append(URLQueryItem(name: "ParentId", value: parentID))
+        }
+        if let searchTerm, !searchTerm.isEmpty {
+            query.append(URLQueryItem(name: "SearchTerm", value: searchTerm))
+        }
+        if let personID {
+            query.append(URLQueryItem(name: "PersonIds", value: personID))
+        }
+        if !filters.isEmpty {
+            query.append(URLQueryItem(name: "Filters", value: filters.joined(separator: ",")))
+        }
+        if isFavorite {
+            query.append(URLQueryItem(name: "IsFavorite", value: "true"))
+        }
+        if !genreIDs.isEmpty {
+            query.append(URLQueryItem(name: "GenreIds", value: genreIDs.sorted().joined(separator: "|")))
+        }
+        if !years.isEmpty {
+            query.append(URLQueryItem(name: "Years", value: years.sorted().map(String.init).joined(separator: ",")))
+        }
+        return try await context.get(path: ["Users", userID, "Items"], query: query)
+    }
+
+    /// Items for the home hero, with the dates and ratings its rules need.
+    func featuredItems(
+        parentID: String? = nil,
+        includeTypes: String,
+        sortBy: String? = nil,
+        limit: Int,
+        extraQuery: [URLQueryItem] = [],
+    ) async throws -> [JellyfinItem] {
+        guard let userID = context.connection?.userID else {
+            throw JellyfinAPIError.authenticationRequired
+        }
+        var query = [
+            URLQueryItem(name: "Recursive", value: "true"),
+            URLQueryItem(name: "IncludeItemTypes", value: includeTypes),
+            URLQueryItem(name: "Limit", value: String(limit)),
+            URLQueryItem(name: "Fields", value: Self.featuredFields),
+            URLQueryItem(name: "EnableUserData", value: "true"),
+            URLQueryItem(name: "EnableImages", value: "true"),
+        ]
+        if let sortBy {
+            query.append(URLQueryItem(name: "SortBy", value: sortBy))
+            query.append(URLQueryItem(name: "SortOrder", value: "Descending"))
+        }
+        if let parentID {
+            query.append(URLQueryItem(name: "ParentId", value: parentID))
+        }
+        let response: JellyfinQueryResult<JellyfinItem> = try await context.get(
+            path: ["Users", userID, "Items"],
+            query: query + extraQuery,
+        )
+        return response.items
+    }
+
+    static let featuredFields = [cardFields, "DateCreated", "DateLastMediaAdded", "CommunityRating"]
+        .joined(separator: ",")
+
+    func browseFilterOptions(parentID: String, includeTypes: String) async throws -> LibraryBrowseFilterOptions {
+        let query = commonUserQuery + [
+            URLQueryItem(name: "ParentId", value: parentID),
+            URLQueryItem(name: "IncludeItemTypes", value: includeTypes),
+        ]
+        async let current: JellyfinQueryFilters = context.get(
+            path: ["Items", "Filters2"],
+            query: query + [URLQueryItem(name: "Recursive", value: "true")],
+        )
+        async let legacy: JellyfinLegacyQueryFilters = context.get(path: ["Items", "Filters"], query: query)
+        let (currentFilters, legacyFilters) = try await (current, legacy)
+        return LibraryBrowseFilterOptions(
+            genres: currentFilters.genres
+                .map { LibraryBrowseValueOption(id: $0.id, title: $0.name) }
+                .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending },
+            years: legacyFilters.years
+                .sorted(by: >)
+                .map { LibraryBrowseValueOption(id: String($0), title: String($0)) },
+        )
+    }
+
+    func item(id: String) async throws -> JellyfinItem {
+        guard let userID = context.connection?.userID else {
+            throw JellyfinAPIError.authenticationRequired
+        }
+        return try await context.get(
+            path: ["Users", userID, "Items", id],
+            query: [URLQueryItem(name: "Fields", value: Self.detailFields)],
+        )
+    }
+
+    /// The library (`CollectionFolder`) an item belongs to, found through its ancestors.
+    func libraryID(itemID: String) async throws -> String? {
+        let ancestors: JellyfinItemList<JellyfinItem> = try await context.get(
+            path: ["Items", itemID, "Ancestors"],
+            query: commonUserQuery,
+        )
+        return ancestors.items.first { $0.type?.lowercased() == "collectionfolder" }?.id
+    }
+
+    func extras(for itemID: String) async throws -> [JellyfinItem] {
+        var items: [JellyfinItem] = []
+        var errors: [Error] = []
+
+        do {
+            try await items.append(contentsOf: fetchExtraItems(path: ["Items", itemID, "LocalTrailers"]))
+        } catch {
+            errors.append(error)
+        }
+
+        do {
+            try await items.append(contentsOf: fetchExtraItems(path: ["Items", itemID, "SpecialFeatures"]))
+        } catch {
+            errors.append(error)
+        }
+
+        if items.isEmpty, let error = errors.first {
+            throw error
+        }
+
+        var seenIDs = Set<String>()
+        return items.filter { item in
+            item.isPlayable
+                && item.kind == .clip
+                && item.mediaSources?.isEmpty == false
+                && seenIDs.insert(item.id).inserted
+        }
+    }
+
+    func favoriteItems() async throws -> [JellyfinItem] {
+        guard let userID = context.connection?.userID else {
+            throw JellyfinAPIError.authenticationRequired
+        }
+        let query = commonUserQuery + [
+            URLQueryItem(name: "IncludeItemTypes", value: "Movie,Series,Season,Episode"),
+            URLQueryItem(name: "Recursive", value: "true"),
+            URLQueryItem(name: "IsFavorite", value: "true"),
+            URLQueryItem(name: "Fields", value: Self.cardFields),
+            URLQueryItem(name: "EnableUserData", value: "true"),
+            URLQueryItem(name: "EnableImages", value: "true"),
+        ]
+        do {
+            return try await paginatedItems(path: ["Items"], query: query)
+        } catch let error as JellyfinAPIError where error == .itemUnavailable {
+            return try await paginatedItems(
+                path: ["Users", userID, "Items"],
+                query: query.filter { $0.name.lowercased() != "userid" },
+            )
+        }
+    }
+
+    func isFavorite(itemID: String) async throws -> Bool {
+        guard let userID = context.connection?.userID else {
+            throw JellyfinAPIError.authenticationRequired
+        }
+        let query = commonUserQuery + [
+            URLQueryItem(name: "Fields", value: Self.detailFields),
+            URLQueryItem(name: "EnableUserData", value: "true"),
+        ]
+        do {
+            let item: JellyfinItem = try await context.get(path: ["Items", itemID], query: query)
+            return item.userData?.isFavorite == true
+        } catch let error as JellyfinAPIError where error == .itemUnavailable {
+            let item: JellyfinItem = try await context.get(
+                path: ["Users", userID, "Items", itemID],
+                query: query.filter { $0.name.lowercased() != "userid" },
+            )
+            return item.userData?.isFavorite == true
+        }
+    }
+
+    func setFavorite(_ favorite: Bool, itemID: String) async throws {
+        guard let userID = context.connection?.userID else {
+            throw JellyfinAPIError.authenticationRequired
+        }
+        do {
+            try await context.send(
+                path: ["UserFavoriteItems", itemID],
+                method: favorite ? "POST" : "DELETE",
+                query: commonUserQuery,
+            )
+        } catch let error as JellyfinAPIError where error == .itemUnavailable {
+            try await context.send(
+                path: ["Users", userID, "FavoriteItems", itemID],
+                method: favorite ? "POST" : "DELETE",
+            )
+        }
+    }
+
+    func seasons(seriesID: String) async throws -> [JellyfinItem] {
+        let response: JellyfinQueryResult<JellyfinItem> = try await context.get(
+            path: ["Shows", seriesID, "Seasons"],
+            query: commonUserQuery + [
+                URLQueryItem(name: "Fields", value: Self.cardFields),
+                URLQueryItem(name: "EnableUserData", value: "true"),
+            ],
+        )
+        return response.items
+    }
+
+    func episodes(
+        seriesID: String,
+        seasonID: String? = nil,
+        startItemID: String? = nil,
+    ) async throws -> [JellyfinItem] {
+        let response = try await episodePage(seriesID: seriesID, seasonID: seasonID, startItemID: startItemID)
+        guard let startItemID, let index = response.items.firstIndex(where: { $0.id == startItemID }) else {
+            return response.items
+        }
+        return Array(response.items[index...])
+    }
+
+    /// The whole series, or only from `startItemID` on when the series does not fit in one page.
+    private func episodes(seriesID: String, around startItemID: String) async throws -> [JellyfinItem] {
+        let response = try await episodePage(seriesID: seriesID)
+        let isComplete = response.items.count >= (response.totalRecordCount ?? response.items.count)
+        if isComplete, response.items.contains(where: { $0.id == startItemID }) {
+            return response.items
+        }
+        return try await episodes(seriesID: seriesID, startItemID: startItemID)
+    }
+
+    private func episodePage(
+        seriesID: String,
+        seasonID: String? = nil,
+        startItemID: String? = nil,
+    ) async throws -> JellyfinQueryResult<JellyfinItem> {
+        var query = commonUserQuery + [
+            URLQueryItem(name: "Fields", value: Self.playbackFields),
+            URLQueryItem(name: "EnableUserData", value: "true"),
+            URLQueryItem(name: "Limit", value: "500"),
+        ]
+        if let seasonID {
+            query.append(URLQueryItem(name: "SeasonId", value: seasonID))
+        }
+        if let startItemID {
+            query.append(URLQueryItem(name: "StartItemId", value: startItemID))
+        }
+        return try await context.get(
+            path: ["Shows", seriesID, "Episodes"],
+            query: query,
+        )
+    }
+
+    func similar(itemID: String, limit: Int = 20) async throws -> [JellyfinItem] {
+        let response: JellyfinQueryResult<JellyfinItem> = try await context.get(
+            path: ["Items", itemID, "Similar"],
+            query: commonUserQuery + [
+                URLQueryItem(name: "Limit", value: String(limit)),
+                URLQueryItem(name: "Fields", value: Self.cardFields),
+            ],
+        )
+        return response.items
+    }
+
+    /// Seasons and episodes without their own theme inherit the series one.
+    func themeSongs(itemID: String) async throws -> [JellyfinItem] {
+        let response: JellyfinQueryResult<JellyfinItem> = try await context.get(
+            path: ["Items", itemID, "ThemeSongs"],
+            query: commonUserQuery + [URLQueryItem(name: "inheritFromParent", value: "true")],
+        )
+        return response.items
+    }
+
+    func markPlayed(itemID: String, played: Bool) async throws {
+        guard let userID = context.connection?.userID else {
+            throw JellyfinAPIError.authenticationRequired
+        }
+        try await context.send(
+            path: ["Users", userID, "PlayedItems", itemID],
+            method: played ? "POST" : "DELETE",
+        )
+    }
+
+    func mediaSegments(itemID: String) async throws -> [JellyfinMediaSegment] {
+        let response: JellyfinMediaSegmentsResponse = try await context.get(
+            path: ["MediaSegments", itemID],
+        )
+        return response.items
+    }
+
+    func playlistItems(id: String, fields: String = Self.cardFields) async throws -> [JellyfinItem] {
+        guard let userID = context.connection?.userID else {
+            throw JellyfinAPIError.authenticationRequired
+        }
+        return try await paginatedItems(
+            path: ["Playlists", id, "Items"],
+            query: [
+                URLQueryItem(name: "UserId", value: userID),
+                URLQueryItem(name: "Fields", value: fields),
+                URLQueryItem(name: "EnableUserData", value: "true"),
+                URLQueryItem(name: "EnableImages", value: "true"),
+            ],
+        )
+    }
+
+    /// Every playlist the user can see, audio ones included.
+    func playlists() async throws -> [JellyfinItem] {
+        guard let userID = context.connection?.userID else {
+            throw JellyfinAPIError.authenticationRequired
+        }
+        return try await paginatedItems(
+            path: ["Items"],
+            query: [
+                URLQueryItem(name: "UserId", value: userID),
+                URLQueryItem(name: "IncludeItemTypes", value: "Playlist"),
+                URLQueryItem(name: "Recursive", value: "true"),
+                URLQueryItem(name: "Fields", value: Self.cardFields),
+                URLQueryItem(name: "EnableImages", value: "true"),
+            ],
+        )
+    }
+
+    /// The items to queue, and the one to start with when it is not the first.
+    func playbackQueue(
+        startingWith item: JellyfinItem,
+    ) async throws -> (items: [JellyfinItem], startItemID: String?) {
+        switch item.kind {
+        case .movie, .clip:
+            return ([item], nil)
+        case .episode:
+            guard let seriesID = item.seriesID else { return ([item], nil) }
+            let queue = try await episodes(seriesID: seriesID, around: item.id)
+            return (queue.isEmpty ? [item] : queue, item.id)
+        case .season:
+            guard let seriesID = item.seriesID ?? item.parentID else { return ([], nil) }
+            return try await (episodes(seriesID: seriesID, seasonID: item.id), nil)
+        case .series:
+            if let next = try await continueEpisode(seriesID: item.id) {
+                return try await (episodes(seriesID: item.id, around: next.id), next.id)
+            }
+            return try await (episodes(seriesID: item.id), nil)
+        case .collection:
+            return try await (collectionPlaybackItems(id: item.id).filter(\.isPlayable), nil)
+        case .playlist:
+            return try await (playlistItems(id: item.id, fields: "Chapters,Trickplay").filter(\.isPlayable), nil)
+        case .folder, .unknown:
+            return ([], nil)
+        }
+    }
+
+    private func fetchExtraItems(path: [String]) async throws -> [JellyfinItem] {
+        let list: JellyfinItemList<JellyfinItem> = try await context.get(
+            path: path,
+            query: commonUserQuery + [
+                URLQueryItem(name: "Fields", value: Self.playbackFields),
+                URLQueryItem(name: "ImageTypeLimit", value: "3"),
+                URLQueryItem(name: "EnableImageTypes", value: "Primary,Backdrop,Logo"),
+            ],
+        )
+        return list.items
+    }
+
+    private func collectionPlaybackItems(id: String) async throws -> [JellyfinItem] {
+        guard let userID = context.connection?.userID else {
+            throw JellyfinAPIError.authenticationRequired
+        }
+        return try await paginatedItems(
+            path: ["Users", userID, "Items"],
+            query: [
+                URLQueryItem(name: "ParentId", value: id),
+                URLQueryItem(name: "Filters", value: "IsNotFolder"),
+                URLQueryItem(name: "Recursive", value: "true"),
+                URLQueryItem(name: "MediaTypes", value: "Audio,Video"),
+                URLQueryItem(name: "Fields", value: "Chapters,Trickplay"),
+                URLQueryItem(name: "ExcludeLocationTypes", value: "Virtual"),
+                URLQueryItem(name: "EnableTotalRecordCount", value: "false"),
+                URLQueryItem(name: "CollapseBoxSetItems", value: "false"),
+            ],
+        )
+    }
+
+    private func paginatedItems(
+        path: [String],
+        query: [URLQueryItem],
+        pageSize: Int = 300,
+    ) async throws -> [JellyfinItem] {
+        var items: [JellyfinItem] = []
+        var startIndex = 0
+
+        while true {
+            let response: JellyfinQueryResult<JellyfinItem> = try await context.get(
+                path: path,
+                query: query + [
+                    URLQueryItem(name: "StartIndex", value: String(startIndex)),
+                    URLQueryItem(name: "Limit", value: String(pageSize)),
+                ],
+            )
+            items.append(contentsOf: response.items)
+
+            let nextIndex = startIndex + response.items.count
+            if response.items.count < pageSize
+                || response.totalRecordCount.map({ nextIndex >= $0 }) == true
+            {
+                break
+            }
+            startIndex = nextIndex
+        }
+
+        return items
+    }
+
+    private var commonUserQuery: [URLQueryItem] {
+        guard let userID = context.connection?.userID else { return [] }
+        return [URLQueryItem(name: "UserId", value: userID)]
+    }
+
+    static let cardFields = [
+        "Overview", "PrimaryImageAspectRatio", "UserData", "ProductionYear", "RunTimeTicks",
+        "ChildCount", "RecursiveItemCount", "ParentId", "SeriesId", "SeasonId", "SeriesName",
+        "SeasonName", "ParentIndexNumber", "IndexNumber", "MediaSources", "ProviderIds",
+    ].joined(separator: ",")
+
+    static let detailFields = [
+        cardFields, "Genres", "Studios", "People", "MediaStreams", "Chapters",
+        "MediaAttachments", "Trickplay", "Taglines", "OfficialRating", "CommunityRating", "CriticRating",
+    ].joined(separator: ",")
+
+    static let playbackFields = [
+        cardFields, "MediaSources", "MediaStreams", "Chapters", "Trickplay", "Genres", "Taglines",
+        "OfficialRating", "CommunityRating", "CriticRating",
+    ].joined(separator: ",")
+}

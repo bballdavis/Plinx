@@ -1,0 +1,245 @@
+import SwiftUI
+
+/// Task presentations use the system presentation lifecycle for dismissal, keyboard
+/// handling and restoration of the presenting focus. Other platforms retain sheets.
+enum TaskPresentationStyle {
+    case modal
+    /// A narrower modal, for short forms and lists.
+    case compactModal
+    /// As narrow as the compact modal but only as tall as its content, for confirmations.
+    case dialog
+    case contextual
+    /// Opaque and edge to edge, for flows that need full attention and keep their own navigation stack.
+    case fullScreen
+}
+
+extension View {
+    func taskPresentation<Item: Identifiable>(
+        item: Binding<Item?>,
+        style: TaskPresentationStyle = .modal,
+        onDismiss: (() -> Void)? = nil,
+        @ViewBuilder content: @escaping (Item) -> some View,
+    ) -> some View {
+        #if os(tvOS)
+            fullScreenCover(item: item, onDismiss: onDismiss) { value in
+                TVTaskPresentationView(style: style) { content(value) }
+            }
+        #else
+            sheet(item: item, onDismiss: onDismiss, content: content)
+        #endif
+    }
+
+    func taskPresentation(
+        isPresented: Binding<Bool>,
+        style: TaskPresentationStyle = .modal,
+        onDismiss: (() -> Void)? = nil,
+        @ViewBuilder content: @escaping () -> some View,
+    ) -> some View {
+        #if os(tvOS)
+            fullScreenCover(isPresented: isPresented, onDismiss: onDismiss) {
+                TVTaskPresentationView(style: style, content: content)
+            }
+        #else
+            sheet(isPresented: isPresented, onDismiss: onDismiss, content: content)
+        #endif
+    }
+}
+
+#if os(tvOS)
+    struct TVModalView<Content: View>: View {
+        var maxWidth: CGFloat = 1560
+        var fitsContent = false
+        @ViewBuilder var content: () -> Content
+
+        private let shape = RoundedRectangle(cornerRadius: LayoutMetrics.overlayCornerRadius, style: .continuous)
+
+        var body: some View {
+            ZStack {
+                Color.overlayScrim.ignoresSafeArea()
+                content()
+                    // Focused rows and fields grow past their scroll view's bounds.
+                    .scrollClipDisabled()
+                    .frame(maxWidth: maxWidth, maxHeight: fitsContent ? nil : .infinity)
+                    .fixedSize(horizontal: false, vertical: fitsContent)
+                    .padding(40)
+                    .clipShape(shape)
+                    .overlayPanelSurface(in: shape)
+                    .padding(48)
+            }
+            .focusSection()
+        }
+    }
+
+    /// A floating glass panel covering only the trailing portion of the screen,
+    /// darkened so text stays legible over bright video or artwork.
+    /// Also used directly by the player, without presenting/remounting the video.
+    struct TVContextPanelView<Content: View>: View {
+        @ViewBuilder var content: () -> Content
+
+        private let shape = RoundedRectangle(cornerRadius: LayoutMetrics.overlayCornerRadius, style: .continuous)
+
+        var body: some View {
+            GeometryReader { geometry in
+                HStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    content()
+                        .padding(32)
+                        .frame(width: min(720, geometry.size.width * 0.44))
+                        .frame(maxHeight: .infinity)
+                        .overlayPanelSurface(in: shape)
+                        .padding(.vertical, 40)
+                        .padding(.trailing, 40)
+                }
+            }
+            .ignoresSafeArea()
+            .environment(\.colorScheme, .dark)
+            .focusSection()
+        }
+    }
+
+    private struct TVTaskPresentationView<Content: View>: View {
+        @Environment(\.dismiss) private var dismiss
+        let style: TaskPresentationStyle
+        @ViewBuilder var content: () -> Content
+
+        var body: some View {
+            // A presentation over this one (dialog, alert) makes it fall back to the system appearance.
+            presentation
+                .environment(\.colorScheme, .dark)
+        }
+
+        @ViewBuilder
+        private var presentation: some View {
+            switch style {
+            case .modal:
+                TVModalView(content: content)
+                    .presentationBackground(.clear)
+                    .onExitCommand { dismiss() }
+            case .compactModal:
+                TVModalView(maxWidth: 1000, content: content)
+                    .presentationBackground(.clear)
+                    .onExitCommand { dismiss() }
+            case .dialog:
+                TVModalView(maxWidth: 1000, fitsContent: true, content: content)
+                    .presentationBackground(.clear)
+                    .onExitCommand { dismiss() }
+            case .contextual:
+                TVContextPanelView(content: content)
+                    .presentationBackground(.clear)
+                    .onExitCommand { dismiss() }
+            case .fullScreen:
+                // No exit handler: Menu must pop the content's navigation stack before dismissing.
+                content()
+                    .background(Color("Background").ignoresSafeArea())
+            }
+        }
+    }
+#endif
+
+/// tvOS modals have their own header; a nested navigation bar can float over
+/// scrolling content inside an inset full-screen presentation.
+struct TaskModalNavigationView<Content: View>: View {
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        #if os(tvOS)
+            content()
+        #else
+            NavigationStack { content() }
+        #endif
+    }
+}
+
+extension View {
+    func taskModalTitle(_ title: LocalizedStringKey) -> some View {
+        taskModalTitle(Text(title))
+    }
+
+    func taskModalTitle(verbatim title: String) -> some View {
+        taskModalTitle(Text(verbatim: title))
+    }
+
+    private func taskModalTitle(_ title: Text) -> some View {
+        #if os(tvOS)
+            VStack(alignment: .leading, spacing: 24) {
+                title
+                    .font(.tileTitle)
+                    .foregroundStyle(.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 24)
+                Rectangle()
+                    .fill(.strokeSubtle)
+                    .frame(height: 1)
+                self
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    // Modal scroll views do not clip, so focused rows can grow sideways; content still must not
+                    // scroll over the title or past the bottom of the modal.
+                    .mask {
+                        Rectangle()
+                            .padding(.horizontal, -40)
+                    }
+            }
+        #else
+            navigationTitle(title)
+        #endif
+    }
+
+    func taskModalActions(grouped: Bool = false, @ViewBuilder actions: () -> some View) -> some View {
+        taskModalActions(grouped: grouped, primary: { EmptyView() }, actions: actions)
+    }
+
+    /// `primary` is the one main action of the modal; on tvOS it leads the action bar with the primary button style.
+    @ViewBuilder
+    func taskModalActions(
+        grouped: Bool = false,
+        @ViewBuilder primary: () -> some View,
+        @ViewBuilder actions: () -> some View,
+    ) -> some View {
+        #if os(tvOS)
+            VStack(spacing: 20) {
+                self
+                Rectangle()
+                    .fill(.strokeSubtle)
+                    .frame(height: 1)
+                ScrollView(.horizontal) {
+                    HStack(spacing: 24) {
+                        primary()
+                            .actionButtonStyle(.primary)
+                        actions()
+                            .actionButtonStyle(.secondary)
+                    }
+                    .padding(12)
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                .focusSection()
+            }
+        #else
+            if grouped {
+                toolbar {
+                    ToolbarItem(placement: .confirmationAction) { primary() }
+                    ToolbarItemGroup { actions() }
+                }
+            } else {
+                toolbar { ToolbarItem(placement: .confirmationAction) { primary() } }
+                    .toolbar { actions() }
+            }
+        #endif
+    }
+}
+
+#if os(tvOS)
+    /// Focus treatment for information cards that must be reachable for scrolling.
+    struct TVModalReadingFocus: ViewModifier {
+        @FocusState private var isFocused: Bool
+
+        func body(content: Content) -> some View {
+            content
+                .overlay {
+                    RoundedRectangle(cornerRadius: LayoutMetrics.cardCornerRadius, style: .continuous)
+                        .stroke(isFocused ? Color.white.opacity(0.8) : .clear, lineWidth: 2)
+                }
+                .focusable()
+                .focused($isFocused)
+        }
+    }
+#endif

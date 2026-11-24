@@ -1,0 +1,101 @@
+import SwiftUI
+
+struct LibraryRecommendedView: View {
+    @Environment(SettingsManager.self) private var settingsManager
+    @Environment(MediaServices.self) private var mediaServices
+    @Environment(\.scenePhase) private var scenePhase
+    @State var viewModel: LibraryRecommendedViewModel
+    @State private var selectedHub: Hub?
+    let onSelectMedia: (MediaDisplayItem) -> Void
+
+    private let landscapeHubIdentifiers: [String] = [
+        "inprogress",
+        "nextup",
+    ]
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                ForEach(viewModel.hubs) { hub in
+                    if hub.hasItems {
+                        MediaHubSection(
+                            title: hub.title,
+                            onViewAll: hub.canOpenDetail ? { selectedHub = hub } : nil,
+                        ) {
+                            carousel(for: hub)
+                        }
+                    }
+                }
+
+                if viewModel.isLoading, !viewModel.hasContent {
+                    RailsSkeleton(showsLabels: settingsManager.interface.showsCardLabels)
+                }
+
+                if let errorMessage = viewModel.errorMessage {
+                    Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                } else if !viewModel.hasContent, !viewModel.isLoading {
+                    Text("common.empty.nothingToShow")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, LayoutMetrics.pageMargin)
+            .padding(.vertical, 20)
+        }
+        .environment(\.reloadAfterMediaCardAction) { _ in
+            Task { await viewModel.refreshSilently() }
+        }
+        .task {
+            await viewModel.load()
+        }
+        .onAppear {
+            Task { await viewModel.refreshIfNeeded() }
+        }
+        .sheet(item: $selectedHub) { hub in
+            NavigationStack {
+                HubDetailView(
+                    viewModel: HubDetailViewModel(hub: hub, services: mediaServices),
+                    onSelectMedia: { media in
+                        selectedHub = nil
+                        onSelectMedia(media)
+                    },
+                )
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("hub.close") {
+                            selectedHub = nil
+                        }
+                    }
+                }
+            }
+        }
+        .onChange(of: scenePhase) { _, newValue in
+            guard newValue == .active else { return }
+            Task { await viewModel.refreshIfNeeded() }
+        }
+    }
+
+    @ViewBuilder
+    private func carousel(for hub: Hub) -> some View {
+        if shouldUseLandscape(for: hub) {
+            MediaCarousel(
+                layout: .landscape,
+                items: hub.items,
+                showsLabels: settingsManager.interface.showsCardLabels,
+                onSelectMedia: onSelectMedia,
+            )
+        } else {
+            MediaCarousel(
+                layout: .portrait,
+                items: hub.items,
+                showsLabels: settingsManager.interface.showsCardLabels,
+                onSelectMedia: onSelectMedia,
+            )
+        }
+    }
+
+    private func shouldUseLandscape(for hub: Hub) -> Bool {
+        let identifier = hub.id.lowercased()
+        return landscapeHubIdentifiers.contains { identifier.contains($0) }
+    }
+}

@@ -1,0 +1,297 @@
+import Foundation
+
+struct PlexBinaryDownload: @unchecked Sendable {
+    let temporaryFileURL: URL
+    let response: HTTPURLResponse
+}
+
+final class PlexServerNetworkClient {
+    private let session: URLSession
+    private weak var context: PlexAPIContext?
+    private var language: String
+    private let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
+    private let platform: String = {
+        #if os(tvOS)
+            "tvOS"
+        #elseif os(iOS)
+            "iOS"
+        #else
+            "Unknown"
+        #endif
+    }()
+
+    init(context: PlexAPIContext, language: String = "en") {
+        self.context = context
+        session = context.session
+        self.language = Locale.preferredLanguages.first ?? language
+    }
+
+    func request<Response: Decodable & Sendable>(
+        path: String,
+        queryItems: [URLQueryItem]? = nil,
+        method: String = "GET",
+        headers: [String: String] = [:],
+        encodesPlusSign: Bool = false,
+    ) async throws -> Response {
+        let result = try await data(
+            path: path,
+            queryItems: queryItems,
+            method: method,
+            headers: headers,
+            encodesPlusSign: encodesPlusSign,
+        )
+        let data = result.data
+        let response = result.response
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw PlexAPIError.requestFailed(statusCode: -1)
+        }
+        guard 200 ..< 300 ~= httpResponse.statusCode else {
+            throw PlexAPIError.requestFailed(statusCode: httpResponse.statusCode)
+        }
+
+        do {
+            return try await Self.decode(Response.self, from: data)
+        } catch {
+            ErrorReporter.capture(error)
+            throw error
+        }
+    }
+
+    /// Large Plex payloads (hubs, sections, seasons) take long enough to decode to drop frames on the main actor.
+    @concurrent
+    private nonisolated static func decode<Response: Decodable & Sendable>(
+        _: Response.Type,
+        from data: Data,
+    ) async throws -> Response {
+        do {
+            return try JSONDecoder().decode(Response.self, from: data)
+        } catch {
+            debugPrint(error)
+            throw PlexAPIError.decodingFailed(error)
+        }
+    }
+
+    func send(
+        path: String,
+        queryItems: [URLQueryItem]? = nil,
+        method: String = "GET",
+        headers: [String: String] = [:],
+        body: Data? = nil,
+        encodesPlusSign: Bool = false,
+        percentEncodedQuery: String? = nil,
+    ) async throws {
+        let result = try await data(
+            path: path,
+            queryItems: queryItems,
+            method: method,
+            headers: headers,
+            body: body,
+            encodesPlusSign: encodesPlusSign,
+            percentEncodedQuery: percentEncodedQuery,
+        )
+        let response = result.response
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw PlexAPIError.requestFailed(statusCode: -1)
+        }
+        guard 200 ..< 300 ~= httpResponse.statusCode else {
+            throw PlexAPIError.requestFailed(statusCode: httpResponse.statusCode)
+        }
+    }
+
+    func json(
+        path: String,
+        queryItems: [URLQueryItem]? = nil,
+        percentEncodedQuery: String? = nil,
+        method: String = "GET",
+        headers: [String: String] = [:],
+    ) async throws -> [String: Any] {
+        let result = try await data(
+            path: path,
+            queryItems: queryItems,
+            method: method,
+            headers: headers,
+            percentEncodedQuery: percentEncodedQuery,
+        )
+        guard let response = result.response as? HTTPURLResponse,
+              200 ..< 300 ~= response.statusCode
+        else {
+            throw PlexAPIError.requestFailed(
+                statusCode: (result.response as? HTTPURLResponse)?.statusCode ?? -1,
+            )
+        }
+        let object: Any
+        do {
+            object = try JSONSerialization.jsonObject(with: result.data)
+        } catch {
+            ErrorReporter.capture(error)
+            throw error
+        }
+        guard let dictionary = object as? [String: Any] else {
+            ErrorReporter.capture(PlexAPIError.invalidResponse)
+            throw PlexAPIError.invalidResponse
+        }
+        return dictionary
+    }
+
+    func download(
+        path: String,
+        queryItems: [URLQueryItem]? = nil,
+        headers: [String: String] = [:],
+        acceptedStatusCodes: Set<Int> = Set(200 ..< 300),
+    ) async throws -> PlexBinaryDownload {
+        let result = try await download(
+            path: path,
+            queryItems: queryItems,
+            headers: headers,
+        )
+        let downloadURL = result.url
+        let response = result.response
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw PlexAPIError.requestFailed(statusCode: -1)
+        }
+        guard acceptedStatusCodes.contains(httpResponse.statusCode) else {
+            throw PlexAPIError.requestFailed(statusCode: httpResponse.statusCode)
+        }
+
+        let retainedURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("download")
+        try FileManager.default.moveItem(at: downloadURL, to: retainedURL)
+        return PlexBinaryDownload(
+            temporaryFileURL: retainedURL,
+            response: httpResponse,
+        )
+    }
+
+    private func data(
+        path: String,
+        queryItems: [URLQueryItem]?,
+        method: String,
+        headers: [String: String],
+        body: Data? = nil,
+        encodesPlusSign: Bool = false,
+        percentEncodedQuery: String? = nil,
+    ) async throws -> (data: Data, response: URLResponse) {
+        let context = try requireContext()
+        let snapshot = try context.serverAccessSnapshot()
+        let request = try buildRequest(
+            snapshot: snapshot,
+            path: path,
+            queryItems: queryItems,
+            method: method,
+            headers: headers,
+            body: body,
+            encodesPlusSign: encodesPlusSign,
+            percentEncodedQuery: percentEncodedQuery,
+        )
+        let result = try await session.data(for: request)
+        guard (result.1 as? HTTPURLResponse)?.statusCode == 401 else {
+            return result
+        }
+
+        try await context.recoverServerAccess(afterUnauthorizedSnapshot: snapshot)
+        let refreshedSnapshot = try context.serverAccessSnapshot()
+        let retryRequest = try buildRequest(
+            snapshot: refreshedSnapshot,
+            path: path,
+            queryItems: queryItems,
+            method: method,
+            headers: headers,
+            body: body,
+            encodesPlusSign: encodesPlusSign,
+            percentEncodedQuery: percentEncodedQuery,
+        )
+        return try await session.data(for: retryRequest)
+    }
+
+    private func download(
+        path: String,
+        queryItems: [URLQueryItem]?,
+        headers: [String: String],
+    ) async throws -> (url: URL, response: URLResponse) {
+        let context = try requireContext()
+        let snapshot = try context.serverAccessSnapshot()
+        let request = try buildRequest(
+            snapshot: snapshot,
+            path: path,
+            queryItems: queryItems,
+            method: "GET",
+            headers: headers,
+        )
+        let result = try await session.download(for: request)
+        guard (result.1 as? HTTPURLResponse)?.statusCode == 401 else {
+            return result
+        }
+
+        try? FileManager.default.removeItem(at: result.0)
+        try await context.recoverServerAccess(afterUnauthorizedSnapshot: snapshot)
+        let refreshedSnapshot = try context.serverAccessSnapshot()
+        let retryRequest = try buildRequest(
+            snapshot: refreshedSnapshot,
+            path: path,
+            queryItems: queryItems,
+            method: "GET",
+            headers: headers,
+        )
+        return try await session.download(for: retryRequest)
+    }
+
+    private func requireContext() throws -> PlexAPIContext {
+        guard let context else {
+            throw PlexAPIError.missingConnection
+        }
+        return context
+    }
+
+    private func buildRequest(
+        snapshot: PlexAPIContext.ServerAccessSnapshot,
+        path: String,
+        queryItems: [URLQueryItem]? = nil,
+        method: String = "GET",
+        headers: [String: String] = [:],
+        body: Data? = nil,
+        encodesPlusSign: Bool = false,
+        percentEncodedQuery: String? = nil,
+    ) throws -> URLRequest {
+        guard var components = URLComponents(
+            url: snapshot.baseURL.appendingPathComponent(path),
+            resolvingAgainstBaseURL: false,
+        )
+        else {
+            throw PlexAPIError.invalidURL
+        }
+        if let queryItems {
+            components.queryItems = queryItems
+        }
+        // URLComponents leaves `+` as is, which Plex reads as a space. Off by default so the other requests, such as
+        // the client profiles joined with `+`, keep the encoding they were tested with.
+        if let percentEncodedQuery {
+            components.percentEncodedQuery = percentEncodedQuery
+        }
+        if encodesPlusSign {
+            components.percentEncodedQuery = components.percentEncodedQuery?
+                .replacingOccurrences(of: "+", with: "%2B")
+        }
+        guard let url = components.url else {
+            throw PlexAPIError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.httpBody = body
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Strimr", forHTTPHeaderField: "X-Plex-Product")
+        request.setValue(platform, forHTTPHeaderField: "X-Plex-Platform")
+        if let appVersion {
+            request.setValue(appVersion, forHTTPHeaderField: "X-Plex-Version")
+        }
+        request.setValue(snapshot.authToken, forHTTPHeaderField: "X-Plex-Token")
+        request.setValue(language, forHTTPHeaderField: "X-Plex-Language")
+        request.setValue(snapshot.clientIdentifier, forHTTPHeaderField: "X-Plex-Client-Identifier")
+        for (key, value) in headers {
+            request.setValue(value, forHTTPHeaderField: key)
+        }
+
+        return request
+    }
+}

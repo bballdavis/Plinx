@@ -1,0 +1,255 @@
+import Observation
+import SwiftUI
+
+@MainActor
+struct ShowDownloadSelectionSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(SettingsManager.self) private var settingsManager
+    @Bindable var viewModel: MediaDetailViewModel
+    let services: MediaServices
+    let defaultQuality: TranscodeQualityPreset
+    let onSubmitSelection: ([String], TranscodeQualityPreset, MediaTrackPreference, MediaVersionRequest) async -> Void
+    let statusForIdentity: (MediaIdentity) -> DownloadStatus?
+
+    @State private var selectedSeasonID: String?
+    @State private var selectedEpisodeIDs: Set<String> = []
+    @State private var isSubmitting = false
+    @State private var optionsModel: DownloadOptionsViewModel?
+
+    var body: some View {
+        List {
+            if let optionsModel {
+                DownloadOptionsSections(model: optionsModel)
+            }
+            seasonSection
+            quickActionsSection
+            episodesSection
+        }
+        .navigationTitle("downloads.sheet.title")
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button("common.actions.cancel") {
+                    dismiss()
+                }
+            }
+
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(submitButtonTitle) {
+                    submitSelection()
+                }
+                .disabled(effectiveSelectionCount == 0 || isSubmitting)
+            }
+        }
+        .task {
+            await initializeSheet()
+        }
+        .onChange(of: selectedSeasonID) { _, newSeasonID in
+            guard let newSeasonID else { return }
+            Task {
+                await viewModel.selectSeason(id: newSeasonID)
+                configureOptionsModel()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var seasonSection: some View {
+        if viewModel.isLoadingSeasons, viewModel.seasons.isEmpty {
+            Section {
+                ProgressView("media.detail.loadingSeasons")
+            }
+        } else if viewModel.seasons.isEmpty {
+            Section {
+                Text("media.detail.noSeasons")
+                    .foregroundStyle(.textSecondary)
+            }
+        } else {
+            Section("downloads.sheet.bySeason") {
+                Picker(
+                    "media.detail.season",
+                    selection: Binding(
+                        get: {
+                            selectedSeasonID ?? viewModel.selectedSeasonId ?? viewModel.seasons.first?.id ?? ""
+                        },
+                        set: { newValue in
+                            selectedSeasonID = newValue
+                        },
+                    ),
+                ) {
+                    ForEach(viewModel.seasons, id: \.id) { season in
+                        Text(season.title)
+                            .tag(season.id)
+                    }
+                }
+                .pickerStyle(.menu)
+            }
+        }
+    }
+
+    private var quickActionsSection: some View {
+        Section("downloads.sheet.quickActions") {
+            Button("downloads.sheet.selectAll") {
+                selectedEpisodeIDs.formUnion(selectableEpisodeIDsInCurrentSeason)
+            }
+            .disabled(selectableEpisodeIDsInCurrentSeason.isEmpty)
+
+            Button("downloads.sheet.clearSelection") {
+                selectedEpisodeIDs = []
+            }
+            .disabled(selectedEpisodeIDs.isEmpty)
+
+            Text("downloads.sheet.selectedCount \(effectiveSelectionCount)")
+                .font(.facts)
+                .foregroundStyle(.textSecondary)
+        }
+    }
+
+    private var episodesSection: some View {
+        Section("downloads.sheet.byEpisode") {
+            if viewModel.isLoadingEpisodes, viewModel.episodes.isEmpty {
+                ProgressView("media.detail.loadingEpisodes")
+            } else if viewModel.episodes.isEmpty {
+                Text("media.detail.noEpisodes")
+                    .foregroundStyle(.textSecondary)
+            } else {
+                ForEach(viewModel.episodes, id: \.id) { episode in
+                    episodeRow(episode)
+                }
+            }
+        }
+    }
+
+    private func episodeRow(_ episode: MediaItem) -> some View {
+        let isDownloaded = isAlreadyDownloaded(episodeID: episode.id)
+        let isSelected = selectedEpisodeIDs.contains(episode.id) && !isDownloaded
+        return Button {
+            toggleEpisodeSelection(episode.id)
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isSelected ? .selectionAccent : .textTertiary)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(episodeNumberTitle(for: episode))
+                        .font(.cardTitle)
+                        .foregroundStyle(.textPrimary)
+
+                    if !episode.shouldHideSpoilerSummary(at: settingsManager.interface.spoilerProtection) {
+                        Text(episode.title)
+                            .font(.cardMetadata)
+                            .foregroundStyle(.textSecondary)
+                            .lineLimit(1)
+                    }
+                }
+
+                Spacer(minLength: 0)
+
+                statusIndicator(for: episode.identity)
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(isDownloaded)
+        .opacity(isDownloaded ? 0.6 : 1)
+    }
+
+    @ViewBuilder
+    private func statusIndicator(for identity: MediaIdentity) -> some View {
+        switch statusForIdentity(identity) {
+        case .completed:
+            Image(systemName: "arrow.down.circle.fill")
+                .foregroundStyle(.green)
+        case .preparing, .downloading:
+            ProgressView()
+                .controlSize(.small)
+        case .queued:
+            Image(systemName: "clock.arrow.circlepath")
+                .foregroundStyle(.textSecondary)
+        case .failed:
+            Image(systemName: "exclamationmark.circle")
+                .foregroundStyle(.orange)
+        case nil:
+            EmptyView()
+        }
+    }
+
+    private var submitButtonTitle: String {
+        if isSubmitting {
+            return String(localized: "downloads.sheet.submitting")
+        }
+        return String(localized: "downloads.sheet.submit \(effectiveSelectionCount)")
+    }
+
+    private func episodeNumberTitle(for episode: MediaItem) -> String {
+        guard let index = episode.index else {
+            return String(localized: "downloads.sheet.episodeUnknown")
+        }
+        return String(localized: "downloads.sheet.episodeNumber \(index)")
+    }
+
+    private func toggleEpisodeSelection(_ episodeID: String) {
+        guard !isAlreadyDownloaded(episodeID: episodeID) else { return }
+        if selectedEpisodeIDs.contains(episodeID) {
+            selectedEpisodeIDs.remove(episodeID)
+        } else {
+            selectedEpisodeIDs.insert(episodeID)
+        }
+    }
+
+    private func initializeSheet() async {
+        await viewModel.loadSeasonsIfNeeded()
+
+        guard !viewModel.seasons.isEmpty else { return }
+        let initialSeasonID = selectedSeasonID ?? viewModel.selectedSeasonId ?? viewModel.seasons.first?.id
+        guard let initialSeasonID else { return }
+
+        selectedSeasonID = initialSeasonID
+        if viewModel.selectedSeasonId != initialSeasonID || viewModel.episodes.isEmpty {
+            await viewModel.selectSeason(id: initialSeasonID)
+        }
+        configureOptionsModel()
+    }
+
+    private func configureOptionsModel() {
+        let episodes = viewModel.episodes
+        guard let episodeID = (episodes.first(where: { !$0.isFullyWatched }) ?? episodes.first)?.id else { return }
+        optionsModel = DownloadOptionsViewModel(
+            itemID: episodeID,
+            kind: .episode,
+            services: services,
+            defaultQuality: optionsModel?.quality ?? defaultQuality,
+        )
+        Task { await optionsModel?.loadIfNeeded() }
+    }
+
+    private func submitSelection() {
+        let orderedEpisodeIDs = selectedEpisodeIDs
+            .filter { !isAlreadyDownloaded(episodeID: $0) }
+            .sorted()
+        guard !orderedEpisodeIDs.isEmpty else { return }
+
+        isSubmitting = true
+        Task {
+            await onSubmitSelection(
+                orderedEpisodeIDs,
+                optionsModel?.quality ?? defaultQuality,
+                (optionsModel?.preference ?? .serverDefault).matchingAcrossItems,
+                optionsModel?.versionRequest ?? .automatic,
+            )
+            isSubmitting = false
+            dismiss()
+        }
+    }
+
+    private var effectiveSelectionCount: Int {
+        selectedEpisodeIDs.count(where: { !isAlreadyDownloaded(episodeID: $0) })
+    }
+
+    private var selectableEpisodeIDsInCurrentSeason: Set<String> {
+        Set(viewModel.episodes.map(\.id).filter { !isAlreadyDownloaded(episodeID: $0) })
+    }
+
+    private func isAlreadyDownloaded(episodeID: String) -> Bool {
+        guard let episode = viewModel.episodes.first(where: { $0.id == episodeID }) else { return false }
+        return statusForIdentity(episode.identity) == .completed
+    }
+}

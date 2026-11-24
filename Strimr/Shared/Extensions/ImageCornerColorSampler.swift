@@ -1,0 +1,69 @@
+import ImageIO
+import SwiftUI
+
+nonisolated enum ImageCornerColorSampler {
+    static func colors(from resource: ArtworkResource) async throws -> [Color] {
+        switch resource {
+        case let .data(data):
+            return await colors(from: data)
+        case let .url(url):
+            let (data, _) = try await URLSession.shared.data(from: url)
+            return await colors(from: data)
+        }
+    }
+
+    /// Hero artwork can be 4K; a full decode only to read four corners stalled the main actor, so ImageIO decodes a
+    /// thumbnail instead, off the main actor. Below 256 px the corner averages drift visibly from the full image.
+    @concurrent
+    static func colors(from data: Data) async -> [Color] {
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceThumbnailMaxPixelSize: 256,
+            kCGImageSourceShouldCacheImmediately: true,
+        ]
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+        else { return [] }
+        return colors(from: thumbnail)
+    }
+
+    private static func colors(from cgImage: CGImage) -> [Color] {
+        let width = 4
+        let height = 4
+        let bytesPerPixel = 4
+        let bytesPerRow = bytesPerPixel * width
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        var pixelData = [UInt8](repeating: 0, count: width * height * bytesPerPixel)
+
+        guard let context = CGContext(
+            data: &pixelData,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue,
+        ) else {
+            return []
+        }
+
+        context.interpolationQuality = .medium
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+        func colorAt(x: Int, y: Int) -> Color {
+            let offset = (y * width + x) * bytesPerPixel
+            let red = Double(pixelData[offset]) / 255.0
+            let green = Double(pixelData[offset + 1]) / 255.0
+            let blue = Double(pixelData[offset + 2]) / 255.0
+            let alpha = Double(pixelData[offset + 3]) / 255.0
+            return Color(.sRGB, red: red, green: green, blue: blue, opacity: alpha)
+        }
+
+        let topLeft = colorAt(x: 0, y: height - 1)
+        let topRight = colorAt(x: width - 1, y: height - 1)
+        let bottomRight = colorAt(x: width - 1, y: 0)
+        let bottomLeft = colorAt(x: 0, y: 0)
+
+        return [topLeft, topRight, bottomRight, bottomLeft]
+    }
+}

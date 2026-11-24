@@ -1,0 +1,153 @@
+import SwiftUI
+
+struct LibraryRecommendedView: View {
+    @Environment(SettingsManager.self) private var settingsManager
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(MediaFocusModel.self) private var focusModel
+    @EnvironmentObject private var coordinator: MainCoordinator
+
+    @State var viewModel: LibraryRecommendedViewModel
+    @Binding var heroMedia: MediaItem?
+    let onSelectMedia: (MediaDisplayItem) -> Void
+    private let focusOverflowInset: CGFloat = 24
+
+    private let landscapeHubIdentifiers: [String] = [
+        "inprogress",
+        "nextup",
+    ]
+
+    init(
+        viewModel: LibraryRecommendedViewModel,
+        heroMedia: Binding<MediaItem?>,
+        onSelectMedia: @escaping (MediaDisplayItem) -> Void = { _ in },
+    ) {
+        _viewModel = State(initialValue: viewModel)
+        _heroMedia = heroMedia
+        self.onSelectMedia = onSelectMedia
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .topLeading) {
+                if let heroMedia {
+                    MediaHeroContentView(media: heroMedia)
+                        .frame(
+                            maxWidth: proxy.size.width * 0.60,
+                            maxHeight: .infinity,
+                            alignment: .topLeading,
+                        )
+                        .padding(.leading, focusOverflowInset)
+                }
+
+                recommendedContent
+                    .frame(height: proxy.size.height * 0.60)
+                    .frame(maxHeight: .infinity, alignment: .bottom)
+            }
+        }
+        .environment(\.reloadAfterMediaCardAction) { _ in
+            Task { await viewModel.refreshSilently() }
+        }
+        .task {
+            await viewModel.load()
+        }
+        .onChange(of: viewModel.hubs.count) { _, _ in
+            updateHeroMedia()
+        }
+        .onChange(of: focusModel.focusedMedia?.id) { _, _ in
+            updateHeroMedia()
+        }
+        .onAppear {
+            updateHeroMedia()
+            updateInitialFocus()
+            Task { await viewModel.refreshIfNeeded() }
+        }
+        .onChange(of: scenePhase) { _, newValue in
+            guard newValue == .active else { return }
+            Task { await viewModel.refreshIfNeeded() }
+        }
+    }
+
+    private var recommendedContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 32) {
+                ForEach(viewModel.hubs) { hub in
+                    if hub.hasItems {
+                        MediaHubSection(title: hub.title) {
+                            carousel(for: hub)
+                        }
+                    }
+                }
+
+                if viewModel.isLoading, !viewModel.hasContent {
+                    RailsSkeleton(showsLabels: settingsManager.interface.showsCardLabels)
+                }
+
+                if let errorMessage = viewModel.errorMessage {
+                    Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                } else if !viewModel.hasContent, !viewModel.isLoading {
+                    Text("common.empty.nothingToShow")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.leading, focusOverflowInset)
+            .padding(.trailing, LayoutMetrics.pageMargin)
+        }
+    }
+
+    @ViewBuilder
+    private func carousel(for hub: Hub) -> some View {
+        if shouldUseLandscape(for: hub) {
+            MediaCarousel(
+                layout: .landscape,
+                items: hub.items,
+                showsLabels: settingsManager.interface.showsCardLabels,
+                onViewAll: hub.canShowViewAll ? { coordinator.showHubDetail(hub) } : nil,
+                onSelectMedia: onSelectMedia,
+            )
+        } else {
+            MediaCarousel(
+                layout: .portrait,
+                items: hub.items,
+                showsLabels: settingsManager.interface.showsCardLabels,
+                onViewAll: hub.canShowViewAll ? { coordinator.showHubDetail(hub) } : nil,
+                onSelectMedia: onSelectMedia,
+            )
+        }
+    }
+
+    private func shouldUseLandscape(for hub: Hub) -> Bool {
+        let identifier = hub.id.lowercased()
+        return landscapeHubIdentifiers.contains { identifier.contains($0) }
+    }
+
+    private var defaultHeroMedia: MediaItem? {
+        for hub in viewModel.hubs where hub.hasItems {
+            if let item = hub.items.compactMap(\.playableItem).first {
+                return item
+            }
+        }
+
+        return nil
+    }
+
+    private func updateHeroMedia() {
+        if let focused = focusModel.focusedMedia {
+            if heroMedia?.id != focused.id {
+                heroMedia = focused
+            }
+            return
+        }
+
+        if heroMedia == nil {
+            heroMedia = defaultHeroMedia
+        }
+    }
+
+    private func updateInitialFocus() {
+        guard focusModel.focusedMedia == nil else { return }
+        if let initial = heroMedia ?? defaultHeroMedia {
+            focusModel.focusedMedia = initial
+        }
+    }
+}

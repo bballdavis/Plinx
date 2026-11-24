@@ -1,0 +1,314 @@
+import Foundation
+
+enum SeerrMediaType: String, Hashable, Codable {
+    case movie
+    case tv
+    case person
+}
+
+struct SeerrMedia: Identifiable, Hashable, Decodable {
+    let id: Int
+    let title: String?
+    let name: String?
+    let overview: String?
+    var mediaType: SeerrMediaType?
+    let mediaInfo: SeerrMediaInfo?
+    let backdropPath: String?
+    let posterPath: String?
+    let profilePath: String?
+    let releaseDate: String?
+    let firstAirDate: String?
+    let budget: Int?
+    let revenue: Int?
+    let genres: [SeerrGenre]?
+    let popularity: Double?
+    let productionCompanies: [SeerrrProductionCompany]?
+    let productionCountries: [SeerrProductionCountry]?
+    let voteAverage: Double?
+    let voteCount: Int?
+    let runtime: Int?
+    let keywords: [SeerrKeyword]?
+    let credits: SeerrCredits?
+    let externalIds: SeerrExternalIds?
+    let tagline: String?
+    let status: String?
+    let numberOfSeasons: Int?
+    let numberOfEpisodes: Int?
+    let seasons: [SeerrSeason]?
+    let createdBy: [SeerrCreatedBy]?
+    let collection: SeerrCollectionSummary?
+    let relatedVideos: [SeerrVideo]?
+}
+
+extension SeerrMedia {
+    init(placeholderID id: Int, mediaType: SeerrMediaType) {
+        self.init(
+            id: id,
+            title: nil,
+            name: nil,
+            overview: nil,
+            mediaType: mediaType,
+            mediaInfo: nil,
+            backdropPath: nil,
+            posterPath: nil,
+            profilePath: nil,
+            releaseDate: nil,
+            firstAirDate: nil,
+            budget: nil,
+            revenue: nil,
+            genres: nil,
+            popularity: nil,
+            productionCompanies: nil,
+            productionCountries: nil,
+            voteAverage: nil,
+            voteCount: nil,
+            runtime: nil,
+            keywords: nil,
+            credits: nil,
+            externalIds: nil,
+            tagline: nil,
+            status: nil,
+            numberOfSeasons: nil,
+            numberOfEpisodes: nil,
+            seasons: nil,
+            createdBy: nil,
+            collection: nil,
+            relatedVideos: nil,
+        )
+    }
+}
+
+struct SeerrVideo: Hashable, Decodable {
+    let site: String?
+    let key: String?
+    let name: String?
+    let size: Int?
+    let type: String?
+    let url: String?
+}
+
+extension SeerrMedia {
+    /// Like Seerr's web client, the largest trailer wins and YouTube goes through the
+    /// instance's `youtubeUrl` override. Seerr only builds `url` for YouTube, so
+    /// trailers from other sites are skipped when they have none.
+    func trailerURL(youtubeBaseURL: String?, serverURL: URL?) -> URL? {
+        largestTrailerURL { $0.resolvedURL(youtubeBaseURL: youtubeBaseURL, serverURL: serverURL) }
+    }
+
+    /// tvOS has no browser, so trailers there can only open in the YouTube app, which ignores the
+    /// instance's `youtubeUrl` override.
+    var youtubeAppTrailerURL: URL? {
+        largestTrailerURL { video in
+            guard video.site == "YouTube", let key = video.key, !key.isEmpty else { return nil }
+            return URL(string: "youtube://watch/\(key)")
+        }
+    }
+
+    private func largestTrailerURL(_ resolve: (SeerrVideo) -> URL?) -> URL? {
+        (relatedVideos ?? [])
+            .filter { $0.type == "Trailer" }
+            .compactMap { video in resolve(video).map { (video, $0) } }
+            .max { ($0.0.size ?? 0) < ($1.0.size ?? 0) }?
+            .1
+    }
+}
+
+private extension SeerrVideo {
+    func resolvedURL(youtubeBaseURL: String?, serverURL: URL?) -> URL? {
+        if site == "YouTube", let youtubeBaseURL, !youtubeBaseURL.isEmpty, let key,
+           // Seerr accepts protocol-relative overrides, which its web client resolves against the page.
+           let override = URL(string: youtubeBaseURL + key, relativeTo: serverURL)?.absoluteURL,
+           override.scheme != nil
+        {
+            return override
+        }
+        return url.flatMap(URL.init(string:))
+    }
+}
+
+struct SeerrMediaInfo: Identifiable, Hashable, Decodable {
+    let id: Int
+    let status: SeerrMediaStatus?
+    let status4k: SeerrMediaStatus?
+    let seasons: [SeerrMediaSeasonInfo]?
+    let requests: [SeerrRequest]?
+    let tmdbId: Int?
+    let mediaType: SeerrMediaType?
+    let jellyfinMediaId: String?
+    let jellyfinMediaId4k: String?
+    /// Id of the title on the Plex server linked to Seerr.
+    let ratingKey: String?
+    /// Link to the title on the linked server; for Plex it carries the server's machine identifier.
+    let mediaUrl: String?
+    let downloadStatus: [SeerrDownloadItem]?
+    let downloadStatus4k: [SeerrDownloadItem]?
+
+    private enum CodingKeys: String, CodingKey {
+        case id, status, status4k, seasons, requests, tmdbId, mediaType
+        case jellyfinMediaId, jellyfinMediaId4k, ratingKey, mediaUrl
+        case downloadStatus, downloadStatus4k
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(Int.self, forKey: .id)
+        status = try container.decodeIfPresent(SeerrMediaStatus.self, forKey: .status)
+        status4k = try container.decodeIfPresent(SeerrMediaStatus.self, forKey: .status4k)
+        seasons = try container.decodeIfPresent([SeerrMediaSeasonInfo].self, forKey: .seasons)
+        requests = try container.decodeIfPresent([SeerrRequest].self, forKey: .requests)
+        tmdbId = try container.decodeIfPresent(Int.self, forKey: .tmdbId)
+        mediaType = try container.decodeIfPresent(SeerrMediaType.self, forKey: .mediaType)
+        jellyfinMediaId = Self.decodeString(container, key: .jellyfinMediaId)
+        jellyfinMediaId4k = Self.decodeString(container, key: .jellyfinMediaId4k)
+        ratingKey = Self.decodeString(container, key: .ratingKey)
+        mediaUrl = Self.decodeString(container, key: .mediaUrl)
+        downloadStatus = try? container.decodeIfPresent([SeerrDownloadItem].self, forKey: .downloadStatus)
+        downloadStatus4k = try? container.decodeIfPresent([SeerrDownloadItem].self, forKey: .downloadStatus4k)
+    }
+
+    var isDownloading: Bool {
+        !(downloadStatus ?? []).isEmpty
+    }
+
+    private static func decodeString(
+        _ container: KeyedDecodingContainer<CodingKeys>,
+        key: CodingKeys,
+    ) -> String? {
+        if let value = try? container.decodeIfPresent(String.self, forKey: key) {
+            return value
+        }
+        if let value = try? container.decodeIfPresent(Int.self, forKey: key) {
+            return String(value)
+        }
+        return nil
+    }
+}
+
+enum SeerrMediaStatus: Int, Hashable, Decodable {
+    case unknown = 1
+    case pending = 2
+    case processing = 3
+    case partiallyAvailable = 4
+    case available = 5
+    case blacklisted = 6
+    case deleted = 7
+}
+
+struct SeerrDownloadItem: Hashable, Decodable {
+    let title: String?
+    let size: Double?
+    let sizeLeft: Double?
+
+    var progress: Double? {
+        guard let size, size > 0, let sizeLeft else { return nil }
+        return min(1, max(0, 1 - sizeLeft / size))
+    }
+}
+
+struct SeerrCollectionSummary: Identifiable, Hashable, Decodable {
+    let id: Int
+    let name: String?
+    let posterPath: String?
+    let backdropPath: String?
+}
+
+struct SeerrMediaSeasonInfo: Identifiable, Hashable, Decodable {
+    let id: Int
+    let seasonNumber: Int?
+    let status: SeerrMediaStatus?
+    let status4k: SeerrMediaStatus?
+}
+
+struct SeerrExternalIds: Hashable, Decodable {
+    let tvdbId: Int?
+}
+
+struct SeerrCredits: Hashable, Decodable {
+    let cast: [SeerrCastMember]?
+    let crew: [SeerrCrewMember]?
+}
+
+struct SeerrGenre: Identifiable, Hashable, Decodable {
+    let id: Int
+    let name: String?
+}
+
+struct SeerrrProductionCompany: Identifiable, Hashable, Decodable {
+    let id: Int
+    let logoPath: String?
+    let name: String?
+    let originCountry: String?
+}
+
+struct SeerrProductionCountry: Hashable, Decodable {
+    let iso31661: String?
+    let name: String?
+}
+
+struct SeerrKeyword: Identifiable, Hashable, Decodable {
+    let id: Int
+    let name: String?
+}
+
+struct SeerrCastMember: Identifiable, Hashable, Decodable {
+    let id: Int
+    let name: String?
+    let character: String?
+    let profilePath: String?
+    let order: Int?
+}
+
+struct SeerrCrewMember: Identifiable, Hashable, Decodable {
+    let id: Int
+    let name: String?
+    let job: String?
+    let department: String?
+    let profilePath: String?
+}
+
+struct SeerrCreatedBy: Identifiable, Hashable, Decodable {
+    let id: Int
+    let name: String?
+    let profilePath: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case profilePath = "profile_path"
+    }
+}
+
+struct SeerrSeason: Identifiable, Hashable, Decodable {
+    let id: Int
+    let seasonNumber: Int?
+    let name: String?
+    let overview: String?
+    let airDate: String?
+    let episodeCount: Int?
+    let posterPath: String?
+    let episodes: [SeerrEpisode]?
+}
+
+extension SeerrSeason {
+    /// Seerr's TVDB provider names seasons with their bare number, so those get the regular title too.
+    var displayTitle: String {
+        let label = String(localized: "media.detail.season")
+        if let name, !name.isEmpty, name != seasonNumber.map(String.init) {
+            return name
+        }
+        guard let seasonNumber else { return label }
+        return "\(label) \(seasonNumber)"
+    }
+}
+
+struct SeerrEpisode: Identifiable, Hashable, Decodable {
+    let id: Int
+    let episodeNumber: Int?
+    let seasonNumber: Int?
+    let name: String?
+    let overview: String?
+    let airDate: String?
+    let stillPath: String?
+    let voteAverage: Double?
+    let voteCount: Int?
+}
