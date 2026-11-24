@@ -83,7 +83,7 @@ After this project is merged into the branch App Store Connect scans, set:
 
 ```text
 Project or Workspace: PlinxApp/Plinx.xcodeproj
-Xcode Version: 26.5
+Xcode Version: 27.2
 Archive scheme: Plinx-iOS
 ```
 

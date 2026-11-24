@@ -25,7 +25,7 @@ name: Plinx
 
 options:
   minimumXcodeGenVersion: 2.46.0
-  xcodeVersion: "26.5"
+  xcodeVersion: "27.2"
   deploymentTarget:
     iOS: 17.5
     tvOS: 17.0

@@ -6,7 +6,7 @@ is manual-only and its push-gated `testflight-internal` job cannot run until
 the automatic `dev-testflight` push trigger is deliberately restored.
 
 For the active Xcode Cloud workflow, select
-`PlinxApp/Plinx.xcodeproj` as the Project or Workspace, Xcode 26.5 as the
+`PlinxApp/Plinx.xcodeproj` as the Project or Workspace, Xcode 27.2 as the
 toolchain, and `Plinx-iOS` as the Archive scheme. The project must first be
 merged into the repository branch App Store Connect scans. Xcode Cloud then
 runs `PlinxApp/ci_scripts/ci_post_clone.sh` to fetch the exact pinned Strimr

@@ -2,7 +2,7 @@
 
 ## Pinned Release Toolchain And Dependencies
 
-CI uses macOS 26, Xcode 26.5, the exact Strimr sibling commit in
+CI uses macOS 26, Xcode 27.2, the exact Strimr sibling commit in
 `config/release-dependencies.env`, and the exact AetherEngine revision in
 `PlinxApp/project.yml`. Dependency checkout or resolution failure is fatal; do
 not restore branch-based or `|| true` dependency fetches.
@@ -33,7 +33,7 @@ See [Xcode Cloud monitoring and management](xcode-cloud-monitoring.md) for the
 local App Store Connect client, checked-in project requirement, credential
 boundary, explicit management operations, and scheduled monitoring setup.
 
-Xcode Cloud must use the checked-in `PlinxApp/Plinx.xcodeproj`, Xcode 26.5,
+Xcode Cloud must use the checked-in `PlinxApp/Plinx.xcodeproj`, Xcode 27.2,
 and the shared `Plinx-iOS` and `Plinx-tvOS` schemes. Its post-clone script
 fetches and verifies the exact pinned sibling Strimr source before a build or
 archive action begins.
