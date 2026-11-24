@@ -75,3 +75,8 @@ keeps the matching Downloads view available. Plinx stores the last authorized
 server/profile context in Keychain without copying the Plex token into download
 metadata. Signing out explicitly revokes that automatic offline access but does
 not silently delete the media files.
+
+When Plinx opens, it shows its loading screen while it connects. The
+**Connection unavailable** card and the offline Downloads view appear only if
+that connection fails or the device reports no network. When the network comes
+back, Plinx retries on its own; **Try Again** shows progress while a retry runs.

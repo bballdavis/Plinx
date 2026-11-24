@@ -1,7 +1,11 @@
 import Foundation
+import Network
 import Observation
 
 enum PlinxSessionAccessState: Equatable {
+    /// An enrolled family is connecting at launch. Downloads stay authorized,
+    /// but the UI shows loading instead of an offline warning until the
+    /// connection fails or the device reports no network.
     case hydrating
     case online
     case offline(OfflineSessionSnapshot)
@@ -22,7 +26,10 @@ final class PlinxSessionAccessCoordinator {
         self.persistence = persistence
         do {
             snapshot = try persistence.load()
-            state = snapshot.map { .offline($0) } ?? .signedOut
+            // Being enrolled is not evidence of being offline. Stay in the
+            // launch connection state until hydration fails or the device has
+            // no network path.
+            state = snapshot == nil ? .signedOut : .hydrating
         } catch {
             snapshot = nil
             state = .unavailable
@@ -33,11 +40,19 @@ final class PlinxSessionAccessCoordinator {
         snapshot != nil && state != .unavailable && state != .signedOut
     }
 
+    /// True until the first launch connection succeeds or is known to fail.
+    var isAwaitingInitialConnection: Bool {
+        state == .hydrating
+    }
+
+    var isReconnecting: Bool {
+        reconnectTask != nil
+    }
+
     var effectiveDownloadIdentity: DownloadOwnerIdentity? {
         switch state {
-        case .online: return snapshot?.identity
-        case .offline: return snapshot?.identity
-        default: return nil
+        case .hydrating, .online, .offline: return snapshot?.identity
+        case .signedOut, .unavailable: return nil
         }
     }
 
@@ -73,6 +88,19 @@ final class PlinxSessionAccessCoordinator {
         state = .offline(snapshot)
     }
 
+    /// The device has no network path, so the launch connection cannot
+    /// succeed. Show offline Downloads now instead of waiting for timeouts.
+    func markNetworkUnavailable() {
+        guard state == .hydrating else { return }
+        markRemoteFailure()
+    }
+
+    /// Retries automatically when connectivity returns after a known failure.
+    func networkBecameAvailable(_ operation: @escaping () async -> Bool) {
+        guard case .offline = state else { return }
+        reconnect(operation)
+    }
+
     func markSignedOut() {
         reconnectGeneration += 1
         reconnectTask?.cancel()
@@ -97,6 +125,39 @@ final class PlinxSessionAccessCoordinator {
                 self.state = succeeded ? .online : (self.snapshot.map { .offline($0) } ?? .signedOut)
             }
         }
+    }
+}
+
+extension PlinxSessionAccessCoordinator {
+    func reconnect(using sessionManager: SessionManager) {
+        reconnect { await sessionManager.hydrate(); return sessionManager.status == .ready }
+    }
+
+    func networkBecameAvailable(using sessionManager: SessionManager) {
+        networkBecameAvailable { await sessionManager.hydrate(); return sessionManager.status == .ready }
+    }
+}
+
+/// Reports whether the device currently has any usable network path.
+/// `isSatisfied` is nil until the system delivers the first path.
+@MainActor
+@Observable
+final class PlinxNetworkPathMonitor {
+    private(set) var isSatisfied: Bool?
+    @ObservationIgnored private var monitor: NWPathMonitor?
+
+    func start() {
+        guard monitor == nil else { return }
+        let monitor = NWPathMonitor()
+        monitor.pathUpdateHandler = { [weak self] path in
+            let satisfied = path.status == .satisfied
+            Task { @MainActor in
+                guard let self, self.isSatisfied != satisfied else { return }
+                self.isSatisfied = satisfied
+            }
+        }
+        monitor.start(queue: DispatchQueue(label: "com.bballdavis.plinx.network-path"))
+        self.monitor = monitor
     }
 }
 

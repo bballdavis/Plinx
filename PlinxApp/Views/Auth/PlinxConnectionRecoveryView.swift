@@ -20,11 +20,17 @@ struct PlinxConnectionRecoveryView: View {
                 #endif
                 Text(snapshot.serverName).font(.caption).foregroundStyle(.secondary)
                 Button {
-                    access.reconnect { await sessionManager.hydrate(); return sessionManager.status == .ready }
+                    access.reconnect(using: sessionManager)
                 } label: {
-                    Text("offline.recovery.retry", tableName: "Plinx")
+                    if access.isReconnecting {
+                        ProgressView()
+                            .accessibilityLabel(Text("offline.recovery.retry", tableName: "Plinx"))
+                    } else {
+                        Text("offline.recovery.retry", tableName: "Plinx")
+                    }
                 }
                 .buttonStyle(.borderedProminent)
+                .disabled(access.isReconnecting)
             }
             .padding(24)
             .frame(maxWidth: 360)

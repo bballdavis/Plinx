@@ -11,13 +11,66 @@ final class OfflineSessionAccessTests: XCTestCase {
         XCTAssertNil(coordinator.effectiveDownloadIdentity)
     }
 
-    func testEnrolledStoreLoadsOfflineIdentity() {
+    func testEnrolledStoreStartsConnectingWithOfflineIdentity() {
         let snapshot = OfflineSessionSnapshot(identity: identity, serverName: "Home")
         let coordinator = PlinxSessionAccessCoordinator(
             persistence: InMemoryOfflineSessionPersistence(snapshot: snapshot)
         )
-        XCTAssertEqual(coordinator.state, .offline(snapshot))
+        // Enrollment alone must not show the offline warning at launch.
+        XCTAssertEqual(coordinator.state, .hydrating)
+        XCTAssertTrue(coordinator.isAwaitingInitialConnection)
+        XCTAssertTrue(coordinator.isLocallyEnrolled)
+        // Downloads stay authorized while the launch connection runs.
         XCTAssertEqual(coordinator.effectiveDownloadIdentity, identity)
+    }
+
+    func testLaunchConnectionFailureShowsOffline() {
+        let snapshot = OfflineSessionSnapshot(identity: identity, serverName: "Home")
+        let coordinator = PlinxSessionAccessCoordinator(
+            persistence: InMemoryOfflineSessionPersistence(snapshot: snapshot)
+        )
+        coordinator.markRemoteFailure()
+        XCTAssertEqual(coordinator.state, .offline(snapshot))
+        XCTAssertFalse(coordinator.isAwaitingInitialConnection)
+        XCTAssertEqual(coordinator.effectiveDownloadIdentity, identity)
+    }
+
+    func testNoNetworkDuringLaunchShowsOfflineImmediately() {
+        let snapshot = OfflineSessionSnapshot(identity: identity, serverName: "Home")
+        let coordinator = PlinxSessionAccessCoordinator(
+            persistence: InMemoryOfflineSessionPersistence(snapshot: snapshot)
+        )
+        coordinator.markNetworkUnavailable()
+        XCTAssertEqual(coordinator.state, .offline(snapshot))
+    }
+
+    func testNoNetworkDoesNotDowngradeOnlineSession() {
+        let coordinator = PlinxSessionAccessCoordinator(
+            persistence: InMemoryOfflineSessionPersistence(snapshot: OfflineSessionSnapshot(identity: identity, serverName: "Home"))
+        )
+        coordinator.recordReady(identity: identity, serverName: "Home")
+        coordinator.markNetworkUnavailable()
+        XCTAssertEqual(coordinator.state, .online)
+    }
+
+    func testNetworkReturnReconnectsOnlyFromOffline() async {
+        let snapshot = OfflineSessionSnapshot(identity: identity, serverName: "Home")
+        let coordinator = PlinxSessionAccessCoordinator(
+            persistence: InMemoryOfflineSessionPersistence(snapshot: snapshot)
+        )
+        coordinator.networkBecameAvailable { XCTFail("must not reconnect while connecting"); return true }
+        XCTAssertFalse(coordinator.isReconnecting)
+
+        coordinator.markRemoteFailure()
+        let gate = AsyncGate()
+        coordinator.networkBecameAvailable { await gate.wait(); return true }
+        XCTAssertTrue(coordinator.isReconnecting)
+        // The recovery card keeps offline Downloads while the retry runs.
+        XCTAssertEqual(coordinator.state, .offline(snapshot))
+        await gate.open()
+        try? await Task.sleep(for: .milliseconds(20))
+        XCTAssertEqual(coordinator.state, .online)
+        XCTAssertFalse(coordinator.isReconnecting)
     }
 
     func testCorruptStoreFailsClosed() {

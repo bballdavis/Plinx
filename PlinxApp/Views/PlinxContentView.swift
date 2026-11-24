@@ -11,6 +11,8 @@ struct PlinxContentView: View {
     @StateObject private var playbackLaunchCoordinator = PlaybackLaunchCoordinator()
     @State private var watchStatusStore = PlinxWatchStatusStore()
     @State private var pendingPlayerDetail: MediaItem?
+    @State private var networkPath = PlinxNetworkPathMonitor()
+    @State private var reconnectsAfterHydration = false
 
     private struct PlaybackPresentationToken: Identifiable {
         let id = "plinx.playback.presentation"
@@ -48,6 +50,7 @@ struct PlinxContentView: View {
         }
         .onAppear {
             synchronizeSessionAccess()
+            networkPath.start()
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 500_000_000)
                 AppStoreScreenshotBootstrap.applyRequestedOrientation()
@@ -55,6 +58,10 @@ struct PlinxContentView: View {
         }
         .onChange(of: sessionManager.status) { _, _ in
             synchronizeSessionAccess()
+            resumeDeferredReconnectIfNeeded()
+        }
+        .onChange(of: networkPath.isSatisfied) { wasSatisfied, isSatisfied in
+            synchronizeNetworkAvailability(from: wasSatisfied, to: isSatisfied)
         }
         .onChange(of: sessionRootIdentity) { _, _ in
             pendingPlayerDetail = nil
@@ -482,12 +489,28 @@ struct PlinxContentView: View {
         // behind a download recovery overlay during hydration.
         if sessionAccessCoordinator.isLocallyEnrolled,
            sessionManager.status == .signedOut {
-            PlinxConnectionRecoveryView()
+            if sessionAccessCoordinator.isAwaitingInitialConnection {
+                // The failure is applied on the next change callback; avoid a
+                // blank frame before the recovery card.
+                PlinxBrandedLoadingView(context: .appTransition)
+            } else {
+                PlinxConnectionRecoveryView()
+            }
         } else {
             sessionStatusContent
         }
         #else
-        if sessionAccessCoordinator.isLocallyEnrolled {
+        if sessionAccessCoordinator.isLocallyEnrolled,
+           sessionAccessCoordinator.isAwaitingInitialConnection {
+            // Launch connection in progress: show loading, not an offline
+            // warning. Offline Downloads appear only after the connection
+            // fails or the device reports no network path.
+            if sessionManager.status == .needsProfileSelection {
+                sessionStatusContent
+            } else {
+                PlinxBrandedLoadingView(context: .appTransition)
+            }
+        } else if sessionAccessCoordinator.isLocallyEnrolled {
             ZStack {
                 RootTabView()
                 if sessionManager.status != .ready {
@@ -560,6 +583,38 @@ struct PlinxContentView: View {
         } else if sessionManager.status == .signedOut || sessionManager.status == .needsServerSelection {
             sessionAccessCoordinator.markRemoteFailure()
         }
+    }
+
+    private func synchronizeNetworkAvailability(from wasSatisfied: Bool?, to isSatisfied: Bool?) {
+        switch isSatisfied {
+        case false:
+            sessionAccessCoordinator.markNetworkUnavailable()
+        case true:
+            // Only a real return of connectivity retries; the first path
+            // report at launch is not a reconnect signal.
+            guard wasSatisfied == false else { return }
+            switch sessionManager.status {
+            case .ready:
+                // A ready session (including the sample library) is never
+                // replaced by an automatic reconnect.
+                break
+            case .hydrating:
+                // Never run two hydrations at once. Retry once this one ends
+                // if it fails.
+                reconnectsAfterHydration = true
+            default:
+                sessionAccessCoordinator.networkBecameAvailable(using: sessionManager)
+            }
+        case nil:
+            break
+        }
+    }
+
+    private func resumeDeferredReconnectIfNeeded() {
+        guard reconnectsAfterHydration, sessionManager.status != .hydrating else { return }
+        reconnectsAfterHydration = false
+        guard sessionManager.status != .ready, networkPath.isSatisfied == true else { return }
+        sessionAccessCoordinator.networkBecameAvailable(using: sessionManager)
     }
 
     private var sessionRootIdentity: String {
