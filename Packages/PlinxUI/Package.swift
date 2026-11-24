@@ -23,8 +23,8 @@ let package = Package(
     name: "PlinxUI",
     defaultLocalization: "en",
     platforms: [
-        .iOS(.v17),
-        .tvOS(.v17),
+        .iOS(.v18),
+        .tvOS(.v18),
         .macOS(.v14)
     ],
     products: [
@@ -32,7 +32,7 @@ let package = Package(
     ],
     dependencies: [
         .package(path: "../PlinxCore"),
-        .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.17.0"),
+        .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.19.7"),
     ],
     targets: [
         .target(

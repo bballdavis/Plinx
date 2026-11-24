@@ -23,8 +23,8 @@ import PackageDescription
 let package = Package(
     name: "PlinxCore",
     platforms: [
-        .iOS(.v17),
-        .tvOS(.v17),
+        .iOS(.v18),
+        .tvOS(.v18),
         .macOS(.v14)
     ],
     products: [

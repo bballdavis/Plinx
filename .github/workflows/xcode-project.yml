@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Plinx
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Fetch pinned Strimr source
         env:
@@ -61,7 +61,7 @@ jobs:
             "$RUNNER_TEMP/xcodegen"
 
       - name: Restore XcodeGen build cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/xcodegen/.build
           key: xcodegen-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODEGEN_VERSION }}-v1
