@@ -31,10 +31,6 @@ struct IntegrationsView: View {
                     .buttonBorderShape(.roundedRectangle(radius: LayoutMetrics.cardCornerRadius))
                     .settingsFocus("seerr", isDefault: true)
 
-                    ForEach(TrackerService.allCases) { service in
-                        trackerLink(service)
-                    }
-
                     Spacer(minLength: 0)
                 }
                 .padding(20)
@@ -42,22 +38,7 @@ struct IntegrationsView: View {
         }
     }
 
-    private func trackerLink(_ service: TrackerService) -> some View {
-        let state = TrackerCoordinator.shared.state(for: service)
-        return SettingsLink(title: LocalizedStringKey(service.displayName)) {
-            TrackerSettingsView(service: service)
-        } label: {
-            integrationCard(
-                title: LocalizedStringKey(service.displayName),
-                subtitle: state.statusText,
-                systemImage: "arrow.triangle.2.circlepath",
-                isConnected: state.isConnected,
-            )
-        }
-        .buttonStyle(.bordered)
-        .buttonBorderShape(.roundedRectangle(radius: LayoutMetrics.cardCornerRadius))
-        .settingsFocus(service.rawValue)
-    }
+
 
     private var seerrStatusText: String {
         if let baseURL = seerrStore.baseURLString {

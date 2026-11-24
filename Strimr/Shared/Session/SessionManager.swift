@@ -60,9 +60,7 @@ final class SessionManager {
 
     private(set) var status: Status = .hydrating
     private(set) var loadingPhase: LoadingPhase = .preparing
-    private(set) var activeProfile: StrimrProfile? {
-        didSet { TrackerCoordinator.shared.activate(profileID: activeProfile?.id) }
-    }
+    private(set) var activeProfile: StrimrProfile?
 
     /// Set by the main view while the player is shown, so a return from the background never interrupts playback.
     @ObservationIgnored var isPlaybackActive = false
@@ -467,7 +465,6 @@ final class SessionManager {
         for profileID in profileIDs {
             settingsManager.removeSettings(profileID: profileID)
             favoritesStore.removeProfile(profileID)
-            TrackerCoordinator.shared.removeProfile(profileID)
         }
     }
 

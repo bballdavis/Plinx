@@ -102,7 +102,6 @@ struct MediaQuickActions {
 
     private let supportsFavorites: Bool
     private let setPlayedHandler: (Bool, String) async throws -> Void
-    private var notifyTrackers: (Bool, MediaItem) -> Void = { _, _ in }
     private let setFavoriteHandler: (Bool, MediaItem) async throws -> Void
     private let removeFromContinueWatchingHandler: ((String) async throws -> Void)?
     private let didChange: () -> Void
@@ -135,9 +134,6 @@ struct MediaQuickActions {
     init(services: MediaServices) {
         supportsFavorites = services.capabilities.favorites
         setPlayedHandler = { played, itemID in try await services.detail.setPlayed(played, itemID: itemID) }
-        notifyTrackers = { played, item in
-            TrackerCoordinator.shared.setPlayed(played, item: item, detail: services.detail)
-        }
         setFavoriteHandler = { favorite, media in try await services.favorites.setFavorite(favorite, media: media) }
         removeFromContinueWatchingHandler = services.home.supportsContinueWatchingRemoval
             ? { itemID in try await services.home.removeFromContinueWatching(itemID: itemID) }
@@ -338,7 +334,6 @@ struct MediaQuickActions {
     func setPlayed(_ played: Bool, for item: MediaItem) async -> Outcome {
         await perform {
             try await setPlayedHandler(played, item.id)
-            notifyTrackers(played, item)
         }
     }
 

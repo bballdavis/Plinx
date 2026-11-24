@@ -141,7 +141,6 @@ final class PlaybackProgressRecorder {
         )
         push(journalID: journalID) { services, itemID in
             try await services.playback.markItemWatched(itemID: itemID, at: now)
-            TrackerCoordinator.shared.noteWatched(itemID: itemID, at: now, detail: services.detail)
         }
     }
 
