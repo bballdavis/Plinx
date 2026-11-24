@@ -23,7 +23,6 @@ FILE_REFS = {
     "assets": ("F10000000000000000000003", "Assets.xcassets", "folder.assetcatalog", "Resources/Assets.xcassets"),
     "launch": ("F10000000000000000000004", "LaunchScreen.storyboard", "file.storyboard", "Resources/LaunchScreen.storyboard"),
     "privacy": ("F10000000000000000000005", "PrivacyInfo.xcprivacy", "text.xml", "Resources/PrivacyInfo.xcprivacy"),
-    "demo_clip": ("F10000000000000000000006", "plinx-demo-clip.mp4", "file", "Resources/DemoFixture/plinx-demo-clip.mp4"),
 }
 
 IOS_BUILD_FILES = {
@@ -33,15 +32,14 @@ IOS_BUILD_FILES = {
     "assets": ("F10000000000000000000013", "Assets.xcassets in Resources"),
     "launch": ("F10000000000000000000014", "LaunchScreen.storyboard in Resources"),
     "privacy": ("F10000000000000000000015", "PrivacyInfo.xcprivacy in Resources"),
-    "demo_clip": ("F10000000000000000000016", "plinx-demo-clip.mp4 in Resources"),
 }
 
 TVOS_BUILD_FILES = {
+    "demo_media": ("F10000000000000000000026", "DemoMedia in Resources"),
     "plinx_strings": ("F10000000000000000000021", "Plinx.strings in Resources"),
     "local_strings": ("F10000000000000000000022", "Localizable.xcstrings in Resources"),
     "assets": ("F10000000000000000000023", "Assets.xcassets in Resources"),
     "privacy": ("F10000000000000000000025", "PrivacyInfo.xcprivacy in Resources"),
-    "demo_clip": ("F10000000000000000000026", "plinx-demo-clip.mp4 in Resources"),
 }
 
 IOS_RESOURCES_PHASE = "F10000000000000000000031"

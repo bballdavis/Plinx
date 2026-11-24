@@ -32,15 +32,21 @@ The first setup screen is intentionally a grown-up step. Once configured,
 children see the Plinx browsing experience rather than account-management
 choices.
 
-## Try Plinx without a Plex server
+## Try Plinx without an account
 
-On the first screen, choose **Explore the Demo Library** to look around before
-connecting your own server. The demo uses fictional titles, original artwork,
-and a short sample clip stored in the app. It needs no account or internet
-connection and does not save anything to your Plex account. Settings and the
-parental gate work normally, so you can try rating limits and see which titles
-appear or disappear. Use **Log Out** in Settings, or relaunch Plinx, to leave
-the demo and sign in for real.
+On iPhone or iPad, tap **Sign-in information**, then **Explore the Demo Library**.
+On Apple TV, select **Explore the Demo Library** on the connection screen.
+The sample library includes movies, episodes, collections, playlists, and a
+sample Explore catalog. Its original 90-second videos support playback,
+seeking, audio tracks, captions, and downloads without an external server.
+Sample requests stay in the demo and do not request external videos.
+
+The demo parental PIN is **2468**. Demo controls are separate from your family's
+settings and reset when you enter the demo again. Sample downloads remain
+until deleted; re-enter the demo after relaunch to access them. Sign out through
+Settings to return to account setup. Apple TV requires a Plex account.
+
+See the [product tour](product-tour.md) for screenshots.
 
 ## Choose a device
 

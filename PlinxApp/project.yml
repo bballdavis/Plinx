@@ -127,8 +127,6 @@ targets:
       # Localized strings — listed explicitly because xcodegen skips xcstrings
       # and needs lproj bundles spelled out.
       - path: Resources/en.lproj/Plinx.strings
-      # Original, generated App Review demo clip (scripts/support/demo_clip).
-      - path: Resources/DemoFixture
       - path: ../../strimr/Localizable.xcstrings
 
     dependencies:
@@ -285,8 +283,8 @@ targets:
       - path: Resources/Assets.xcassets
       - path: ../../strimr/Localizable.xcstrings
       - path: Resources/en.lproj/Plinx.strings
-      # Original, generated App Review demo clip (scripts/support/demo_clip).
-      - path: Resources/DemoFixture
+      - path: Resources/DemoMedia
+        type: folder
 
     dependencies:
       - package: PlinxCore

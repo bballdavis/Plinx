@@ -277,25 +277,46 @@ number pad offscreen. The fixture never reads or changes the family's PIN.
 ## App Review Demo Fixtures
 
 The connection screen on iPhone, iPad, and Apple TV includes **Explore the
-Demo Library**. It runs the production SessionManager, LibraryStore,
-browse/detail/search views, safety decorators, playback authorization, and
-player against `DemoFixtureServer`, a Plinx-owned HTTP server bound to
-`127.0.0.1` that serves `DemoFixtureCatalog` responses, on-device generated
-artwork (`DemoFixtureArtwork`), and the bundled original clip
-`PlinxApp/Resources/DemoFixture/plinx-demo-clip.mp4`. A loopback socket is used
-instead of a `URLProtocol` because SwiftUI's `AsyncImage` and the player engine
-do not use `URLSession.shared`. The server only answers requests carrying the
-synthetic token, and the demo session is never persisted.
+Demo Library**. On iPhone/iPad the **Sign-in information** button opens login
+guidance and the same action. It runs the production SessionManager,
+LibraryStore, browse/detail/search views, safety decorators, playback
+authorization, player, and download flows against fictional
+`DemoFixtureCatalog` responses. `DemoMediaServer`, a Plinx-owned service bound
+only to `127.0.0.1`, serves the original bundled MP4s in
+`PlinxApp/Resources/DemoMedia` with byte-range support. There is no Plex account
+or external media dependency, and the demo session is never persisted. tvOS
+SessionManager mirrors tokens into Top Shelf storage only when the bundle
+declares `TopShelfKeychainAccessGroup`; Plinx ships no Top Shelf extension, so
+the demo is enabled on Apple TV too.
 
+The sample movie/episode are 90 seconds with visible motion/time, two quiet
+audio tracks, and captions. Regenerate them on macOS using
+`python3 scripts/release/generate_demo_media.py /path/to/ffmpeg`.
+FFmpeg is a development tool only; the app bundles the generated media.
+The sample JSON Youtarr catalog is in the same resource directory, with
+in-memory request mutations and no external download scheduling.
+
+The XcodeGen resource patcher must include the `DemoMedia` folder in the iOS
+and tvOS resource phases. Regenerate the project after resource/source changes.
 Fixture ratings deliberately span the parental controls (see the reviewer
-table in `docs/release/app-store.md`). When you change the catalog, keep that
-table and these tests in sync:
+table in `docs/release/app-store.md`); keep that table and these tests in sync.
+`DemoFixtureTests` checks real media tracks, HTTP byte ranges, episode queue
+identity, mixed-rating filtering, every movie/TV ceiling pair and both unrated modes
+through the production catalog loader, TV season/episode rating propagation,
+sample request lifecycle over HTTP, preference
+isolation, and a production download followed by file playback after stopping
+the sample server. The production download test uses the host app's manager
+and deletes its sample file afterward.
 
-- `PlinxApp/UnitTests/DemoFixtureTests.swift`: loopback/token boundary, byte
-  ranges, default-control population, ceiling reveals, collections,
-  playlists, A-Z index, and artwork.
-- `LaunchSmokeUITests/test_demoModeRendersProductionHomeAndPlayback` (iOS):
-  demo entry, Home, detail, and the production player.
+Run `LaunchSmokeUITests/test_demoModeRendersProductionHomeAndRealPlayback` on
+both iPhone and iPad. It verifies help can be dismissed without starting a session, enters via
+information → Explore the Demo Library, captures both sign-in/help, and checks
+the production player controls. The engine integration test separately checks
+real progression, seeking, pause, and the volume limit. It saves a player screenshot.
+Also perform the fresh-install release checklist in the
+[review runbook](../release/app-store.md#reviewer-access). The demo PIN is 2468;
+demo preferences/PIN reset on entry, while sample downloads persist until
+removed.
 
 `--ui-testing` with `PLINX_UI_TEST_MODE=demo` enters the demo at launch. On
 tvOS, `AppleTVRemoteWalkUITests` replays a scripted Siri Remote walk against
@@ -310,8 +331,35 @@ xcodebuild -project PlinxApp/Plinx.xcodeproj -scheme Plinx-tvOS \
 ```
 
 The walk is skipped when no script is supplied, so normal test runs are
-unaffected. Regenerate the clip with
-`scripts/support/demo_clip/generate_demo_clip.sh` (requires ffmpeg).
+unaffected.
+
+## Expanding iPhone display checks
+
+For iPhone Duo layout changes, check both Closed and Open in Device Hub, then
+open and close the device during playback. Confirm the video resizes without
+restarting, the timeline and Back/Settings controls remain visible, and exiting
+playback restores the browse navigation. Check Home, Library, and Explore for
+continuous ambient backgrounds underneath the side status area. Repeat the
+player check on a conventional iPhone in portrait and landscape and on iPad.
+
+The Duo simulator has multiple displays. If the screenshot tool cannot select
+one, use `xcrun simctl io <UDID> screenshot --display=<display-id> <output.png>`;
+the error from an unqualified capture lists the available display IDs. Capture
+the active display rather than interpreting an inactive black display as a
+rendering failure. `PlinxPlayerControlLayoutTests` covers the geometry-driven
+chrome spacing independently of a model identifier.
+
+`LaunchSmokeUITests/test_playerFitFillSurvivesHiddenControls` launches the
+production demo player directly through the `demoPlayer` UI-test screen. It
+switches Fit to Fill and back, checks that Fill survives hidden controls, and
+captures both modes for visual inspection. Player layout unit tests
+exercise native and sample-buffer video layers, late layer attachment, a
+renderer replacement, source gravity resets, and observer teardown. The Plinx
+adapter identifies Aether's public render view and updates AVFoundation video
+gravity; it does not resize the player hierarchy or change the paired Strimr pin.
+The focused player UI check also verifies that the landscape timeline centers
+on the display and that Settings remains tappable in the reclaimed status area.
+Inset policy tests cover both sidebar sides, portrait, and ordinary phone notches.
 
 ## CI Notes
 

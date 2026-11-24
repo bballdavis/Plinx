@@ -17,7 +17,7 @@ final class LaunchSmokeUITests: XCTestCase {
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10), "App should launch into foreground")
     }
 
-    func test_demoModeRendersProductionHomeAndPlayback() {
+    func test_demoModeRendersProductionHomeAndRealPlayback() {
         let app = XCUIApplication()
         app.launchArguments += ["--ui-testing", "--disable-animations"]
         app.launch()
@@ -85,9 +85,57 @@ final class LaunchSmokeUITests: XCTestCase {
         add(detail)
         playButton.tap()
 
-        XCTAssertTrue(
-            app.descendants(matching: .any)["player.back"].waitForExistence(timeout: 20),
-            "Demo playback should open the production player with the bundled demo clip",
-        )
+        let playPause = app.buttons["player.playPause"]
+        XCTAssertTrue(playPause.waitForExistence(timeout: 20), "Demo must use the production player")
+        // Interact as soon as controls appear: extra accessibility waits can
+        // consume the three-second auto-hide interval on a larger simulator.
+        let originalLabel = playPause.label
+        playPause.tap()
+        let changed = NSPredicate(format: "label != %@", originalLabel)
+        expectation(for: changed, evaluatedWith: playPause)
+        waitForExpectations(timeout: 5)
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "demo-production-player"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        let timeline = app.descendants(matching: .any)["player.timeline"].firstMatch
+        XCTAssertTrue(timeline.exists)
+        XCTAssertFalse(app.buttons["demo.player.close"].exists)
+    }
+
+    func test_playerFitFillSurvivesHiddenControls() {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let app = XCUIApplication()
+        app.launchArguments += ["--ui-testing", "--disable-animations", "--app-store-landscape"]
+        app.launchEnvironment["PLINX_UI_TEST_SCREEN"] = "demoPlayer"
+        app.launch()
+        let videoFit = app.buttons["player.videoFit"]
+        XCTAssertTrue(videoFit.waitForExistence(timeout: 20))
+        XCTAssertEqual(videoFit.value as? String, "Fit")
+        videoFit.tap()
+        XCTAssertEqual(videoFit.value as? String, "Fill")
+        let filled = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        filled.name = "demo-player-fill"
+        filled.lifetime = .keepAlways
+        add(filled)
+
+        expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: videoFit)
+        waitForExpectations(timeout: 10)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(videoFit.waitForExistence(timeout: 5))
+        XCTAssertEqual(videoFit.value as? String, "Fill", "Auto-hiding controls must preserve the session choice")
+        videoFit.tap()
+        XCTAssertEqual(videoFit.value as? String, "Fit")
+        let timeline = app.descendants(matching: .any)["player.timeline"].firstMatch
+        XCTAssertEqual(timeline.frame.midX, app.frame.midX, accuracy: 3,
+                       "The landscape timeline should span and center on the display rather than the side-status safe region")
+        let fitted = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        fitted.name = "demo-player-fit"
+        fitted.lifetime = .keepAlways
+        add(fitted)
+        app.buttons["gearshape"].tap()
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5),
+                      "Settings must remain tappable in the reclaimed side area")
+        app.buttons["Done"].tap()
     }
 }

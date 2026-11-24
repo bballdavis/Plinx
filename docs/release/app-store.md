@@ -52,121 +52,136 @@ Declare no tracking and no data collected by the Plinx developer only after conf
 
 ## Reviewer Access
 
-### What Apple requires
+For the second review, open **Sign-in information** (the info button beside the
+plex.tv sign-in note on compact layouts, or at the top right of the What happens
+next card on iPad), then select **Explore the Demo Library**. This credential-free path uses the production browsing,
+search, detail, parental controls, authorization, player, and download pipeline.
+The app serves bundled original samples over a listener bound only to
+`127.0.0.1`. It needs no Plex account, external server, VPN, or Internet access.
+The listener does not bind to the LAN. It stops when the demo is signed out.
+Do not rely on background downloads while iOS has suspended the demo service;
+the samples are small and can be downloaded while the app is in the foreground.
 
-App Review Guideline 2.1(a) asks for demo account information when an app
-includes a login, and allows a built-in demo mode **in lieu of a demo account
-only with prior approval by Apple**. The demo mode must exhibit the app's full
-features and functionality. Plinx's only login is the user's own Plex account,
-which grants access to a private home media server; Plinx has no account system
-of its own. Handing App Review a Plex login would mean operating a public media
-server and sharing home-server credentials, so Plinx ships a built-in demo and
-requests approval for it.
+The sample library includes movies, television seasons/episodes, learning
+videos, mixed-rating playlists and collections, and safe sample metadata for
+PG-13 and unrated filtering. Default demo limits are PG/TV-PG with unrated items
+excluded. The two original 90-second MP4 files contain moving abstract shapes,
+a visible clock, two quiet sample-tone audio tracks, and sample captions.
+Many fictional items deliberately reuse these files. Titles and summaries are
+sample metadata; the videos are demonstrations of playback rather than films.
+No copyrighted third-party video or artwork is bundled.
 
-Before submitting a build that relies on the demo:
+### Rating Filter Verification
 
-1. Request prior approval through Apple Developer **Contact Us → App Review**.
-   Explain that Plinx is a client for user-owned Plex servers, that a reviewer
-   account would require sharing private server credentials and streaming
-   media the developer does not license to third parties, and that the
-   shipped build contains a full-featured, credential-free demo described
-   below. Keep the approval reference with the release record.
-2. In **App Review Information**, leave **Sign-in required** unchecked and
-   leave the username and password blank. Paste the notes below, including
-   the approval reference.
-3. Test the notes on a freshly installed iPhone, iPad, and Apple TV before
-   submission (`LaunchSmokeUITests/test_demoModeRendersProductionHomeAndPlayback`
-   covers the iOS path; walk the Apple TV path with the Siri Remote).
+The demo includes **Rating Test Movies** and **Rating Test TV** in Library.
+Their titles include each rating so reviewers can identify the expected result.
+These are synthetic metadata labels on the same safe abstract clips, including
+R and TV-MA; there is no mature video in either library.
 
-If Apple declines the demo-mode request or later asks for a live account, use
-the live-account fallback at the end of this section. Never commit or publish
-those credentials.
+| Library | Samples available with the highest ceiling and unrated enabled | Visible at the default demo limits |
+| --- | --- | --- |
+| Rating Test Movies | Movie Sample - G, PG, PG-13, R, Unrated | G and PG |
+| Rating Test TV | TV Sample - TV-Y, TV-Y7, TV-G, TV-PG, TV-14, TV-MA, Unrated | TV-Y, TV-Y7, TV-G, TV-PG |
 
-### What the demo covers
+1. Enter the demo and open Library → Rating Test Movies / Rating Test TV.
+2. Open Settings with PIN **2468**. Change the movie limit through G, PG,
+   PG-13, and R; confirm only titles at or below that ceiling appear.
+3. Change the TV limit through TV-Y, TV-Y7, TV-G, TV-PG, TV-14, and TV-MA.
+   Movie visibility must stay unchanged when only the TV limit changes, and
+   TV visibility must stay unchanged when only the movie limit changes.
+4. Turn off **Exclude Unrated**. One Unrated sample appears in each library;
+   rated titles above the ceilings must remain hidden. Turn it back on to
+   hide both unrated samples again.
+5. Lower the limits back to PG/TV-PG. Confirm PG-13/R and TV-14/TV-MA disappear
+   again, including search results. TV samples have seasons and playable
+   episodes carrying the same rating so detail/playback checks use real data.
 
-**Explore the Demo Library** appears on the iPhone/iPad connection screen and,
-on Apple TV, under **Refresh Code** beside the sign-in QR code. It starts a
-normal Plinx session against a Plinx-owned fixture server bound to the
-device's loopback interface (`127.0.0.1`). Every production path runs
-unchanged: library loading, Home rows, Library Recommended/Browse/Collections,
-search, media detail, season and episode lists, safety decorators, playback
-authorization, the production player, timeline reporting, Quick Actions,
-Settings, and the parental gate. The fixture server only answers loopback
-requests that carry the synthetic demo token. Nothing is sent to Plex or any
-other host, the synthetic token is never written to Keychain, and the demo
-is not saved as the default server: relaunching returns to the connection
-screen, and **Log Out** in Settings ends the demo.
+Demo preferences and the parental PIN are separate from family settings.
+The demo PIN is **2468**, reset each time the demo is entered. Rating, library,
+player, and Youtarr preferences in the demo do not modify family preferences.
+Downloads use the normal ownership checks with a dedicated synthetic server
+and profile identity. Personal identities cannot access demo downloads and
+vice versa. Demo downloads remain on-device until removed through Downloads;
+after relaunch, re-enter the demo to access them. The demo does not persist a
+Plex sign-in token or replace a personal offline-session snapshot.
 
-All titles, artwork, and video are original and fictional. Artwork is drawn on
-device; every title plays the same bundled two-minute clip
-(`PlinxApp/Resources/DemoFixture/plinx-demo-clip.mp4`, generated by
-`scripts/support/demo_clip/generate_demo_clip.sh`) showing an elapsed-time
-counter so reviewers can see real playback, resume, and seeking.
+Explore uses a bundled fictional Youtarr catalog and an in-memory request
+queue. Sending a sample request records it as pending in the demo; it never
+requests or downloads an external video. The sample queue resets on demo
+entry. Profile switching is unavailable for the synthetic profile; normal Plex
+sign-in, account discovery, and server/profile switching require a live account.
+The demo entry point currently targets iPhone/iPad only. Supply a dedicated
+live Plex account for Apple TV review and for any live integration Apple asks
+to verify. Do not claim credential-free tvOS access in the review notes.
 
-The fixture ratings are spread across the parent controls so the core feature
-is visible without a Plex server. The app's first-run defaults are Movies **G**,
-TV **TV-Y**, and unrated media hidden:
-
-| Library | Visible with defaults | Appears after a parent raises the control |
-|---|---|---|
-| Family Movies | 5 G movies, incl. Continue Watching | PG: The Big Build, The Lighthouse Map, The River Trail. PG-13: Summit Signal |
-| Family TV | 5 TV-Y shows with seasons and episodes | TV-Y7: Story Station. TV-G: Makers Next Door. TV-PG: Market Day. TV-14: Night Shift Academy |
-| Learning Videos | 9 G/TV-Y videos | PG: Make a Paper Circuit. Allow Unrated: Workshop Tour |
-
-Collections (Sky Stories, Build Together, Backyard Science) are reduced to
-their authorized members; Sky Stories includes the PG-13 title, so it shows
-fewer items until Movies is raised to PG-13. Downloads are not part of the
-demo: iPhone/iPad download controls are present, but a download requires a
-real Plex server. Keep this table in sync with `DemoFixtureCatalog`.
-
-### App Review notes
-
-Paste into **App Review Information → Notes** (add the approval reference):
+In App Store Connect, explain the credential-free iPhone/iPad path and any
+platform-specific credentials in **App Review Information → Notes**. Leave
+credentials blank only when the entire submitted review scope needs none.
+Never embed live tokens or passwords in the binary, source, or review URL.
 
 ```text
-Plinx is a parent-managed client for a family's own Plex Media Server. Its only
-sign-in is the user's personal Plex account, so instead of a demo account the
-app includes a built-in demo library (prior approval reference: <ADD>).
-No username, password, Plex account, server, or network access is needed.
+For iPhone and iPad review, no account, password, Plex server, or Internet
+connection is required:
 
-iPhone and iPad
-1. Launch Plinx and tap "Explore the Demo Library".
-2. Home shows Continue Watching and recently added fictional titles. Tap a
-   title for details, then Play: the production player plays a short original
-   demo clip, with resume, seeking, and play/pause.
-3. Library: open Family Movies, Family TV, or Learning Videos. Use
-   Recommended, Browse (with A-Z jump), and Collections. Open a TV show to see
-   seasons and episodes. Search finds titles across libraries.
+1. Launch Plinx, tap the information icon (beside the plex.tv sign-in note on iPhone,
+   or at the top right of the What happens next card on iPad), then
+   tap “Explore the Demo Library” in the Sign-in information sheet.
+2. Browse Family Movies, Family TV, and Learning Videos; use Search and open
+   a title. All titles are fictional examples.
+3. Tap Play to use the normal player with a bundled 90-second sample showing
+   moving graphics and a clock. Try play/pause, seeking, audio tracks, captions,
+   and the in-app Maximum Playback Level setting.
+4. Open Settings through the parent controls. The demo parental PIN is 2468.
+   Defaults are PG/TV-PG and unrated excluded. In Library, use Rating Test
+   Movies (G, PG, PG-13, R, Unrated) and Rating Test TV (TV-Y, TV-Y7, TV-G,
+   TV-PG, TV-14, TV-MA, Unrated). Titles include their ratings. Raise and lower
+   each ceiling independently and toggle Exclude Unrated to check visibility.
+   At the defaults, movies show G/PG and TV shows TV-Y/TV-Y7/TV-G/TV-PG.
+   All videos are safe abstract samples; higher ratings are synthetic labels.
+   The Mixed Ratings Sample playlist/collection also exercises filtering.
+5. Download a movie or episode while the app is open. Open Downloads and play
+   it. You can disconnect Internet access; the demo needs no external service.
+   Delete the sample through Downloads when finished.
+6. Explore contains a fictional Youtarr catalog. Submit a sample video request
+   and inspect its pending state in request history. No external media is fetched.
+7. Sign out through Settings to leave the demo. Re-entering resets demo settings
+   and PIN; existing demo downloads remain accessible after re-entry.
 
-Apple TV (Siri Remote)
-1. On the sign-in screen, swipe down to "Explore the Demo Library" and press
-   Select.
-2. Use the remote to move between Home, Library, Search, and Settings at the
-   top. Select opens or plays the focused title; press and hold Select for
-   Quick Actions (mark watched, More Info); Menu goes back.
-
-Parental controls (core feature)
-1. Open Settings. A parental gate appears; answer the simple math question.
-2. Defaults are Movies G, TV TV-Y, and unrated media hidden. Raise Movies to
-   PG-13 and TV to TV-14, and turn on unrated media: titles such as "Summit
-   Signal", "Night Shift Academy", and "Workshop Tour" now appear in Library
-   and Search. Lower the limits again to hide them. Library visibility can
-   also hide whole libraries.
-
-Downloads (iPhone/iPad only) need a real Plex server and are not part of the
-demo. To leave the demo, use Settings > Log Out.
+The built-in demo demonstrates the media and parental-control experience.
+Normal Plex authentication and profile/server discovery use a real account.
+[For a submission including Apple TV, provide dedicated live account details
+and tested TV instructions here; the credential-free demo is iPhone/iPad only.]
 ```
 
-### Live-account fallback
+Replace the bracketed platform note with tested instructions before submission.
+If a live account is needed, use a non-personal Plex account with access only
+to a continuously available, rights-approved sample server. Put credentials in
+App Store Connect's secure sign-in fields, with profile/PIN and download
+entitlement instructions. Verify access from outside the local network without
+interactive developer assistance or one-time-code approval.
 
-Use only if Apple declines the demo request or asks for live access. Create a
-dedicated, non-personal Plex account, profile, and continuously available
-server containing only rights-approved, non-personal media and artwork that
-reproduce the demo's rating spread plus a downloadable title. Provide the
-credentials only in App Store Connect's secure review fields, along with Plex
-sign-in/2FA handling, server and profile names, the parental PIN if one is
-set, iPhone/iPad download steps, Apple TV remote steps, and a contact who can
-restore access.
+Apple's [review information reference](https://developer.apple.com/help/app-store-connect/reference/app-information/platform-version-information#app-review-information)
+accepts third-party sign-in credentials. Its [guidelines](https://developer.apple.com/app-store/review/guidelines/)
+require full reviewer access and prohibit hidden or undocumented features.
+Keep the information button visible, its demo action clearly labeled, and
+this two-step path disclosed in review notes; do not
+identify Apple reviewers or hide an alternate app behind a remote flag.
+The rejection expressly offers a demonstration mode. If using guideline 2.1's
+legal/security exception instead, obtain the stated prior approval.
+
+Before resubmitting, remove Plex references from the name/subtitle in every
+App Store Connect localization, and avoid implied endorsement in captions or
+artwork. Keep factual compatibility wording and the independence disclaimer
+in the description. Apple's metadata reference excludes other app/company
+names from keywords. Repository edits do not update App Store Connect.
+
+Test the exact release build from fresh installs on iPhone and iPad. Verify
+real playback progression, seeking, captions/audio, movie/episode downloads,
+offline replay, controls, filtering, request creation/history, and exit/re-entry.
+Exercise a normal live Plex session afterward to confirm that family data,
+settings, PIN, and download ownership are unaffected. App Review readiness
+also requires all release gates below; simulator checks alone do not prove the
+signed archive or live-account fallback works.
 
 ## Screenshots
 

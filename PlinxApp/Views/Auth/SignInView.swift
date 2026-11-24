@@ -311,64 +311,17 @@ struct SignInView: View {
         .presentationDragIndicator(.visible)
     }
 
-    @ViewBuilder
-    private func portalBackground(expandedLayout: Bool) -> some View {
-        let gradient = LinearGradient(
-            colors: [
-                PlinxBrand.lime,
-                PlinxBrand.teal,
-                PlinxBrand.teal.opacity(0.74),
-                PlinxBrand.charcoal
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-
-        if expandedLayout {
-            PlinxAmbientBackground(intensity: .hero)
-        } else {
-            RoundedRectangle(cornerRadius: 42, style: .continuous)
-                .fill(gradient)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 42, style: .continuous)
-                        .fill(
-                            RadialGradient(
-                                colors: [Color.white.opacity(0.18), .clear],
-                                center: .topLeading,
-                                startRadius: 20,
-                                endRadius: 480
-                            )
-                        )
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 42, style: .continuous)
-                        .stroke(
-                            LinearGradient(
-                                colors: [
-                                    Color(red: 0.78, green: 1.0, blue: 0.54),
-                                    Color.accentColor.opacity(0.84)
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            ),
-                            lineWidth: 1.5
-                        )
-                )
-                .shadow(color: Color.accentColor.opacity(0.26), radius: 24, x: 0, y: 10)
-        }
-    }
     #endif
 
     private func launchDemo() {
         guard !isLaunchingDemo else { return }
         isLaunchingDemo = true
+        demoLaunchFailed = false
         // Stop any pending Plex PIN poll so a late sign-in cannot race the demo.
         viewModel.cancelSignIn()
         Task { @MainActor in
-            await DemoFixtureBootstrap.start(
-                sessionManager: sessionManager,
-                context: plexApiContext,
-            )
+            await DemoFixtureBootstrap.start(sessionManager: sessionManager, context: plexApiContext)
+            demoLaunchFailed = sessionManager.status != .ready
             isLaunchingDemo = false
         }
     }

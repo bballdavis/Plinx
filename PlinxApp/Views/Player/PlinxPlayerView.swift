@@ -39,7 +39,10 @@ struct PlinxPlayerView: View {
                     PlinxContentAuthorization.isAllowed(item, policy: safetyPolicy)
                 }
             )
-            .ignoresSafeArea()
+            // PlayerSurfaceView extends the video itself to every edge. Keep
+            // the wrapper's safe area so controls avoid the Duo status region
+            // and the closed display's camera and home indicator.
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             #if os(tvOS)
             .plinxQuickActionLongPress {
                 guard let media = viewModel.media else { return }
