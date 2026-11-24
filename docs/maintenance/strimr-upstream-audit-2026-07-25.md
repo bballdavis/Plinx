@@ -2,6 +2,9 @@
 
 Baseline refreshed on 2026-07-26 before migration work began.
 
+The 2026-11-23 follow-up audit, covering upstream through `0235d27`, is in the
+[upstream migration plan](strimr-contributions/15-upstream-main-migration-plan.md).
+
 ## Implementation Status
 
 Implementation is underway on the feature-specific pair:
@@ -268,6 +271,7 @@ The individual plans are stored in
 12. [Host-app Plex authentication identity](strimr-contributions/12-plex-authentication-product-identity.md)
 13. [Download enrollment and access scoping](strimr-contributions/13-download-enrollment-and-access-scoping.md)
 14. [Player-title interaction lifetime](strimr-contributions/14-player-title-interaction-lifetime.md)
+15. [Upstream migration plan, 2026-11](strimr-contributions/15-upstream-main-migration-plan.md): triage of the 282 upstream commits after `e0a8cbc`
 
 ## Upstream Commit Appendix
 

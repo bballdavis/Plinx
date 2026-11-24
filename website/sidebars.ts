@@ -77,6 +77,8 @@ const sidebars: SidebarsConfig = {
       items: [
         'maintenance/current-dependencies',
         'maintenance/strimr-upstream-audit-2026-07-25',
+        'maintenance/strimr-hard-fork-plan',
+        'maintenance/strimr-contributions/upstream-main-migration-plan',
         {
           type: 'category',
           label: 'Strimr contribution plans',
