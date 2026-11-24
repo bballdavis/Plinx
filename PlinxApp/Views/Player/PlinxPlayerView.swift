@@ -1,4 +1,5 @@
 import PlinxUI
+import PlinxCore
 import SwiftUI
 
 /// Plinx-styled player screen.
@@ -12,8 +13,13 @@ import SwiftUI
 struct PlinxPlayerView: View {
     @Binding var isPresented: Bool
     let viewModel: PlayerViewModel
+    let onRequestMoreInfo: (MediaItem) -> Void
 
     @Environment(\.safetyPolicy) private var safetyPolicy
+    @Environment(PlexAPIContext.self) private var plexApiContext
+    @Environment(PlinxWatchStatusStore.self) private var watchStatusStore
+    @State private var quickActionMedia: MediaItem?
+    @State private var quickActionErrorMessage: String?
 
     var body: some View {
         ZStack {
@@ -29,11 +35,122 @@ struct PlinxPlayerView: View {
                 }
             )
             .ignoresSafeArea()
+            #if os(tvOS)
+            .plinxQuickActionLongPress {
+                guard let media = viewModel.media else { return }
+                presentQuickActions(for: media)
+            }
+            .allowsHitTesting(quickActionMedia == nil)
+            .accessibilityHidden(quickActionMedia != nil)
+            #endif
+
+            #if !os(tvOS)
+            if let media = viewModel.media,
+               PlinxContentAuthorization.isAllowed(media, policy: safetyPolicy)
+            {
+                playerQuickActionsButton(for: media)
+                    .allowsHitTesting(quickActionMedia == nil)
+                    .accessibilityHidden(quickActionMedia != nil)
+            }
+            #endif
+
+            if let media = quickActionMedia {
+                PlinxQuickActionMenu(
+                    title: media.title,
+                    options: playerQuickActionOptions(for: media),
+                    onDismiss: { quickActionMedia = nil }
+                )
+            }
         }
         #if !os(tvOS)
         .statusBarHidden(true)
         .persistentSystemOverlays(.hidden)
         #endif
+        .alert(
+            Text("common.error.actionFailed", tableName: "Plinx"),
+            isPresented: Binding(
+                get: { quickActionErrorMessage != nil },
+                set: { if !$0 { quickActionErrorMessage = nil } }
+            )
+        ) {
+            Button(String(localized: "common.actions.ok", table: "Plinx"), role: .cancel) {}
+        } message: {
+            Text(quickActionErrorMessage ?? "")
+        }
+    }
+
+    @ViewBuilder
+    private func playerQuickActionsButton(for media: MediaItem) -> some View {
+        VStack {
+            HStack {
+                Spacer()
+                Button {
+                    presentQuickActions(for: media)
+                } label: {
+                    Label(
+                        String(localized: "quickActions.moreActions", table: "Plinx"),
+                        systemImage: "ellipsis.circle"
+                    )
+                }
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("player.moreActions")
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 40)
+        .padding(.top, 42)
+    }
+
+    private func presentQuickActions(for media: MediaItem) {
+        guard viewModel.media?.id == media.id,
+              PlinxContentAuthorization.isAllowed(media, policy: safetyPolicy)
+        else {
+            quickActionErrorMessage = String(localized: "media.unavailable.title", table: "Plinx")
+            return
+        }
+        quickActionMedia = media
+    }
+
+    private func playerQuickActionOptions(for media: MediaItem) -> [PlinxQuickActionOption] {
+        [
+            PlinxQuickActionOption(
+                id: "toggle-watched",
+                title: watchStatusStore.isWatched(media)
+                    ? String(localized: "quickActions.markUnwatched", table: "Plinx")
+                    : String(localized: "quickActions.markWatched", table: "Plinx"),
+                systemImage: watchStatusStore.isWatched(media) ? "checkmark.circle.fill" : "checkmark.circle",
+                role: nil,
+                action: {
+                    Task { await toggleWatched(media) }
+                }
+            ),
+            PlinxQuickActionOption(
+                id: "go-details",
+                title: String(localized: "quickActions.moreInfo", table: "Plinx"),
+                systemImage: "info.circle",
+                role: nil,
+                action: {
+                    guard PlinxContentAuthorization.isAllowed(media, policy: safetyPolicy) else {
+                        quickActionErrorMessage = String(localized: "media.unavailable.title", table: "Plinx")
+                        return
+                    }
+                    onRequestMoreInfo(media)
+                    isPresented = false
+                }
+            ),
+        ]
+    }
+
+    private func toggleWatched(_ media: MediaItem) async {
+        guard PlinxContentAuthorization.isAllowed(media, policy: safetyPolicy) else {
+            quickActionErrorMessage = String(localized: "media.unavailable.title", table: "Plinx")
+            return
+        }
+        do {
+            _ = try await watchStatusStore.toggle(media, context: plexApiContext, isAllowed: true)
+        } catch {
+            quickActionErrorMessage = error.localizedDescription
+        }
     }
 }
 
@@ -213,28 +330,15 @@ struct PlinxPlaybackPresentationView: View {
     @EnvironmentObject private var playbackLaunchCoordinator: PlaybackLaunchCoordinator
     @Environment(PlexAPIContext.self) private var plexApiContext
     @State private var playerViewModel: PlayerViewModel?
+    let onRequestMoreInfo: (MediaItem) -> Void
 
     var body: some View {
         Group {
-            if DemoFixtureBootstrap.isActive {
-                if let playQueue = mainCoordinator.selectedPlayQueue {
-                    DemoPlaybackView(
-                        playQueue: playQueue,
-                        onExit: {
-                            playbackLaunchCoordinator.cancelPendingLaunch()
-                            mainCoordinator.resetPlayer()
-                        },
-                    )
-                } else {
-                    PlinxPlaybackLoadingView {
-                        playbackLaunchCoordinator.cancelPendingLaunch()
-                        mainCoordinator.resetPlayer()
-                    }
-                }
-            } else if let playerViewModel {
+            if let playerViewModel {
                 PlinxPlayerView(
                     isPresented: playerPresentationBinding,
-                    viewModel: playerViewModel
+                    viewModel: playerViewModel,
+                    onRequestMoreInfo: onRequestMoreInfo
                 )
             } else {
                 PlinxPlaybackLoadingView {
@@ -245,11 +349,6 @@ struct PlinxPlaybackPresentationView: View {
         }
         .task(id: mainCoordinator.selectedPlayQueue?.id) {
             guard let playQueue = mainCoordinator.selectedPlayQueue else {
-                playerViewModel = nil
-                return
-            }
-
-            guard !DemoFixtureBootstrap.isActive else {
                 playerViewModel = nil
                 return
             }

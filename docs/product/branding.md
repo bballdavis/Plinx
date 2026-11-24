@@ -607,10 +607,22 @@ rounded rectangle with a translucent material base, light accent fill, and
 solid accent border. Play is the wide, 70-point primary action; Restart uses a
 matching 70-by-70-point rounded square. On iPhone and iPad, Watch and Download
 use 64-by-64-point secondary controls so they are easier for children to
-target. Apple TV uses the same treatment with a 68-by-68-point Watch control.
-The treatment uses Plinx's user-selected accent. Secondary controls use large,
-plain SF Symbols rather than circle-contained glyphs: a checkmark for Watch
-and a downward arrow for Download.
+target. The treatment uses Plinx's user-selected accent. Secondary controls
+use large, plain SF Symbols rather than circle-contained glyphs: a checkmark
+for Watch and a downward arrow for Download.
+
+On Apple TV, More Info is a scrollable detail page rather than a compact Home
+hero. Supportive trailing backdrop artwork fades into a readable leading detail
+column with the title or title logo, labels, metadata, ratings, tagline, a
+four-line synopsis with a Read More/Show Less disclosure, genres, studio, and
+status. The content column uses most of the safe horizontal reading area. A
+local Back control sits below the persistent shell chrome; Back is the first
+focus target and Up returns to shell navigation. Resume/Play flexes beside
+icon-only Restart, when available, and watched-state actions in one consistent-
+height row; SharePlay, when enabled, follows as a full-width secondary action.
+Season,
+episode, cast, and related rows continue below the detail column in the same
+scrolling page, with one useful season empty state when no seasons are present.
 
 Watchlist and Shuffle are intentionally hidden from Plinx media details on iOS,
 iPadOS, and tvOS. The rows are not exposed through Strimr's public view API, so
@@ -789,6 +801,11 @@ surface without also activating the card. Home, Search, Library, Collection,
 and Playlist cards share this behavior. The sheet uses dark rounded actions,
 white labels, and the shared gradient focus ring; downloads remain absent on
 tvOS. Menu dismisses the sheet and returns focus to the originating card.
+The More Info page keeps watched state in its shared action row, while the
+Apple TV player opens its quick actions only from a surface-wide Select hold;
+it does not add a persistent More Actions control over video. Player More Info
+dismisses playback before changing root navigation. Other platforms keep their
+existing player action presentation.
 
 ## Key Screen Rules
 
@@ -865,6 +882,12 @@ Rules:
   the first content row. Blend it gradually on the left, then fade it through
   that first row into the dark shell below. Keep the clear-logo layer above
   those fades and anchored to the original hero content guide.
+- On the tvOS Home shelf boundary, use a narrow viewport-edge alpha fade that
+  reveals the actual pinned hero artwork/background beneath the transparent
+  shelf; never paint a black, shell-colored, or material transition band over
+  the boundary. Card titles and subtitles use their card artwork's real
+  scroll-view position, fading only as the artwork's last visible slice leaves
+  the viewport, so text never floats behind a scrolled-away card.
 - On tvOS, text metadata belongs in the leading safe area without a surrounding
   panel. Reserve a fixed metadata row and four-line summary footprint so titles,
   ratings, controls, and content rows do not move when descriptions vary. Use a
@@ -944,6 +967,34 @@ Rules:
   shared focus ring.
 
 ## Player controls
+
+The iPhone, iPad, and Apple TV timeline uses a raised white circular crown with
+rounded shoulder transitions into the horizontal track, plus a separate position
+dot. The dot center is the true playback position. At the beginning
+and end, crop the arch at the track boundary into a half-arch profile while
+keeping the entire dot visible; never move the zero or duration endpoints
+inward to fit the shape.
+
+On touch devices, use a 6-point track, a 22-point-radius circular crown rising
+22 points, with 6-point shoulder fillets inside the same 56-point arch envelope,
+and a 12-point dot in a reserved 64-point control row. The invisible handle
+target is at least 64 by 64 points and shifts inward at the endpoints. Only
+dragging that target seeks: track taps and handle taps do nothing. Preserve
+the finger's initial offset so an off-center grab does not jump. Labels stay
+below the control, with monospaced digits and space for hours.
+
+Apple TV uses an 8-point track, a 34-point-radius circular crown rising 34
+points, with 8-point shoulder fillets inside the same 84-point arch envelope,
+and an 18-point dot in an 88-point row. Left/right retains accelerated directional
+scrubbing and commits after 0.4 seconds without another move, or on focus
+loss. Focus uses no surrounding box: the position dot changes to the active
+accent and grows to 125% without shifting the timeline's position mapping.
+
+Both platforms preview the new time while playback continues and seek once
+the interaction finishes. The buffer remains anchored to actual playback,
+not the preview. Unknown or invalid duration disables seeking. The timeline
+is one accessible adjustable playback-position control; decorative shapes
+and duplicate labels stay out of accessibility navigation.
 
 On tvOS, transport, jump, Skip Intro/Ending, audio, subtitle, and track-choice
 controls use app-owned dark rounded surfaces. Live focus adds the shared

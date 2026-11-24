@@ -76,6 +76,8 @@ targets:
       - path: ../../strimr/Shared
         name: StrimrShared
         excludes:
+          # Plinx owns the raised timeline and platform input behavior.
+          - "Features/Player/Controls/PlayerTimelineView.swift"
           # Plinx replaces the generic launcher with a final fail-closed
           # authorization boundary immediately before queue creation.
           - "Features/Player/PlaybackLauncher.swift"
@@ -123,6 +125,8 @@ targets:
       # Localized strings — listed explicitly because xcodegen skips xcstrings
       # and needs lproj bundles spelled out.
       - path: Resources/en.lproj/Plinx.strings
+      # Original, generated App Review demo clip (scripts/support/demo_clip).
+      - path: Resources/DemoFixture
       - path: ../../strimr/Localizable.xcstrings
 
     dependencies:
@@ -243,6 +247,8 @@ targets:
       - path: ../../strimr/Shared
         name: StrimrShared
         excludes:
+          # Same timeline contract as iOS, with Plinx remote/focus handling.
+          - "Features/Player/Controls/PlayerTimelineView.swift"
           - "Features/Player/PlaybackLauncher.swift"
           - "Views/Media/MediaBackdropGradient.swift"
           - "Views/Media/MediaRatingLabel.swift"
@@ -276,6 +282,9 @@ targets:
       - path: Resources/PrivacyInfo.xcprivacy
       - path: Resources/Assets.xcassets
       - path: ../../strimr/Localizable.xcstrings
+      - path: Resources/en.lproj/Plinx.strings
+      # Original, generated App Review demo clip (scripts/support/demo_clip).
+      - path: Resources/DemoFixture
 
     dependencies:
       - package: PlinxCore
@@ -311,6 +320,7 @@ targets:
     sources:
       - path: UnitTestsTV
       - path: UnitTests/LiveTestCredentials.swift
+      - path: UnitTests/PlayerTimelineTests.swift
 
     dependencies:
       - target: Plinx-tvOS
@@ -332,6 +342,7 @@ targets:
 
     sources:
       - path: UITestsTV
+      - path: UITests/PlayerTimelineUITests.swift
 
     dependencies:
       - target: Plinx-tvOS

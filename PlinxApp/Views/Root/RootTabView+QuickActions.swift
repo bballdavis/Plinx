@@ -4,181 +4,28 @@ import SwiftUI
 
 extension RootTabView {
     func quickActionSheet(for item: MediaDisplayItem) -> some View {
-        let options = quickActionOptions(for: item)
-        let optionIDs = options.map(\.id)
-        return ZStack(alignment: .bottom) {
-            Color.black.opacity(0.45)
-                .ignoresSafeArea()
-                .accessibilityIdentifier("quickAction.backdrop")
-                .onTapGesture {
-                    selectedQuickActionMedia = nil
-                }
-
-            VStack(alignment: .leading, spacing: 12) {
-                Color.clear
-                    .frame(width: 1, height: 1)
-                    .accessibilityElement()
-                    .accessibilityIdentifier("quickAction.sheet")
-
-                Text(item.title)
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .lineLimit(2)
-
-                ForEach(options) { option in
-                    quickActionButton(option)
-                }
-
-                quickActionCancelButton
-            }
-            .padding(14)
-            .liquidGlassBackground(style: PlinxTheme.Glass(cornerRadius: quickActionCornerRadius))
-            .padding(.horizontal, 16)
-            .padding(.bottom, 16)
-            #if os(tvOS)
-                .focusSection()
-            #endif
-        }
-        #if os(tvOS)
-        .onAppear {
-            Task { @MainActor in
-                await Task.yield()
-                focusedQuickActionID = optionIDs.first ?? QuickActionFocusOrder.cancelID
-            }
-        }
-        .onDisappear {
-            focusedQuickActionID = nil
-        }
-        .onMoveCommand { direction in
-            handleQuickActionMove(direction, optionIDs: optionIDs)
-        }
-        .onPlayPauseCommand {
-            performFocusedQuickAction(options)
-        }
-        .onExitCommand {
-            selectedQuickActionMedia = nil
-        }
-        #endif
-    }
-
-    var quickActionCancelButton: some View {
-        #if os(tvOS)
-        let isFocused = focusedQuickActionID == QuickActionFocusOrder.cancelID
-        #else
-        let isFocused = false
-        #endif
-
-        return Button {
-            selectedQuickActionMedia = nil
-        } label: {
-            Text(String(localized: "common.actions.cancel"))
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.95))
-                .frame(maxWidth: .infinity, minHeight: quickActionCancelMinHeight)
-                .background(
-                    RoundedRectangle(cornerRadius: quickActionCornerRadius, style: .continuous)
-                        .fill(PlinxBrand.surface.opacity(isFocused ? 1 : 0.9))
-                )
-                .plinxFocusSurface(
-                    isSelected: false,
-                    isFocused: isFocused,
-                    style: PlinxFocusSurfaceStyle(cornerRadius: quickActionCornerRadius)
-                )
-        }
-        .buttonStyle(.plain)
-        #if os(tvOS)
-            .focusEffectDisabled()
-            .focused($focusedQuickActionID, equals: QuickActionFocusOrder.cancelID)
-        #endif
-            .accessibilityIdentifier("quickAction.cancel")
-    }
-
-    func quickActionButton(_ option: QuickActionOption) -> some View {
-        #if os(tvOS)
-        let isFocused = focusedQuickActionID == option.id
-        #else
-        let isFocused = false
-        #endif
-
-        return Button(role: option.role) {
-            performQuickAction(option.action)
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: option.systemImage)
-                    .font(.system(size: quickActionIconSize, weight: .semibold))
-                Text(option.title)
-                    .font(.subheadline.weight(.semibold))
-                Spacer()
-            }
-            .foregroundStyle(.white.opacity(0.95))
-            .padding(.horizontal, quickActionHorizontalPadding)
-            .frame(maxWidth: .infinity, minHeight: quickActionOptionMinHeight)
-            .background(
-                RoundedRectangle(cornerRadius: quickActionCornerRadius, style: .continuous)
-                    .fill(PlinxBrand.surface.opacity(isFocused ? 1 : 0.94))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: quickActionCornerRadius, style: .continuous)
-                    .stroke(Color.accentColor.opacity(0.32), lineWidth: 1)
-            )
-            .plinxFocusSurface(
-                isSelected: false,
-                isFocused: isFocused,
-                style: PlinxFocusSurfaceStyle(cornerRadius: quickActionCornerRadius)
-            )
-        }
-        .buttonStyle(PlinkButtonStyle())
-        #if os(tvOS)
-            .focusEffectDisabled()
-            .focused($focusedQuickActionID, equals: option.id)
-        #endif
-            .accessibilityIdentifier("quickAction.option.\(option.id)")
-    }
-
-    #if os(tvOS)
-    func handleQuickActionMove(_ direction: MoveCommandDirection, optionIDs: [String]) {
-        let focusDirection: QuickActionFocusDirection
-        switch direction {
-        case .up:
-            focusDirection = .up
-        case .down:
-            focusDirection = .down
-        default:
-            return
-        }
-
-        focusedQuickActionID = QuickActionFocusOrder.nextFocusedID(
-            current: focusedQuickActionID,
-            optionIDs: optionIDs,
-            direction: focusDirection
+        PlinxQuickActionMenu(
+            title: item.title,
+            options: quickActionOptions(for: item),
+            onDismiss: { selectedQuickActionMedia = nil }
         )
     }
 
-    func performFocusedQuickAction(_ options: [QuickActionOption]) {
-        guard let focusedQuickActionID else { return }
-        if focusedQuickActionID == QuickActionFocusOrder.cancelID {
-            selectedQuickActionMedia = nil
+    func presentQuickActions(for item: MediaDisplayItem, showsPrimary: Bool = true) {
+        guard PlinxContentAuthorization.isAllowed(item, policy: safetyPolicy) else {
+            quickActionErrorMessage = String(localized: "media.unavailable.title", table: "Plinx")
             return
         }
-
-        guard let option = options.first(where: { $0.id == focusedQuickActionID }) else { return }
-        performQuickAction(option.action)
-    }
-    #endif
-
-    func performQuickAction(_ action: @escaping () -> Void) {
-        selectedQuickActionMedia = nil
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 220_000_000)
-            action()
-        }
+        quickActionShowsPrimary = showsPrimary
+        selectedQuickActionMedia = item
     }
 
-    func quickActionOptions(for item: MediaDisplayItem) -> [QuickActionOption] {
+    func quickActionOptions(for item: MediaDisplayItem) -> [PlinxQuickActionOption] {
         switch item {
         case let .playable(media):
-            var actions: [QuickActionOption] = [
-                QuickActionOption(
+            var actions: [PlinxQuickActionOption] = []
+            if quickActionShowsPrimary {
+                actions.append(PlinxQuickActionOption(
                     id: "play",
                     title: String(localized: "common.actions.play"),
                     systemImage: "play.fill",
@@ -186,8 +33,10 @@ extension RootTabView {
                     action: {
                         handlePrimarySelection(item)
                     }
-                ),
-                QuickActionOption(
+                ))
+            }
+            actions.append(
+                PlinxQuickActionOption(
                     id: "toggle-watched",
                     title: isWatched(media)
                         ? String(localized: "quickActions.markUnwatched", table: "Plinx")
@@ -197,8 +46,8 @@ extension RootTabView {
                     action: {
                         Task { await toggleWatched(media) }
                     }
-                ),
-            ]
+                )
+            )
 
             #if !os(tvOS)
             switch QuickActionDownloadActionPolicy.action(for: media, downloadItems: downloadManager.items) {
@@ -214,7 +63,7 @@ extension RootTabView {
                 }
 
                 actions.append(
-                    QuickActionOption(
+                    PlinxQuickActionOption(
                         id: "download-\(media.id)",
                         title: downloadTitle,
                         systemImage: "arrow.down.circle",
@@ -260,7 +109,7 @@ extension RootTabView {
                 )
             case .goToDownloads:
                 actions.append(
-                    QuickActionOption(
+                    PlinxQuickActionOption(
                         id: "go-downloads-\(media.id)",
                         title: "Go to downloads",
                         systemImage: "arrow.down.circle.fill",
@@ -274,8 +123,8 @@ extension RootTabView {
             }
             #endif
 
-            actions.append(
-                QuickActionOption(
+            if quickActionShowsPrimary {
+                actions.append(PlinxQuickActionOption(
                     id: "go-details",
                     title: String(localized: "quickActions.moreInfo", table: "Plinx"),
                     systemImage: "info.circle",
@@ -283,14 +132,14 @@ extension RootTabView {
                     action: {
                         mainCoordinator.showMediaDetail(media)
                     }
-                )
-            )
+                ))
+            }
 
             return actions
 
         case let .collection(collection):
             return [
-                QuickActionOption(
+                PlinxQuickActionOption(
                     id: "collection-details-\(collection.id)",
                     title: String(localized: "quickActions.moreInfo", table: "Plinx"),
                     systemImage: "info.circle",
@@ -303,7 +152,7 @@ extension RootTabView {
 
         case let .playlist(playlist):
             return [
-                QuickActionOption(
+                PlinxQuickActionOption(
                     id: "playlist-play-\(playlist.id)",
                     title: String(localized: "common.actions.play"),
                     systemImage: "play.fill",
@@ -312,7 +161,7 @@ extension RootTabView {
                         handlePrimarySelection(item)
                     }
                 ),
-                QuickActionOption(
+                PlinxQuickActionOption(
                     id: "playlist-details-\(playlist.id)",
                     title: String(localized: "quickActions.moreInfo", table: "Plinx"),
                     systemImage: "info.circle",
@@ -330,51 +179,28 @@ extension RootTabView {
             selectedQuickActionMedia = nil
             return
         }
-        let wasWatched = isWatched(item)
-
-        // Optimistic local update — instant UI feedback
-        watchedOverrides[item.id] = !wasWatched
-        selectedQuickActionMedia = nil
 
         do {
-            let scrobbleRepository = try ScrobbleRepository(context: plexApiContext)
-            if wasWatched {
-                try await scrobbleRepository.markUnwatched(key: item.id)
-            } else {
-                try await scrobbleRepository.markWatched(key: item.id)
+            let didMutate = try await watchStatusStore.toggle(
+                item,
+                context: plexApiContext,
+                isAllowed: PlinxContentAuthorization.isAllowed(item, policy: safetyPolicy)
+            )
+            if didMutate {
+                // Preserve the successful shared override while independently
+                // owned source models reload from the server.
+                await homeViewModel?.reload()
             }
-            // Reload from server to refresh home data. Keep the successful
-            // local override in place so independently owned library view
-            // models cannot briefly revert to stale watch state.
-            await homeViewModel?.reload()
         } catch {
-            // Revert optimistic update on failure
-            watchedOverrides.removeValue(forKey: item.id)
             quickActionErrorMessage = error.localizedDescription
         }
     }
 
     func isWatched(_ item: MediaItem) -> Bool {
-        // Check local override first (instant feedback)
-        if let override = watchedOverrides[item.id] {
-            return override
-        }
-        guard let playableType = PlayableItemType(plexType: item.type) else { return false }
-
-        switch playableType {
-        case .movie, .episode, .clip:
-            return (item.viewCount ?? 0) > 0
-        case .show, .season:
-            guard let leafCount = item.leafCount, let viewedLeafCount = item.viewedLeafCount else {
-                return false
-            }
-            guard leafCount > 0 else { return false }
-            return leafCount == viewedLeafCount
-        }
+        watchStatusStore.isWatched(item)
     }
 
     func isWatchedDisplay(_ item: MediaDisplayItem) -> Bool {
-        guard let media = item.playableItem else { return false }
-        return isWatched(media)
+        watchStatusStore.isWatched(item)
     }
 }

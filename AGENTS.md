@@ -39,7 +39,7 @@ Any PR that changes app structure, user-visible behavior, branding, safety/priva
 
 - Keep prose in `docs/`; do not copy it into `website/` pages or components.
 - Preserve the zero-collection baseline for the public documentation site: no analytics, remote search, trackers, or third-party embeds without an explicit privacy decision and documentation update.
-- The exact current Strimr pin, upstream base, AetherEngine revision, and Xcode version are owned by `config/release-dependencies.env`, `PlinxApp/project.yml`, and `.xcode-version`. Render them through the documentation dependency-status loader; do not hard-code current revisions in narrative docs.
+- The exact current Strimr pin, upstream base, AetherEngine revision, and configured Xcode version are owned by `config/release-dependencies.env` and `PlinxApp/project.yml`. Render them through the documentation dependency-status loader; do not hard-code current revisions in narrative docs.
 - Strimr upgrades are manual compatibility work. Never automatically advance the paired branch or pin; follow `docs/development/branch-pairing.md` and run the full integration contract before changing it.
 - A Strimr migration is not complete until the upgrade inventory accounts for
   every downstream patch as adopted, dropped, kept in Plinx, or replayed; the

@@ -13,6 +13,7 @@ struct PlinxLibraryRecommendedRowsView: View {
     @Binding var heroMedia: MediaItem?
     let usesLandscapeCards: Bool
     let onSelectMedia: (MediaDisplayItem) -> Void
+    let onLongPressMedia: (MediaDisplayItem) -> Void
 
     private let landscapeHubIdentifiers: [String] = ["inprogress"]
 
@@ -71,13 +72,15 @@ struct PlinxLibraryRecommendedRowsView: View {
             PlinxLibraryLandscapeCarousel(
                 items: hub.items,
                 showsLabels: true,
-                onSelectMedia: onSelectMedia
+                onSelectMedia: onSelectMedia,
+                onLongPressMedia: onLongPressMedia
             )
         } else {
             PlinxLibraryPortraitCarousel(
                 items: hub.items,
                 showsLabels: true,
-                onSelectMedia: onSelectMedia
+                onSelectMedia: onSelectMedia,
+                onLongPressMedia: onLongPressMedia
             )
         }
     }
@@ -124,6 +127,7 @@ private struct PlinxLibraryLandscapeCarousel: View {
     let items: [MediaDisplayItem]
     let showsLabels: Bool
     let onSelectMedia: (MediaDisplayItem) -> Void
+    let onLongPressMedia: (MediaDisplayItem) -> Void
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -132,6 +136,7 @@ private struct PlinxLibraryLandscapeCarousel: View {
                     PlinxLibraryLandscapeMediaCard(media: media, showsLabels: showsLabels) {
                         onSelectMedia(media)
                     }
+                    .plinxQuickActionLongPress { onLongPressMedia(media) }
                 }
             }
             .padding(.vertical, 20)
@@ -147,6 +152,7 @@ private struct PlinxLibraryPortraitCarousel: View {
     let items: [MediaDisplayItem]
     let showsLabels: Bool
     let onSelectMedia: (MediaDisplayItem) -> Void
+    let onLongPressMedia: (MediaDisplayItem) -> Void
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -155,6 +161,7 @@ private struct PlinxLibraryPortraitCarousel: View {
                     PlinxLibraryPortraitMediaCard(media: media, showsLabels: showsLabels) {
                         onSelectMedia(media)
                     }
+                    .plinxQuickActionLongPress { onLongPressMedia(media) }
                 }
             }
             .padding(.vertical, 16)
@@ -428,6 +435,7 @@ struct PlinxLibraryBrowseRowsView: View {
     @Binding var heroMedia: MediaItem?
     let usesLandscapeCards: Bool
     let onSelectMedia: (MediaDisplayItem) -> Void
+    let onLongPressMedia: (MediaDisplayItem) -> Void
     let onJumpToIndex: (Int) -> Void
 
     private var cardWidth: CGFloat {
@@ -465,10 +473,12 @@ struct PlinxLibraryBrowseRowsView: View {
                                         PlinxLibraryLandscapeMediaCard(media: media, width: cardWidth, showsLabels: true) {
                                             onSelectMedia(media)
                                         }
+                                        .plinxQuickActionLongPress { onLongPressMedia(media) }
                                     } else {
                                         PlinxLibraryPortraitMediaCard(media: media, width: cardWidth, showsLabels: true) {
                                             onSelectMedia(media)
                                         }
+                                        .plinxQuickActionLongPress { onLongPressMedia(media) }
                                     }
                                 case let .folder(folder):
                                     FolderCard(title: folder.title, height: cardHeight, width: cardWidth, showsLabels: true) {
@@ -641,6 +651,7 @@ struct PlinxLibraryCollectionsRowsView: View {
     @Binding var heroMedia: MediaItem?
     let usesLandscapeCards: Bool
     let onSelectMedia: (MediaDisplayItem) -> Void
+    let onLongPressMedia: (MediaDisplayItem) -> Void
     let onJumpToIndex: (Int) -> Void
 
     private var cardWidth: CGFloat {
@@ -662,10 +673,12 @@ struct PlinxLibraryCollectionsRowsView: View {
                                     PlinxLibraryLandscapeMediaCard(media: media, width: cardWidth, showsLabels: true) {
                                         onSelectMedia(media)
                                     }
+                                    .plinxQuickActionLongPress { onLongPressMedia(media) }
                                 } else {
                                     PlinxLibraryPortraitMediaCard(media: media, width: cardWidth, showsLabels: true) {
                                         onSelectMedia(media)
                                     }
+                                    .plinxQuickActionLongPress { onLongPressMedia(media) }
                                 }
                             } else {
                                 ProgressView()

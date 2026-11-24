@@ -24,23 +24,37 @@ function readRequiredEnvironmentValue(source, name) {
   return value;
 }
 
+function readRequiredProjectOption(source, name) {
+  const match = source.match(
+    new RegExp(`^options:\\r?\\n(?:^[ \\t]+.*(?:\\r?\\n|$))*?^[ \\t]+${name}:\\s*["']?([^"'\\s]+)["']?\\s*$`, 'm'),
+  );
+  if (!match) {
+    fail(`${name} is missing from PlinxApp/project.yml`);
+  }
+
+  const value = match[1].trim();
+  if (!value) {
+    fail(`${name} is empty in PlinxApp/project.yml`);
+  }
+  return value;
+}
+
 export function readDependencyStatus(repositoryRoot = defaultRepositoryRoot) {
   const dependencyConfigPath = path.join(repositoryRoot, 'config/release-dependencies.env');
   const projectPath = path.join(repositoryRoot, 'PlinxApp/project.yml');
-  const xcodeVersionPath = path.join(repositoryRoot, '.xcode-version');
   const dependencyConfig = fs.readFileSync(dependencyConfigPath, 'utf8');
   const project = fs.readFileSync(projectPath, 'utf8');
-  const xcodeVersion = fs.readFileSync(xcodeVersionPath, 'utf8').trim();
 
   const strimrCommit = readRequiredEnvironmentValue(dependencyConfig, 'STRIMR_COMMIT');
   const strimrBranch = readRequiredEnvironmentValue(dependencyConfig, 'STRIMR_BRANCH');
   const strimrUpstreamBase = readRequiredEnvironmentValue(dependencyConfig, 'STRIMR_UPSTREAM_BASE');
+  const xcodeVersion = readRequiredProjectOption(project, 'xcodeVersion');
   const aetherMatch = project.match(/AetherEngine:\s*\n\s*url:[^\n]+\n\s*revision:\s*([0-9a-f]{40})/);
 
   if (!commitPattern.test(strimrCommit)) fail('STRIMR_COMMIT must be a 40-character lowercase Git SHA');
   if (!commitPattern.test(strimrUpstreamBase)) fail('STRIMR_UPSTREAM_BASE must be a 40-character lowercase Git SHA');
   if (!aetherMatch) fail('AetherEngine revision is missing or malformed in PlinxApp/project.yml');
-  if (!xcodePattern.test(xcodeVersion)) fail('.xcode-version must contain a semantic Xcode version');
+  if (!xcodePattern.test(xcodeVersion)) fail('xcodeVersion in PlinxApp/project.yml must contain a semantic Xcode version');
 
   return {
     strimr: {

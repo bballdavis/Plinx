@@ -61,6 +61,38 @@ Preferred order:
 3. Plinx package API
 4. minimal Strimr patch only if the above are not sufficient
 
+## Plinx-owned player timeline
+
+Both app targets exclude Strimr's shared `PlayerTimelineView.swift` and compile
+the Plinx-owned timeline in `PlinxApp/Views/Player/`. The replacement retains
+the same position binding, duration, buffer inputs, and editing callback, so
+the upstream iOS and tvOS player lifecycle remains the owner of seeking and
+playback completion. Plinx owns vector geometry, touch tracking, remote focus,
+accessibility, and interaction cleanup. No paired-source patch is required.
+
+The parent resets its timeline binding on editing begin. The timeline must
+therefore send the begin callback before writing a preview, then finish once
+with the final valid position already in the binding. Interruptions finish
+the current preview; they do not introduce pause/resume or end-of-media
+events. Timer cancellation and generation checks prevent stale TV commits.
+
+Unknown duration disables new interactions. If duration disappears during
+scrubbing, the timeline restores the last finite authoritative position before
+closing the existing editing callback. This compatibility callback still
+passes through the existing seek handler; it is not a new engine cancel API.
+
+## Plinx-owned watched actions
+
+Quick-action presentation and optimistic watched status are Plinx-owned. A
+shared status store spans the root and full-screen player presentations while
+the paired Strimr `ScrobbleRepository` remains the only server mutation path.
+The player exposes watched and More Info actions only after media is loaded and
+passes Plinx content authorization; it never exposes download actions. More
+Info queues root navigation until the player cover has dismissed, so a normal
+player exit cannot navigate to a detail screen. The App Review demo uses the
+same player and watched actions; its loopback fixture server accepts the
+timeline and scrobble requests without persisting them.
+
 ## When Strimr Should Change
 
 Patch the Strimr fork when the fix is generic and would still matter without the Plinx product, especially for:

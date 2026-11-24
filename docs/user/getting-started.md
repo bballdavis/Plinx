@@ -28,6 +28,16 @@ The first setup screen is intentionally a grown-up step. Once configured,
 children see the Plinx browsing experience rather than account-management
 choices.
 
+## Try Plinx without a Plex server
+
+On the first screen, choose **Explore the Demo Library** to look around before
+connecting your own server. The demo uses fictional titles, original artwork,
+and a short sample clip stored in the app. It needs no account or internet
+connection and does not save anything to your Plex account. Settings and the
+parental gate work normally, so you can try rating limits and see which titles
+appear or disappear. Use **Log Out** in Settings, or relaunch Plinx, to leave
+the demo and sign in for real.
+
 ## Choose a device
 
 Plinx 2026.08 supports iPhone, iPad, and Apple TV. Use iPhone or iPad to

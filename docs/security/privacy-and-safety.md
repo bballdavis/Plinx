@@ -18,6 +18,11 @@ Current implementation anchors:
 - the resolved Plinx package graph excludes Sentry even though upstream Strimr
   can use it in its own standalone targets
 
+- the App Review demo (`DemoFixtureServer`) listens only on `127.0.0.1`,
+  answers only requests carrying its synthetic token, serves only bundled or
+  generated fictional fixtures, and stops on Log Out; it never proxies to or
+  contacts another host and never persists the synthetic session
+
 Do not add analytics, crash reporting, telemetry, or usage tracking without explicitly changing product policy and documentation first.
 
 ## Kid-Safety Boundaries

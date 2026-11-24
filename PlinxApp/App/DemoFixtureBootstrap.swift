@@ -1,14 +1,14 @@
 import Foundation
 
-/// Starts the credential-free review experience against a deterministic,
-/// in-process Plex-shaped transport. The transport is deliberately scoped to
-/// an invalid host so it cannot intercept a real Plex server or cloud request.
+/// Starts the credential-free review experience against deterministic,
+/// fictional Plex-shaped fixtures served by `DemoFixtureServer` on the loopback
+/// interface. Nothing is fetched from or sent to Plex or any other host.
 enum DemoFixtureBootstrap {
-    static let serverHost = "demo.plinx.invalid"
+    static let serverHost = DemoFixtureServer.loopbackHost
     static let serverToken = "plinx-synthetic-review-token"
 
     static var isActive: Bool {
-        DemoFixtureURLProtocol.isActive
+        DemoFixtureServer.shared.isRunning
     }
 
     @MainActor
@@ -16,20 +16,17 @@ enum DemoFixtureBootstrap {
         sessionManager: SessionManager,
         context: PlexAPIContext,
     ) async {
-        #if os(tvOS)
-        // App Review's credential-free path is currently shipped for iPhone
-        // and iPad. Do not activate it on tvOS, where selecting a server also
-        // updates Top Shelf session state.
-        return
-        #else
-        guard let serverURL = URL(string: "http://\(serverHost)") else { return }
-
-        DemoFixtureURLProtocol.activate()
+        guard let serverURL = try? await DemoFixtureServer.shared.start(),
+              let port = serverURL.port
+        else {
+            DemoFixtureServer.shared.stop()
+            return
+        }
 
         let connection = PlexCloudResource.Connection(
             scheme: "http",
             address: serverHost,
-            port: 80,
+            port: port,
             uri: serverURL,
             isLocal: true,
             isRelay: false,
@@ -43,7 +40,10 @@ enum DemoFixtureBootstrap {
         )
 
         // This existing Strimr seam establishes a normal ready session and
-        // reloads LibraryStore, but does not persist the synthetic token.
+        // reloads LibraryStore, but does not persist the synthetic token or
+        // make the demo the default server. tvOS: SessionManager mirrors the
+        // token into Top Shelf storage only when the bundle declares
+        // TopShelfKeychainAccessGroup; Plinx ships no Top Shelf extension.
         await sessionManager.bootstrapDirectServerSession(
             resource: resource,
             token: serverToken,
@@ -54,84 +54,45 @@ enum DemoFixtureBootstrap {
             return
         }
 
-        DemoFixtureURLProtocol.deactivate()
+        DemoFixtureServer.shared.stop()
         context.reset()
-        #endif
     }
 
     static func stop() {
-        DemoFixtureURLProtocol.deactivate()
-    }
-}
-
-/// URLSession.shared is used by the vendored Plex repositories, so a scoped
-/// URLProtocol lets the demo reuse the production SessionManager, LibraryStore,
-/// browse, metadata, search, artwork, and playback-authorization paths without
-/// changing Strimr sources or starting a host process.
-final class DemoFixtureURLProtocol: URLProtocol {
-    private static let stateLock = NSLock()
-    private static var active = false
-
-    static var isActive: Bool {
-        stateLock.lock()
-        defer { stateLock.unlock() }
-        return active
+        DemoFixtureServer.shared.stop()
     }
 
-    static func activate() {
-        stateLock.lock()
-        active = true
-        stateLock.unlock()
-        URLProtocol.registerClass(self)
-    }
+    /// UI-test-only shortcut (`--ui-testing` + `PLINX_UI_TEST_MODE=demo`) that
+    /// enters the same demo path as the connection screen's demo action, so
+    /// tvOS remote walkthroughs and screenshots start from a known library.
+    static let uiTestMode = "demo"
 
-    static func deactivate() {
-        stateLock.lock()
-        active = false
-        stateLock.unlock()
-        URLProtocol.unregisterClass(self)
-    }
+    @MainActor
+    static func bootstrapForUITestIfNeeded(
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        environment: [String: String],
+        sessionManager: SessionManager,
+        context: PlexAPIContext,
+    ) {
+        guard arguments.contains("--ui-testing"),
+              environment["PLINX_UI_TEST_MODE"] == uiTestMode
+        else { return }
 
-    override class func canInit(with request: URLRequest) -> Bool {
-        guard isActive else { return false }
-        return request.url?.host?.caseInsensitiveCompare(DemoFixtureBootstrap.serverHost) == .orderedSame
-    }
-
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
-        request
-    }
-
-    override func startLoading() {
-        guard let requestURL = request.url else {
-            client?.urlProtocol(self, didFailWithError: URLError(.badURL))
-            return
+        Task { @MainActor in
+            while sessionManager.status == .hydrating {
+                try? await Task.sleep(nanoseconds: 100_000_000)
+            }
+            await start(sessionManager: sessionManager, context: context)
         }
-
-        let response = DemoFixtureCatalog.response(for: request)
-        let httpResponse = HTTPURLResponse(
-            url: requestURL,
-            statusCode: response.statusCode,
-            httpVersion: "HTTP/1.1",
-            headerFields: [
-                "Content-Type": response.mimeType,
-                "Content-Length": String(response.data.count),
-                "Cache-Control": "no-store",
-            ],
-        )!
-
-        client?.urlProtocol(self, didReceive: httpResponse, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: response.data)
-        client?.urlProtocolDidFinishLoading(self)
     }
-
-    override func stopLoading() {}
 }
 
 enum DemoFixtureCatalog {
     private struct Record {
         let id: String
         let title: String
-        let rating: String
+        /// `nil` models unrated media, which the default content controls hide.
+        let rating: String?
         let year: Int
         let summary: String
         let type: String
@@ -139,46 +100,78 @@ enum DemoFixtureCatalog {
         let viewOffset: Int?
     }
 
+    // Ratings are spread across the ceilings parents control. With the shipped
+    // defaults (Movies G, TV TV-Y, unrated hidden) every library still has a
+    // full shelf; raising a ceiling or allowing unrated media visibly adds
+    // titles. Keep docs/release/app-store.md's reviewer table in sync.
     private static let movies = [
-        Record(id: "moonbound", title: "Moonbound", rating: "PG", year: 2026, summary: "A family science adventure.", type: "movie", sectionID: 1, viewOffset: 1_920_000),
-        Record(id: "cloud-chasers", title: "Cloud Chasers", rating: "PG", year: 2025, summary: "Young weather watchers follow a summer storm.", type: "movie", sectionID: 1, viewOffset: 1_380_000),
+        Record(id: "moonbound", title: "Moonbound", rating: "G", year: 2026, summary: "A family science adventure.", type: "movie", sectionID: 1, viewOffset: 48_000),
+        Record(id: "cloud-chasers", title: "Cloud Chasers", rating: "G", year: 2025, summary: "Young weather watchers follow a summer storm.", type: "movie", sectionID: 1, viewOffset: 30_000),
         Record(id: "big-build", title: "The Big Build", rating: "PG", year: 2024, summary: "Friends transform an empty lot into a community workshop.", type: "movie", sectionID: 1, viewOffset: nil),
         Record(id: "hidden-gardens", title: "Hidden Gardens", rating: "G", year: 2023, summary: "A gentle tour of surprising gardens around the world.", type: "movie", sectionID: 1, viewOffset: nil),
-        Record(id: "robot-club", title: "Robot Club", rating: "PG", year: 2026, summary: "A school robotics team learns to build together.", type: "movie", sectionID: 1, viewOffset: nil),
+        Record(id: "robot-club", title: "Robot Club", rating: "G", year: 2026, summary: "A school robotics team learns to build together.", type: "movie", sectionID: 1, viewOffset: nil),
         Record(id: "lighthouse-map", title: "The Lighthouse Map", rating: "PG", year: 2025, summary: "Siblings follow clues along a quiet coast.", type: "movie", sectionID: 1, viewOffset: nil),
         Record(id: "paper-airship", title: "The Paper Airship", rating: "G", year: 2024, summary: "A classroom invention takes an unexpected journey.", type: "movie", sectionID: 1, viewOffset: nil),
         Record(id: "river-trail", title: "The River Trail", rating: "PG", year: 2026, summary: "Friends learn to read a landscape together.", type: "movie", sectionID: 1, viewOffset: nil),
+        // PG-13: visible only after a parent raises Movies to PG-13 or higher.
+        Record(id: "summit-signal", title: "Summit Signal", rating: "PG-13", year: 2026, summary: "Teen climbers race a mountain storm to reach a stranded weather station.", type: "movie", sectionID: 1, viewOffset: nil),
     ]
 
     private static let shows = [
-        Record(id: "space-camp", title: "Space Camp", rating: "TV-PG", year: 2026, summary: "Young explorers train for a mission beyond Earth.", type: "show", sectionID: 2, viewOffset: 630_000),
-        Record(id: "kitchen-lab", title: "Kitchen Lab", rating: "TV-G", year: 2025, summary: "Every recipe becomes a friendly science experiment.", type: "show", sectionID: 2, viewOffset: 420_000),
-        Record(id: "wild-neighbors", title: "Wild Neighbors", rating: "TV-PG", year: 2024, summary: "Families discover the animals living close to home.", type: "show", sectionID: 2, viewOffset: nil),
+        Record(id: "space-camp", title: "Space Camp", rating: "TV-Y", year: 2026, summary: "Young explorers train for a mission beyond Earth.", type: "show", sectionID: 2, viewOffset: 66_000),
+        Record(id: "kitchen-lab", title: "Kitchen Lab", rating: "TV-Y", year: 2025, summary: "Every recipe becomes a friendly science experiment.", type: "show", sectionID: 2, viewOffset: 42_000),
+        Record(id: "wild-neighbors", title: "Wild Neighbors", rating: "TV-Y", year: 2024, summary: "Families discover the animals living close to home.", type: "show", sectionID: 2, viewOffset: nil),
         Record(id: "makers-next-door", title: "Makers Next Door", rating: "TV-G", year: 2025, summary: "Creative neighbors share practical projects.", type: "show", sectionID: 2, viewOffset: nil),
-        Record(id: "junior-rangers", title: "Junior Rangers", rating: "TV-G", year: 2026, summary: "Young naturalists care for a neighborhood park.", type: "show", sectionID: 2, viewOffset: nil),
-        Record(id: "story-station", title: "Story Station", rating: "TV-PG", year: 2025, summary: "A book club turns stories into weekend adventures.", type: "show", sectionID: 2, viewOffset: nil),
-        Record(id: "music-room", title: "The Music Room", rating: "TV-G", year: 2024, summary: "Friends explore instruments and sounds.", type: "show", sectionID: 2, viewOffset: nil),
+        Record(id: "junior-rangers", title: "Junior Rangers", rating: "TV-Y", year: 2026, summary: "Young naturalists care for a neighborhood park.", type: "show", sectionID: 2, viewOffset: nil),
+        Record(id: "story-station", title: "Story Station", rating: "TV-Y7", year: 2025, summary: "A book club turns stories into weekend adventures.", type: "show", sectionID: 2, viewOffset: nil),
+        Record(id: "music-room", title: "The Music Room", rating: "TV-Y", year: 2024, summary: "Friends explore instruments and sounds.", type: "show", sectionID: 2, viewOffset: nil),
         Record(id: "market-day", title: "Market Day", rating: "TV-PG", year: 2026, summary: "A community market becomes a lesson in teamwork.", type: "show", sectionID: 2, viewOffset: nil),
+        // TV-14: visible only after a parent raises TV to TV-14 or higher.
+        Record(id: "night-shift-academy", title: "Night Shift Academy", rating: "TV-14", year: 2025, summary: "Older students run a late-night campus radio station.", type: "show", sectionID: 2, viewOffset: nil),
     ]
 
     private static let otherVideos = [
-        Record(id: "bridge-basics", title: "How Bridges Work", rating: "PG", year: 2026, summary: "A friendly look at bridge design.", type: "movie", sectionID: 3, viewOffset: nil),
-        Record(id: "backyard-sky", title: "Backyard Astronomy", rating: "PG", year: 2026, summary: "A beginner guide to the night sky.", type: "movie", sectionID: 3, viewOffset: nil),
+        Record(id: "bridge-basics", title: "How Bridges Work", rating: "G", year: 2026, summary: "A friendly look at bridge design.", type: "movie", sectionID: 3, viewOffset: nil),
+        Record(id: "backyard-sky", title: "Backyard Astronomy", rating: "G", year: 2026, summary: "A beginner guide to the night sky.", type: "movie", sectionID: 3, viewOffset: nil),
         Record(id: "tiny-garden", title: "Make a Tiny Garden", rating: "G", year: 2026, summary: "A small growing project for families.", type: "movie", sectionID: 3, viewOffset: nil),
-        Record(id: "science-sound", title: "The Science of Sound", rating: "PG", year: 2026, summary: "Experiments with rhythm and vibration.", type: "movie", sectionID: 3, viewOffset: nil),
+        Record(id: "science-sound", title: "The Science of Sound", rating: "G", year: 2026, summary: "Experiments with rhythm and vibration.", type: "movie", sectionID: 3, viewOffset: nil),
         Record(id: "friendly-dragons", title: "Drawing Friendly Dragons", rating: "G", year: 2026, summary: "A playful step-by-step drawing lesson.", type: "movie", sectionID: 3, viewOffset: nil),
         Record(id: "bird-feeder", title: "Build a Bird Feeder", rating: "G", year: 2026, summary: "A simple project for welcoming backyard birds.", type: "movie", sectionID: 3, viewOffset: nil),
-        Record(id: "cloud-journal", title: "Start a Cloud Journal", rating: "PG", year: 2026, summary: "Learn to notice and record changing skies.", type: "movie", sectionID: 3, viewOffset: nil),
+        Record(id: "cloud-journal", title: "Start a Cloud Journal", rating: "TV-Y", year: 2026, summary: "Learn to notice and record changing skies.", type: "movie", sectionID: 3, viewOffset: nil),
         Record(id: "paper-circuits", title: "Make a Paper Circuit", rating: "PG", year: 2026, summary: "Light up a drawing with a beginner circuit.", type: "movie", sectionID: 3, viewOffset: nil),
         Record(id: "bread-science", title: "The Science of Bread", rating: "G", year: 2026, summary: "See how simple ingredients change as dough rises.", type: "movie", sectionID: 3, viewOffset: nil),
-        Record(id: "map-compass", title: "Maps and Compasses", rating: "PG", year: 2026, summary: "Practice basic navigation on a family walk.", type: "movie", sectionID: 3, viewOffset: nil),
+        Record(id: "map-compass", title: "Maps and Compasses", rating: "G", year: 2026, summary: "Practice basic navigation on a family walk.", type: "movie", sectionID: 3, viewOffset: nil),
+        // Unrated: hidden until a parent allows unrated media.
+        Record(id: "workshop-tour", title: "Workshop Tour", rating: nil, year: 2026, summary: "An unrated walk through a community makerspace.", type: "movie", sectionID: 3, viewOffset: nil),
     ]
+
+    /// Every fixture plays the same bundled, original two-minute clip, so
+    /// metadata durations and resume points match real playback.
+    static let clipDurationMS = 120_000
 
     private static var allRecords: [Record] {
         movies + shows + otherVideos
     }
 
-    private static let artworkPNG = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")!
+    private struct Grouping {
+        let id: String
+        let title: String
+        let summary: String
+        let sectionID: Int
+        let memberIDs: [String]
+    }
+
+    private static let collections = [
+        Grouping(id: "collection-sky-stories", title: "Sky Stories", summary: "Adventures that look up.", sectionID: 1, memberIDs: ["moonbound", "cloud-chasers", "paper-airship", "summit-signal"]),
+        Grouping(id: "collection-build-together", title: "Build Together", summary: "Makers, tinkerers, and team projects.", sectionID: 1, memberIDs: ["big-build", "robot-club", "river-trail"]),
+        Grouping(id: "collection-backyard-science", title: "Backyard Science", summary: "Small experiments to try at home.", sectionID: 3, memberIDs: ["backyard-sky", "tiny-garden", "science-sound", "bird-feeder", "cloud-journal"]),
+    ]
+
+    /// Mixed movie and episode playlist; includes one above-ceiling title so
+    /// reviewers can see per-item filtering inside a playlist.
+    private static let playlists = [
+        Grouping(id: "playlist-saturday-morning", title: "Saturday Morning", summary: "A mixed family playlist.", sectionID: 0, memberIDs: ["space-camp-season-1-e-1", "moonbound", "kitchen-lab-season-1-e-2", "summit-signal", "tiny-garden"]),
+    ]
 
     static func response(for request: URLRequest) -> DemoFixtureResponse {
         guard let url = request.url else {
@@ -222,10 +215,15 @@ enum DemoFixtureCatalog {
         case (_, let value) where value.hasPrefix("/library/sections/") && value.hasSuffix("/all"):
             let components = value.split(separator: "/")
             let sectionID = components.dropFirst(2).first.flatMap { Int($0) } ?? 1
-            let records = recordsForSection(sectionID)
-            return itemContainer(records.map(itemJSON))
+            // Plex browse defaults to title order; the A-Z jump index assumes it.
+            let records = recordsForSection(sectionID).sorted { sortTitle($0) < sortTitle($1) }
+            return pagedContainer(records.map(itemJSON), request: request, query: query)
         case (_, let value) where value.hasPrefix("/library/sections/") && value.hasSuffix("/collections"):
-            return itemContainer([])
+            let sectionID = value.split(separator: "/").dropFirst(2).first.flatMap { Int($0) } ?? 0
+            return itemContainer(collections.filter { $0.sectionID == sectionID }.map(collectionJSON))
+        case (_, let value) where value.hasPrefix("/library/sections/") && value.hasSuffix("/firstCharacter"):
+            let sectionID = value.split(separator: "/").dropFirst(2).first.flatMap { Int($0) } ?? 0
+            return firstCharacterResponse(for: recordsForSection(sectionID))
         case (_, let value) where value.hasPrefix("/library/metadata/") && value.hasSuffix("/related"):
             let rawID = String(value.dropFirst("/library/metadata/".count))
             let id = String(rawID.dropLast("/related".count))
@@ -237,12 +235,29 @@ enum DemoFixtureCatalog {
             return hubResponse(title: "More Like This", identifier: "related-\(id)", items: related)
         case (_, let value) where value.hasPrefix("/library/metadata/"):
             return metadataResponse(for: String(value.dropFirst("/library/metadata/".count)))
-        case (_, let value) where value.hasPrefix("/library/collections/") || value.hasPrefix("/playlists"):
-            return itemContainer([])
+        case (_, let value) where value.hasPrefix("/library/collections/"):
+            let parts = value.split(separator: "/").map(String.init)
+            guard parts.count >= 3, let collection = collections.first(where: { $0.id == parts[2] }) else {
+                return itemContainer([])
+            }
+            return parts.last == "children"
+                ? itemContainer(collection.memberIDs.compactMap(memberJSON))
+                : itemContainer([collectionJSON(collection)])
+        case (_, "/playlists"):
+            return itemContainer(playlists.map(playlistJSON))
+        case (_, let value) where value.hasPrefix("/playlists/"):
+            let parts = value.split(separator: "/").map(String.init)
+            guard parts.count >= 2, let playlist = playlists.first(where: { $0.id == parts[1] }) else {
+                return itemContainer([])
+            }
+            return parts.last == "items"
+                ? itemContainer(playlist.memberIDs.compactMap(memberJSON))
+                : itemContainer([playlistJSON(playlist)])
         case (_, "/photo/:/transcode"):
-            return DemoFixtureResponse(statusCode: 200, mimeType: "image/png", data: artworkPNG)
+            let artworkPath = query.first(where: { $0.name == "url" })?.value ?? ""
+            return artworkResponse(forPath: artworkPath)
         case (_, let value) where value.hasPrefix("/artwork/"):
-            return DemoFixtureResponse(statusCode: 200, mimeType: "image/png", data: artworkPNG)
+            return artworkResponse(forPath: value)
         case ("POST", "/playQueues"):
             let requestedID = query.first(where: { $0.name == "uri" })?.value?.split(separator: "/").last.map(String.init)
             let selected = allRecords.first(where: { $0.id == requestedID }) ?? movies[0]
@@ -268,6 +283,71 @@ enum DemoFixtureCatalog {
         }
     }
 
+    private static func collectionJSON(_ collection: Grouping) -> [String: Any] {
+        [
+            "ratingKey": collection.id,
+            "key": "/library/collections/\(collection.id)/children",
+            "guid": "plex://fixture/\(collection.id)",
+            "librarySectionID": collection.sectionID,
+            "type": "collection",
+            "subtype": "movie",
+            "title": collection.title,
+            "summary": collection.summary,
+            "thumb": "/artwork/poster/\(collection.id).png",
+            "art": "/artwork/backdrop/\(collection.id).png",
+            "childCount": collection.memberIDs.count,
+        ]
+    }
+
+    private static func playlistJSON(_ playlist: Grouping) -> [String: Any] {
+        [
+            "ratingKey": playlist.id,
+            "key": "/playlists/\(playlist.id)/items",
+            "guid": "plex://fixture/\(playlist.id)",
+            "type": "playlist",
+            "playlistType": "video",
+            "smart": false,
+            "title": playlist.title,
+            "summary": playlist.summary,
+            "composite": "/artwork/backdrop/\(playlist.id).png",
+            "leafCount": playlist.memberIDs.count,
+            "duration": playlist.memberIDs.count * clipDurationMS,
+        ]
+    }
+
+    /// Resolves a movie/show record or a synthetic episode identifier.
+    private static func memberJSON(_ id: String) -> [String: Any]? {
+        if let record = allRecords.first(where: { $0.id == id }) {
+            return itemJSON(record)
+        }
+        if let episode = episodeIDParts(id) {
+            return episodeJSON(showID: episode.showID, season: episode.season, episode: episode.episode)
+        }
+        return nil
+    }
+
+    private static func sortTitle(_ record: Record) -> String {
+        record.title.hasPrefix("The ") ? String(record.title.dropFirst(4)) : record.title
+    }
+
+    private static func firstCharacterResponse(for records: [Record]) -> DemoFixtureResponse {
+        let counts = Dictionary(grouping: records) { sortTitle($0).prefix(1).uppercased() }
+        let directory = counts.keys.sorted().map { key in
+            ["key": key, "title": key, "size": counts[key]?.count ?? 0] as [String: Any]
+        }
+        return json(["MediaContainer": ["size": directory.count, "Directory": directory]])
+    }
+
+    private static func artworkResponse(forPath rawPath: String) -> DemoFixtureResponse {
+        let path = URLComponents(string: rawPath)?.path ?? rawPath
+        let id = ((path as NSString).lastPathComponent as NSString).deletingPathExtension
+        let title = allRecords.first(where: { $0.id == id })?.title
+        guard let data = DemoFixtureArtwork.imageData(forPath: path, title: title) else {
+            return DemoFixtureResponse(statusCode: 404, mimeType: "application/json", data: jsonData(["error": "unknown demo artwork"]))
+        }
+        return DemoFixtureResponse(statusCode: 200, mimeType: "image/jpeg", data: data)
+    }
+
     private static func recordsForSection(_ sectionID: Int) -> [Record] {
         switch sectionID {
         case 1: movies
@@ -285,12 +365,12 @@ enum DemoFixtureCatalog {
             "librarySectionID": record.sectionID,
             "type": record.type,
             "title": record.title,
+            "titleSort": sortTitle(record),
             "summary": record.summary,
             "thumb": "/artwork/poster/\(record.id).png",
             "art": "/artwork/backdrop/\(record.id).png",
             "year": record.year,
-            "duration": record.type == "show" ? 1_560_000 : 6_120_000,
-            "contentRating": record.rating,
+            "duration": clipDurationMS,
             "studio": "Plinx Fixture Studio",
             "tagline": "Curiosity starts close to home.",
             "audienceRating": 8.4,
@@ -299,10 +379,15 @@ enum DemoFixtureCatalog {
             "Role": [["id": 1, "tag": "Avery North"], ["id": 2, "tag": "Jordan Vale"]],
             "Media": [[
                 "id": 1,
-                "videoResolution": "1080",
-                "Part": [["id": 1, "key": "/video/\(record.id).mp4", "size": 1]],
+                "videoResolution": "720",
+                "container": "mp4",
+                "duration": clipDurationMS,
+                "Part": [["id": 1, "key": "/video/\(record.id).mp4", "container": "mp4", "duration": clipDurationMS]],
             ]],
         ]
+        if let rating = record.rating {
+            item["contentRating"] = rating
+        }
         if let viewOffset = record.viewOffset {
             item["viewOffset"] = viewOffset
         }
@@ -363,7 +448,7 @@ enum DemoFixtureCatalog {
     }
 
     private static func seasonJSON(show: Record, index: Int) -> [String: Any] {
-        [
+        var season: [String: Any] = [
             "ratingKey": "\(show.id)-season-\(index)",
             "key": "/library/metadata/\(show.id)-season-\(index)",
             "guid": "plex://fixture/\(show.id)-season-\(index)",
@@ -374,15 +459,18 @@ enum DemoFixtureCatalog {
             "parentIndex": index,
             "thumb": "/artwork/poster/\(show.id).png",
             "art": "/artwork/backdrop/\(show.id).png",
-            "contentRating": show.rating,
             "childCount": 2,
         ]
+        if let rating = show.rating {
+            season["contentRating"] = rating
+        }
+        return season
     }
 
     private static func episodeJSON(showID: String, season: Int, episode: Int) -> [String: Any] {
         let show = shows.first(where: { $0.id == showID }) ?? shows[0]
         let id = "\(showID)-season-\(season)-e-\(episode)"
-        return [
+        var episodeItem: [String: Any] = [
             "ratingKey": id,
             "key": "/library/metadata/\(id)",
             "guid": "plex://fixture/\(id)",
@@ -397,16 +485,21 @@ enum DemoFixtureCatalog {
             "grandparentThumb": "/artwork/poster/\(showID).png",
             "grandparentArt": "/artwork/backdrop/\(showID).png",
             "index": episode,
-            "duration": 1_560_000,
-            "contentRating": show.rating,
-            "thumb": "/artwork/poster/\(showID).png",
+            "duration": clipDurationMS,
+            "thumb": "/artwork/still/\(id).png",
             "art": "/artwork/backdrop/\(showID).png",
             "Media": [[
                 "id": 1,
-                "videoResolution": "1080",
-                "Part": [["id": 1, "key": "/video/\(id).mp4", "size": 1]],
+                "videoResolution": "720",
+                "container": "mp4",
+                "duration": clipDurationMS,
+                "Part": [["id": 1, "key": "/video/\(id).mp4", "container": "mp4", "duration": clipDurationMS]],
             ]],
         ]
+        if let rating = show.rating {
+            episodeItem["contentRating"] = rating
+        }
+        return episodeItem
     }
 
     private static func hubResponse(title: String, identifier: String, items: [[String: Any]]) -> DemoFixtureResponse {
@@ -424,6 +517,23 @@ enum DemoFixtureCatalog {
                 ]],
             ],
         ])
+    }
+
+    /// Honors Plex paging (`X-Plex-Container-Start`/`-Size` headers or query
+    /// items) so paged tvOS browse views never receive duplicate pages.
+    private static func pagedContainer(
+        _ items: [[String: Any]],
+        request: URLRequest,
+        query: [URLQueryItem],
+    ) -> DemoFixtureResponse {
+        func value(_ name: String) -> Int? {
+            request.value(forHTTPHeaderField: name).flatMap(Int.init)
+                ?? query.first(where: { $0.name == name })?.value.flatMap(Int.init)
+        }
+        let start = min(max(value("X-Plex-Container-Start") ?? 0, 0), items.count)
+        let size = max(value("X-Plex-Container-Size") ?? items.count, 0)
+        let page = Array(items[start..<min(start + size, items.count)])
+        return json(["MediaContainer": ["size": page.count, "offset": start, "totalSize": items.count, "Metadata": page]])
     }
 
     private static func itemContainer(_ items: [[String: Any]]) -> DemoFixtureResponse {

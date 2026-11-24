@@ -29,6 +29,7 @@ struct SignInView: View {
     #if os(tvOS)
     private let ciContext = CIContext()
     @FocusState private var focusedRefreshAction: Bool
+    @FocusState private var focusedDemoAction: Bool
     #endif
 
     init(viewModel: PlinxSignInViewModel) {
@@ -264,18 +265,6 @@ struct SignInView: View {
         }
     }
 
-    private func launchDemo() {
-        guard !isLaunchingDemo else { return }
-        isLaunchingDemo = true
-        Task { @MainActor in
-            await DemoFixtureBootstrap.start(
-                sessionManager: sessionManager,
-                context: plexApiContext,
-            )
-            isLaunchingDemo = false
-        }
-    }
-
     @ViewBuilder
     private func portalBackground(expandedLayout: Bool) -> some View {
         let gradient = LinearGradient(
@@ -323,6 +312,20 @@ struct SignInView: View {
         }
     }
     #endif
+
+    private func launchDemo() {
+        guard !isLaunchingDemo else { return }
+        isLaunchingDemo = true
+        // Stop any pending Plex PIN poll so a late sign-in cannot race the demo.
+        viewModel.cancelSignIn()
+        Task { @MainActor in
+            await DemoFixtureBootstrap.start(
+                sessionManager: sessionManager,
+                context: plexApiContext,
+            )
+            isLaunchingDemo = false
+        }
+    }
 }
 
 #if os(tvOS)
@@ -340,7 +343,7 @@ extension SignInView {
 
             VStack(spacing: 28) {
                 PlinxBrandLogoView(
-                    asset: .lockupOnDark,
+                    asset: .lockupWhite,
                     accessibilityIdentifier: "signIn.logo.fullColor",
                     maxWidth: 390
                 )
@@ -487,6 +490,7 @@ extension SignInView {
                 .frame(minHeight: 30)
 
                 refreshCodeButton
+                demoLibraryButton
             }
             .padding(.top, 32)
         }
@@ -524,6 +528,47 @@ extension SignInView {
         .accessibilityAddTraits(.isButton)
         .accessibilityIdentifier("signIn.refreshButton")
         .accessibilityValue(focusedRefreshAction ? "focused" : "not focused")
+    }
+
+    /// App Review and curious parents can explore fictional fixtures without
+    /// a Plex account. Mirrors the iPhone/iPad entry point.
+    private var demoLibraryButton: some View {
+        HStack(spacing: 12) {
+            if isLaunchingDemo {
+                ProgressView()
+                    .tint(Color.white.opacity(0.9))
+            } else {
+                Image(systemName: "sparkles.tv")
+                    .font(.system(size: 26, weight: .semibold))
+            }
+            Text("signIn.button.demo", tableName: "Plinx")
+                .font(.system(size: 26, weight: .bold, design: .rounded))
+        }
+        .foregroundStyle(Color.white)
+        .frame(width: 560, height: 72)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color.white.opacity(focusedDemoAction ? 0.26 : 0.12))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(
+                    focusedDemoAction ? Color.white.opacity(0.98) : Color.white.opacity(0.36),
+                    lineWidth: focusedDemoAction ? 4 : 1.5
+                )
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .scaleEffect(focusedDemoAction ? 1.018 : 1)
+        .focusable(!isLaunchingDemo, interactions: .activate)
+        .focused($focusedDemoAction)
+        .focusEffectDisabled()
+        .onTapGesture {
+            launchDemo()
+        }
+        .animation(.easeOut(duration: 0.16), value: focusedDemoAction)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityIdentifier("signIn.demoButton")
+        .accessibilityValue(focusedDemoAction ? "focused" : "not focused")
     }
 
     private var refreshButtonBackground: some View {

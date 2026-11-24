@@ -3,14 +3,6 @@ import PlinxUI
 import SwiftUI
 
 struct RootTabView: View {
-    struct QuickActionOption: Identifiable {
-        let id: String
-        let title: String
-        let systemImage: String
-        let role: ButtonRole?
-        let action: () -> Void
-    }
-
     @Environment(SessionManager.self) var sessionManager
     @Environment(PlinxSessionAccessCoordinator.self) var sessionAccessCoordinator
     @Environment(PlexAPIContext.self) var plexApiContext
@@ -20,6 +12,7 @@ struct RootTabView: View {
     @Environment(ParentalAccessCoordinator.self) var parentalAccessCoordinator
     @Environment(DownloadOwnershipStore.self) var downloadOwnershipStore
     @Environment(SharePlayCoordinator.self) var sharePlayCoordinator
+    @Environment(PlinxWatchStatusStore.self) var watchStatusStore
     @EnvironmentObject var mainCoordinator: MainCoordinator
     @EnvironmentObject var playbackLaunchCoordinator: PlaybackLaunchCoordinator
     @Environment(\.safetyPolicy) var safetyPolicy
@@ -28,6 +21,7 @@ struct RootTabView: View {
     @State var youtarrExploreConfiguration: YoutarrConfiguration?
     @State var isYoutarrConfigured = false
     @State var selectedQuickActionMedia: MediaDisplayItem?
+    @State var quickActionShowsPrimary = true
     @State var quickActionErrorMessage: String?
     @State var homeViewModel: SafeHomeViewModel?
     @State var homeContentFocusRequest = 0
@@ -44,11 +38,7 @@ struct RootTabView: View {
     @State var settingsExitDestination: MainCoordinator.Tab?
     @State var tvLibraryShellTitle: String?
     @FocusState var focusedShellTarget: PlinxTVShellFocusTarget?
-    @FocusState var focusedQuickActionID: String?
     #endif
-    /// Local overrides for watched status, keyed by media item id.
-    /// Updated instantly on toggle; cleared when home data reloads.
-    @State var watchedOverrides: [String: Bool] = [:]
     @AppStorage(PlinxChromeButtonSizePreference.storageKey)
     var chromeButtonSizeRaw = PlinxChromeButtonSizePreference.defaultValue.rawValue
     @AppStorage(PlinxNavigationPreference.showSearchInMainNavigationStorageKey)
@@ -60,46 +50,6 @@ struct RootTabView: View {
 
     var chromeButtonSize: PlinxChromeButtonSizePreference {
         PlinxChromeButtonSizePreference(rawValue: chromeButtonSizeRaw) ?? .medium
-    }
-
-    var quickActionCornerRadius: CGFloat {
-        #if os(tvOS)
-        22
-        #else
-        14
-        #endif
-    }
-
-    var quickActionOptionMinHeight: CGFloat {
-        #if os(tvOS)
-        78
-        #else
-        52
-        #endif
-    }
-
-    var quickActionCancelMinHeight: CGFloat {
-        #if os(tvOS)
-        75
-        #else
-        50
-        #endif
-    }
-
-    var quickActionIconSize: CGFloat {
-        #if os(tvOS)
-        24
-        #else
-        16
-        #endif
-    }
-
-    var quickActionHorizontalPadding: CGFloat {
-        #if os(tvOS)
-        21
-        #else
-        14
-        #endif
     }
 
     var showsYoutarrExplore: Bool {
@@ -147,9 +97,17 @@ struct RootTabView: View {
         #endif
     }
 
+    var showsOfflineDownloadsRoot: Bool {
+        #if os(tvOS)
+        false
+        #else
+        sessionAccessCoordinator.isLocallyEnrolled && sessionManager.status != .ready
+        #endif
+    }
+
     /// Tabs shown in the picker.
     var visibleTabs: [KidsMainTabPicker.TabItem] {
-        if sessionAccessCoordinator.isLocallyEnrolled, sessionManager.status != .ready {
+        if showsOfflineDownloadsRoot {
             return KidsMainTabPicker.TabItem.mainTabs(
                 includeDownloads: true,
                 showSearchInMainNavigation: false

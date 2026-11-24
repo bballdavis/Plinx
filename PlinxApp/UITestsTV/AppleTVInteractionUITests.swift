@@ -1,6 +1,26 @@
 import XCTest
 
 final class AppleTVInteractionUITests: XCTestCase {
+    func test_signIn_usesWhiteLockupForContrast() {
+        let app = launch(screen: "signIn")
+        let logo = app.images["signIn.logo.fullColor"]
+
+        XCTAssertTrue(logo.waitForExistence(timeout: 8))
+        XCTAssertEqual(logo.value as? String, "BrandLockupWhite")
+    }
+
+    func test_signIn_remoteReachesDemoLibraryEntry() {
+        let app = launch(screen: "signIn")
+        let refresh = app.descendants(matching: .any)["signIn.refreshButton"]
+        let demo = app.descendants(matching: .any)["signIn.demoButton"]
+
+        assertFocused(refresh)
+        XCUIRemote.shared.press(.down)
+        assertFocused(demo)
+        XCUIRemote.shared.press(.up)
+        assertFocused(refresh)
+    }
+
     func test_rootBrowse_remoteCanReturnToHeaderAndBackToFirstContent() {
         let app = launch(screen: "appleTVBrowseFocus")
         let home = app.buttons["main.tab.home"]

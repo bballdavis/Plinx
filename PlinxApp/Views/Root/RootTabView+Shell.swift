@@ -8,7 +8,7 @@ extension RootTabView {
         let content = tabContainer
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .toolbar(.hidden, for: .tabBar)
-            .environment(\.watchedOverrides, watchedOverrides)
+            .environment(\.watchedOverrides, watchStatusStore.overrides)
         #if os(tvOS)
             .environment(mediaFocusModel)
             .environmentObject(tvFocusCoordinator)
@@ -42,9 +42,7 @@ extension RootTabView {
 
     @ViewBuilder
     var tabContainer: some View {
-        if sessionAccessCoordinator.isLocallyEnrolled,
-           sessionManager.status != .ready
-        {
+        if showsOfflineDownloadsRoot {
             tabStack(for: .more)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .onAppear { mainCoordinator.tab = .more }
@@ -168,7 +166,7 @@ extension RootTabView {
                         handlePrimarySelection(displayItem)
                     },
                     onLongPressMedia: { displayItem in
-                        selectedQuickActionMedia = displayItem
+                        presentQuickActions(for: displayItem)
                     },
                     onRequestHomeNavigationFocus: {
                         requestHeaderFocus()
@@ -215,7 +213,7 @@ extension RootTabView {
                         handlePrimarySelection(displayItem)
                     },
                     onLongPressMedia: { displayItem in
-                        selectedQuickActionMedia = displayItem
+                        presentQuickActions(for: displayItem)
                     }
                 )
                 .toolbar(.hidden, for: .navigationBar)
@@ -264,7 +262,7 @@ extension RootTabView {
                             handlePrimarySelection(displayItem)
                         },
                         onLongPressMedia: { displayItem in
-                            selectedQuickActionMedia = displayItem
+                            presentQuickActions(for: displayItem)
                         },
                         onRequestShellNavigationFocus: {
                             requestHeaderFocus()

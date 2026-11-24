@@ -10,8 +10,8 @@ not restore branch-based or `|| true` dependency fetches.
 The iOS destinations are pinned to dedicated iPhone 17 Pro and iPad Pro
 13-inch simulators on iOS 26.5. CI downloads the iOS 26.5 runtime when it is
 absent, then creates those named devices before building. When changing Xcode,
-update `.xcode-version`, the workflow, the test documentation, and simulator
-runtime together.
+update `PlinxApp/project.yml`, the workflow, the test documentation, and
+simulator runtime together.
 
 ## Build Workflow
 

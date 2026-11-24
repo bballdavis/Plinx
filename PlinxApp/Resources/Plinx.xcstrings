@@ -301,12 +301,42 @@
         }
       }
     },
+    "offline.recovery.tvMessage" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connect to your Plex server to browse and play."
+          }
+        }
+      }
+    },
+    "media.detail.playFromStart" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play from Start"
+          }
+        }
+      }
+    },
     "quickActions.moreInfo" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "More Info"
+          }
+        }
+      }
+    },
+    "sharePlay.action" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SharePlay"
           }
         }
       }

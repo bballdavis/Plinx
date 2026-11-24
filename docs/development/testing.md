@@ -64,6 +64,40 @@ xcodebuild test \
   CODE_SIGNING_ALLOWED=NO
 ```
 
+### Player timeline regression checks
+
+`PlayerTimelineTests` is shared by the iOS and tvOS app unit targets. It covers
+timeline geometry, invalid values, endpoint touch targets, drag offsets, and
+editing-session lifecycle. `PlayerTimelineUITests` runs the production view in
+the deterministic `playerTimeline` screen (`--ui-testing` and
+`PLINX_UI_TEST_SCREEN=playerTimeline`) on both platforms. Touch tests reject
+track/handle taps and drag through both endpoints; TV tests verify directional
+steps, commitment, and focus navigation. Screenshots are attached to results.
+
+After regenerating the project, use an installed simulator destination:
+
+```bash
+source scripts/build_environment.sh
+xcodebuild test -project PlinxApp/Plinx.xcodeproj -scheme Plinx-iOS \
+  -destination 'platform=iOS Simulator,name=Plinx iPhone 17 Pro (26.5)' \
+  -derivedDataPath "$PLINX_XCODE_DERIVED_DATA_PATH" \
+  -only-testing:Plinx-iOS-UnitTests/PlayerTimelineTests \
+  -only-testing:Plinx-iOS-UITests/PlayerTimelineUITests CODE_SIGNING_ALLOWED=NO
+
+xcodebuild test -project PlinxApp/Plinx.xcodeproj -scheme Plinx-tvOS \
+  -destination 'platform=tvOS Simulator,name=Apple TV 4K (3rd generation)' \
+  -derivedDataPath "$PLINX_XCODE_DERIVED_DATA_PATH" \
+  -only-testing:Plinx-tvOS-UnitTests/PlayerTimelineTests \
+  -only-testing:Plinx-tvOS-UITests/PlayerTimelineUITests CODE_SIGNING_ALLOWED=NO
+```
+
+Also verify iPhone landscape, iPad, VoiceOver, Reduce Motion, bright/dark
+video backgrounds, and real streamed/downloaded playback before release.
+Seek to zero and duration while playing and paused and confirm normal
+completion/next-item behavior. The fixture validates UI callbacks, not an
+engine's asynchronous seek or completion behavior. Changing timeline source
+exclusions requires the full integration contract below.
+
 ### Strimr integration contract
 
 ```bash
@@ -228,17 +262,42 @@ Keep the real `test_creds.yaml` local only.
 
 ## App Review Demo Fixtures
 
-The production connection screen includes **Explore the Demo Library**. This
-path uses the same SessionManager, LibraryStore, production browse/detail
-views, safety decorators, and playback authorization boundary as a connected
-session, but serves fictional content through a Plinx-owned in-process
-fixture transport. It is credential-free and does not contact Plex or persist
-the synthetic token.
+The connection screen on iPhone, iPad, and Apple TV includes **Explore the
+Demo Library**. It runs the production SessionManager, LibraryStore,
+browse/detail/search views, safety decorators, playback authorization, and
+player against `DemoFixtureServer`, a Plinx-owned HTTP server bound to
+`127.0.0.1` that serves `DemoFixtureCatalog` responses, on-device generated
+artwork (`DemoFixtureArtwork`), and the bundled original clip
+`PlinxApp/Resources/DemoFixture/plinx-demo-clip.mp4`. A loopback socket is used
+instead of a `URLProtocol` because SwiftUI's `AsyncImage` and the player engine
+do not use `URLSession.shared`. The server only answers requests carrying the
+synthetic token, and the demo session is never persisted.
 
-The fixture transport is covered by `PlinxApp/UnitTests/DemoFixtureTests.swift`.
-Use the UI test
-`LaunchSmokeUITests/test_demoModeRendersProductionHomeAndSyntheticPlayback` when
-the iOS simulator and the pinned sibling Strimr checkout are available.
+Fixture ratings deliberately span the parental controls (see the reviewer
+table in `docs/release/app-store.md`). When you change the catalog, keep that
+table and these tests in sync:
+
+- `PlinxApp/UnitTests/DemoFixtureTests.swift`: loopback/token boundary, byte
+  ranges, default-control population, ceiling reveals, collections,
+  playlists, A-Z index, and artwork.
+- `LaunchSmokeUITests/test_demoModeRendersProductionHomeAndPlayback` (iOS):
+  demo entry, Home, detail, and the production player.
+
+`--ui-testing` with `PLINX_UI_TEST_MODE=demo` enters the demo at launch. On
+tvOS, `AppleTVRemoteWalkUITests` replays a scripted Siri Remote walk against
+the demo and saves a screenshot and the focused element after each press:
+
+```bash
+TEST_RUNNER_PLINX_REMOTE_WALK="down,right,select,wait,menu" \
+TEST_RUNNER_PLINX_REMOTE_WALK_DIR="$PWD/build/remote-walk" \
+xcodebuild -project PlinxApp/Plinx.xcodeproj -scheme Plinx-tvOS \
+  -destination 'platform=tvOS Simulator,name=Apple TV 4K (3rd generation)' \
+  test -only-testing:Plinx-tvOS-UITests/AppleTVRemoteWalkUITests
+```
+
+The walk is skipped when no script is supplied, so normal test runs are
+unaffected. Regenerate the clip with
+`scripts/support/demo_clip/generate_demo_clip.sh` (requires ffmpeg).
 
 ## CI Notes
 

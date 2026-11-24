@@ -19,6 +19,13 @@
 "common.actions.ok" = "OK";
 "common.error.actionFailed" = "Action Failed";
 
+/* Player timeline */
+"player.timeline.label" = "Playback position";
+"player.timeline.unavailable" = "Seeking unavailable";
+"player.timeline.value %@ %@" = "%@ of %@";
+"player.timeline.hint" = "Drag the handle to seek.";
+"player.timeline.tvHint" = "Swipe left or right to seek.";
+
 /* Parental Gate */
 "parental.gate.title" = "Parents Only";
 "parental.gate.unlock" = "Unlock";
@@ -33,6 +40,7 @@
 "media.unavailable.title" = "Content Not Available";
 "media.unavailable.description" = "This title is blocked by the current parent-managed content controls.";
 "media.detail.play" = "▶  Play";
+"media.detail.playFromStart" = "Play from Start";
 "media.detail.seasons" = "Seasons";
 "media.detail.related" = "Related";
 "media.collection.empty" = "No items are available in this collection.";
@@ -51,6 +59,7 @@
 /* Downloads */
 "offline.recovery.title" = "Connection unavailable";
 "offline.recovery.message" = "Your downloaded videos are still available offline.";
+"offline.recovery.tvMessage" = "Connect to your Plex server to browse and play.";
 "offline.recovery.retry" = "Try Again";
 "downloads.empty.title" = "No downloads";
 "downloads.empty.message" = "Downloaded content will appear here.";
@@ -352,6 +361,10 @@
 "quickActions.markWatched" = "Mark as Watched";
 "quickActions.markUnwatched" = "Mark as Unwatched";
 "quickActions.moreInfo" = "More Info";
+"quickActions.moreActions" = "More Actions";
+
+/* SharePlay */
+"sharePlay.action" = "SharePlay";
 
 /* Authentication */
 "auth.signIn.qr.instructions" = "Scan this QR code with your phone to sign in to Plex.";
@@ -361,6 +374,3 @@
 "signIn.portal.title" = "Connect your Plex library";
 "signIn.portal.subtitle" = "You’ll choose a kid profile next.";
 "signIn.button.demo" = "Explore the Demo Library";
-"player.demo.synthetic" = "Synthetic review mode • No account or network required";
-"player.demo.play" = "Play Demo Video";
-"player.demo.pause" = "Pause Demo Video";

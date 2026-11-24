@@ -127,6 +127,11 @@ struct PlinxApp: App {
             sessionManager: session,
             context: context
         )
+        DemoFixtureBootstrap.bootstrapForUITestIfNeeded(
+            environment: processEnvironment,
+            sessionManager: session,
+            context: context
+        )
         _downloadManager = State(initialValue: downloads)
         _parentalAccessCoordinator = State(initialValue: ParentalAccessCoordinator())
         _downloadOwnershipStore = State(

@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Recovery affordance shown over the stable local root after a remote
-/// session failure. The local Downloads surface remains available underneath.
+/// Recovery affordance for a previously enrolled account after a remote
+/// session failure. On iPhone and iPad, local Downloads remain underneath.
 struct PlinxConnectionRecoveryView: View {
     @Environment(PlinxSessionAccessCoordinator.self) private var access
     @Environment(SessionManager.self) private var sessionManager
@@ -11,8 +11,13 @@ struct PlinxConnectionRecoveryView: View {
             VStack(spacing: 12) {
                 Image(systemName: "wifi.exclamationmark").font(.title2)
                 Text("offline.recovery.title", tableName: "Plinx").font(.headline)
+                #if os(tvOS)
+                Text("offline.recovery.tvMessage", tableName: "Plinx")
+                    .font(.subheadline).multilineTextAlignment(.center)
+                #else
                 Text("offline.recovery.message", tableName: "Plinx")
                     .font(.subheadline).multilineTextAlignment(.center)
+                #endif
                 Text(snapshot.serverName).font(.caption).foregroundStyle(.secondary)
                 Button {
                     access.reconnect { await sessionManager.hydrate(); return sessionManager.status == .ready }

@@ -25,6 +25,9 @@ struct TvBrowseHeroMetrics {
     let contentHorizontalPadding: CGFloat
     let contentTopPadding: CGFloat
     let metadataBottomPadding: CGFloat
+    /// Home dissolves shelf content into the actual pinned backdrop at the
+    /// viewport edge. Library keeps this at zero so filters are unaffected.
+    let shelfTransitionHeight: CGFloat
 
     var backdropFadeStartLocation: CGFloat {
         min(heightRatio / Self.backdropHeightRatio, 1)
@@ -35,7 +38,8 @@ struct TvBrowseHeroMetrics {
         leadingSafeAreaReduction: 0,
         contentHorizontalPadding: alignedContentInset,
         contentTopPadding: 1,
-        metadataBottomPadding: 8
+        metadataBottomPadding: 8,
+        shelfTransitionHeight: 0
     )
 
     static let home = TvBrowseHeroMetrics(
@@ -43,7 +47,8 @@ struct TvBrowseHeroMetrics {
         leadingSafeAreaReduction: 0.5,
         contentHorizontalPadding: homeAlignedContentInset,
         contentTopPadding: 0,
-        metadataBottomPadding: 8
+        metadataBottomPadding: 8,
+        shelfTransitionHeight: 20
     )
 }
 
@@ -99,7 +104,11 @@ struct SharedTvBrowsePageLayout<NavigationContent: View, FilterContent: View, Ro
                         }
                         .clipped()
                         .frame(height: rowsHeight)
+                        .mask {
+                            TvShelfViewportMask(topFadeHeight: heroMetrics.shelfTransitionHeight)
+                        }
                     }
+
                 }
                 .padding(.leading, leadingShift)
                 .frame(width: proxy.size.width - leadingShift, alignment: .leading)
@@ -126,6 +135,27 @@ struct SharedTvBrowsePageLayout<NavigationContent: View, FilterContent: View, Ro
             .padding(.top, topSafeAreaInset + heroMetrics.contentTopPadding)
         }
         .clipped()
+    }
+}
+
+/// Fades shelf content to transparency at the fixed top edge. The pinned hero
+/// remains the only source of color, so bright and dark artwork blend naturally.
+private struct TvShelfViewportMask: View {
+    let topFadeHeight: CGFloat
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if topFadeHeight > 0 {
+                LinearGradient(
+                    colors: [.clear, .black],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: topFadeHeight)
+            }
+
+            Rectangle().fill(.black)
+        }
     }
 }
 
@@ -515,22 +545,40 @@ private struct TvHeroIdentityView: View {
     }
 }
 
-private struct TvPinnedHeroBackdrop: View {
+struct TvPinnedHeroBackdrop: View {
     @Environment(PlexAPIContext.self) private var plexApiContext
 
     let media: MediaItem
     let identityGuideHeight: CGFloat
     let bottomFadeStartLocation: CGFloat
+    let showsIdentity: Bool
+    let fillsBase: Bool
 
     @State private var imageURL: URL?
     @State private var displayedLogoURL: URL?
     @State private var displayedTitle: String = ""
     @State private var loadedIdentityForMediaID: String?
 
+    init(
+        media: MediaItem,
+        identityGuideHeight: CGFloat,
+        bottomFadeStartLocation: CGFloat,
+        showsIdentity: Bool = true,
+        fillsBase: Bool = true
+    ) {
+        self.media = media
+        self.identityGuideHeight = identityGuideHeight
+        self.bottomFadeStartLocation = bottomFadeStartLocation
+        self.showsIdentity = showsIdentity
+        self.fillsBase = fillsBase
+    }
+
     var body: some View {
         GeometryReader { proxy in
             ZStack {
-                Color.appBackground
+                if fillsBase {
+                    Color.appBackground
+                }
 
                 if let imageURL {
                     AsyncImage(url: imageURL) { phase in
@@ -540,11 +588,11 @@ private struct TvPinnedHeroBackdrop: View {
                                 .resizable()
                                 .scaledToFill()
                         case .empty:
-                            Color.appBackground
+                            fallbackFill
                         case .failure:
-                            Color.appBackground
+                            fallbackFill
                         @unknown default:
-                            Color.appBackground
+                            fallbackFill
                         }
                     }
                     .frame(width: (proxy.size.width * 0.62) + 96, height: proxy.size.height)
@@ -558,19 +606,27 @@ private struct TvPinnedHeroBackdrop: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                 }
 
-                heroIdentityOverlay
-                    .frame(width: proxy.size.width * 0.34, alignment: .trailing)
-                    .padding(.trailing, TvBrowseHeroMetrics.identityTrailingSafeInset)
-                    .padding(.bottom, 16)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .frame(height: identityGuideHeight, alignment: .bottom)
-                    .frame(maxHeight: .infinity, alignment: .top)
+                if showsIdentity {
+                    heroIdentityOverlay
+                        .frame(width: proxy.size.width * 0.34, alignment: .trailing)
+                        .padding(.trailing, TvBrowseHeroMetrics.identityTrailingSafeInset)
+                        .padding(.bottom, 16)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .frame(height: identityGuideHeight, alignment: .bottom)
+                        .frame(maxHeight: .infinity, alignment: .top)
+                }
             }
             .task(id: media.id) {
                 await loadImage()
-                await loadIdentityIfNeeded()
+                if showsIdentity {
+                    await loadIdentityIfNeeded()
+                }
             }
         }
+    }
+
+    private var fallbackFill: Color {
+        fillsBase ? .appBackground : .clear
     }
 
     @ViewBuilder

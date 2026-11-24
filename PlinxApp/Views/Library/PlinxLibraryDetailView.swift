@@ -229,7 +229,8 @@ struct PlinxLibraryDetailView: View {
                 viewModel: makeRecommendedViewModel(),
                 heroMedia: $tvHeroMedia,
                 usesLandscapeCards: LibraryCardLayoutPolicy.usesLandscapeDetailCards(for: library, surface: .recommended),
-                onSelectMedia: onSelectMedia
+                onSelectMedia: onSelectMedia,
+                onLongPressMedia: onLongPressMedia
             )
             .padding(.horizontal, TvBrowseHeroMetrics.alignedContentInset)
             .padding(.bottom, 28)
@@ -239,6 +240,7 @@ struct PlinxLibraryDetailView: View {
                 heroMedia: $tvHeroMedia,
                 usesLandscapeCards: LibraryCardLayoutPolicy.usesLandscapeDetailCards(for: library, surface: .browse),
                 onSelectMedia: onSelectMedia,
+                onLongPressMedia: onLongPressMedia,
                 onJumpToIndex: { index in
                     withAnimation(.easeInOut(duration: 0.2)) {
                         scrollProxy.scrollTo(index, anchor: .top)
@@ -253,6 +255,7 @@ struct PlinxLibraryDetailView: View {
                 heroMedia: $tvHeroMedia,
                 usesLandscapeCards: LibraryCardLayoutPolicy.usesLandscapeDetailCards(for: library, surface: .collections),
                 onSelectMedia: onSelectMedia,
+                onLongPressMedia: onLongPressMedia,
                 onJumpToIndex: { index in
                     withAnimation(.easeInOut(duration: 0.2)) {
                         scrollProxy.scrollTo(index, anchor: .top)

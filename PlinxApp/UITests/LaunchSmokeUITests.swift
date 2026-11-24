@@ -16,7 +16,7 @@ final class LaunchSmokeUITests: XCTestCase {
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10), "App should launch into foreground")
     }
 
-    func test_demoModeRendersProductionHomeAndSyntheticPlayback() {
+    func test_demoModeRendersProductionHomeAndPlayback() {
         let app = XCUIApplication()
         app.launchArguments += ["--ui-testing", "--disable-animations"]
         app.launch()
@@ -44,8 +44,8 @@ final class LaunchSmokeUITests: XCTestCase {
         playButton.tap()
 
         XCTAssertTrue(
-            app.buttons["demo.player.close"].waitForExistence(timeout: 20),
-            "Demo playback should use the explicit synthetic playback surface",
+            app.descendants(matching: .any)["player.back"].waitForExistence(timeout: 20),
+            "Demo playback should open the production player with the bundled demo clip",
         )
     }
 }

@@ -1,0 +1,2 @@
+{"ts":"2026-10-03T12:07:55.435Z","category":"session","action":"session.open","outcome":"info","actor":{"sessionId":"b9637d49-80ad-4ea5-9151-512e9d2c8e80"},"detail":{"transport":"stdio"}}
+{"ts":"2026-10-03T18:48:54.560Z","category":"session","action":"session.open","outcome":"info","actor":{"sessionId":"474435d7-1f55-47ff-abc7-301c52dd490b"},"detail":{"transport":"stdio"}}

@@ -111,6 +111,8 @@ struct HomeMediaCardBody: View {
     }
 
     var body: some View {
+        let artworkToLabelOffset = focusHaloInset + 6
+
         VStack(alignment: .leading, spacing: 6) {
             ZStack(alignment: .bottom) {
                     MediaImageView(
@@ -162,21 +164,35 @@ struct HomeMediaCardBody: View {
             )
             .frame(width: cardWidth + (focusHaloInset * 2), height: thumbHeight + (focusHaloInset * 2))
 
-            Text(item.primaryLabel)
-                .font(titleFont)
-                .foregroundStyle(.white)
-                .lineLimit(1)
-                .frame(width: cardWidth, alignment: .leading)
-                .padding(.leading, focusHaloInset)
-
-            if let sub = item.secondaryLabel {
-                Text(sub)
-                    .font(subtitleFont)
-                    .foregroundStyle(.white.opacity(0.55))
+            VStack(alignment: .leading, spacing: 6) {
+                Text(item.primaryLabel)
+                    .font(titleFont)
+                    .foregroundStyle(.white)
                     .lineLimit(1)
                     .frame(width: cardWidth, alignment: .leading)
                     .padding(.leading, focusHaloInset)
+
+                if let sub = item.secondaryLabel {
+                    Text(sub)
+                        .font(subtitleFont)
+                        .foregroundStyle(.white.opacity(0.55))
+                        .lineLimit(1)
+                        .frame(width: cardWidth, alignment: .leading)
+                        .padding(.leading, focusHaloInset)
+                }
             }
+            #if os(tvOS)
+            .visualEffect { content, geometry in
+                // The label group starts after the artwork's focus halo and
+                // the six-point card spacing. This reconstructs the actual
+                // artwork bottom in the outer vertical scroll viewport.
+                let artworkBottom = geometry.frame(in: .scrollView(axis: .vertical)).minY
+                    - artworkToLabelOffset
+                let fadeDistance: CGFloat = 18
+                let labelOpacity = min(max(artworkBottom / fadeDistance, 0), 1)
+                return content.opacity(Double(labelOpacity))
+            }
+            #endif
         }
         .frame(width: cardWidth + (focusHaloInset * 2), alignment: .leading)
         .accessibilityIdentifier("home.card.\(sectionKey).\(index)")

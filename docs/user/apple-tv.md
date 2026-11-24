@@ -27,8 +27,21 @@ open the focused item or activate a control. Press Menu to dismiss a sheet or
 return to the previous level. Settings remain behind the parental gate; unlock
 them before changing profiles, servers, ratings, or library visibility.
 
+Press and hold Select on a Plex media card to open Quick Actions without also
+opening or playing the card. The menu can mark playable media watched or
+unwatched and open More Info. Library Recommended, Browse, and Collections use
+the same interaction as Home, Search, Collection, and Playlist screens.
+
+On a More Info page, use the watched-state button beside Play and Restart.
+During playback, hold Select anywhere on the player surface to mark the current
+title watched or open More Info. Opening More Info dismisses the player first
+and then opens the detail page. Press Menu or Cancel to dismiss Quick Actions.
+
 Download actions are intentionally absent on Apple TV. Use an iPhone or iPad
 when a parent needs to save authorized media for offline playback.
+While a saved account reconnects, Apple TV shows loading and offers Retry if
+the connection fails. The browsing tabs appear when streaming is ready;
+Downloads does not appear.
 
 ## Troubleshooting
 

@@ -9,6 +9,8 @@ struct PlinxContentView: View {
     @Environment(\.safetyPolicy) private var safetyPolicy
     @EnvironmentObject private var mainCoordinator: MainCoordinator
     @StateObject private var playbackLaunchCoordinator = PlaybackLaunchCoordinator()
+    @State private var watchStatusStore = PlinxWatchStatusStore()
+    @State private var pendingPlayerDetail: MediaItem?
 
     private struct PlaybackPresentationToken: Identifiable {
         let id = "plinx.playback.presentation"
@@ -38,9 +40,11 @@ struct PlinxContentView: View {
             rootContent
         }
         .environmentObject(playbackLaunchCoordinator)
-        .fullScreenCover(item: playbackPresentationBinding) { _ in
-            PlinxPlaybackPresentationView()
+        .environment(watchStatusStore)
+        .fullScreenCover(item: playbackPresentationBinding, onDismiss: consumePendingPlayerDetail) { _ in
+            PlinxPlaybackPresentationView(onRequestMoreInfo: queuePlayerDetail)
                 .environmentObject(playbackLaunchCoordinator)
+                .environment(watchStatusStore)
         }
         .onAppear {
             synchronizeSessionAccess()
@@ -53,6 +57,8 @@ struct PlinxContentView: View {
             synchronizeSessionAccess()
         }
         .onChange(of: sessionRootIdentity) { _, _ in
+            pendingPlayerDetail = nil
+            watchStatusStore.reset()
             synchronizeSessionAccess()
         }
     }
@@ -75,6 +81,21 @@ struct PlinxContentView: View {
         )
     }
 
+    /// Player More Info intentionally crosses the full-screen presentation
+    /// boundary only after dismissal. This avoids competing navigation updates
+    /// and makes an ordinary player exit a no-op for root navigation.
+    private func queuePlayerDetail(_ media: MediaItem) {
+        guard PlinxContentAuthorization.isAllowed(media, policy: safetyPolicy) else { return }
+        pendingPlayerDetail = media
+    }
+
+    private func consumePendingPlayerDetail() {
+        guard let media = pendingPlayerDetail else { return }
+        pendingPlayerDetail = nil
+        guard PlinxContentAuthorization.isAllowed(media, policy: safetyPolicy) else { return }
+        mainCoordinator.showMediaDetail(media)
+    }
+
     @ViewBuilder
     private var rootContent: some View {
         if let uiTestScreenOverride {
@@ -90,6 +111,8 @@ struct PlinxContentView: View {
                 )
             case "playerSettings":
                 playerSettingsPreview
+            case "playerTimeline":
+                PlayerTimelineUITestHarness()
             case "loadingGallery":
                 loadingGalleryPreview
             case "homeLoading":
@@ -427,6 +450,17 @@ struct PlinxContentView: View {
 
     @ViewBuilder
     private var sessionContent: some View {
+        #if os(tvOS)
+        // Apple TV has no offline Downloads screen. Keep the session flow in
+        // front until streaming is ready instead of mounting the tab shell
+        // behind a download recovery overlay during hydration.
+        if sessionAccessCoordinator.isLocallyEnrolled,
+           sessionManager.status == .signedOut {
+            PlinxConnectionRecoveryView()
+        } else {
+            sessionStatusContent
+        }
+        #else
         if sessionAccessCoordinator.isLocallyEnrolled {
             ZStack {
                 RootTabView()
@@ -435,56 +469,62 @@ struct PlinxContentView: View {
                 }
             }
         } else {
-            switch sessionManager.status {
-            case .hydrating:
-                PlinxBrandedLoadingView(context: .appTransition)
-            case .signedOut:
-                SignInView(
-                    viewModel: PlinxSignInViewModel(
+            sessionStatusContent
+        }
+        #endif
+    }
+
+    @ViewBuilder
+    private var sessionStatusContent: some View {
+        switch sessionManager.status {
+        case .hydrating:
+            PlinxBrandedLoadingView(context: .appTransition)
+        case .signedOut:
+            SignInView(
+                viewModel: PlinxSignInViewModel(
+                    sessionManager: sessionManager,
+                    context: plexApiContext
+                )
+            )
+        case .needsProfileSelection:
+            NavigationStack {
+                #if os(tvOS)
+                PlinxProfileSwitcherTVView(
+                    viewModel: ProfileSwitcherViewModel(
+                        context: plexApiContext,
+                        sessionManager: sessionManager
+                    )
+                )
+                #else
+                ProfileSwitcherView(
+                    viewModel: ProfileSwitcherViewModel(
+                        context: plexApiContext,
+                        sessionManager: sessionManager
+                    )
+                )
+                #endif
+            }
+        case .needsServerSelection:
+            NavigationStack {
+                #if os(tvOS)
+                SelectServerTVView(
+                    viewModel: ServerSelectionViewModel(
                         sessionManager: sessionManager,
                         context: plexApiContext
                     )
                 )
-            case .needsProfileSelection:
-                NavigationStack {
-                    #if os(tvOS)
-                    PlinxProfileSwitcherTVView(
-                        viewModel: ProfileSwitcherViewModel(
-                            context: plexApiContext,
-                            sessionManager: sessionManager
-                        )
+                #else
+                SelectServerView(
+                    viewModel: ServerSelectionViewModel(
+                        sessionManager: sessionManager,
+                        context: plexApiContext
                     )
-                    #else
-                    ProfileSwitcherView(
-                        viewModel: ProfileSwitcherViewModel(
-                            context: plexApiContext,
-                            sessionManager: sessionManager
-                        )
-                    )
-                    #endif
-                }
-            case .needsServerSelection:
-                NavigationStack {
-                    #if os(tvOS)
-                    SelectServerTVView(
-                        viewModel: ServerSelectionViewModel(
-                            sessionManager: sessionManager,
-                            context: plexApiContext
-                        )
-                    )
-                    #else
-                    SelectServerView(
-                        viewModel: ServerSelectionViewModel(
-                            sessionManager: sessionManager,
-                            context: plexApiContext
-                        )
-                    )
-                    #endif
-                }
-            case .ready:
-                RootTabView()
-                    .id(sessionRootIdentity)
+                )
+                #endif
             }
+        case .ready:
+            RootTabView()
+                .id(sessionRootIdentity)
         }
     }
 

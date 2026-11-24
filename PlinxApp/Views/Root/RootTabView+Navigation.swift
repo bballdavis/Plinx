@@ -47,7 +47,7 @@ extension RootTabView {
                     mainCoordinator.showMediaDetail(displayItem)
                 },
                 onLongPressMedia: { displayItem in
-                    selectedQuickActionMedia = displayItem
+                    presentQuickActions(for: displayItem)
                 },
                 onRequestShellNavigationFocus: {
                     requestHeaderFocus()
@@ -71,7 +71,7 @@ extension RootTabView {
                     startPlayback(ratingKey: media.id, type: media.type)
                 },
                 onLongPressMedia: { displayItem in
-                    selectedQuickActionMedia = displayItem
+                    presentQuickActions(for: displayItem)
                 },
                 onRequestShellNavigationFocus: {
                     requestHeaderFocus()

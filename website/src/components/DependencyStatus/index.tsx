@@ -45,9 +45,9 @@ export default function DependencyStatus() {
           <td><code>PlinxApp/project.yml</code></td>
         </tr>
         <tr>
-          <td>CI Xcode version</td>
+          <td>Configured Xcode version</td>
           <td><code>{data.xcode.version}</code></td>
-          <td><code>.xcode-version</code></td>
+          <td><code>PlinxApp/project.yml</code></td>
         </tr>
       </tbody>
     </table>
