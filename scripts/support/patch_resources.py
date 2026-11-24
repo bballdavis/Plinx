@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Add deterministic, target-owned resource phases to the generated project.
 
-XcodeGen currently omits these resources for Plinx's sibling-source layout.
+XcodeGen currently omits these resources for Plinx.s vendored-source layout.
 Each app target must own a distinct PBXResourcesBuildPhase and distinct
 PBXBuildFile objects. Sharing either object between iOS and tvOS can cause
 Xcode's build system to copy resources into only one product.
@@ -19,7 +19,7 @@ PBXPROJ = ROOT_DIR / "PlinxApp/Plinx.xcodeproj/project.pbxproj"
 FILE_REFS = {
     "demo_media": ("F10000000000000000000006", "DemoMedia", "folder", "Resources/DemoMedia"),
     "plinx_strings": ("F10000000000000000000001", "Plinx.strings", "text.plist.strings", "Resources/en.lproj/Plinx.strings"),
-    "local_strings": ("F10000000000000000000002", "Localizable.xcstrings", "text.json.xcstrings", "../../strimr/Localizable.xcstrings"),
+    "local_strings": ("F10000000000000000000002", "Localizable.xcstrings", "text.json.xcstrings", "Resources/Localizable.xcstrings"),
     "assets": ("F10000000000000000000003", "Assets.xcassets", "folder.assetcatalog", "Resources/Assets.xcassets"),
     "launch": ("F10000000000000000000004", "LaunchScreen.storyboard", "file.storyboard", "Resources/LaunchScreen.storyboard"),
     "privacy": ("F10000000000000000000005", "PrivacyInfo.xcprivacy", "text.xml", "Resources/PrivacyInfo.xcprivacy"),

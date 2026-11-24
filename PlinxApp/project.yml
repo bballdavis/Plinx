@@ -2,22 +2,20 @@
 # Plinx — XcodeGen Project Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 #
-# Architecture: "Skin, Don't Fork"
-#
-# Strimr sibling-repo sources compile INTO the Plinx-iOS app target (not as a
-# separate framework). This is required because Strimr uses `internal` access
-# on many types — compiling in the same module is the current way to access
-# them without broadening upstream access control.
+# Plinx is one codebase. `Core/` and `Platform/` hold the media, provider,
+# session and feature code Plinx absorbed from Strimr (see
+# docs/maintenance/upstream-strimr.md); the remaining folders are the Plinx
+# app layer. Everything compiles into one app module per platform.
 #
 # Dependency flow:
-#   PlinxApp (this target)
-#     ├── Strimr sources (compiled inline, internal access)
+#   Plinx app target
+#     ├── App, Views, Adapters, Decorators, ViewModels (Plinx layer)
+#     ├── Core + Platform/<platform> (absorbed media stack)
 #     ├── PlinxUI (SPM) → PlinxCore (SPM)
-#     └── AetherEngine (SPM)
+#     └── AetherEngine, GRDB, SwiftAssRenderer (SPM)
 #
-# Note: Sentry (crash reporting SDK) has been removed entirely as part of the
-# zero-collection privacy commitment. Plinx provides its own no-op ErrorReporter
-# (PlinxApp/App/ErrorReporter.swift) to satisfy Strimr's dependencies.
+# Zero collection: no crash-reporting or analytics SDK is linked. The no-op
+# ErrorReporter lives in App/ErrorReporter.swift.
 #
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -27,8 +25,8 @@ options:
   minimumXcodeGenVersion: 2.46.0
   xcodeVersion: "27.2"
   deploymentTarget:
-    iOS: 17.5
-    tvOS: 17.0
+    iOS: 18.0
+    tvOS: 18.0
   postGenCommand: >-
     if [ -f ../scripts/support/patch_resources.py ]; then
       python3 ../scripts/support/patch_resources.py;
@@ -43,7 +41,13 @@ packages:
     path: ../Packages/PlinxUI
   AetherEngine:
     url: https://github.com/wunax/AetherEngine
-    revision: d882f47811757f8ebbf44e791abf96416262b49a
+    revision: b5695ba39215a9751031c93089494eb1b4241fdd
+  GRDB:
+    url: https://github.com/groue/GRDB.swift
+    exactVersion: 7.12.0
+  SwiftAssRenderer:
+    url: https://github.com/wunax/swift-ass-renderer
+    revision: 5cbdf215fa149ca12685bb7d19ee18aa231e55bf
 
 settings:
   base:
@@ -70,52 +74,9 @@ targets:
       - path: Adapters
       - path: ViewModels
 
-      # ── Strimr sibling-repo sources (compiled into app module) ──────
-      # These compile as part of the Plinx-iOS module, giving our
-      # decorators and adapters access to Strimr's internal types.
-      - path: ../../strimr/Shared
-        name: StrimrShared
-        excludes:
-          # Plinx owns the raised timeline and platform input behavior.
-          - "Features/Player/Controls/PlayerTimelineView.swift"
-          # Plinx replaces the generic launcher with a final fail-closed
-          # authorization boundary immediately before queue creation.
-          - "Features/Player/PlaybackLauncher.swift"
-          # MediaBackdropGradient uses Color.background which is ambiguous
-          # in iOS 26 SDK (resolves to BackgroundStyle, not Color).
-          # Replaced by Adapters/PlinxMediaBackdropGradient.swift.
-          - "Views/Media/MediaBackdropGradient.swift"
-          # Plinx ships its own rating artwork names and renders the same
-          # upstream model through a local label adapter.
-          - "Views/Media/MediaRatingLabel.swift"
-          # ErrorReporter would initialize Sentry. Plinx has zero data collection,
-          # so we provide our own no-op ErrorReporter instead (App/ErrorReporter.swift).
-          # See docs/security/privacy-and-safety.md for the privacy rationale.
-          - "Monitoring/ErrorReporter.swift"
-      - path: ../../strimr/Strimr-iOS/Features
-        name: StrimrIOSFeatures
-        excludes:
-          # Strimr's own app entry point — we use PlinxApp.swift
-          - "../StrimrApp.swift"
-          # These views reference Strimr's asset catalog (Image(.icon) etc.)
-          # and are replaced by Plinx-branded stubs in Views/Auth/.
-          # Their ViewModels in Shared/ and Auth/SignInViewModel.swift still compile.
-          - "Auth/SignInView.swift"
-          - "Auth/ProfileSelection/ProfileSwitcherView.swift"
-          - "Auth/ServerSelection/SelectServerView.swift"
-          # Strimr's MainTabView uses iOS 18+ Tab API; Plinx has its own
-          # RootTabView with Liquid Glass tab bar.
-          - "Tab/MainTabView.swift"
-          # Plinx owns the downloads settings surface. Keeping both files in
-          # the same module produces a duplicate Swift filename error.
-          - "Settings/SettingsDownloadsView.swift"
-          # Strimr's ContentView — replaced by PlinxContentView.swift
-          - "ContentView.swift"
-          # Plinx preserves Strimr's player button types while enlarging only
-          # the existing settings control in the overlay header.
-          - "Player/Controls/PlayerControlButtons.swift"
-          # Plinx enlarges only the existing player header controls and title.
-          - "Player/Controls/PlayerControlsView.swift"
+      # ── Absorbed media stack ────────────────────────────────────────
+      - path: Core
+      - path: Platform/iOS
 
     resources:
       # Privacy manifest (required for App Store)
@@ -127,13 +88,17 @@ targets:
       # Localized strings — listed explicitly because xcodegen skips xcstrings
       # and needs lproj bundles spelled out.
       - path: Resources/en.lproj/Plinx.strings
-      - path: ../../strimr/Localizable.xcstrings
+      - path: Resources/Localizable.xcstrings
 
     dependencies:
       - package: PlinxCore
       - package: PlinxUI
       - package: AetherEngine
         product: AetherEngine
+      - package: GRDB
+        product: GRDB
+      - package: SwiftAssRenderer
+        product: SwiftAssRenderer
 
     info:
       path: Resources/Info.plist
@@ -163,16 +128,15 @@ targets:
     settings:
       base:
         CODE_SIGN_STYLE: Automatic
-        # Ensure Strimr code compiles with our Swift version
         SWIFT_VERSION: 5.0
-        # Strimr code has actor-isolation violations that are
-        # errors in the Swift 6 compiler even with Swift 5 language mode.
-        # Minimal concurrency turns them into warnings until vendor fixes.
+        # The absorbed media stack still has actor-isolation violations that
+        # are errors in the Swift 6 compiler even in Swift 5 language mode.
+        # Minimal concurrency keeps them as warnings until they are fixed.
         SWIFT_STRICT_CONCURRENCY: minimal
         # Override: force the frontend to treat concurrency as minimal.
         # This is needed because Xcode 26's toolchain promotes some
         # isolation checks to errors even under Swift 5 + minimal mode.
-        # Remove once Strimr fixes its actor isolation (file upstream PR).
+        # Remove once the media stack's actor isolation is fixed.
         OTHER_SWIFT_FLAGS: "-Xfrontend -strict-concurrency=minimal -Xfrontend -disable-dynamic-actor-isolation"
 
   Plinx-iOS-UnitTests:
@@ -197,7 +161,7 @@ targets:
         SWIFT_STRICT_CONCURRENCY: minimal
         OTHER_SWIFT_FLAGS: "-Xfrontend -strict-concurrency=minimal"
         # Host the unit tests inside the running app process so they can access
-        # all internal types (vendor + Plinx) via @testable import Plinx_iOS.
+        # all internal app types via @testable import Plinx_iOS.
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Plinx.app/Plinx"
         BUNDLE_LOADER: "$(TEST_HOST)"
 
@@ -221,7 +185,7 @@ targets:
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Apple TV application target. It shares Plinx-owned policy and presentation
-# layers with iOS while compiling the paired Strimr tvOS implementation.
+# layers with iOS and compiles the tvOS platform layer.
 # ─────────────────────────────────────────────────────────────────────────────
   Plinx-tvOS:
     type: application
@@ -243,45 +207,14 @@ targets:
       - path: Adapters
       - path: ViewModels
 
-      # ── Strimr shared sources (same excludes as iOS target) ─────────────
-      - path: ../../strimr/Shared
-        name: StrimrShared
-        excludes:
-          # Same timeline contract as iOS, with Plinx remote/focus handling.
-          - "Features/Player/Controls/PlayerTimelineView.swift"
-          - "Features/Player/PlaybackLauncher.swift"
-          - "Views/Media/MediaBackdropGradient.swift"
-          - "Views/Media/MediaRatingLabel.swift"
-          - "Monitoring/ErrorReporter.swift"
-          # tvOS ships paged focus-aware implementations with the same type
-          # names as the sequential shared iOS view models.
-          - "Features/Library/LibraryBrowseViewModel.swift"
-          - "Features/Library/LibraryCollectionsViewModel.swift"
-
-      # ── Strimr tvOS-specific UI features ────────────────────────────────
-      - path: ../../strimr/Strimr-tvOS/Features
-        name: StrimrTVOSFeatures
-        excludes:
-          # Strimr's own entry points — Plinx provides its own
-          - "../StrimrApp.swift"
-          - "../ContentView.swift"
-          # Plinx uses its own tab root; Strimr's tvOS Tab uses tvOS 18-only APIs.
-          - "Tab/**"
-          # Plinx uses its own sign-in and does not need Strimr's tvOS sign-in view.
-          - "Auth/SignInTVView.swift"
-          # Plinx owns the visible player focus treatment and suppresses the
-          # native bright tvOS focus plate while retaining upstream actions.
-          - "Player/Controls/PlayerControlButtonsTV.swift"
-          - "Player/Controls/PlayerTrackSelectionView.swift"
-
-      # ── Strimr tvOS shared UI components ────────────────────────────────
-      - path: ../../strimr/Strimr-tvOS/Shared
-        name: StrimrTVOSShared
+      # ── Absorbed media stack ────────────────────────────────────────
+      - path: Core
+      - path: Platform/tvOS
 
     resources:
       - path: Resources/PrivacyInfo.xcprivacy
       - path: Resources/Assets.xcassets
-      - path: ../../strimr/Localizable.xcstrings
+      - path: Resources/Localizable.xcstrings
       - path: Resources/en.lproj/Plinx.strings
       - path: Resources/DemoMedia
         type: folder
@@ -291,6 +224,10 @@ targets:
       - package: PlinxUI
       - package: AetherEngine
         product: AetherEngine
+      - package: GRDB
+        product: GRDB
+      - package: SwiftAssRenderer
+        product: SwiftAssRenderer
 
     info:
       path: Resources/Info-tvOS.plist
