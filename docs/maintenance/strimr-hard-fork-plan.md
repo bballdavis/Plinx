@@ -60,7 +60,10 @@ Status as of 2026-11-24, on `feat/strimr-hard-fork`.
   `validate_testflight_archive.sh` fails on any Trakt or Simkl text, including
   UTF-16 values in compiled string tables, and on Sentry artifacts and DSN
   markers. It does not scan for bare "sentry", which matches Swift identifiers
-  such as `previousEntryID`. Live parity tests must pass on Plex.
+  such as `previousEntryID`. Live parity tests must pass on Plex. So far the
+  branch has only been compiled: all four targets build (both apps and both
+  test bundles), but the machine that built it has no simulator runtime, so
+  no unit, UI or focus test has run yet.
 - **Tests.** Delete the pairing-era `StrimrUpgradeSeamTests`. Keep
   `OfflineSessionAccessTests`, rewritten for the absorbed stack: it covers
   download ownership and the first offline launch after the update
@@ -72,33 +75,99 @@ Status as of 2026-11-24, on `feat/strimr-hard-fork`.
   yet, so Seerr stays off for kids. Seerr and Youtarr Explore share one
   navigation path today; give them separate paths before Seerr is enabled.
 - **Jellyfin (P4).** End-to-end kid flow and live parity on a Jellyfin server.
-  Decide whether seasons and episodes without their own rating may inherit an
-  allowed series' rating; today they stay hidden unless unrated content is
-  allowed, which is common on Jellyfin. Read Jellyfin's parental policy.
-- **Parent tools (P6).** Parents cannot reach the Manage menu yet, on iOS or
-  tvOS. Its entries exist only while the parental gate is unlocked, and the
-  gate unlocks only behind Settings, Manage Downloads and the profile
-  picker's management sheet, which cover browsing and lock the gate again
-  when they close. No parent path shows a card or detail page while the gate
-  is unlocked, and the library Manage actions (scan, empty trash) have no
-  screen. Add a parent entry point on both platforms. Before it ships,
-  delete, unmatch and empty trash must each ask for a fresh PIN
-  (`ParentalAccessCoordinator.unlock(withPIN:)`) as well as a confirmation.
-  Today delete and unmatch ask only for a confirmation and rely on the
-  existing unlock. `LaunchSmokeUITests/test_kidModeOffersNoManageMenu` checks
-  that kid mode shows no Manage entry (nor Delete, Match or Empty Trash), and
-  `SafeMediaServicesTests/test_manageMenuIsEmptyAndRefusedWhileLocked` checks
-  the same for an administrator account.
-  `SafeMediaServicesTests/test_everyParentOnlyRequirementIsRefusedWhileLockedAndAnsweredOnceUnlocked`
-  checks every parent-only requirement (all 25 management actions, playlist
-  edits, the watchlist, subtitle downloads and server rights) against an
-  administrator's server. All three need a passing run.
-- **Shrink (P7).** Finish moving UI-test harness screens and fixtures behind
-  `#if DEBUG` (the launch hooks and the UI-test route switch already are),
-  delete the now-unreachable upstream settings screens, remove the
-  `StrimrAdapter`, `PlinxContentAuthorization` and
-  `SafePlaylistPlaybackSelection` aliases once callers move, share one media
-  card, and close the remaining dead-code items below.
+  Seasons and episodes now must pass on their own rating and their series'
+  rating, and one with no rating of its own is judged by its series
+  (`f2542cdf`). Confirm on a real Jellyfin library, where unrated episodes are
+  common, that a normal family still sees episodes. Read Jellyfin's parental
+  policy.
+- **Parent tools (P6), next up.** Parents cannot reach the Manage menu yet,
+  on iOS or tvOS. Its entries exist only while the parental gate is
+  unlocked, and the gate unlocks only behind Settings, Manage Downloads and
+  the profile picker's management sheet, which cover browsing and lock the
+  gate again when they close. No parent path shows a card or detail page
+  while the gate is unlocked, and the library Manage actions have no screen.
+  Build a **Manage** area inside Settings on iPhone, iPad and Apple TV,
+  behind one entry view so the settings redesign can move it:
+  - List only the servers whose account has management rights
+    (`services.authorization`). Hide the entry, or explain why it is empty,
+    when there are none.
+  - Under each server, list its libraries with the actions in
+    `LibraryManageActions`: scan, refresh metadata, analyze, and empty trash
+    where the server supports them. Their confirmation controller and menu
+    were deleted with the upstream library screen. They can be recovered
+    from `32d0881e:PlinxApp/Core/Features/Library/LibraryManageMenu.swift`.
+  - Let the parent find a title on the server through `MediaServices`
+    search, which stays filtered by the family's policy, and open its Manage
+    actions: refresh metadata, analyze, artwork, edit metadata, fix match,
+    unmatch, advanced settings and delete. Reuse
+    `MediaQuickActions.manageActions(for:)`, `MediaManageController` and
+    `mediaManagePresentation`, and show results as toasts.
+  - Delete, unmatch and empty trash ask for a fresh PIN
+    (`ParentalAccessCoordinator.unlock(withPIN:)`) and a confirmation every
+    time. Enforce this in the controller or view-model layer so the existing
+    card and detail menus inherit it, and fail closed when no PIN is set.
+    Today delete and unmatch ask only for a confirmation and rely on the
+    existing unlock.
+  - Make every screen reachable with the Siri Remote. Add no external links.
+    Seerr request management is a separate task.
+  - Add unit tests for the fresh-PIN rule and the rights and gate checks.
+    These existing tests must also pass:
+    - `LaunchSmokeUITests/test_kidModeOffersNoManageMenu` checks that kid
+      mode shows no Manage entry (nor Delete, Match or Empty Trash).
+    - `SafeMediaServicesTests/test_manageMenuIsEmptyAndRefusedWhileLocked`
+      checks the same for an administrator account.
+    - `SafeMediaServicesTests/test_everyParentOnlyRequirementIsRefusedWhileLockedAndAnsweredOnceUnlocked`
+      checks every parent-only requirement against an administrator's
+      server: all 25 management actions, playlist edits, the watchlist,
+      subtitle downloads and server rights.
+  - Update the parent guide, the Apple TV guide, the privacy and safety page
+    and the integration doc.
+- **Re-check the review fixes (`f2542cdf`).** They landed after the last
+  review and have only been compiled. Check that:
+  - judging seasons and episodes by their series' rating keeps episodes
+    visible for a normal family, and an unknown series rating fails closed;
+  - Jellyfin items take the stricter of the official and custom ratings,
+    and 19, R21 and similar age ratings count as adult-only;
+  - the lease that keeps the gate open during a Plex sign-in from Settings
+    ends on every exit path, and switching profiles with no remembered
+    profile asks for the PIN without locking a family out;
+  - the update keeps every profile's hidden libraries (family-wide
+    fallback), the first offline launch after the update shows the right
+    child's downloads (`PlinxLegacyOfflineSession`), and old resume points
+    carry over;
+  - a volume cap above 70% applies, background audio and Picture in Picture
+    work only when a parent enables them, and tvOS scrubbing still works
+    after the system player was deleted.
+- **Earlier UI fixes.** Confirm on devices that the fixes from `5cf81cc0`
+  and `f068ac43` survived the port:
+  - at launch, a loading state (not offline) shows while connecting;
+  - a failed download offers Redownload and Remove;
+  - library grids spread their cards evenly;
+  - More Actions sits in the auto-hiding player header;
+  - the header buttons match the Back button;
+  - the timeline sits just above the time labels, with the lock row above
+    the hump;
+  - the played color stops at the hump's peak;
+  - the library Recommended tab shows every row, not only Recently Added.
+- **Owner decisions.**
+  - Downloads made before per-child ownership that have no ownership record
+    are parent-only.
+  - Jellyfin search returns nothing once any Jellyfin library is hidden.
+  - Choose which AetherEngine fork to follow.
+  - Decide whether the marketing copy (README intro, website hero, App Store
+    description) should name Jellyfin.
+  - The new audio background mode needs an App Review note.
+  - Jellyfin LAN discovery on iPhone and iPad needs the multicast
+    entitlement, which only the developer account holder can request.
+- **Shrink (P7).** Done so far:
+  - the upstream settings, home, library, search and collection screens,
+    the second demo system, the external-player code, and the
+    `StrimrAdapter`, `PlinxContentAuthorization` and
+    `SafePlaylistPlaybackSelection` aliases are deleted;
+  - the UI-test hooks build only in Debug.
+
+  Still to do: share one media card, and close the remaining dead-code items
+  below.
 - **P8** is unchanged: Live TV allowlist, a filtered Top Shelf, and in-app
   approvals.
 
