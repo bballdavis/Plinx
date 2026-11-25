@@ -1,7 +1,8 @@
 import CoreGraphics
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct PosterGridLayoutTests {
     @Test(arguments: [
         (CGFloat(81), 4, CGFloat(83)),

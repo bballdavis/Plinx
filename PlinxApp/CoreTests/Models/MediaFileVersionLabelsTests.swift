@@ -1,7 +1,8 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct MediaFileVersionLabelsTests {
     @Test func `technical label combines resolution, dynamic range and codec`() {
         let version = MediaFileVersion.make(id: "1", height: 2160, codec: "hevc", dynamicRange: "Dolby Vision")

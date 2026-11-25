@@ -1,8 +1,9 @@
 import AetherEngine
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct AppSettingsTests {
     @Test func `missing library browse preferences decode as empty`() throws {
         let settings = try decode(#"{"interface":{"displayPlaylists":false}}"#)
@@ -234,14 +235,21 @@ struct AppSettingsTests {
         #expect(playback.audioShaping.maxChannels == nil)
     }
 
-    @Test func `picture in picture and background audio stay on unless turned off`() throws {
+    /// Plinx keeps both off until a parent turns them on (docs/security/privacy-and-safety.md).
+    @Test func `picture in picture and background audio stay off unless turned on`() throws {
         let defaults = try decode(#"{"playback":{}}"#).playback
-        #expect(defaults.pictureInPicture)
-        #expect(defaults.backgroundAudio)
+        #expect(!defaults.pictureInPicture)
+        #expect(!defaults.backgroundAudio)
+        #expect(!AppSettings().playback.pictureInPicture)
+        #expect(!AppSettings().playback.backgroundAudio)
 
-        let disabled = try decode(#"{"playback":{"pictureInPicture":false,"backgroundAudio":false}}"#).playback
-        #expect(!disabled.pictureInPicture)
-        #expect(!disabled.backgroundAudio)
+        let enabled = try decode(#"{"playback":{"pictureInPicture":true,"backgroundAudio":true}}"#).playback
+        #expect(enabled.pictureInPicture)
+        #expect(enabled.backgroundAudio)
+
+        let invalid = try decode(#"{"playback":{"pictureInPicture":"x","backgroundAudio":1}}"#).playback
+        #expect(!invalid.pictureInPicture)
+        #expect(!invalid.backgroundAudio)
     }
 
     @Test func `subtitle brightness is full unless chosen`() throws {
@@ -304,7 +312,6 @@ struct AppSettingsTests {
 
         #expect(settings.playback.externalPlayer == nil)
         #expect(settings.playback.customExternalPlayer == nil)
-        #expect(settings.playback.resolvedExternalPlayer == nil)
         #expect(settings.playback.showClock)
     }
 
@@ -322,7 +329,6 @@ struct AppSettingsTests {
 
         #expect(decoded.playback.externalPlayer == .custom)
         #expect(decoded.playback.customExternalPlayer == custom)
-        #expect(decoded.playback.resolvedExternalPlayer == .custom(custom))
     }
 
     @Test func `corrupt external player keeps other settings`() throws {
@@ -332,22 +338,18 @@ struct AppSettingsTests {
         #expect(settings.playback.showClock)
     }
 
+    /// Plinx never hands playback to another app; `PlinxSettingsSanitizer` clears a choice saved by upstream builds.
     @MainActor
-    @Test func `custom player is kept after switching players`() throws {
+    @Test func `a cleared external player stays cleared after a reload`() throws {
         let defaults = try #require(UserDefaults(suiteName: #function))
         defer { defaults.removePersistentDomain(forName: #function) }
         let manager = SettingsManager(userDefaults: defaults)
-        let custom = CustomExternalPlayer(name: "Mine", template: "mine://play?url={url}")
 
-        manager.setCustomExternalPlayer(custom)
         manager.setExternalPlayer(.known(.vlc))
+        #expect(SettingsManager(userDefaults: defaults).playback.externalPlayer == .known(.vlc))
         manager.setExternalPlayer(nil)
-        let reloaded = SettingsManager(userDefaults: defaults)
 
-        #expect(reloaded.playback.externalPlayer == nil)
-        #expect(reloaded.playback.customExternalPlayer == custom)
-        reloaded.setExternalPlayer(.custom)
-        #expect(reloaded.playback.resolvedExternalPlayer == .custom(custom))
+        #expect(SettingsManager(userDefaults: defaults).playback.externalPlayer == nil)
     }
 
     @Test func `commercial auto skip is off unless chosen`() throws {
@@ -370,14 +372,16 @@ struct AppSettingsTests {
         #expect(try decode(#"{"playback":{"automaticSubtitleSearch":true}}"#).playback.automaticSubtitleSearch)
     }
 
-    @Test func `player controls use the system style unless changed`() throws {
-        #expect(try decode(#"{"playback":{}}"#).playback.playerControlsStyle == .system)
-        #expect(try decode(#"{"playback":{"playerControlsStyle":"x"}}"#).playback.playerControlsStyle == .system)
+    /// Plinx draws its own (classic) player controls by default.
+    @Test func `player controls use the classic style unless changed`() throws {
+        #expect(AppSettings().playback.playerControlsStyle == .classic)
+        #expect(try decode(#"{"playback":{}}"#).playback.playerControlsStyle == .classic)
+        #expect(try decode(#"{"playback":{"playerControlsStyle":"x"}}"#).playback.playerControlsStyle == .classic)
 
         var settings = AppSettings()
-        settings.playback.playerControlsStyle = .classic
+        settings.playback.playerControlsStyle = .system
         let decoded = try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(settings))
-        #expect(decoded.playback.playerControlsStyle == .classic)
+        #expect(decoded.playback.playerControlsStyle == .system)
     }
 
     @Test func `center click plays and pauses unless changed`() throws {

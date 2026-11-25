@@ -62,7 +62,7 @@ final class LibraryTabUITests: XCTestCase {
 
     /// After navigating into any library, the detail screen must show the
     /// custom KidsLibraryTabPicker (accessibility ID = "library.detail.tabPicker")
-    /// rather than the Strimr default segmented control.
+    /// rather than a default segmented control.
     func test_libraryDetailPicker_isKidsIconPicker() throws {
         navigateIntoFirstLibrary()
 

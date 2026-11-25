@@ -1,7 +1,8 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct PlaybackOffsetTests {
     private let english = Locale(identifier: "en_US")
     private let french = Locale(identifier: "fr_FR")
@@ -139,6 +140,7 @@ struct PlaybackOffsetTests {
     }
 }
 
+@MainActor
 struct AudioDelayDispatchTests {
     private let start = ContinuousClock.now
 

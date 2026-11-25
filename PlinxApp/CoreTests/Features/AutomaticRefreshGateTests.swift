@@ -1,7 +1,8 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct AutomaticRefreshGateTests {
     private func startedGate() -> AutomaticRefreshGate {
         var gate = AutomaticRefreshGate(debounceInterval: 90)

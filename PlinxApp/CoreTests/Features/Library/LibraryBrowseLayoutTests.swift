@@ -1,6 +1,7 @@
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct LibraryBrowseLayoutTests {
     @Test func `home video libraries open as a list`() {
         #expect(LibraryBrowseLayout.default(for: .clip) == .list)

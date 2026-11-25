@@ -1,7 +1,8 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct PlayerMenuOptionTests {
     @Test func `the selected subtitle track is checked and off comes last`() {
         let sections = PlayerMenus.subtitles(subtitles(selectedTrackID: 2))
@@ -81,13 +82,13 @@ struct PlayerMenuOptionTests {
         #expect(PlayerMenus.more(more()).option(id: "sleepTimer") != nil)
     }
 
-    @Test func `the current speed is checked`() {
+    /// Plinx plays every video at normal speed, so the menu never offers a speed choice.
+    @Test func `the more menu has no playback speed`() {
         var input = more()
         input.playbackRate = 1.5
-        let speeds = PlayerMenus.more(input).option(id: "speed")?.submenuSections?.first?.options ?? []
 
-        #expect(speeds.filter(\.isSelected).count == 1)
-        #expect(speeds.first(where: \.isSelected)?.id == "speed.\(PlaybackSpeedOption(rate: 1.5).valueText)")
+        #expect(PlayerMenus.more(input).option(id: "speed") == nil)
+        #expect(PlayerMenus.more(more()).option(id: "speed") == nil)
     }
 
     @Test func `fill only shows when it differs from the fitted picture`() {
@@ -112,7 +113,7 @@ struct PlayerMenuOptionTests {
         input.showsStatistics = true
         let sections = PlayerMenus.more(input)
 
-        #expect(sections.initialFocusOption?.id == "speed")
+        #expect(sections.initialFocusOption?.id == "quality")
     }
 
     private func subtitles(selectedTrackID: Int? = nil, canSearch: Bool = false) -> PlayerMenus.Subtitles {

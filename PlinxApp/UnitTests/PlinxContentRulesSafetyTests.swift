@@ -1,11 +1,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// StrimrAdapterSafetyTests.swift
+// PlinxContentRulesSafetyTests.swift
 // ─────────────────────────────────────────────────────────────────────────────
 //
-// Unit tests for `PlinxContentRules` (formerly `StrimrAdapter`) — the
-// synchronous content checks that apply PlinxCore's `SafetyInterceptor` rules
-// to app media types against an explicit `SafetyPolicy`, and for the playlist
-// Play / Shuffle selection built on them (`PlinxPlaylistPlaybackSelection`).
+// Unit tests for `PlinxContentRules` — the synchronous content checks that
+// apply PlinxCore's `SafetyInterceptor` rules to app media types against an
+// explicit `SafetyPolicy`, and for the playlist Play / Shuffle selection built
+// on them (`PlinxPlaylistPlaybackSelection`).
 //
 // Running:
 //   Select the Plinx-iOS-UnitTests target in Xcode and press Cmd+U.
@@ -35,7 +35,7 @@ import XCTest
 import PlinxCore
 @testable import Plinx
 
-final class StrimrAdapterSafetyTests: XCTestCase {
+final class PlinxContentRulesSafetyTests: XCTestCase {
 
     // MARK: - Policies
 

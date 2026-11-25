@@ -1,8 +1,9 @@
 import CoreGraphics
-@testable import Strimr
+@testable import Plinx
 import SwiftAssRenderer
 import Testing
 
+@MainActor
 struct SubtitleGeometryTests {
     private let bounds = CGRect(x: 0, y: 0, width: 1000, height: 500)
 

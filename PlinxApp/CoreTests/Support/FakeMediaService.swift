@@ -1,6 +1,6 @@
 import AetherEngine
 import Foundation
-@testable import Strimr
+@testable import Plinx
 
 /// Every media service at once. Throwing calls fail with `NotStubbed` so an unexpected call shows up in the test;
 /// subclass it and override only what the code under test needs.
@@ -432,11 +432,26 @@ class FakeMediaService: MediaHomeService, MediaLibraryService, MediaSearchServic
     }
 }
 
+extension ContentSafetyGate {
+    /// A gate that lets every title through except adult-only ones, with the parental gate unlocked. The upstream
+    /// tests exercise provider and view-model logic through it; the boundary itself is `SafeMediaServicesTests`.
+    static func unrestrictedForTests() -> ContentSafetyGate {
+        ContentSafetyGate(
+            policy: .ratingOnly(maxMovie: .r, maxTV: .tvMa, allowUnrated: true),
+            isParentUnlocked: true,
+        )
+    }
+}
+
 extension MediaServices {
+    /// Fake services behind the real `SafeMediaServices` wrapper, judged by `contentGate` (unrestricted by default)
+    /// rather than the app's shared gate.
+    @MainActor
     static func fake(
         _ service: FakeMediaService? = nil,
         server: ServerIdentity = ServerIdentity(provider: .jellyfin, id: "server-1"),
         capabilities: ProviderCapabilities = .jellyfin,
+        contentGate: ContentSafetyGate? = nil,
     ) -> MediaServices {
         let service = service ?? FakeMediaService()
         return MediaServices(
@@ -455,6 +470,7 @@ extension MediaServices {
             liveTV: service,
             downloads: service,
             authorization: service,
+            contentGate: contentGate ?? .unrestrictedForTests(),
         )
     }
 }

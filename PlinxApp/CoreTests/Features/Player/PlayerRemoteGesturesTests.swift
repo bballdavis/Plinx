@@ -1,7 +1,8 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct PlayerRemoteGesturesTests {
     @Test func `center click follows the setting while nothing else claims it`() {
         #expect(resolve(.playPause) == .togglePlayPause)

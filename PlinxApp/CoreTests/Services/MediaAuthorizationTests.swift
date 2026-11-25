@@ -1,6 +1,7 @@
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct MediaAuthorizationTests {
     @Test func `Plex administrator manages the library and deletes when the server allows it`() {
         let allowed = MediaAuthorization.plex(isAdministrator: true, allowsMediaDeletion: true)

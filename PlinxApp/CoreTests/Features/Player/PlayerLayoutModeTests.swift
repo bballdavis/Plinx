@@ -1,7 +1,8 @@
 import CoreGraphics
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct PlayerLayoutModeTests {
     private let container = CGSize(width: 800, height: 1000)
     private let horizontalFold = CGRect(x: 0, y: 490, width: 800, height: 20)

@@ -1,7 +1,8 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct ThemeMusicPlayerTests {
     private let server = ServerIdentity(provider: .plex, id: "server-a")
     private let url = URL(string: "https://example.com/theme")!

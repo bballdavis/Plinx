@@ -1,7 +1,8 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct AccountPreferencesTests {
     @Test(arguments: [
         ("fre", "fr"), ("fra", "fr"), ("fr", "fr"), ("FR-fr", "fr"), ("ger", "de"), ("deu", "de"),

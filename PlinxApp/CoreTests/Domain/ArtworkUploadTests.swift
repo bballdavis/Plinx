@@ -1,10 +1,11 @@
 import CoreGraphics
 import Foundation
 import ImageIO
-@testable import Strimr
+@testable import Plinx
 import Testing
 import UniformTypeIdentifiers
 
+@MainActor
 struct ArtworkUploadTests {
     private func pngData(width: Int, height: Int) throws -> Data {
         let context = try #require(CGContext(

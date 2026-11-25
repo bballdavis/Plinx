@@ -1,7 +1,8 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct MetadataEditModelsTests {
     private func makeDraft(lockable: Set<MetadataField>? = nil) -> MetadataDraft {
         let fields = MetadataField.editableFields(for: .movie)

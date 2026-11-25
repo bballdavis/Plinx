@@ -1,6 +1,7 @@
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct PinPollingBackoffTests {
     @Test func `polling starts at the base interval`() {
         #expect(PinPollingBackoff().interval == .seconds(2))

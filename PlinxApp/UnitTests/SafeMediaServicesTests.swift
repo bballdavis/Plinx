@@ -248,6 +248,12 @@ final class SafeMediaServicesTests: XCTestCase {
         XCTAssertEqual(services.authorization, .denied)
         XCTAssertFalse(services.detail.supportsRemoteSubtitleSearch)
         XCTAssertFalse(services.detail.supportsAdvancedSubtitleSearch)
+        XCTAssertFalse(services.detail.supportsWatchlist)
+        let watchlistedLocked = try await services.detail.isWatchlisted(fixture.provider.allowed)
+        XCTAssertFalse(watchlistedLocked)
+        await assertThrows(.parentApprovalRequired) {
+            try await services.detail.setWatchlisted(true, media: fixture.provider.allowed)
+        }
         let canEditLocked = try await services.playlists.canEdit(playlist)
         XCTAssertFalse(canEditLocked)
         let editableLocked = try await services.playlists.editablePlaylists()
@@ -280,6 +286,7 @@ final class SafeMediaServicesTests: XCTestCase {
 
         XCTAssertEqual(services.authorization, .plex(isAdministrator: true, allowsMediaDeletion: true))
         XCTAssertTrue(services.detail.supportsRemoteSubtitleSearch)
+        XCTAssertTrue(services.detail.supportsWatchlist)
         let canEditUnlocked = try await services.playlists.canEdit(playlist)
         XCTAssertTrue(canEditUnlocked)
         try await services.playlists.add(itemID: "allowed", toPlaylist: "playlist")
@@ -290,8 +297,9 @@ final class SafeMediaServicesTests: XCTestCase {
             forced: false,
             title: nil,
         )
+        try await services.detail.setWatchlisted(true, media: fixture.provider.allowed)
         try await services.management.refreshMetadata(itemID: "allowed")
-        XCTAssertEqual(fixture.provider.calls, ["canEdit", "add", "searchSubtitles"])
+        XCTAssertEqual(fixture.provider.calls, ["canEdit", "add", "searchSubtitles", "setWatchlisted"])
     }
 
     func test_liveTVAndExternalPlayersAreOff() async throws {
@@ -973,10 +981,13 @@ private final class FakeProvider: MediaHomeService, MediaSearchService, MediaArt
     func setPlayed(_: Bool, itemID _: String) async throws {}
 
     func isWatchlisted(_: MediaItem) async throws -> Bool {
-        false
+        calls.append("isWatchlisted")
+        return false
     }
 
-    func setWatchlisted(_: Bool, media _: MediaItem) async throws {}
+    func setWatchlisted(_: Bool, media _: MediaItem) async throws {
+        calls.append("setWatchlisted")
+    }
 
     func trackSelection(itemID _: String, versionID _: String?) async throws -> MediaTrackSelection {
         throw FakeProviderError.reachedProvider

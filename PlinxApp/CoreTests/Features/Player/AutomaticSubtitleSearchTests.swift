@@ -1,8 +1,9 @@
 import AetherEngine
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct AutomaticSubtitleSearchTests {
     private func account(language: String? = "fr", mode: AccountSubtitleMode = .fromFile) -> AccountPreferences {
         AccountPreferences(
@@ -180,7 +181,10 @@ struct AutomaticSubtitleSearchTests {
     }
 }
 
+/// Subtitle downloads are parent-only in Plinx: `PlayerViewModel.canSearchSubtitles` needs the shared parental gate
+/// open, so the suite runs with it unlocked (and serialized, because the gate is shared).
 @MainActor
+@Suite(.serialized, .sharedGateParentUnlocked)
 struct PlayerViewModelAutomaticSubtitleSearchTests {
     private final class Service: FakeMediaService {
         var results: [RemoteSubtitleResult] = []
@@ -349,6 +353,35 @@ struct PlayerViewModelAutomaticSubtitleSearchTests {
         }
         #expect(subtitle.providerStreamID == 5)
         #expect(language == "fr")
+    }
+
+    @Test func `does nothing while the parental gate is locked`() async {
+        let service = Service()
+        service.results = [result("high", score: 9)]
+        let viewModel = await loadedViewModel(service)
+        ContentSafetyGate.shared.isParentUnlocked = false
+        defer { ContentSafetyGate.shared.isParentUnlocked = true }
+
+        let outcome = await viewModel.searchMissingSubtitle(settings: enabledSettings)
+
+        #expect(!viewModel.canSearchSubtitles)
+        #expect(outcome == nil)
+        #expect(service.searchedLanguages.isEmpty)
+        #expect(service.installedIDs.isEmpty)
+    }
+
+    @Test func `relocking the parental gate during the search stops the install`() async {
+        let service = Service()
+        service.results = [result("high", score: 9)]
+        service.subtitlesAddedByInstall = [subtitle("https://server.test/new.srt", language: "fre", streamID: 5)]
+        service.onSearch = { await MainActor.run { ContentSafetyGate.shared.isParentUnlocked = false } }
+        let viewModel = await loadedViewModel(service)
+        defer { ContentSafetyGate.shared.isParentUnlocked = true }
+
+        _ = await viewModel.searchMissingSubtitle(settings: enabledSettings)
+
+        #expect(service.searchedLanguages == ["fr"])
+        #expect(service.installedIDs.isEmpty)
     }
 
     @Test func `does nothing while the setting is off`() async {

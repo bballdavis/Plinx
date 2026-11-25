@@ -1,7 +1,8 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct PlexSubtitleSearchResultTests {
     private func decodeResults() throws -> [PlexSubtitleSearchResult] {
         try Fixtures.decode(PlexSubtitleSearchResponse.self, from: "plex-subtitle-search").mediaContainer.streams ?? []

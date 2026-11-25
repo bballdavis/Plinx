@@ -1,6 +1,7 @@
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct LibraryBrowsePageTrackerTests {
     @Test func `pages around an index cover two pages on each side`() {
         var tracker = LibraryBrowsePageTracker(pageSize: 40)

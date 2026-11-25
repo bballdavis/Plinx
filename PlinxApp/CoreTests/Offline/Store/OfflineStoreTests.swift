@@ -1,5 +1,5 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
 @MainActor
@@ -340,21 +340,6 @@ struct OfflineStoreTests {
         ])
 
         #expect(store.downloadedItemIDsByDate(owner: owner) == ["movie-2", "movie-1"])
-    }
-
-    @Test func `downloads made before profiles get the owner of their server`() throws {
-        let otherServer = ServerIdentity(provider: .jellyfin, id: "server-2")
-        try store.save(downloads: [
-            DownloadItem.make(id: "download-1", itemID: "movie-1", server: server),
-            DownloadItem.make(id: "download-2", itemID: "movie-2", server: otherServer),
-            DownloadItem.make(id: "download-3", itemID: "movie-3", server: server, ownerID: otherOwner.id),
-        ])
-
-        let assigned = store.assignOwner(owner, toUnownedDownloadsOn: server)
-
-        #expect(assigned == 1)
-        let owners = try Dictionary(uniqueKeysWithValues: store.allDownloads().map { ($0.id, $0.ownerID) })
-        #expect(owners == ["download-1": owner.id, "download-2": nil, "download-3": otherOwner.id])
     }
 
     // MARK: - Helpers

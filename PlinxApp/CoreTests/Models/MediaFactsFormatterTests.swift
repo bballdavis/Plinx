@@ -1,7 +1,8 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct MediaFactsFormatterTests {
     @Test func `movie lists year, runtime and two genres`() {
         let media = makeMedia(
@@ -136,6 +137,7 @@ struct MediaFactsFormatterTests {
     }
 }
 
+@MainActor
 struct RemainingTimeFormatterTests {
     private func expected(minutes: Int) -> String {
         let remaining = Duration.seconds(minutes * 60).formatted(.units(

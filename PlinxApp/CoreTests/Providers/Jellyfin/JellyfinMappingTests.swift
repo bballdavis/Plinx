@@ -1,7 +1,8 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct JellyfinMappingTests {
     private let server = ServerIdentity(provider: .jellyfin, id: "server-1")
 

@@ -1,5 +1,5 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
 @MainActor
@@ -60,7 +60,7 @@ struct ProfileStoreTests {
 
     @Test func `a local profile without links cannot be activated`() {
         let store = ProfileStore(userDefaults: defaults)
-        let profile = StrimrProfile.local(store.createLocalProfile(name: "Empty"))
+        let profile = PlinxProfile.local(store.createLocalProfile(name: "Empty"))
 
         #expect(!store.hasLinks(profile))
     }
@@ -270,7 +270,7 @@ struct ProfileStoreTests {
         let allAccounts = [plexAccount, second, jellyfinAccount]
         store.updatePlexHomeUsers([homeUser("owner")], accountID: plexAccount.id)
         let home = try #require(store.profile(id: "plex.owner", accounts: allAccounts))
-        let local = StrimrProfile.local(store.createLocalProfile(name: "Kids"))
+        let local = PlinxProfile.local(store.createLocalProfile(name: "Kids"))
         store.addLink(ProfileLink(
             profileID: local.id,
             accountID: jellyfinAccount.id,

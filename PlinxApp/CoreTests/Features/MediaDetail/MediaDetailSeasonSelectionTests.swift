@@ -1,6 +1,7 @@
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct MediaDetailSeasonSelectionTests {
     private let server = ServerIdentity(provider: .jellyfin, id: "server-1")
 

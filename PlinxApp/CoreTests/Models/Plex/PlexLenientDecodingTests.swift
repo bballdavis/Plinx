@@ -1,7 +1,8 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct PlexLenientDecodingTests {
     private func decodeCollections(_ metadata: String) throws -> [PlexItem] {
         let json = #"{"MediaContainer": {"size": 2, "Metadata": \#(metadata)}}"#

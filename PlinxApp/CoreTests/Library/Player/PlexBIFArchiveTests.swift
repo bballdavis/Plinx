@@ -1,10 +1,11 @@
 import CoreGraphics
 import Foundation
 import ImageIO
-@testable import Strimr
+@testable import Plinx
 import Testing
 import UniformTypeIdentifiers
 
+@MainActor
 struct PlexBIFArchiveTests {
     @Test func `frames take their timestamps from the index and the multiplier`() throws {
         let file = try BIFFile(timestamps: [0, 10, 20], multiplier: 500)
@@ -129,7 +130,7 @@ private final class BIFFile {
     let url: URL
 
     init(data: Data) throws {
-        url = FileManager.default.temporaryDirectory.appendingPathComponent("strimr.tests.\(UUID().uuidString).bif")
+        url = FileManager.default.temporaryDirectory.appendingPathComponent("plinx.tests.\(UUID().uuidString).bif")
         try data.write(to: url)
     }
 

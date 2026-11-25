@@ -1,7 +1,8 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct MediaItemMappingTests {
     private let server = ServerIdentity(provider: .plex, id: "server-a")
 

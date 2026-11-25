@@ -1,7 +1,8 @@
 import CoreGraphics
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct VideoZoomTests {
     private let iPhone = CGSize(width: 874, height: 402)
     private let tv = CGSize(width: 1920, height: 1080)

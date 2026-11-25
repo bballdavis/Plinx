@@ -1,7 +1,8 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct OpenSourceLicenseTests {
     @Test(arguments: [OpenSourceLicense.strimr] + OpenSourceLicense.dependencies)
     func `every license text is bundled`(license: OpenSourceLicense) {

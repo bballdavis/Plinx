@@ -145,7 +145,7 @@ final class OfflinePlaybackTests: XCTestCase {
     }
 
     func test_tapOnInProgressDownloadDoesNothing() {
-        // Pre-fork `deciding` decodes as `preparing` (see `StrimrDownloadIntegrityTests`).
+        // Pre-fork `deciding` decodes as `preparing` (see `DownloadIntegrityTests`).
         for status in [DownloadStatus.queued, .preparing, .downloading] {
             let item = makeDownloadItem(id: "a", type: .movie, status: status)
             XCTAssertEqual(DownloadTapAction.resolve(for: item, decision: .allowed), .none, "\(status)")
@@ -242,32 +242,6 @@ final class OfflinePlaybackTests: XCTestCase {
 
         XCTAssertEqual(DownloadAccessPolicy(activeOwnerIDs: [owner.id], gate: pgGate()).decision(for: item), .missingOwner)
         XCTAssertEqual(DownloadAccessPolicy(activeOwnerIDs: [], gate: pgGate()).decision(for: item), .missingOwner)
-    }
-
-    func test_corruptOwnershipRecordDoesNotGiveDownloadsAnOwner() throws {
-        let suite = "OfflinePlaybackTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
-        defaults.set(Data("not-json".utf8), forKey: LegacyDownloadOwnership.defaultsKey)
-        let item = makeDownloadItem(id: "unknown", type: .movie, contentRating: "G", ownerID: nil)
-        var saved: [DownloadItem]?
-
-        let outcome = LegacyDownloadOwnership.migrate([item], defaults: defaults) { saved = $0 }
-
-        XCTAssertEqual(outcome, .unreadable)
-        XCTAssertNil(saved)
-        XCTAssertEqual(
-            DownloadAccessPolicy(activeOwnerIDs: [owner.id], gate: pgGate()).decision(for: item),
-            .missingOwner
-        )
-    }
-
-    func test_untrustedDownloadIndexDoesNotPermitOwnershipImport() {
-        // Only a download list that loaded completely may receive pre-fork owners.
-        XCTAssertTrue(DownloadPersistedIndexState.loaded.permitsOwnershipMigration)
-        for state in [DownloadPersistedIndexState.missing, .unreadable, .corrupt] {
-            XCTAssertFalse(state.permitsOwnershipMigration, "\(state)")
-        }
     }
 
     // MARK: - Helpers

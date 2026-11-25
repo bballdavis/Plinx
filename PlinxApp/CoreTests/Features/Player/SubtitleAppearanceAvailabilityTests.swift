@@ -1,6 +1,7 @@
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct SubtitleAppearanceAvailabilityTests {
     @Test func `text subtitles and no subtitles can be fully customized`() {
         for codec in ["subrip", "ass", nil] {

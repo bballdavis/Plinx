@@ -1,7 +1,8 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct SeerrMediaFactsTests {
     @Test func `movie lists year, runtime and two genres`() throws {
         let media = try Fixtures.decode(SeerrMedia.self, from: "seerr-movie")

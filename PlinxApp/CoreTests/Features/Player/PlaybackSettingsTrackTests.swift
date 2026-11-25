@@ -1,6 +1,7 @@
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct PlaybackSettingsTrackTests {
     @Test func `tells apart audio tracks sharing a display title`() {
         let vff = Self.settingsTrack(name: "VFF", displayTitle: "Français (EAC3 5.1)", codec: "eac3")

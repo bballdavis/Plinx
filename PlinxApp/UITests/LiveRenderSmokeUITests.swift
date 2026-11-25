@@ -158,10 +158,16 @@ final class LiveRenderSmokeUITests: XCTestCase {
                 "Expected retained media-detail action \(identifier)"
             )
         }
-        XCTAssertFalse(app.buttons["media.detail.watchlist"].exists,
-                       "Watchlist must not appear in Plinx media details")
+        // Watchlist and Shuffle sit in the More menu and are parent-only: with the parental gate locked the open
+        // menu must not offer them.
+        let more = app.buttons["More"].firstMatch
+        if more.waitForExistence(timeout: 5) {
+            more.tap()
+        }
+        XCTAssertFalse(app.buttons["media.detail.watchlist"].waitForExistence(timeout: 2),
+                       "Watchlist must not appear for kids in Plinx media details")
         XCTAssertFalse(app.buttons["media.detail.shuffle"].exists,
-                       "Shuffle must not appear in Plinx media details")
+                       "Shuffle must not appear for kids in Plinx media details")
 
         let actionFailedAlert = app.alerts["Action Failed"]
         XCTAssertFalse(actionFailedAlert.exists,

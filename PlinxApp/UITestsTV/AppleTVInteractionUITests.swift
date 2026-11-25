@@ -9,6 +9,29 @@ final class AppleTVInteractionUITests: XCTestCase {
         XCTAssertEqual(logo.value as? String, "BrandLockupWhite")
     }
 
+    /// Account setup starts at the provider choice; the Plex sign-in portal comes after choosing Plex.
+    func test_accountSetup_choosesProviderBeforePlexSignIn() {
+        let app = launch(screen: "accountSetup")
+        let plex = app.buttons["provider.plex"]
+        let jellyfin = app.buttons["provider.jellyfin"]
+
+        assertFocused(plex)
+        XCTAssertTrue(jellyfin.exists, "Jellyfin should be offered beside Plex")
+        XCTAssertFalse(app.descendants(matching: .any)["signIn.refreshButton"].exists)
+        XCTAssertFalse(app.buttons["providerSelection.cancel"].exists, "First launch cannot be abandoned")
+        XCUIRemote.shared.press(.right)
+        assertFocused(jellyfin)
+        XCUIRemote.shared.press(.left)
+        assertFocused(plex)
+
+        XCUIRemote.shared.press(.select)
+        XCTAssertTrue(
+            app.descendants(matching: .any)["signIn.refreshButton"].waitForExistence(timeout: 10),
+            "Choosing Plex should open the Plex sign-in portal"
+        )
+        capture(name: "tvOS-plex-sign-in-after-provider-choice")
+    }
+
     func test_signIn_remoteReachesDemoLibraryEntry() {
         let app = launch(screen: "signIn")
         let refresh = app.descendants(matching: .any)["signIn.refreshButton"]

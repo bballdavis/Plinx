@@ -1,6 +1,6 @@
 import AetherEngine
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
 @MainActor

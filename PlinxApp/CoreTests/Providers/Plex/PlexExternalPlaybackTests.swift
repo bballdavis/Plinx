@@ -1,8 +1,9 @@
 import AetherEngine
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct PlexExternalPlaybackTests {
     private let baseURL = URL(string: "https://plex.example.com:32400")!
 

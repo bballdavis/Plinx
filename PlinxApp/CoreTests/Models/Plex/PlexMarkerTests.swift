@@ -1,7 +1,8 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct PlexMarkerTests {
     private func decodeMarkers(_ types: [String]) throws -> [PlexMarker] {
         let markers = types.enumerated().map { index, type in

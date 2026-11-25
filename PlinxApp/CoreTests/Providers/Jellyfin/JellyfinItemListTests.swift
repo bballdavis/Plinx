@@ -1,7 +1,8 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct JellyfinItemListTests {
     @Test func `decodes a bare array`() throws {
         let list = try Fixtures.decode(JellyfinItemList<JellyfinItem>.self, from: "jellyfin-extras")

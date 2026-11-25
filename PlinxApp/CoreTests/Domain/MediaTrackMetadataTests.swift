@@ -1,6 +1,7 @@
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct MediaTrackMetadataTests {
     @Test func `shows a plex stream name that the display title lacks`() {
         let track = Self.track(title: "VFQ", displayTitle: "Français (EAC3 5.1)")

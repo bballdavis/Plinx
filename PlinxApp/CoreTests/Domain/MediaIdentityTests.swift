@@ -1,7 +1,8 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct MediaIdentityTests {
     @Test func `library identity has a stable text form`() throws {
         let identity = LibraryIdentity(server: ServerIdentity(provider: .plex, id: "server-a"), libraryID: "1")

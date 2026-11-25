@@ -1,7 +1,8 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct JellyfinRemoteSubtitleTests {
     @Test func `forced subtitles are read from the Forced field`() throws {
         let data = Data(#"{"Id":"1","Forced":true}"#.utf8)

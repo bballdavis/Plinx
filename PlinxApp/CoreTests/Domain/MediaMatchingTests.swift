@@ -1,7 +1,8 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct MediaMatchingTests {
     private let plexA = ServerIdentity(provider: .plex, id: "server-a")
     private let jellyfin = ServerIdentity(provider: .jellyfin, id: "server-c")

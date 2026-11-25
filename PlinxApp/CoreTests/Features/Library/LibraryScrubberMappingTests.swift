@@ -1,7 +1,8 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct LibraryScrubberMappingTests {
     @Test func `track ends reach the first and last items`() {
         #expect(LibraryScrubberMapping.index(forFraction: 0, totalCount: 500) == 0)

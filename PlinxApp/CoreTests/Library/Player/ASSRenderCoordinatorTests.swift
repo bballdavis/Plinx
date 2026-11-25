@@ -1,6 +1,7 @@
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct ASSPresentationClockTests {
     @Test func `the presented clock wins between published ticks`() {
         let seconds = ASSPresentationClock.sourceSeconds(presented: 12.34, published: 12.25, followsPicture: true)

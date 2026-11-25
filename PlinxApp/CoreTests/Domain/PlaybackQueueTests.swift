@@ -1,6 +1,7 @@
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct PlaybackQueueTests {
     private let server = ServerIdentity(provider: .jellyfin, id: "server")
     private var episodes: [MediaItem] {

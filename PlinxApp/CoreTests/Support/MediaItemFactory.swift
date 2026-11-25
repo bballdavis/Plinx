@@ -1,5 +1,5 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 
 extension MediaItem {
     static func make(

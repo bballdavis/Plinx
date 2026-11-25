@@ -17,6 +17,30 @@ final class LaunchSmokeUITests: XCTestCase {
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10), "App should launch into foreground")
     }
 
+    /// A grown-up picks Plex or Jellyfin first; the Plex sign-in screen comes after choosing Plex.
+    func test_firstLaunchChoosesProviderBeforePlexSignIn() {
+        let app = XCUIApplication()
+        app.launchArguments += ["--ui-testing", "--disable-animations"]
+        app.launch()
+
+        let plex = app.buttons["provider.plex"]
+        XCTAssertTrue(plex.waitForExistence(timeout: 15), "First launch should start at the provider choice")
+        XCTAssertTrue(app.buttons["provider.jellyfin"].exists, "Jellyfin should be offered beside Plex")
+        XCTAssertTrue(app.staticTexts["providerSelection.title"].exists)
+        XCTAssertFalse(app.buttons["signIn.primaryButton"].exists, "Plex sign-in waits until Plex is chosen")
+        XCTAssertFalse(app.buttons["providerSelection.cancel"].exists, "First launch cannot be abandoned")
+
+        plex.tap()
+
+        let signIn = app.buttons["signIn.primaryButton"]
+        XCTAssertTrue(signIn.waitForExistence(timeout: 10), "Choosing Plex should open the Plex sign-in step")
+        XCTAssertTrue(app.staticTexts["signIn.portal.title"].exists)
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "plex-sign-in-after-provider-choice"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     func test_demoModeRendersProductionHomeAndRealPlayback() {
         let app = XCUIApplication()
         app.launchArguments += ["--ui-testing", "--disable-animations"]
@@ -25,13 +49,16 @@ final class LaunchSmokeUITests: XCTestCase {
             XCUIDevice.shared.orientation = .landscapeLeft
         }
 
+        // First launch starts at the provider choice; its footer holds sign-in help and the sample library.
+        let plex = app.buttons["provider.plex"]
+        XCTAssertTrue(plex.waitForExistence(timeout: 15), "First launch should start at the provider choice")
         let information = app.buttons["signIn.infoButton"]
-        XCTAssertTrue(information.waitForExistence(timeout: 15))
+        XCTAssertTrue(information.waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["signIn.demoButton"].exists, "Demo access belongs in sign-in information")
-        let signIn = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
-        signIn.name = "refreshed-sign-in"
-        signIn.lifetime = .keepAlways
-        add(signIn)
+        let providerChoice = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        providerChoice.name = "provider-selection"
+        providerChoice.lifetime = .keepAlways
+        add(providerChoice)
 
         information.tap()
         let demoButton = app.buttons["signIn.demoButton"]
@@ -42,7 +69,7 @@ final class LaunchSmokeUITests: XCTestCase {
         help.lifetime = .keepAlways
         add(help)
         app.buttons["signIn.infoDone"].tap()
-        XCTAssertTrue(app.buttons["signIn.primaryButton"].isHittable)
+        XCTAssertTrue(plex.isHittable)
         XCTAssertFalse(demoButton.exists, "Dismissing help must not start demo mode")
         information.tap()
         XCTAssertTrue(demoButton.waitForExistence(timeout: 10))

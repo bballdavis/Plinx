@@ -5,7 +5,7 @@ import XCTest
 /// (`DownloadIntegrityValidator`), the 20 percent space-savings rule
 /// (`DownloadSpaceSavingsPolicy`), the mapping of pre-fork Plinx download-quality settings
 /// to `TranscodeQualityPreset`, and how a pre-fork download index entry is read back.
-final class StrimrDownloadIntegrityTests: XCTestCase {
+final class DownloadIntegrityTests: XCTestCase {
     // MARK: - Pre-fork ownership and index state
 
     func test_downloadAccessScopeRoundTripsWithBothIdentityDimensions() throws {

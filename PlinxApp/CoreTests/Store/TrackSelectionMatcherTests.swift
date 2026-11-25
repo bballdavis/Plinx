@@ -1,6 +1,7 @@
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct TrackSelectionMatcherTests {
     // MARK: - Audio
 

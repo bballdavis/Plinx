@@ -1,7 +1,8 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct PlexServerModelsTests {
     @Test func `server root exposes the media deletion setting`() throws {
         let root = try Fixtures.decode(PlexServerRootResponse.self, from: "plex-server-root")

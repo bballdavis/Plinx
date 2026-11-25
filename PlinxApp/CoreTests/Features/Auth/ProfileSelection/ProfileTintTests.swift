@@ -1,6 +1,7 @@
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct ProfileTintTests {
     @Test func `a profile keeps the same tint`() {
         #expect(ProfileTint.index(for: "plex.owner") == 1)

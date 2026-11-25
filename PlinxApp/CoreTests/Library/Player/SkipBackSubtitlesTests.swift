@@ -1,6 +1,7 @@
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct SkipBackSubtitlesTests {
     private let englishForced = SkipBackSubtitles.Track(id: 1, language: "eng", isForced: true, isCommentary: false)
     private let frenchForced = SkipBackSubtitles.Track(id: 2, language: "fre", isForced: true, isCommentary: false)

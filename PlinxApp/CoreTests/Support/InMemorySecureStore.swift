@@ -1,5 +1,5 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 
 final class InMemorySecureStore: SecureStore {
     struct Failure: Error {}
@@ -30,7 +30,7 @@ final class InMemorySecureStore: SecureStore {
 enum TestDefaults {
     /// A throwaway suite so tests never touch the app's settings.
     static func make() -> UserDefaults {
-        let name = "strimr.tests.\(UUID().uuidString)"
+        let name = "plinx.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         return defaults

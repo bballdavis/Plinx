@@ -1,8 +1,17 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct ErrorReporterTests {
+    /// Zero collection: there is no reporter to turn on. Upstream's Sentry reporter and its breadcrumb scrubbing
+    /// are not part of Plinx.
+    @Test func `error reporting can never be enabled`() {
+        ErrorReporter.setEnabled(true)
+
+        #expect(!ErrorReporter.isEnabled)
+    }
+
     @Test func `a POSIX host unreachable error is recognized`() {
         let error = NSError(domain: NSPOSIXErrorDomain, code: Int(EHOSTUNREACH))
 
@@ -19,27 +28,5 @@ struct ErrorReporterTests {
         let error = NSError(domain: NSURLErrorDomain, code: Int(EHOSTUNREACH))
 
         #expect(!error.isHostUnreachable)
-    }
-}
-
-struct ErrorReporterBreadcrumbTests {
-    @Test func `query and fragment are removed from network breadcrumbs`() {
-        let data: [String: Any] = [
-            "url": "https://media.example.com/library/metadata/1/thumb",
-            "method": "GET",
-            "http.query": "X-Plex-Token=secret",
-            "http.fragment": "anchor",
-        ]
-
-        let sanitized = ErrorReporter.removingSensitiveData(from: data)
-
-        #expect(sanitized?["http.query"] == nil)
-        #expect(sanitized?["http.fragment"] == nil)
-        #expect(sanitized?["url"] as? String == "https://media.example.com/library/metadata/1/thumb")
-        #expect(sanitized?["method"] as? String == "GET")
-    }
-
-    @Test func `breadcrumbs without data stay without data`() {
-        #expect(ErrorReporter.removingSensitiveData(from: nil) == nil)
     }
 }

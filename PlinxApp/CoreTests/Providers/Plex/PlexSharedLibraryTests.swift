@@ -1,7 +1,8 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct PlexSharedLibraryTests {
     private let server = ServerIdentity(provider: .plex, id: "server-1")
 

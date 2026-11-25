@@ -1,7 +1,8 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct SeerrTrailerTests {
     private static let serverURL = URL(string: "https://seerr.example.com")
 

@@ -1,6 +1,7 @@
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct LibrarySectionIndexTests {
     private func makeIndex(_ characters: [(String, Int)]) -> LibrarySectionIndex {
         LibrarySectionIndex(characters: characters.map { PlexAdvancedSectionCharacter(title: $0.0, size: $0.1) })

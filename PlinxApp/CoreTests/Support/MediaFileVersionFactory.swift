@@ -1,5 +1,5 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 
 extension MediaFileVersion {
     static func make(

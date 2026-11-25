@@ -1,5 +1,5 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
 @MainActor
@@ -54,9 +54,13 @@ struct LibraryBrowseControlsViewModelTests {
             filters: ["genre": .init(isEnabled: true, optionKey: "28", optionTitle: "Action")],
         ))
 
+        var notifications = 0
+        controls.onSelectionChanged = { notifications += 1 }
+
         let restoreChanged = try controls.applyMeta(meta())
 
         #expect(!restoreChanged)
+        #expect(notifications == 0)
         #expect(controls.selectedDisplayType?.key == movieTypeKey)
         #expect(controls.selectedSort?.sort.key == "addedAt")
         #expect(controls.selectedSort?.direction == .desc)
@@ -169,8 +173,11 @@ struct LibraryBrowseControlsViewModelTests {
     @Test func `selecting a sort uses its default direction`() throws {
         let controls = makeControls(restoring: nil)
         try controls.applyMeta(meta())
+        var notifications = 0
+        controls.onSelectionChanged = { notifications += 1 }
 
         controls.selectSort(id: "addedAt")
+        #expect(notifications == 1)
         #expect(controls.selectedSortID == "addedAt")
         #expect(controls.isSortAscending == false)
         #expect(queryItems(controls, includeMeta: false)["sort"] == "addedAt:desc")

@@ -1,7 +1,8 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct PlexItemDecodingTests {
     private func decodeHubs() throws -> [PlexHub] {
         try Fixtures.decode(PlexHubMediaContainer.self, from: "plex-lookalike-hubs").mediaContainer.hub ?? []

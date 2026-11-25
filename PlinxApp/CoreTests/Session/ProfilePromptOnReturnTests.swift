@@ -1,7 +1,8 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct ProfilePromptOnReturnTests {
     private let backgroundedAt = Date(timeIntervalSince1970: 1_000_000)
 

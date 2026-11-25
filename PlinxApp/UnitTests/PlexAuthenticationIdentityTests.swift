@@ -14,12 +14,12 @@ final class PlexAuthenticationIdentityTests: XCTestCase {
         )
     }
 
-    func test_productIdentityFallsBackToBundleNameThenStrimr() {
+    func test_productIdentityFallsBackToBundleNameThenPlinx() {
         XCTAssertEqual(
             PlexProductIdentity.productName(in: ["CFBundleName": "Hosted App"]),
             "Hosted App"
         )
-        XCTAssertEqual(PlexProductIdentity.productName(in: [:]), "Strimr")
+        XCTAssertEqual(PlexProductIdentity.productName(in: [:]), "Plinx")
     }
 
     func test_authURLPercentEncodesProductAndUsesMatchingIdentity() throws {

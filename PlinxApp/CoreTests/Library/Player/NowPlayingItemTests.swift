@@ -1,7 +1,8 @@
 import MediaPlayer
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct NowPlayingItemTests {
     private let server = ServerIdentity(provider: .jellyfin, id: "server-1")
 

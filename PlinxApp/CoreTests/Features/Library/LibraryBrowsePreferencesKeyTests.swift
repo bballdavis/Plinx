@@ -1,6 +1,7 @@
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct LibraryBrowsePreferencesKeyTests {
     @Test func `same Plex section on two servers gets two keys`() {
         let first = LibraryBrowsePreferences.key(scopeID: "plex|server-a|account", libraryID: "1")

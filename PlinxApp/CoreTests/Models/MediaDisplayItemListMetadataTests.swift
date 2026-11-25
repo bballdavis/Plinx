@@ -1,7 +1,8 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct MediaDisplayItemListMetadataTests {
     @Test func `metadata line keeps a stable order`() {
         let media = makeMedia(year: 2019, duration: 7920, contentRating: "PG-13", rating: 7.8)

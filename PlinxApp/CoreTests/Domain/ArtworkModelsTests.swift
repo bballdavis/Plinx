@@ -1,7 +1,8 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct ArtworkModelsTests {
     private func option(_ id: String, language: String?, isSelected: Bool = false) -> ArtworkOption {
         ArtworkOption(

@@ -1,5 +1,5 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 
 /// An `OfflineDatabase` in its own temporary folder, removed when the value goes away.
 final class TestOfflineDatabase {
@@ -8,7 +8,7 @@ final class TestOfflineDatabase {
 
     init() throws {
         directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("strimr.tests.\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("plinx.tests.\(UUID().uuidString)", isDirectory: true)
         database = try OfflineDatabase(
             applicationSupport: directory.appendingPathComponent("ApplicationSupport", isDirectory: true),
             caches: directory.appendingPathComponent("Caches", isDirectory: true),
@@ -19,6 +19,7 @@ final class TestOfflineDatabase {
         try? FileManager.default.removeItem(at: directory)
     }
 
+    @MainActor
     func makeStore() -> OfflineStore {
         OfflineStore(database: database)
     }

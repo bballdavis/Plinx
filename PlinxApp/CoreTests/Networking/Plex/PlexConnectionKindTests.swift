@@ -1,7 +1,8 @@
 import Foundation
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct PlexConnectionKindTests {
     private let local = URL(string: "http://192.168.1.10:32400")!
     private let remote = URL(string: "https://203-0-113-5.abc.plex.direct:32400")!

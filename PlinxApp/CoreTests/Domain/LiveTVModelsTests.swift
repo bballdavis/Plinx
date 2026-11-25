@@ -1,6 +1,7 @@
-@testable import Strimr
+@testable import Plinx
 import Testing
 
+@MainActor
 struct LiveTVModelsTests {
     private func channel(_ id: String, _ title: String, number: String?, favorite: Bool = false) -> LiveTVChannel {
         LiveTVChannel(
