@@ -18,6 +18,8 @@ extension RootTabView {
         ZStack(alignment: .top) {
             if showSettings {
                 tvOSSettingsContent
+            } else if showsServerRecoveryCard {
+                tvOSServerRecoveryContent
             } else {
                 content
             }
@@ -108,6 +110,12 @@ extension RootTabView {
         )
     }
 
+    var tvOSServerRecoveryContent: some View {
+        PlinxConnectionRecoveryView(context: .serversUnreachable)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.top, PlinxTVShellMetrics.contentClearance)
+    }
+
     var tvOSSettingsContent: some View {
         Group {
             if parentalAccessCoordinator.isUnlocked {
@@ -150,16 +158,9 @@ extension RootTabView {
     func tabStack(for tab: MainCoordinator.Tab) -> some View {
         switch tab {
         case .home:
-            let viewModel = homeViewModel ?? SafeHomeViewModel(
-                context: plexApiContext,
-                settingsManager: settingsManager,
-                libraryStore: libraryStore,
-                policy: safetyPolicy
-            )
-
             NavigationStack(path: mainCoordinator.pathBinding(for: .home)) {
                 PlinxHomeView(
-                    viewModel: viewModel,
+                    viewModel: homeViewModel,
                     topContent: scrollingHeaderContent(
                         title: "tabs.home",
                         showsSettingsButton: true,
@@ -189,25 +190,18 @@ extension RootTabView {
             .opacity(activeRootTab == .home ? 1 : 0)
             .allowsHitTesting(activeRootTab == .home)
             .accessibilityHidden(activeRootTab != .home)
+            #if os(tvOS)
             .onAppear {
-                if homeViewModel == nil {
-                    homeViewModel = viewModel
-                }
-                #if os(tvOS)
                 tvFocusCoordinator.activate(.home)
-                #endif
             }
+            #endif
 
         case .search:
             NavigationStack(path: mainCoordinator.pathBinding(for: .search)) {
                 PlinxSearchView(
-                    viewModel: SafeSearchViewModel(
-                        inner: SearchViewModel(
-                            context: plexApiContext,
-                            settingsManager: settingsManager,
-                            libraryStore: libraryStore
-                        ),
-                        policy: safetyPolicy
+                    viewModel: SearchViewModel(
+                        sessionManager: sessionManager,
+                        settingsManager: settingsManager
                     ),
                     topContent: scrollingHeaderContent(title: "tabs.search", showsSettingsButton: false),
                     onRequestShellNavigationFocus: {
@@ -239,14 +233,10 @@ extension RootTabView {
         case .library:
             NavigationStack(path: mainCoordinator.pathBinding(for: .library)) {
                 PlinxLibraryView(
-                    viewModel: SafeLibraryViewModel(
-                        inner: LibraryViewModel(
-                            context: plexApiContext,
-                            libraryStore: libraryStore
-                        ),
-                        policy: safetyPolicy,
-                        hiddenLibraryIDs: Set(settingsManager.interface.hiddenLibraryIds),
-                        context: plexApiContext
+                    viewModel: LibraryViewModel(
+                        sessionManager: sessionManager,
+                        libraryStore: libraryStore,
+                        settingsManager: settingsManager
                     ),
                     topContent: scrollingHeaderContent(title: "tabs.library".plinxLocalized, showsSettingsButton: false),
                     onSelectLibrary: { library in
@@ -263,19 +253,21 @@ extension RootTabView {
                 .background(PlinxAmbientBackground(intensity: .restrained))
                 .toolbar(.hidden, for: .navigationBar)
                 .navigationDestination(for: Library.self) { library in
-                    PlinxLibraryDetailView(
-                        library: library,
-                        onSelectMedia: { displayItem in
-                            handlePrimarySelection(displayItem)
-                        },
-                        onLongPressMedia: { displayItem in
-                            presentQuickActions(for: displayItem)
-                        },
-                        onRequestShellNavigationFocus: {
-                            requestHeaderFocus()
-                        },
-                        contentFocusRequest: libraryDetailContentFocusRequest
-                    )
+                    ServerScopedView(server: library.server) { _ in
+                        PlinxLibraryDetailView(
+                            library: library,
+                            onSelectMedia: { displayItem in
+                                handlePrimarySelection(displayItem)
+                            },
+                            onLongPressMedia: { displayItem in
+                                presentQuickActions(for: displayItem)
+                            },
+                            onRequestShellNavigationFocus: {
+                                requestHeaderFocus()
+                            },
+                            contentFocusRequest: libraryDetailContentFocusRequest
+                        )
+                    }
                     #if os(tvOS)
                     .onAppear {
                         tvLibraryShellTitle = library.title
@@ -338,7 +330,9 @@ extension RootTabView {
                 .accessibilityHidden(activeRootTab != .seerrDiscover)
             }
 
-        case .libraryDetail:
+        case .libraryDetail, .downloads, .favorites, .liveTV:
+            // Library details live in the Library stack; Downloads is `more`;
+            // Favorites and Live TV are not Plinx tabs.
             EmptyView()
         }
     }
@@ -405,7 +399,7 @@ extension RootTabView {
             .search
         case .library, .libraryDetail:
             .library
-        case .more, .seerrDiscover:
+        case .more, .seerrDiscover, .downloads, .favorites, .liveTV:
             .other
         }
     }

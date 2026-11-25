@@ -2,28 +2,41 @@ import PlinxCore
 import PlinxUI
 import SwiftUI
 
+/// The kid-facing tab shell of a ready session: Home, Library, Search,
+/// Downloads (iOS) and Explore (Youtarr), with protected Settings behind the
+/// parental gate. Every screen reads its server's services from
+/// `ServerRegistry`; content was already filtered by the safety boundary, and
+/// `PlaybackLauncher` re-checks every playback.
+///
+/// `PlinxContentView` rebuilds this view for each profile activation and for
+/// each newly applied content policy.
 struct RootTabView: View {
     @Environment(SessionManager.self) var sessionManager
-    @Environment(PlinxSessionAccessCoordinator.self) var sessionAccessCoordinator
-    @Environment(PlexAPIContext.self) var plexApiContext
+    @Environment(ServerRegistry.self) var registry
     @Environment(SettingsManager.self) var settingsManager
     @Environment(LibraryStore.self) var libraryStore
+    #if !os(tvOS)
     @Environment(DownloadManager.self) var downloadManager
+    @Environment(OfflineCoordinator.self) var offlineCoordinator
+    #endif
     @Environment(ParentalAccessCoordinator.self) var parentalAccessCoordinator
-    @Environment(DownloadOwnershipStore.self) var downloadOwnershipStore
     @Environment(SharePlayCoordinator.self) var sharePlayCoordinator
     @Environment(PlinxWatchStatusStore.self) var watchStatusStore
     @EnvironmentObject var mainCoordinator: MainCoordinator
     @EnvironmentObject var playbackLaunchCoordinator: PlaybackLaunchCoordinator
     @Environment(\.safetyPolicy) var safetyPolicy
 
+    @State var homeViewModel: HomeViewModel
+    /// Server of the item in the player, kept past `resetPlayer()` (which
+    /// clears the player's services before the cover is dismissed) so closing
+    /// the player can reload that server's home.
+    @State var playedServer: ServerIdentity?
     @State var showSettings = false
     @State var youtarrExploreConfiguration: YoutarrConfiguration?
     @State var isYoutarrConfigured = false
     @State var selectedQuickActionMedia: MediaDisplayItem?
     @State var quickActionShowsPrimary = true
     @State var quickActionErrorMessage: String?
-    @State var homeViewModel: SafeHomeViewModel?
     @State var homeContentFocusRequest = 0
     @State var libraryContentFocusRequest = 0
     @State var searchContentFocusRequest = 0
@@ -48,6 +61,11 @@ struct RootTabView: View {
     @AppStorage(YoutarrConfigurationStore.baseURLKey)
     var youtarrStoredBaseURL = ""
 
+    /// - Parameter homeViewModel: the active profile's home, created by the session root.
+    init(homeViewModel: HomeViewModel) {
+        _homeViewModel = State(initialValue: homeViewModel)
+    }
+
     var chromeButtonSize: PlinxChromeButtonSizePreference {
         PlinxChromeButtonSizePreference(rawValue: chromeButtonSizeRaw) ?? .medium
     }
@@ -62,46 +80,72 @@ struct RootTabView: View {
         )
     }
 
-    var launcher: PlaybackLauncher {
+    /// The final playback check for an item of `services`' server.
+    func launcher(for services: MediaServices) -> PlaybackLauncher {
         PlaybackLauncher(
-            context: plexApiContext,
+            services: services,
             coordinator: mainCoordinator,
             safetyPolicy: safetyPolicy
         )
     }
 
+    /// Plinx shows Home, Search, Library, Downloads (`more`) and Explore
+    /// (`seerrDiscover`, Youtarr). Upstream tabs Plinx does not ship fall back
+    /// to the nearest Plinx destination.
     var activeRootTab: MainCoordinator.Tab {
         switch mainCoordinator.tab {
         case .search:
-            return .search
+            .search
         case .library, .libraryDetail:
-            return .library
-        case .more:
-            return .more
+            .library
+        case .more, .downloads:
+            .more
         case .seerrDiscover:
-            return .seerrDiscover
-        case .home:
-            return .home
+            .seerrDiscover
+        case .home, .favorites, .liveTV:
+            .home
         }
+    }
+
+    /// Hidden libraries of the active profile; changing them pops Library and refreshes Home.
+    var hiddenLibraries: [LibraryIdentity] {
+        settingsManager.libraryPreferences(profileID: sessionManager.activeProfile?.id ?? "").hiddenLibraries
     }
 
     var hasDownloadActivity: Bool {
         #if os(tvOS)
         false
         #else
-        // CRITICAL: Check for ANY download items (queued, downloading, completed, failed)
-        // NOT just completedItems. The downloads tab should show if there's any
-        // download activity in progress, failed, or already completed.
-        // See: Known regression where this checked only completedItems (commit 4357449)
-        !downloadManager.items.isEmpty
+        // Any of this profile's downloads (queued, downloading, completed or
+        // failed) keeps the Downloads tab, not only completed ones; titles the
+        // current content policy hides do not count.
+        !DownloadAccessPolicy(downloadManager: downloadManager).filter(downloadManager.ownedItems).isEmpty
         #endif
     }
 
+    /// Without a network path, the family's downloads become the whole shell.
     var showsOfflineDownloadsRoot: Bool {
         #if os(tvOS)
         false
         #else
-        sessionAccessCoordinator.isLocallyEnrolled && sessionManager.status != .ready
+        hasDownloadActivity
+            && (!offlineCoordinator.availability.hasNetworkPath || offlineCoordinator.isFullyOffline)
+        #endif
+    }
+
+    /// Apple TV has no downloads: when every server of the profile is
+    /// unreachable (not while it is still connecting), the content tabs show
+    /// the connection recovery card instead of empty rows. Explore (Youtarr,
+    /// its own server) and Settings stay available.
+    var showsServerRecoveryCard: Bool {
+        #if os(tvOS)
+        let enabled = registry.enabledSessions
+        return activeRootTab != .seerrDiscover
+            && !enabled.isEmpty
+            && !registry.isConnecting
+            && enabled.allSatisfy { $0.status == .unreachable }
+        #else
+        false
         #endif
     }
 
@@ -143,15 +187,35 @@ struct RootTabView: View {
 
     var body: some View {
         mainTabView
-            .onAppear {
-                sharePlayCoordinator.configurePlaybackLauncher(launcher)
-                configureDownloadEnrollment()
+            .task {
+                // Incoming SharePlay sessions present through the same
+                // coordinator and go through PlaybackLauncher's checks.
+                sharePlayCoordinator.configurePlaybackPresenter(mainCoordinator)
+                try? await libraryStore.loadLibraries()
             }
-            .onChange(of: sessionManager.plinxDownloadOwnerIdentity) { _, _ in
-                configureDownloadEnrollment()
+            .task(id: registry.readyServers) {
+                // Servers joining or leaving the profile update Home in place.
+                await homeViewModel.syncServers()
             }
-            .onChange(of: safetyPolicy) { _, _ in
-                configureDownloadEnrollment()
+            .onChange(of: mainCoordinator.selectedMediaServices?.identity) { _, server in
+                if let server {
+                    playedServer = server
+                }
+            }
+            .onChange(of: mainCoordinator.isPresentingPlayer, initial: true) { _, isPresenting in
+                homeViewModel.isPlaybackActive = isPresenting
+                guard !isPresenting, let server = playedServer else { return }
+                // As upstream: closing the player reloads only the played
+                // server's home, to update Continue Watching and Next Up.
+                playedServer = nil
+                Task { await homeViewModel.refresh(server: server) }
+            }
+            .onChange(of: mainCoordinator.tab, initial: true) { _, tab in
+                // An upstream startup screen (Favorites, Live TV, a pinned
+                // library) is not a Plinx tab: navigate within the Plinx one.
+                if tab != activeRootTab {
+                    mainCoordinator.tab = activeRootTab
+                }
             }
             .onChange(of: playbackLaunchCoordinator.lastResult) { _, result in
                 guard let result else { return }
@@ -184,10 +248,10 @@ struct RootTabView: View {
             mainCoordinator.resetToRoot(for: .home)
             mainCoordinator.tab = .home
         }
-        .onChange(of: settingsManager.interface.hiddenLibraryIds) { _, _ in
+        .onChange(of: hiddenLibraries) { _, _ in
             mainCoordinator.resetToRoot(for: .library)
             Task {
-                await homeViewModel?.reload()
+                await homeViewModel.reload()
             }
         }
         .onChange(of: youtarrStoredBaseURL) { _, _ in
@@ -254,14 +318,5 @@ struct RootTabView: View {
         } message: {
             Text(quickActionErrorMessage ?? "")
         }
-    }
-
-    private func configureDownloadEnrollment() {
-        downloadManager.configurePlinxEnrollment(
-            identity: sessionManager.plinxDownloadOwnerIdentity,
-            safetyPolicy: safetyPolicy,
-            ownershipStore: downloadOwnershipStore,
-            sessionManager: sessionManager
-        )
     }
 }

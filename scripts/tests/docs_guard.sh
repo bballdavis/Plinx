@@ -31,15 +31,17 @@ required_files=(
   "docs/development/testing.md"
   "docs/development/ui-testing.md"
   "docs/development/ci.md"
-  "docs/development/branch-pairing.md"
   "docs/product/branding.md"
   "docs/security/privacy-and-safety.md"
   "docs/release/app-store.md"
+  "docs/release/open-source-compliance.md"
   "docs/maintenance/cleanup-roadmap.md"
+  "docs/maintenance/upstream-strimr.md"
   "docs/welcome.md"
   "docs/user/getting-started.md"
   "docs/user/parent-guide.md"
   "docs/maintenance/current-dependencies.mdx"
+  "config/release-dependencies.env"
   "website/package.json"
   "website/docusaurus.config.ts"
   "website/sidebars.ts"
@@ -138,28 +140,64 @@ check_forbidden_content() {
   pass "Forbidden references are absent"
 }
 
+# Plinx absorbed Strimr's source, so the sibling-checkout pairing (pin keys,
+# seam verifier, release sibling check, Strimr-only runners) must not return.
+# docs/maintenance/ keeps the historical records that describe it.
+check_retired_strimr_pairing() {
+  info "Checking that the retired Strimr pairing machinery stays removed"
+
+  # Split literals keep this guard from matching its own source.
+  local machinery_regex='(verify_strimr_''integration_contract|verify_release_''dependency_state|STRIMR_''(COMMIT|BRANCH|UPSTREAM_BASE|REQUIRED_SEAMS|REQUIRED_PROJECT_SOURCES)\b|scripts/strimr''/)'
+  local sibling_regex='(?<![.\w])\.\./(\.\./)?strimr''\b'
+  local output
+
+  output=$(
+    {
+      while IFS= read -r -d '' file; do
+        [[ "$file" == docs/maintenance/* ]] && continue
+        printf '%s\0' "$file"
+      done < <(existing_tracked_files)
+    } \
+    | xargs -0 rg -n --pcre2 --color never "$machinery_regex" --glob '!AGENTS.md' \
+    || true
+  )
+  if [[ -n "$output" ]]; then
+    echo "$output"
+    fail "Retired Strimr pairing machinery is referenced; see docs/maintenance/upstream-strimr.md"
+  fi
+
+  scan_tracked_regex_with_glob_exclude "$sibling_regex" \
+    "A sibling Strimr checkout is referenced outside docs/; that source now lives in PlinxApp/Core and PlinxApp/Platform"
+
+  pass "Retired Strimr pairing machinery is absent"
+}
+
 check_dependency_documentation_contract() {
   info "Checking dependency documentation contract"
 
+  local env_file="config/release-dependencies.env"
+  local project_file="PlinxApp/project.yml"
+
   # shellcheck disable=SC1091
-  source config/release-dependencies.env
+  source "$env_file"
+  [[ "${STRIMR_FORK_BASE:-}" =~ ^[0-9a-f]{40}$ ]] \
+    || fail "STRIMR_FORK_BASE in $env_file must be a 40-character lowercase Git SHA"
 
-  local narrative_files=(
-    "docs/development/branch-pairing.md"
-    "docs/architecture/strimr-integration.md"
-  )
-  local file
-  for file in "${narrative_files[@]}"; do
-    if rg -F -- "$STRIMR_COMMIT" "$file" >/dev/null; then
-      fail "Current STRIMR_COMMIT is duplicated in narrative documentation: $file"
+  # The dependency-status page renders the current Swift package pins; narrative
+  # documentation links there instead of copying moving revisions.
+  local revision output
+  while IFS= read -r revision; do
+    output=$(rg -n -F --color never -- "$revision" docs || true)
+    if [[ -n "$output" ]]; then
+      echo "$output"
+      fail "Current Swift package revision $revision is duplicated in narrative documentation"
     fi
-    if rg -F -- "$STRIMR_UPSTREAM_BASE" "$file" >/dev/null; then
-      fail "Current STRIMR_UPSTREAM_BASE is duplicated in narrative documentation: $file"
-    fi
-  done
+  done < <(rg -o --no-filename -r '$1' '^\s+revision:\s*"?([0-9a-f]{40})"?\s*$' "$project_file")
 
-  rg -F -- "current-dependencies" docs/development/branch-pairing.md docs/architecture/strimr-integration.md >/dev/null \
-    || fail "Strimr pairing documentation must link to the generated dependency status page"
+  rg -F -q -- "current-dependencies" docs/architecture/strimr-integration.md \
+    || fail "docs/architecture/strimr-integration.md must link to the generated dependency status page"
+  rg -F -q -- "upstream-strimr" docs/architecture/strimr-integration.md \
+    || fail "docs/architecture/strimr-integration.md must link to the upstream provenance page"
 
   pass "Dependency documentation contract is intact"
 }
@@ -198,6 +236,7 @@ check_pr_diff_requirements() {
 main() {
   check_required_files
   check_forbidden_content
+  check_retired_strimr_pairing
   check_dependency_documentation_contract
   check_pr_diff_requirements
   pass "Docs guard passed"

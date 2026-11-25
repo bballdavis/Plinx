@@ -1,5 +1,5 @@
-import SwiftUI
 import PlinxUI
+import SwiftUI
 
 #if os(tvOS)
 private enum PlinxCollectionFocusTarget: Hashable {
@@ -8,22 +8,39 @@ private enum PlinxCollectionFocusTarget: Hashable {
 }
 #endif
 
+/// Plinx collection page on the upstream `CollectionDetailViewModel`.
+///
+/// Collections are containers: `SafeMediaServices` filters their entries one
+/// by one, so the grid only ever holds titles the current policy allows.
 struct PlinxCollectionDetailView: View {
-    @State var viewModel: SafeCollectionDetailViewModel
-    var onSelectMedia: (MediaDisplayItem) -> Void
-    var onLongPressMedia: (MediaDisplayItem) -> Void = { _ in }
-    var onRequestShellNavigationFocus: () -> Void = {}
-    var contentFocusRequest: Int = 0
+    @State private var viewModel: CollectionDetailViewModel
+    private let onSelectMedia: (MediaDisplayItem) -> Void
+    private let onLongPressMedia: (MediaDisplayItem) -> Void
+    private let onRequestShellNavigationFocus: () -> Void
+    private let contentFocusRequest: Int
 
     @Environment(\.dismiss) private var dismiss
-    @Environment(PlexAPIContext.self) private var plexApiContext
-    @Environment(\.safetyPolicy) private var safetyPolicy
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(MediaServices.self) private var mediaServices
     @Environment(\.preferredLandscapeArtworkKind) private var preferredLandscapeArtworkKind
     #if os(tvOS)
     @FocusState private var focusedTarget: PlinxCollectionFocusTarget?
-    @State private var previousItemIDs: [String] = []
     @State private var contentFocusGeneration = 0
     #endif
+
+    init(
+        viewModel: CollectionDetailViewModel,
+        onSelectMedia: @escaping (MediaDisplayItem) -> Void,
+        onLongPressMedia: @escaping (MediaDisplayItem) -> Void = { _ in },
+        onRequestShellNavigationFocus: @escaping () -> Void = {},
+        contentFocusRequest: Int = 0
+    ) {
+        _viewModel = State(initialValue: viewModel)
+        self.onSelectMedia = onSelectMedia
+        self.onLongPressMedia = onLongPressMedia
+        self.onRequestShellNavigationFocus = onRequestShellNavigationFocus
+        self.contentFocusRequest = contentFocusRequest
+    }
 
     private var columns: [GridItem] {
         #if os(tvOS)
@@ -49,7 +66,7 @@ struct PlinxCollectionDetailView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if let error = viewModel.errorMessage, viewModel.items.isEmpty {
                     PlinxErrorView(message: error) {
-                        Task { await viewModel.load() }
+                        Task { await viewModel.reload() }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if viewModel.items.isEmpty {
@@ -84,19 +101,23 @@ struct PlinxCollectionDetailView: View {
         #endif
         .toolbarBackground(.hidden, for: .navigationBar)
         .task { await viewModel.load() }
-        .onChange(of: safetyPolicy) { _, newPolicy in
-            viewModel.updatePolicy(newPolicy)
+        .onChange(of: ContentSafetyGate.shared.revision) { _, _ in
+            // Entries listed under the previous policy are replaced, never merged.
+            Task { await viewModel.reload() }
+        }
+        .onChange(of: scenePhase) { _, newValue in
+            guard newValue == .active else { return }
+            Task { await viewModel.refreshIfNeeded() }
         }
         #if os(tvOS)
         .onAppear {
-            previousItemIDs = viewModel.items.map(\.id)
             focusedTarget = .back
+            Task { await viewModel.refreshIfNeeded() }
         }
         .onChange(of: contentFocusRequest) { _, _ in
             restoreContentFocus(forceTransfer: true)
         }
         .onChange(of: viewModel.items.map(\.id)) { oldIDs, newIDs in
-            defer { previousItemIDs = newIDs }
             guard case let .item(currentID) = focusedTarget else { return }
             let resolved = PlinxTVFocusCoordinator.resolvedContentID(
                 currentID: currentID,
@@ -104,6 +125,10 @@ struct PlinxCollectionDetailView: View {
                 availableIDs: newIDs
             )
             focusedTarget = resolved.map(PlinxCollectionFocusTarget.item) ?? .back
+        }
+        #else
+        .onAppear {
+            Task { await viewModel.refreshIfNeeded() }
         }
         #endif
     }
@@ -114,6 +139,14 @@ struct PlinxCollectionDetailView: View {
         #else
         16
         #endif
+    }
+
+    private func artworkViewModel(for item: MediaDisplayItem) -> MediaImageViewModel {
+        MediaImageViewModel(
+            services: mediaServices,
+            artworkKind: .thumb,
+            media: item
+        )
     }
 
     #if os(tvOS)
@@ -185,20 +218,14 @@ struct PlinxCollectionDetailView: View {
         Button {
             onSelectMedia(item)
         } label: {
-            MediaImageView(
-                viewModel: MediaImageViewModel(
-                    context: plexApiContext,
-                    artworkKind: .thumb,
-                    media: item
+            MediaImageView(viewModel: artworkViewModel(for: item))
+                .aspectRatio(aspectRatio, contentMode: .fit)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .plinxFocusSurface(
+                    isSelected: false,
+                    isFocused: isFocused,
+                    style: PlinxFocusSurfaceStyle(cornerRadius: 14)
                 )
-            )
-            .aspectRatio(aspectRatio, contentMode: .fit)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .plinxFocusSurface(
-                isSelected: false,
-                isFocused: isFocused,
-                style: PlinxFocusSurfaceStyle(cornerRadius: 14)
-            )
         }
         .buttonStyle(PlinkButtonStyle())
         .focusEffectDisabled()
@@ -211,21 +238,17 @@ struct PlinxCollectionDetailView: View {
         .plinxQuickActionLongPress {
             onLongPressMedia(item)
         }
+        .accessibilityLabel(Text(item.primaryLabel))
         #else
-        MediaImageView(
-            viewModel: MediaImageViewModel(
-                context: plexApiContext,
-                artworkKind: .thumb,
-                media: item
+        MediaImageView(viewModel: artworkViewModel(for: item))
+            .aspectRatio(2 / 3, contentMode: .fit)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .contentShape(Rectangle())
+            .plinxMediaCardInteraction(
+                onTap: { onSelectMedia(item) },
+                onLongPress: { onLongPressMedia(item) }
             )
-        )
-        .aspectRatio(2 / 3, contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .contentShape(Rectangle())
-        .plinxMediaCardInteraction(
-            onTap: { onSelectMedia(item) },
-            onLongPress: { onLongPressMedia(item) }
-        )
+            .accessibilityLabel(Text(item.primaryLabel))
         #endif
     }
 

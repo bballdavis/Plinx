@@ -23,10 +23,13 @@ private enum PlinxTVPlayerButtonChrome {
     )
 }
 
+/// Seek and channel buttons of the tvOS controls (`Platform/tvOS/Player/Controls/PlayerControlsView`).
 struct PlayerIconButton: View {
     let systemName: String
     var accessibilityLabel: String?
     let action: () -> Void
+
+    @Environment(\.isEnabled) private var isEnabled
 
     private var accessibilityIdentifier: String {
         if systemName.hasPrefix("gobackward") { return "player.control.rewind" }
@@ -38,7 +41,7 @@ struct PlayerIconButton: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 31, weight: .bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(.white.opacity(isEnabled ? 1 : 0.4))
                 .frame(width: 82, height: 82)
                 .background(
                     RoundedRectangle(cornerRadius: 20, style: .continuous)
@@ -123,12 +126,21 @@ struct SkipMarkerButton: View {
 
 struct PlayerSettingButton: View {
     var systemImage: String
+    var accessibilityLabel: String?
     var action: () -> Void
 
     private var accessibilityIdentifier: String {
-        systemImage.contains("caption")
-            ? "player.control.subtitles"
-            : "player.control.audio"
+        if systemImage.contains("caption") { return "player.control.subtitles" }
+        if systemImage.hasPrefix("speaker") { return "player.control.audio" }
+        if systemImage.hasPrefix("slider") { return "player.control.settings" }
+        if systemImage.hasPrefix("list") { return "player.control.channels" }
+        return "player.control.\(systemImage)"
+    }
+
+    private var defaultAccessibilityLabel: String {
+        if systemImage.contains("caption") { return String(localized: "player.settings.subtitles") }
+        if systemImage.hasPrefix("speaker") { return String(localized: "player.settings.audio") }
+        return systemImage
     }
 
     var body: some View {
@@ -154,6 +166,7 @@ struct PlayerSettingButton: View {
                 focusedFillOpacity: 0.12
             )
         )
+        .accessibilityLabel(accessibilityLabel ?? defaultAccessibilityLabel)
         .accessibilityIdentifier(accessibilityIdentifier)
         .accessibilityValue("darkPlinxPlayerSettingControl")
     }

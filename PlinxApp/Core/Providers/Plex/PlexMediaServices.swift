@@ -1112,11 +1112,19 @@ final class PlexMediaServiceAdapter: MediaHomeService, MediaLibraryService, Medi
         let media = MediaItem(plexItem: item, server: server)
         let selectedVersion = versions[selected.mediaIndex]
         let versionLabel = versions.count > 1 ? selectedVersion.displayLabel(among: versions) : nil
-        guard !quality.isOriginal, !selectedMedia.satisfies(quality: quality) else {
+        let sourceSatisfiesQuality = selectedMedia.satisfies(quality: quality)
+        // A transcode that would not save enough space downloads the original instead.
+        guard !quality.isOriginal, !sourceSatisfiesQuality,
+              DownloadSpaceSavingsPolicy.shouldTranscode(
+                  quality: quality,
+                  sourceFileSize: selected.part.size,
+                  duration: media.duration,
+              )
+        else {
             return MediaDownloadPreparation(
                 media: media,
                 requestedQuality: quality,
-                effectiveQuality: quality.isOriginal ? .original : quality,
+                effectiveQuality: quality.isOriginal || !sourceSatisfiesQuality ? .original : quality,
                 request: URLRequest(url: url),
                 remoteReference: nil,
                 sidecars: Self.downloadSidecars(in: selected.part.stream ?? [], url: mediaRepository.mediaURL),
@@ -1597,7 +1605,7 @@ private extension PlexMedia {
 enum PlexMediaServicesFactory {
     /// - Parameters:
     ///   - userID: Plex user of the token, which owns the offline data and track preferences of this server.
-    ///   - favoritesProfileID: Strimr profile the local favorites belong to.
+    ///   - favoritesProfileID: App profile the local favorites belong to.
     ///   - isServerAdministrator: The user administers this server, see `PlexServerRights`.
     static func make(
         context: PlexAPIContext,

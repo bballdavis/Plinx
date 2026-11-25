@@ -22,8 +22,7 @@ struct SystemPlayerMenuButton: View {
         } label: {
             SystemPlayerButtonLabel(systemImage: systemImage)
         }
-        .buttonStyle(.glass)
-        .buttonBorderShape(.circle)
+        .systemPlayerRoundButtonStyle()
         .overlay(alignment: .topTrailing) {
             if showsIndicator {
                 PlaybackOffsetIndicator()
@@ -46,8 +45,7 @@ struct SystemPlayerActionButton: View {
         Button(action: action) {
             SystemPlayerButtonLabel(systemImage: systemImage)
         }
-        .buttonStyle(.glass)
-        .buttonBorderShape(.circle)
+        .systemPlayerRoundButtonStyle()
         .accessibilityLabel(accessibilityLabel)
     }
 }
@@ -76,6 +74,21 @@ extension View {
                     .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .bottomTrailing)))
                 }
             }
+        }
+    }
+}
+
+private extension View {
+    /// Round button of the player controls: system glass on tvOS 26, the system bordered style before it. Both keep
+    /// the native tvOS focus lift.
+    @ViewBuilder
+    func systemPlayerRoundButtonStyle() -> some View {
+        if #available(tvOS 26.0, *) {
+            buttonStyle(.glass)
+                .buttonBorderShape(.circle)
+        } else {
+            buttonStyle(.bordered)
+                .buttonBorderShape(.circle)
         }
     }
 }

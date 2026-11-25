@@ -82,7 +82,7 @@ const config: Config = {
           title: 'Contributors',
           items: [
             {label: 'Developer setup', to: '/docs/development/setup'},
-            {label: 'Strimr integration', to: '/docs/architecture/strimr-integration'},
+            {label: 'Codebase architecture', to: '/docs/architecture/strimr-integration'},
             {label: 'Current dependencies', to: '/docs/maintenance/current-dependencies'},
           ],
         },

@@ -58,7 +58,7 @@ enum PlexLiveTVQuery {
             .init(name: "session", value: transcodeSessionID),
             .init(name: "X-Plex-Session-Identifier", value: sessionIdentifier),
             .init(name: "X-Plex-Client-Identifier", value: client.clientIdentifier),
-            .init(name: "X-Plex-Product", value: "Strimr"),
+            .init(name: "X-Plex-Product", value: PlexProductIdentity.name),
             .init(name: "X-Plex-Version", value: client.productVersion),
             .init(name: "X-Plex-Platform", value: "Generic"),
             .init(name: "X-Plex-Client-Profile-Name", value: "Generic"),

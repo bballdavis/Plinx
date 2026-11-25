@@ -226,3 +226,108 @@ struct PlinxSignInInformationButton: View {
         .accessibilityIdentifier("signIn.infoButton")
     }
 }
+
+/// An onboarding action: the Plinx glass button on touch screens and a Plinx
+/// focus surface on Apple TV, where a glass style shows no focus.
+struct PlinxOnboardingActionButton<Label: View>: View {
+    var treatment: PlinxActionButtonStyle.Treatment = .primary
+    let action: () -> Void
+    @ViewBuilder let label: () -> Label
+
+    var body: some View {
+        #if os(tvOS)
+        Button(action: action) {
+            label()
+                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .foregroundStyle(Color.white)
+                .padding(.horizontal, 28)
+                .frame(minWidth: 420, minHeight: 72)
+                .background(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .fill(treatment == .primary ? Color.accentColor.opacity(0.32) : PlinxBrand.surface)
+                )
+        }
+        .plinxTVFocusButton(style: PlinxFocusSurfaceStyle(cornerRadius: 20, focusedFillOpacity: 0.12))
+        #else
+        Button(action: action, label: label)
+            .buttonStyle(PlinxActionButtonStyle(treatment: treatment))
+        #endif
+    }
+}
+
+/// Back control for onboarding screens pushed inside the account-setup
+/// navigation stack, which hide the system navigation bar.
+struct PlinxOnboardingBackButton: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        PlinxChromeButton(systemImage: "chevron.left") {
+            dismiss()
+        }
+        .accessibilityLabel(Text("common.actions.back", tableName: "Plinx"))
+        .accessibilityIdentifier("onboarding.back")
+    }
+}
+
+// MARK: - Parental approval
+
+/// A grown-up action requested from a screen a child can reach (the profile
+/// picker at launch). It runs at once while the parental gate is unlocked;
+/// otherwise the gate is presented first and the action runs after it closes.
+struct PlinxParentalRequest: Identifiable {
+    let id = UUID()
+    /// Relock once the action has run, so a parent's approval never leaves
+    /// protected abilities open for the child who uses the device next.
+    let relocksAfterAction: Bool
+    let action: () -> Void
+}
+
+extension View {
+    func plinxParentalApproval(_ request: Binding<PlinxParentalRequest?>) -> some View {
+        modifier(PlinxParentalApprovalModifier(request: request))
+    }
+}
+
+private struct PlinxParentalApprovalModifier: ViewModifier {
+    @Environment(ParentalAccessCoordinator.self) private var parentalAccess
+    @Binding var request: PlinxParentalRequest?
+    @State private var approvedRequest: PlinxParentalRequest?
+
+    func body(content: Content) -> some View {
+        content
+            .taskPresentation(item: $request, style: .fullScreen, onDismiss: runApprovedAction) { pending in
+                ParentalGateView(onAllowed: {
+                    approvedRequest = pending
+                    request = nil
+                })
+                .accessibilityIdentifier("parentalApproval.gate")
+            }
+    }
+
+    /// Runs after the gate is gone, so an action may present its own sheet.
+    private func runApprovedAction() {
+        guard let approved = approvedRequest else { return }
+        approvedRequest = nil
+        approved.action()
+        if approved.relocksAfterAction {
+            parentalAccess.lock()
+        }
+    }
+}
+
+extension ParentalAccessCoordinator {
+    /// Runs `action` now when a parent already unlocked protected UI (for
+    /// example, the picker was opened from Settings); otherwise asks for the
+    /// gate through `request`.
+    func requireParent(
+        _ request: Binding<PlinxParentalRequest?>,
+        relocksAfterAction: Bool = true,
+        action: @escaping () -> Void
+    ) {
+        if isUnlocked {
+            action()
+        } else {
+            request.wrappedValue = PlinxParentalRequest(relocksAfterAction: relocksAfterAction, action: action)
+        }
+    }
+}

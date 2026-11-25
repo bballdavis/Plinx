@@ -6,9 +6,8 @@ import UIKit
 #if !os(tvOS)
 struct PlinxLibraryRecommendedContentView: View {
     @Environment(\.scenePhase) private var scenePhase
-    @Environment(PlexAPIContext.self) private var plexApiContext
+    @Environment(MediaServices.self) private var mediaServices
     @Environment(SettingsManager.self) private var settingsManager
-    @Environment(\.safetyPolicy) private var safetyPolicy
 
     @State var viewModel: LibraryRecommendedViewModel
     let onSelectMedia: (MediaDisplayItem) -> Void
@@ -16,8 +15,6 @@ struct PlinxLibraryRecommendedContentView: View {
     let topContent: AnyView
     let overrideLayout: (Hub) -> MediaCarousel.Layout?
     let onViewAllHub: (Hub) -> Void
-
-    private let landscapeHubIdentifiers = ["inprogress"]
 
     var body: some View {
         ScrollView {
@@ -60,18 +57,16 @@ struct PlinxLibraryRecommendedContentView: View {
         .task {
             await PlinxLibraryRecommendationLoader.load(
                 viewModel: viewModel,
-                context: plexApiContext,
-                settingsManager: settingsManager,
-                policy: safetyPolicy
+                services: mediaServices,
+                settingsManager: settingsManager
             )
         }
         .onAppear {
             Task {
                 await PlinxLibraryRecommendationLoader.load(
                     viewModel: viewModel,
-                    context: plexApiContext,
+                    services: mediaServices,
                     settingsManager: settingsManager,
-                    policy: safetyPolicy,
                     refreshIfNeeded: true
                 )
             }
@@ -81,9 +76,8 @@ struct PlinxLibraryRecommendedContentView: View {
             Task {
                 await PlinxLibraryRecommendationLoader.load(
                     viewModel: viewModel,
-                    context: plexApiContext,
+                    services: mediaServices,
                     settingsManager: settingsManager,
-                    policy: safetyPolicy,
                     refreshIfNeeded: true
                 )
             }
@@ -131,7 +125,9 @@ struct PlinxLibraryRecommendedContentView: View {
             return override
         }
         let identifier = hub.id.lowercased()
-        return landscapeHubIdentifiers.contains(where: identifier.contains) ? .landscape : .portrait
+        return PlinxLibraryRecommendationLoader.landscapeHubIdentifiers.contains(where: identifier.contains)
+            ? .landscape
+            : .portrait
     }
 }
 
@@ -154,20 +150,13 @@ private func libraryGridColumns(_ metrics: LibraryCardLayoutPolicy.GridMetrics) 
 }
 
 struct PlinxLibraryBrowseContentView: View {
+    @Environment(MediaServices.self) private var mediaServices: MediaServices?
+
     @State var viewModel: LibraryBrowseViewModel
     let onSelectMedia: (MediaDisplayItem) -> Void
     let onLongPressMedia: (MediaDisplayItem) -> Void
     let topContent: AnyView
-    let overrideLayout: MediaCarousel.Layout?
-    let showsControls: Bool
-
-    private var usesLandscapeCards: Bool {
-        guard let overrideLayout else { return false }
-        if case .landscape = overrideLayout {
-            return true
-        }
-        return false
-    }
+    let usesLandscapeCards: Bool
 
     @State private var gridContainerWidth: CGFloat = 0
 
@@ -186,45 +175,59 @@ struct PlinxLibraryBrowseContentView: View {
         usesLandscapeCards ? cardWidth * 9 / 16 : nil
     }
 
+    private var currentListing: PlinxLibraryBrowseListing {
+        PlinxLibraryBrowseListing(
+            itemsByIndex: viewModel.itemsByIndex,
+            totalItemCount: viewModel.totalItemCount,
+            library: viewModel.library
+        )
+    }
+
     var body: some View {
-        @Bindable var controls = viewModel.controls
+        let listing = currentListing
 
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                topContent
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Color.clear
+                        .frame(height: 0)
+                        .id(Self.topAnchor)
 
-                if showsControls, controls.hasDisplayTypes {
-                    LibraryBrowseControlsView(
-                        viewModel: controls,
-                        showsBackButton: viewModel.canNavigateBack,
-                        onNavigateBack: viewModel.navigateBack
-                    )
-                }
+                    topContent
 
-                LazyVGrid(columns: libraryGridColumns(gridMetrics), spacing: 16) {
-                    ForEach(Array(viewModel.browseItems.enumerated()), id: \.element.id) { index, item in
-                        browseCard(item)
-                            .task {
-                                if index == viewModel.browseItems.count - 1 {
-                                    await viewModel.loadMore()
+                    if viewModel.canNavigateBack {
+                        PlinxChromeButton(systemImage: "chevron.left") {
+                            viewModel.navigateBack()
+                        }
+                        .accessibilityLabel(Text("library.browse.folders.back"))
+                    }
+
+                    LazyVGrid(columns: libraryGridColumns(gridMetrics), spacing: 16) {
+                        ForEach(listing.items) { item in
+                            browseCard(item)
+                        }
+
+                        if let nextIndex = listing.nextIndex {
+                            PlinxLibraryCardPlaceholder(width: cardWidth, usesLandscapeCard: usesLandscapeCards)
+                                .task(id: nextIndex) {
+                                    viewModel.itemAppeared(at: nextIndex)
                                 }
-                            }
+                        }
                     }
-
-                    if viewModel.isLoadingMore {
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                    }
+                    .frame(width: gridMetrics.contentWidth)
+                    .frame(maxWidth: .infinity, alignment: .center)
                 }
-                .frame(width: gridMetrics.contentWidth)
-                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.horizontal, libraryGridHorizontalPadding)
+                .padding(.top, 16)
+                .padding(.bottom, 24)
             }
-            .padding(.horizontal, libraryGridHorizontalPadding)
-            .padding(.top, 16)
+            .onChange(of: viewModel.scrollResetID) { _, _ in
+                proxy.scrollTo(Self.topAnchor, anchor: .top)
+            }
         }
         .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { gridContainerWidth = $0 }
         .overlay {
-            if viewModel.isLoading, viewModel.browseItems.isEmpty {
+            if viewModel.isLoading, listing.items.isEmpty {
                 PlinxLoadingStateView(
                     role: .content,
                     label: LocalizedStringResource(
@@ -232,14 +235,14 @@ struct PlinxLibraryBrowseContentView: View {
                         table: "Plinx"
                     )
                 )
-            } else if let errorMessage = viewModel.errorMessage, viewModel.browseItems.isEmpty {
+            } else if let errorMessage = viewModel.errorMessage, listing.items.isEmpty {
                 ContentUnavailableView(
                     errorMessage,
                     systemImage: "exclamationmark.triangle.fill",
                     description: Text("common.errors.tryAgainLater")
                 )
                 .symbolRenderingMode(.multicolor)
-            } else if viewModel.browseItems.isEmpty {
+            } else if listing.items.isEmpty, listing.nextIndex == nil, !viewModel.isLoading {
                 ContentUnavailableView(
                     "library.browse.empty.title",
                     systemImage: "square.grid.2x2.fill",
@@ -248,9 +251,22 @@ struct PlinxLibraryBrowseContentView: View {
             }
         }
         .task {
-            await viewModel.load()
+            // Plinx has no folder-tree view; a tree saved on this device falls back to the grid.
+            if viewModel.isFolderTreeActive {
+                viewModel.toggleFolderTree()
+            } else {
+                await viewModel.load()
+            }
+        }
+        .onChange(of: mediaServices?.deletedMediaIDs) { _, deletedIDs in
+            viewModel.removeDeletedItems(ids: deletedIDs ?? [])
+        }
+        .onChange(of: viewModel.isServerUnreachable) { _, _ in
+            viewModel.connectionChanged()
         }
     }
+
+    private static let topAnchor = "plinx.library.browse.top"
 
     @ViewBuilder
     private func browseCard(_ item: LibraryBrowseItem) -> some View {

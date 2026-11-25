@@ -166,10 +166,18 @@ final class SearchViewModel {
         self.settingsManager = settingsManager
     }
 
-    /// Ranked on read so that toggling the grouping setting applies to the results already shown.
+    /// Ranked on read so that toggling the grouping setting applies to the results already shown. Results from the
+    /// libraries the profile hides are dropped, and every title is checked again against the current policy.
     var items: [MergedSearchResult] {
-        SearchRanking.merge(
-            sources,
+        let hidden = PlinxLibraryVisibility.hiddenLibraries(
+            settingsManager: settingsManager,
+            sessionManager: sessionManager,
+        )
+        let gate = ContentSafetyGate.shared
+        let visible = PlinxLibraryVisibility.visibleSources(sources, hiddenLibraries: hidden)
+            .filter { gate.isAllowed($0.media) }
+        return SearchRanking.merge(
+            visible,
             query: rankedQuery,
             groupsCopies: settingsManager.interface.groupsSearchResults,
         )

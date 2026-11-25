@@ -230,10 +230,129 @@ private struct TvHeroExternalRating: Identifiable, Hashable {
     let provider: String
     let value: String
     let isAudience: Bool
+
+    /// The IMDb, Rotten Tomatoes and TMDB scores of a title, critics before
+    /// audiences. Jellyfin's community score is left to the star fallback.
+    static func resolve(from ratings: [MediaRating]) -> [TvHeroExternalRating] {
+        var ratingsByID: [String: TvHeroExternalRating] = [:]
+
+        for rating in ratings {
+            let provider: String
+            let isAudience: Bool
+            let formattedValue: String
+            switch rating.source {
+            case .imdb:
+                provider = "IMDb"
+                isAudience = false
+                formattedValue = String(format: "%.1f", rating.value)
+            case .tmdb:
+                provider = "TMDB"
+                isAudience = false
+                formattedValue = String(format: "%.1f", rating.value)
+            case .rottenTomatoesCritic:
+                provider = "Rotten Tomatoes"
+                isAudience = false
+                formattedValue = rottenTomatoesPercentage(rating.value)
+            case .rottenTomatoesAudience:
+                provider = "Rotten Tomatoes"
+                isAudience = true
+                formattedValue = rottenTomatoesPercentage(rating.value)
+            case .jellyfinCritics:
+                // Jellyfin's critic rating is already the Tomatometer percentage.
+                provider = "Rotten Tomatoes"
+                isAudience = false
+                formattedValue = "\(Int(rating.value.rounded()))%"
+            case .jellyfinCommunity:
+                continue
+            }
+
+            let id = "\(normalizedProvider(provider))-\(isAudience ? "audience" : "critic")"
+            guard ratingsByID[id] == nil else { continue }
+            ratingsByID[id] = TvHeroExternalRating(
+                id: id,
+                provider: provider,
+                value: formattedValue,
+                isAudience: isAudience
+            )
+        }
+
+        return ratingsByID.values.sorted { lhs, rhs in
+            let lhsPriority = lhs.sortPriority
+            let rhsPriority = rhs.sortPriority
+            if lhsPriority != rhsPriority { return lhsPriority < rhsPriority }
+            if lhs.isAudience != rhs.isAudience { return lhs.isAudience == false }
+            return lhs.provider < rhs.provider
+        }
+    }
+
+    /// Plex reports Rotten Tomatoes scores out of ten.
+    private static func rottenTomatoesPercentage(_ rawValue: Double) -> String {
+        let percentage = rawValue <= 10 ? rawValue * 10 : rawValue
+        return "\(Int(percentage.rounded()))%"
+    }
+
+    static func normalizedProvider(_ provider: String) -> String {
+        provider
+            .lowercased()
+            .replacingOccurrences(of: "[^a-z0-9]", with: "", options: .regularExpression)
+    }
+
+    private var sortPriority: Int {
+        switch Self.normalizedProvider(provider) {
+        case "rottentomatoes", "rt": return isAudience ? 1 : 0
+        case "imdb": return 2
+        case "tmdb", "themoviedatabase", "themoviedb": return 3
+        case "tvdb": return 4
+        default: return 9
+        }
+    }
+}
+
+/// Full metadata of a hero title (its series, for an episode): the external
+/// ratings and clear logo that listings leave out. The metadata panel and the
+/// backdrop share one request per title. Requests go through the server's
+/// `MediaServices`, so a title the safety boundary blocks resolves to `nil`.
+@MainActor
+enum TvHeroDetailsLoader {
+    private static var cache: [MediaIdentity: MediaItem] = [:]
+    private static var inFlight: [MediaIdentity: Task<MediaItem?, Never>] = [:]
+    private static var cachedPolicyRevision: Int?
+    private static let cacheLimit = 64
+
+    static func details(for media: MediaItem, services: MediaServices) async -> MediaItem? {
+        let revision = ContentSafetyGate.shared.revision
+        if cachedPolicyRevision != revision {
+            cache.removeAll()
+            cachedPolicyRevision = revision
+        }
+
+        let identity = MediaIdentity(server: media.identity.server, itemID: media.metadataRatingKey)
+        if let cached = cache[identity] {
+            return cached
+        }
+        if let pending = inFlight[identity] {
+            return await pending.value
+        }
+
+        let task = Task { @MainActor in
+            try? await services.detail.mediaItem(id: identity.itemID)
+        }
+        inFlight[identity] = task
+        let details = await task.value
+        inFlight[identity] = nil
+
+        guard let details, cachedPolicyRevision == ContentSafetyGate.shared.revision else { return details }
+        if cache.count >= cacheLimit {
+            cache.removeAll()
+        }
+        cache[identity] = details
+        return details
+    }
 }
 
 private struct TvHeroMetadataPanel: View {
-    @Environment(PlexAPIContext.self) private var plexApiContext
+    @Environment(ServerRegistry.self) private var registry
+    @Environment(MediaServices.self) private var scopedServices: MediaServices?
 
     let media: MediaItem
 
@@ -264,7 +383,7 @@ private struct TvHeroMetadataPanel: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .shadow(color: .black.opacity(0.72), radius: 3, y: 1)
-        .task(id: media.id) {
+        .task(id: media.identity) {
             await loadHeroMetadata()
         }
     }
@@ -327,60 +446,10 @@ private struct TvHeroMetadataPanel: View {
 
     private func loadHeroMetadata() async {
         externalRatings = []
-
-        do {
-            let metadataRepository = try MetadataRepository(context: plexApiContext)
-            let response = try await metadataRepository.getMetadata(ratingKey: media.metadataRatingKey)
-            guard let item = response.mediaContainer.metadata?.first else { return }
-
-            externalRatings = resolveExternalRatings(from: item)
-        } catch {
-            externalRatings = []
-        }
-    }
-
-    private func resolveExternalRatings(from item: PlexItem) -> [TvHeroExternalRating] {
-        var ratingsByID: [String: TvHeroExternalRating] = [:]
-
-        func addRating(provider: String, value: Double, isAudience: Bool) {
-            guard isSupportedProvider(provider) else { return }
-            let providerID = normalizedProvider(provider)
-            let id = "\(providerID)-\(isAudience ? "audience" : "critic")"
-            guard ratingsByID[id] == nil else { return }
-            ratingsByID[id] = TvHeroExternalRating(
-                id: id,
-                provider: provider,
-                value: formattedRatingValue(value, provider: provider),
-                isAudience: isAudience
-            )
-        }
-
-        for rating in item.ratings ?? [] {
-            let value = rating.value
-            guard let provider = providerName(from: rating.image) ?? providerName(from: rating.type) else { continue }
-            let isAudience = isAudienceRatingSource(rating.image) || isAudienceRatingSource(rating.type)
-            addRating(provider: provider, value: value, isAudience: isAudience)
-        }
-
-        if let value = item.rating,
-           let provider = providerName(from: item.ratingImage)
-        {
-            addRating(provider: provider, value: value, isAudience: false)
-        }
-
-        if let value = item.audienceRating,
-           let provider = providerName(from: item.audienceRatingImage)
-        {
-            addRating(provider: provider, value: value, isAudience: true)
-        }
-
-        return ratingsByID.values.sorted { lhs, rhs in
-            let lhsPriority = ratingSortPriority(lhs)
-            let rhsPriority = ratingSortPriority(rhs)
-            if lhsPriority != rhsPriority { return lhsPriority < rhsPriority }
-            if lhs.isAudience != rhs.isAudience { return lhs.isAudience == false }
-            return lhs.provider < rhs.provider
-        }
+        guard let services = registry.services(for: .playable(media), scoped: scopedServices) else { return }
+        let details = await TvHeroDetailsLoader.details(for: media, services: services)
+        guard !Task.isCancelled, let details else { return }
+        externalRatings = TvHeroExternalRating.resolve(from: details.ratings)
     }
 
     @ViewBuilder
@@ -400,7 +469,7 @@ private struct TvHeroMetadataPanel: View {
     }
 
     private func ratingIconAssetName(_ rating: TvHeroExternalRating) -> String {
-        let norm = normalizedRatingProvider(rating.provider)
+        let norm = TvHeroExternalRating.normalizedProvider(rating.provider)
         if (norm == "rottentomatoes" || norm == "rt") && rating.isAudience {
             return "rating.rt.audience"
         }
@@ -413,7 +482,7 @@ private struct TvHeroMetadataPanel: View {
     }
 
     private func ratingProviderSFSymbol(_ rating: TvHeroExternalRating) -> String {
-        let norm = normalizedRatingProvider(rating.provider)
+        let norm = TvHeroExternalRating.normalizedProvider(rating.provider)
         if (norm == "rottentomatoes" || norm == "rt") && rating.isAudience {
             return "popcorn.fill"
         }
@@ -425,128 +494,11 @@ private struct TvHeroMetadataPanel: View {
         default: return "chart.bar.fill"
         }
     }
-
-    private func normalizedRatingProvider(_ provider: String) -> String {
-        provider
-            .lowercased()
-            .replacingOccurrences(of: "[^a-z0-9]", with: "", options: .regularExpression)
-    }
-
-    private func providerName(from imageIdentifier: String?) -> String? {
-        guard let imageIdentifier else { return nil }
-        let value = imageIdentifier.lowercased()
-        if value.contains("imdb") { return "IMDb" }
-        if value.contains("rotten") || value.contains("tomato") || value == "rt" { return "Rotten Tomatoes" }
-        if value.contains("tvdb") || value.contains("thetvdb") { return "TVDB" }
-        if value.contains("tmdb") || value.contains("themoviedb") { return "TMDB" }
-        return nil
-    }
-
-    private func isAudienceRatingSource(_ source: String?) -> Bool {
-        guard let source else { return false }
-        let value = source.lowercased()
-        return value.contains("audience") || value.contains("user") || value.contains("popcorn")
-    }
-
-    private func normalizedProvider(_ provider: String) -> String {
-        provider
-            .lowercased()
-            .replacingOccurrences(of: "[^a-z0-9]", with: "", options: .regularExpression)
-    }
-
-    private func isSupportedProvider(_ provider: String) -> Bool {
-        switch normalizedProvider(provider) {
-        case "imdb", "rottentomatoes", "rt", "tmdb", "themoviedatabase", "themoviedb", "tvdb":
-            return true
-        default:
-            return false
-        }
-    }
-
-    private func ratingSortPriority(_ rating: TvHeroExternalRating) -> Int {
-        let provider = normalizedProvider(rating.provider)
-        switch provider {
-        case "rottentomatoes", "rt": return rating.isAudience ? 1 : 0
-        case "imdb": return 2
-        case "tmdb", "themoviedatabase", "themoviedb": return 3
-        case "tvdb": return 4
-        default: return 9
-        }
-    }
-
-    private func formattedRatingValue(_ rawValue: Double, provider: String) -> String {
-        let providerID = normalizedProvider(provider)
-        if providerID == "rottentomatoes" || providerID == "rt" {
-            let percentage = rawValue <= 10 ? rawValue * 10 : rawValue
-            return "\(Int(percentage.rounded()))%"
-        }
-
-        if providerID == "imdb" {
-            return String(format: "%.1f", rawValue)
-        }
-
-        return String(format: "%.1f", rawValue)
-    }
-}
-
-private struct TvHeroIdentityView: View {
-    @Environment(PlexAPIContext.self) private var plexApiContext
-
-    let media: MediaItem
-
-    @State private var logoURL: URL?
-
-    var body: some View {
-        Group {
-            if let logoURL {
-                AsyncImage(url: logoURL) { phase in
-                    if let image = phase.image {
-                        image
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxHeight: 220)
-                    } else {
-                        fallbackTitle
-                    }
-                }
-            } else {
-                fallbackTitle
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .task(id: media.id) {
-            await loadLogo()
-        }
-    }
-
-    private var fallbackTitle: some View {
-        Text(media.primaryLabel)
-            .font(.system(size: 72, weight: .black, design: .rounded))
-            .foregroundStyle(.white)
-            .lineLimit(2)
-            .minimumScaleFactor(0.55)
-    }
-
-    private func loadLogo() async {
-        logoURL = nil
-        do {
-            let metadataRepository = try MetadataRepository(context: plexApiContext)
-            let response = try await metadataRepository.getMetadata(ratingKey: media.metadataRatingKey)
-            guard let item = response.mediaContainer.metadata?.first else { return }
-            guard let imageRepository = try? ImageRepository(context: plexApiContext) else { return }
-            guard let logoPath = item.images?.first(where: { image in
-                image.type.localizedCaseInsensitiveContains("logo")
-            })?.url.path else { return }
-
-            logoURL = imageRepository.transcodeImageURL(path: logoPath, width: 1800, height: 700)
-        } catch {
-            logoURL = nil
-        }
-    }
 }
 
 struct TvPinnedHeroBackdrop: View {
-    @Environment(PlexAPIContext.self) private var plexApiContext
+    @Environment(ServerRegistry.self) private var registry
+    @Environment(MediaServices.self) private var scopedServices: MediaServices?
 
     let media: MediaItem
     let identityGuideHeight: CGFloat
@@ -554,10 +506,10 @@ struct TvPinnedHeroBackdrop: View {
     let showsIdentity: Bool
     let fillsBase: Bool
 
-    @State private var imageURL: URL?
-    @State private var displayedLogoURL: URL?
+    @State private var backdrop: Image?
+    @State private var displayedLogo: Image?
     @State private var displayedTitle: String = ""
-    @State private var loadedIdentityForMediaID: String?
+    @State private var loadedIdentityForMedia: MediaIdentity?
 
     init(
         media: MediaItem,
@@ -580,30 +532,21 @@ struct TvPinnedHeroBackdrop: View {
                     Color.appBackground
                 }
 
-                if let imageURL {
-                    AsyncImage(url: imageURL) { phase in
-                        switch phase {
-                        case let .success(image):
-                            image
-                                .resizable()
-                                .scaledToFill()
-                        case .empty:
-                            fallbackFill
-                        case .failure:
-                            fallbackFill
-                        @unknown default:
-                            fallbackFill
-                        }
-                    }
-                    .frame(width: (proxy.size.width * 0.62) + 96, height: proxy.size.height)
-                    .clipped()
-                    .mask(
-                        TvPinnedHeroImageMask(
-                            bottomFadeStartLocation: bottomFadeStartLocation
+                // Until the artwork arrives (or when it fails) the base shows
+                // through: the app background, or nothing when `fillsBase` is off.
+                if let backdrop {
+                    backdrop
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: (proxy.size.width * 0.62) + 96, height: proxy.size.height)
+                        .clipped()
+                        .mask(
+                            TvPinnedHeroImageMask(
+                                bottomFadeStartLocation: bottomFadeStartLocation
+                            )
                         )
-                    )
-                    .offset(x: 48)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                        .offset(x: 48)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                 }
 
                 if showsIdentity {
@@ -616,7 +559,7 @@ struct TvPinnedHeroBackdrop: View {
                         .frame(maxHeight: .infinity, alignment: .top)
                 }
             }
-            .task(id: media.id) {
+            .task(id: media.identity) {
                 await loadImage()
                 if showsIdentity {
                     await loadIdentityIfNeeded()
@@ -625,25 +568,20 @@ struct TvPinnedHeroBackdrop: View {
         }
     }
 
-    private var fallbackFill: Color {
-        fillsBase ? .appBackground : .clear
+    /// The services of the title's server; the detail screen's own services when it is scoped to one.
+    private var services: MediaServices? {
+        registry.services(for: .playable(media), scoped: scopedServices)
     }
 
     @ViewBuilder
     private var heroIdentityOverlay: some View {
         Group {
-            if let displayedLogoURL {
-                AsyncImage(url: displayedLogoURL) { phase in
-                    if let image = phase.image {
-                        image
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxWidth: .infinity, maxHeight: 185, alignment: .trailing)
-                            .clipped()
-                    } else {
-                        fallbackIdentityText
-                    }
-                }
+            if let displayedLogo {
+                displayedLogo
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity, maxHeight: 185, alignment: .trailing)
+                    .clipped()
             } else {
                 fallbackIdentityText
             }
@@ -664,40 +602,27 @@ struct TvPinnedHeroBackdrop: View {
     }
 
     private func loadIdentityIfNeeded() async {
-        guard loadedIdentityForMediaID != media.id else { return }
+        guard loadedIdentityForMedia != media.identity else { return }
 
-        do {
-            let metadataRepository = try MetadataRepository(context: plexApiContext)
-            let response = try await metadataRepository.getMetadata(ratingKey: media.metadataRatingKey)
-            guard let item = response.mediaContainer.metadata?.first else { return }
-
-            let imageRepository = try? ImageRepository(context: plexApiContext)
-            let resolvedLogoURL: URL? = item.images?.first(where: { image in
-                image.type.localizedCaseInsensitiveContains("logo")
-            }).flatMap { image in
-                imageRepository?.transcodeImageURL(path: image.url.path, width: 1800, height: 700)
-            }
-
-            await MainActor.run {
-                // Keep the previous identity visible until the next one is fully resolved.
-                if let resolvedLogoURL {
-                    displayedLogoURL = resolvedLogoURL
-                    displayedTitle = media.primaryLabel
-                } else {
-                    displayedLogoURL = nil
-                    displayedTitle = media.primaryLabel
-                }
-                loadedIdentityForMediaID = media.id
-            }
-        } catch {
-            await MainActor.run {
-                displayedLogoURL = nil
-                displayedTitle = media.primaryLabel
-                loadedIdentityForMediaID = media.id
+        var logo: Image?
+        if let services {
+            let details = await TvHeroDetailsLoader.details(for: media, services: services)
+            if let logoPath = details?.preferredLogoPath ?? media.preferredLogoPath,
+               let resource = try? await services.artwork.artwork(path: logoPath, width: 1800, height: 700)
+            {
+                logo = await ArtworkResourceView.image(for: resource)
             }
         }
+        guard !Task.isCancelled else { return }
+
+        // Keep the previous identity visible until the next one is fully resolved.
+        displayedLogo = logo
+        displayedTitle = media.primaryLabel
+        loadedIdentityForMedia = media.identity
     }
 
+    /// Keeps the previous backdrop until the next one is decoded, so moving
+    /// along a row never flashes the base between titles.
     private func loadImage() async {
         let path = media.grandparentArtPath
             ?? media.artPath
@@ -705,23 +630,17 @@ struct TvPinnedHeroBackdrop: View {
             ?? media.parentThumbPath
             ?? media.thumbPath
 
-        guard let path else {
-            imageURL = nil
+        guard let path, let services else {
+            backdrop = nil
             return
         }
 
-        do {
-            let imageRepository = try ImageRepository(context: plexApiContext)
-            imageURL = imageRepository.transcodeImageURL(
-                path: path,
-                width: 3840,
-                height: 2160,
-                minSize: 1,
-                upscale: 1
-            )
-        } catch {
-            imageURL = nil
+        var image: Image?
+        if let resource = try? await services.artwork.artwork(path: path, width: 3840, height: 2160) {
+            image = await ArtworkResourceView.image(for: resource)
         }
+        guard !Task.isCancelled else { return }
+        backdrop = image
     }
 }
 

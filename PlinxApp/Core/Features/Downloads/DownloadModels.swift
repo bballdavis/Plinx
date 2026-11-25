@@ -1,5 +1,55 @@
 import Foundation
 
+/// The server and profile a pre-fork Plinx download was enrolled for, as its `index.json` stored it beside the
+/// download (`accessScope`). `DownloadManager`'s legacy index migration turns it into the download's `ownerID`.
+///
+/// It matches a Plex `MediaOwner`: `serverIdentifier` is the server's machine identifier and
+/// `accessScopeIdentifier` the Plex Home user UUID of the profile.
+struct DownloadAccessScope: Codable, Hashable, Sendable {
+    let serverIdentifier: String
+    let accessScopeIdentifier: String
+
+    init(serverIdentifier: String, accessScopeIdentifier: String) {
+        self.serverIdentifier = serverIdentifier
+        self.accessScopeIdentifier = accessScopeIdentifier
+    }
+
+    init(owner: MediaOwner) {
+        serverIdentifier = owner.server.id
+        accessScopeIdentifier = owner.userID
+    }
+}
+
+/// How the persisted download list loaded. The JSON fallback index is never overwritten after a failed read, and
+/// pre-fork ownership is only imported into a list that loaded completely (`LegacyDownloadOwnership`).
+enum DownloadPersistedIndexState: Equatable {
+    case missing
+    case loaded
+    case unreadable
+    case corrupt
+
+    /// Only a complete load: importing ownership into a partial list would consume the pre-fork record while some
+    /// of the downloads it describes are still waiting for recovery.
+    var permitsOwnershipMigration: Bool {
+        self == .loaded
+    }
+
+    var permitsPersistence: Bool {
+        self == .missing || self == .loaded
+    }
+}
+
+/// Non-sensitive persistence failures, reported without paths, tokens or server text.
+enum DownloadPersistenceFailure: Error {
+    case indexEncode
+    case indexWrite
+    case indexRead
+    case indexDecode
+    case legacyIndexEntriesDropped
+    case metadataEncode
+    case metadataWrite
+}
+
 enum DownloadStatus: String, Codable, Hashable {
     case queued
     case preparing
@@ -13,6 +63,31 @@ enum DownloadStatus: String, Codable, Hashable {
             true
         case .completed, .failed:
             false
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let rawValue = try decoder.singleValueContainer().decode(String.self)
+        // Pre-fork Plinx persisted `deciding` while Plex chose a transcode route; anything unknown fails safe.
+        self = DownloadStatus(rawValue: rawValue) ?? (rawValue == "deciding" ? .preparing : .failed)
+    }
+}
+
+/// The card shape Plinx's offline downloads grid uses for a download.
+enum DownloadArtworkLayoutStyle: String, Codable, Hashable {
+    case portrait
+    case landscape
+
+    var isPortrait: Bool {
+        self == .portrait
+    }
+
+    static func `default`(for kind: MediaKind) -> DownloadArtworkLayoutStyle {
+        switch kind {
+        case .movie, .series, .season, .episode:
+            .portrait
+        case .clip, .collection, .playlist, .folder, .unknown:
+            .landscape
         }
     }
 }
@@ -58,6 +133,16 @@ struct DownloadedMediaMetadata: Codable, Hashable {
     /// Only set when the item had several versions, so a mismatched episode stays visible in the list.
     var versionLabel: String?
     var createdAt: Date
+    /// Plinx's offline grid shape for this download (for example landscape for home videos). Nil follows the type.
+    var artworkLayoutStyle: DownloadArtworkLayoutStyle?
+
+    var resolvedArtworkLayoutStyle: DownloadArtworkLayoutStyle {
+        artworkLayoutStyle ?? DownloadArtworkLayoutStyle.default(for: type)
+    }
+
+    var prefersPortraitArtwork: Bool {
+        resolvedArtworkLayoutStyle.isPortrait
+    }
 
     init(
         identity: MediaIdentity,
@@ -159,6 +244,7 @@ struct DownloadedMediaMetadata: Codable, Hashable {
         case versionID
         case versionLabel
         case createdAt
+        case artworkLayoutStyle
     }
 
     init(from decoder: Decoder) throws {
@@ -228,6 +314,7 @@ struct DownloadedMediaMetadata: Codable, Hashable {
         versionID = try container.decodeIfPresent(String.self, forKey: .versionID)
         versionLabel = try container.decodeIfPresent(String.self, forKey: .versionLabel)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
+        artworkLayoutStyle = try? container.decodeIfPresent(DownloadArtworkLayoutStyle.self, forKey: .artworkLayoutStyle)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -262,6 +349,7 @@ struct DownloadedMediaMetadata: Codable, Hashable {
         try container.encodeIfPresent(versionID, forKey: .versionID)
         try container.encodeIfPresent(versionLabel, forKey: .versionLabel)
         try container.encode(createdAt, forKey: .createdAt)
+        try container.encodeIfPresent(artworkLayoutStyle, forKey: .artworkLayoutStyle)
     }
 
     var subtitle: String? {
@@ -320,6 +408,114 @@ struct DownloadItem: Codable, Identifiable, Hashable {
         return !items.contains { other in
             other.id != id && other.identity == identity && other.ownerID == ownerID && other.status != .failed
         }
+    }
+
+    /// Media built from the stored metadata alone: what safety checks of a download look at.
+    var localMediaItem: MediaItem {
+        metadata.localMediaItem(downloadID: id, thumbPath: nil)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case status
+        case progress
+        case bytesWritten
+        case totalBytes
+        case taskIdentifier
+        case remoteReference
+        case trackPreference
+        case allowsCellularAccess
+        case errorMessage
+        case metadata
+        case ownerID
+        case enrichmentState
+    }
+}
+
+extension DownloadItem {
+    /// Tolerates the pre-fork Plinx index (`index.json`), so an upgrade never loses the family's downloads:
+    /// its own Plex download-queue reference shape cannot be resumed and is dropped, and a transfer that was still
+    /// being prepared on the server becomes a failed, retryable download.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        status = try container.decode(DownloadStatus.self, forKey: .status)
+        progress = try container.decodeIfPresent(Double.self, forKey: .progress) ?? 0
+        bytesWritten = try container.decodeIfPresent(Int64.self, forKey: .bytesWritten) ?? 0
+        totalBytes = try container.decodeIfPresent(Int64.self, forKey: .totalBytes) ?? 0
+        taskIdentifier = try container.decodeIfPresent(Int.self, forKey: .taskIdentifier)
+        var hasRemoteReference = false
+        if container.contains(.remoteReference) {
+            hasRemoteReference = try !container.decodeNil(forKey: .remoteReference)
+        }
+        if hasRemoteReference {
+            remoteReference = try? container.decode(MediaDownloadRemoteReference.self, forKey: .remoteReference)
+        } else {
+            remoteReference = nil
+        }
+        trackPreference = try? container.decodeIfPresent(MediaTrackPreference.self, forKey: .trackPreference)
+        allowsCellularAccess = try container.decodeIfPresent(Bool.self, forKey: .allowsCellularAccess)
+        errorMessage = try container.decodeIfPresent(String.self, forKey: .errorMessage)
+        metadata = try container.decode(DownloadedMediaMetadata.self, forKey: .metadata)
+        ownerID = try container.decodeIfPresent(String.self, forKey: .ownerID)
+        enrichmentState = try? container.decodeIfPresent(DownloadEnrichmentState.self, forKey: .enrichmentState)
+
+        let lostRemoteReference = hasRemoteReference && remoteReference == nil
+        if status.isActive, lostRemoteReference || (status == .preparing && remoteReference == nil) {
+            status = .failed
+            taskIdentifier = nil
+            errorMessage = String(localized: "downloads.status.interrupted")
+        }
+    }
+}
+
+extension DownloadedMediaMetadata {
+    /// Media built from the stored metadata alone, for safety checks and offline rows.
+    var localMediaItem: MediaItem {
+        localMediaItem(downloadID: nil, thumbPath: nil)
+    }
+
+    /// A download without a stored server (written before multi-server support) gets a placeholder server that
+    /// matches no real one, so it never resolves against a live service.
+    func localMediaItem(downloadID: String?, thumbPath: String?) -> MediaItem {
+        let resolvedIdentity = identity ?? MediaIdentity(
+            server: ServerIdentity(provider: .plex, id: "legacy-download:\(downloadID ?? itemID)"),
+            itemID: itemID,
+        )
+        return MediaItem(
+            id: itemID,
+            identity: resolvedIdentity,
+            guid: guid,
+            summary: summary,
+            title: title,
+            type: type,
+            parentRatingKey: parentRatingKey,
+            grandparentRatingKey: grandparentRatingKey,
+            genres: genres,
+            year: year,
+            duration: duration,
+            videoResolution: nil,
+            rating: nil,
+            ratings: [],
+            contentRating: contentRating,
+            studio: studio,
+            tagline: tagline,
+            thumbPath: thumbPath,
+            artPath: nil,
+            artworkCornerColors: nil,
+            viewOffset: nil,
+            viewCount: viewCount,
+            childCount: nil,
+            leafCount: nil,
+            viewedLeafCount: nil,
+            grandparentTitle: grandparentTitle,
+            parentTitle: parentTitle,
+            parentIndex: parentIndex,
+            index: index,
+            grandparentThumbPath: nil,
+            grandparentArtPath: nil,
+            parentThumbPath: nil,
+        )
     }
 }
 

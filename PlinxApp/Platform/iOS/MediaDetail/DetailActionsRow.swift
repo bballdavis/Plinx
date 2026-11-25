@@ -6,6 +6,8 @@ struct DetailActionsRow: View {
     @Environment(OfflineCoordinator.self) private var offlineCoordinator
     @EnvironmentObject private var coordinator: MainCoordinator
     @Environment(MediaServices.self) private var mediaServices
+    /// Starting SharePlay reaches people outside the app: offered only where a parent-facing surface enables it.
+    @Environment(\.sharePlayPresentationPolicy) private var sharePlayPresentationPolicy
     @Bindable var viewModel: MediaDetailViewModel
     let isStartingSharePlay: Bool
     let onPlay: (String, MediaKind) -> Void
@@ -58,6 +60,7 @@ struct DetailActionsRow: View {
                 Button(action: handlePlayFromStart) {
                     Label("media.detail.playFromStart", systemImage: "arrow.counterclockwise")
                 }
+                .accessibilityIdentifier("media.detail.play-from-start")
             }
 
             // Streaming stays the default online (the download may be lower quality); this plays the local copy.
@@ -99,14 +102,16 @@ struct DetailActionsRow: View {
                     Label("common.actions.shuffle", systemImage: "shuffle")
                 }
 
-                if viewModel.primaryActionRatingKey != nil {
+                if sharePlayPresentationPolicy == .enabled, viewModel.primaryActionRatingKey != nil {
                     Button(action: onStartSharePlay) {
                         Label("sharePlay.action", systemImage: "shareplay")
                     }
                     .disabled(isStartingSharePlay)
+                    .accessibilityIdentifier("media.detail.shareplay")
                 }
 
-                if AddToPlaylistViewModel.canAdd(viewModel.media.mediaItem) {
+                // Playlist edits are parent-only.
+                if ContentSafetyGate.shared.isParentUnlocked, AddToPlaylistViewModel.canAdd(viewModel.media.mediaItem) {
                     Button {
                         mediaToAddToPlaylist = viewModel.media.mediaItem
                     } label: {
@@ -183,6 +188,7 @@ struct DetailActionsRow: View {
         }
         .actionButtonStyle(.primary)
         .disabled(isPlayDisabled)
+        .accessibilityIdentifier("media.detail.play")
     }
 
     private var watchToggleButton: some View {
@@ -209,6 +215,7 @@ struct DetailActionsRow: View {
                 ? String(localized: "media.detail.watchAction.markWatched")
                 : viewModel.watchActionTitle,
         ))
+        .accessibilityIdentifier("media.detail.watch")
     }
 
     private var isWatched: Bool {
@@ -234,6 +241,7 @@ struct DetailActionsRow: View {
                 || isServerUnreachable,
         )
         .accessibilityLabel(Text(viewModel.favoriteActionTitle))
+        .accessibilityIdentifier("media.detail.favorite")
     }
 
     private var downloadButton: some View {
@@ -249,6 +257,7 @@ struct DetailActionsRow: View {
         }
         .buttonStyle(.plain)
         .disabled(viewModel.isLoading || isServerUnreachable)
+        .accessibilityIdentifier("media.detail.download")
     }
 
     private func handlePlay() {
@@ -297,10 +306,9 @@ struct DetailActionsRow: View {
 
     private func handleDownloadTap() {
         switch viewModel.media.mediaKind {
-        case .series:
+        case .series, .season:
+            // A season picks its episodes like a series, limited to that season.
             onShowShowDownloadSheet()
-        case .season:
-            onShowDownloadOptions()
         case .movie, .episode:
             onShowDownloadOptions()
         case .clip:

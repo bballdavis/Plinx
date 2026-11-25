@@ -1,22 +1,50 @@
-import SwiftUI
 import PlinxUI
+import SwiftUI
 
+/// Plinx search on the upstream multi-server `SearchViewModel`.
+///
+/// Every server's search service is wrapped by `SafeMediaServices`, so
+/// results arrive filtered; the page re-checks them against the gate so
+/// results from before a policy change never show. Copies of a title on
+/// several servers appear once, and selecting it uses the best reachable
+/// copy without asking a child to pick a server.
 struct PlinxSearchView: View {
-    @State var viewModel: SafeSearchViewModel
-    var topContent: AnyView? = nil
-    var onRequestShellNavigationFocus: () -> Void = {}
-    var contentFocusRequest: Int = 0
-    var onSelectMedia: (MediaDisplayItem) -> Void
-    var onLongPressMedia: (MediaDisplayItem) -> Void = { _ in }
+    /// Typing searches live only from this many characters; Search on the
+    /// keyboard always searches.
+    static let minimumLiveSearchCharacters = 4
 
-    @Environment(PlexAPIContext.self) private var plexApiContext
+    @State private var viewModel: SearchViewModel
+    private let topContent: AnyView?
+    private let onRequestShellNavigationFocus: () -> Void
+    private let contentFocusRequest: Int
+    private let onSelectMedia: (MediaDisplayItem) -> Void
+    private let onLongPressMedia: (MediaDisplayItem) -> Void
+
+    @Environment(ServerRegistry.self) private var registry
     @FocusState private var searchFocused: Bool
+    /// True once the current query was searched, live or submitted.
+    @State private var hasSearched = false
     #if os(tvOS)
     @EnvironmentObject private var tvFocusCoordinator: PlinxTVFocusCoordinator
     @FocusState private var focusedResultID: String?
     @State private var contentFocusGeneration = 0
     #endif
-    @Environment(\.safetyPolicy) private var safetyPolicy
+
+    init(
+        viewModel: SearchViewModel,
+        topContent: AnyView? = nil,
+        onRequestShellNavigationFocus: @escaping () -> Void = {},
+        contentFocusRequest: Int = 0,
+        onSelectMedia: @escaping (MediaDisplayItem) -> Void,
+        onLongPressMedia: @escaping (MediaDisplayItem) -> Void = { _ in }
+    ) {
+        _viewModel = State(initialValue: viewModel)
+        self.topContent = topContent
+        self.onRequestShellNavigationFocus = onRequestShellNavigationFocus
+        self.contentFocusRequest = contentFocusRequest
+        self.onSelectMedia = onSelectMedia
+        self.onLongPressMedia = onLongPressMedia
+    }
 
     private var searchAccentColor: Color { PlinxAccentColor.green.color }
 
@@ -39,8 +67,10 @@ struct PlinxSearchView: View {
             }
             .padding(.bottom, bottomContentPadding)
         }
-        .onChange(of: safetyPolicy) { _, newPolicy in
-            viewModel.updatePolicy(newPolicy)
+        .onChange(of: ContentSafetyGate.shared.revision) { _, _ in
+            // Results ranked under the previous policy are searched again.
+            guard hasSearched else { return }
+            viewModel.submitSearch()
         }
         .onAppear {
             guard ReleaseScreenshotCaptureMode.isActive(),
@@ -49,13 +79,13 @@ struct PlinxSearchView: View {
                 return
             }
             viewModel.query = query
-            viewModel.submitSearch()
+            submitSearch()
         }
         #if os(tvOS)
         .onChange(of: contentFocusRequest) { _, _ in
             restoreContentFocus()
         }
-        .onChange(of: viewModel.items.map(\.id)) { oldIDs, ids in
+        .onChange(of: visibleResults.map(\.id)) { oldIDs, ids in
             guard focusedResultID != nil else { return }
             focusedResultID = PlinxTVFocusCoordinator.resolvedContentID(
                 currentID: focusedResultID,
@@ -78,6 +108,45 @@ struct PlinxSearchView: View {
         #endif
     }
 
+    // MARK: - Query
+
+    private var trimmedQuery: String {
+        viewModel.query.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var shouldShowTypingPrompt: Bool {
+        viewModel.hasQuery && !hasSearched && trimmedQuery.count < Self.minimumLiveSearchCharacters
+    }
+
+    private var remainingCharactersForLiveSearch: Int {
+        max(Self.minimumLiveSearchCharacters - trimmedQuery.count, 0)
+    }
+
+    private func queryDidChange() {
+        if !viewModel.hasQuery {
+            hasSearched = false
+            // Clears the results and cancels a pending search.
+            viewModel.queryDidChange()
+        } else if trimmedQuery.count >= Self.minimumLiveSearchCharacters {
+            hasSearched = true
+            viewModel.queryDidChange()
+        } else {
+            // Too short to search live; the typing prompt hides older results.
+            hasSearched = false
+        }
+    }
+
+    private func submitSearch() {
+        hasSearched = viewModel.hasQuery
+        viewModel.submitSearch()
+    }
+
+    private func clear() {
+        viewModel.query = ""
+        hasSearched = false
+        viewModel.queryDidChange()
+    }
+
     // MARK: - Search bar
 
     private var searchBar: some View {
@@ -91,10 +160,10 @@ struct PlinxSearchView: View {
                 text: $viewModel.query,
                 placeholder: String(localized: "search.placeholder", table: "Plinx"),
                 submitKind: .search,
-                onTextChange: viewModel.queryDidChange,
-                onSubmit: viewModel.submitSearch
+                onTextChange: queryDidChange,
+                onSubmit: submitSearch
             )
-                .focused($searchFocused)
+            .focused($searchFocused)
             #else
             TextField(text: $viewModel.query) {
                 Text("search.placeholder", tableName: "Plinx")
@@ -104,18 +173,25 @@ struct PlinxSearchView: View {
             .font(.body)
             .foregroundStyle(.white)
             .tint(searchAccentColor)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
             .focused($searchFocused)
             .submitLabel(.search)
-            .onSubmit { viewModel.submitSearch() }
-            .onChange(of: viewModel.query) { _, _ in viewModel.queryDidChange() }
+            .onSubmit(submitSearch)
+            .onChange(of: viewModel.query) { _, _ in queryDidChange() }
             #endif
 
             if !viewModel.query.isEmpty {
-                Button(action: viewModel.clear) {
+                Button(action: clear) {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(.white.opacity(0.5))
                         .font(.system(size: 18))
                 }
+                .accessibilityLabel(Text(String(
+                    localized: "search.clear",
+                    defaultValue: "Clear search",
+                    table: "Plinx"
+                )))
             }
         }
         .padding(.horizontal, 16)
@@ -136,13 +212,21 @@ struct PlinxSearchView: View {
 
     // MARK: - Results
 
+    /// Merged results whose shown copy the current policy allows.
+    private var visibleResults: [MergedSearchResult] {
+        let gate = ContentSafetyGate.shared
+        _ = gate.revision
+        return viewModel.filteredItems.filter { gate.isAllowed($0.media) }
+    }
+
     @ViewBuilder
     private var resultsContent: some View {
-        if viewModel.query.isEmpty {
+        let results = shouldShowTypingPrompt ? [] : visibleResults
+        if !viewModel.hasQuery {
             emptyPrompt
-        } else if viewModel.shouldShowTypingPrompt {
+        } else if shouldShowTypingPrompt {
             liveSearchPrompt
-        } else if viewModel.isLoading && viewModel.items.isEmpty {
+        } else if viewModel.isLoading && results.isEmpty {
             PlinxLoadingStateView(
                 role: .content,
                 accessibilityLabel: LocalizedStringResource(
@@ -151,16 +235,24 @@ struct PlinxSearchView: View {
                 ),
                 accessibilityIdentifier: "search.loading"
             )
-                .frame(maxWidth: .infinity)
-                .padding(.top, 24)
-        } else if viewModel.items.isEmpty {
-            Text("search.no_results \(viewModel.query)", tableName: "Plinx")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity)
-                .padding(.top, 24)
+            .frame(maxWidth: .infinity)
+            .padding(.top, 24)
+        } else if results.isEmpty {
+            Group {
+                if let errorMessage = viewModel.errorMessage {
+                    // Every server failed to answer.
+                    Text(errorMessage)
+                } else {
+                    Text("search.no_results \(trimmedQuery)", tableName: "Plinx")
+                }
+            }
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
+            .padding(.top, 24)
         } else {
-            resultsList
+            resultsList(results)
         }
     }
 
@@ -182,7 +274,7 @@ struct PlinxSearchView: View {
             Image(systemName: "text.magnifyingglass")
                 .font(.system(size: 44, weight: .bold))
                 .foregroundStyle(searchAccentColor.opacity(0.7))
-            Text("search.live.minimum \(Int64(viewModel.remainingCharactersForLiveSearch))", tableName: "Plinx")
+            Text("search.live.minimum \(Int64(remainingCharactersForLiveSearch))", tableName: "Plinx")
                 .font(.headline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -191,21 +283,22 @@ struct PlinxSearchView: View {
         .padding(.top, 20)
     }
 
-    private var resultsList: some View {
+    private func resultsList(_ results: [MergedSearchResult]) -> some View {
         LazyVStack(spacing: 0) {
-            ForEach(viewModel.items) { item in
+            ForEach(results) { result in
+                let item = preferredMedia(for: result)
                 #if os(tvOS)
                 SearchResultButton(
                     item: item,
-                    plexApiContext: plexApiContext,
-                    isFocused: focusedResultID == item.id,
+                    services: registry.services(for: item.server),
+                    isFocused: focusedResultID == result.id,
                     onSelect: { onSelectMedia(item) },
                     onLongPress: { onLongPressMedia(item) }
                 )
-                .focused($focusedResultID, equals: item.id)
+                .focused($focusedResultID, equals: result.id)
                 .onMoveCommand { direction in
                     guard direction == .up,
-                          item.id == viewModel.items.first?.id else { return }
+                          result.id == results.first?.id else { return }
                     focusedResultID = nil
                     searchFocused = true
                 }
@@ -224,14 +317,24 @@ struct PlinxSearchView: View {
         }
     }
 
+    /// The copy a child gets: the best quality one on a server that is ready,
+    /// else the one the result shows. A child is never asked to pick a server.
+    private func preferredMedia(for result: MergedSearchResult) -> MediaDisplayItem {
+        let gate = ContentSafetyGate.shared
+        let readyServers = registry.readyServers
+        let source = result.sourcesByQuality.first { source in
+            readyServers.contains(source.server) && gate.isAllowed(source.media)
+        } ?? result.primarySource
+        return source.media
+    }
+
+    #if !os(tvOS)
     private func resultRow(_ item: MediaDisplayItem) -> some View {
         HStack(spacing: 14) {
-            MediaImageView(
-                viewModel: MediaImageViewModel(
-                    context: plexApiContext,
-                    artworkKind: .thumb,
-                    media: item
-                )
+            ItemArtworkView(
+                services: registry.services(for: item.server),
+                kind: .thumb,
+                media: item
             )
             .frame(width: 56, height: 56)
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -267,10 +370,11 @@ struct PlinxSearchView: View {
         .padding(.vertical, 12)
         .contentShape(Rectangle())
     }
+    #endif
 
     #if os(tvOS)
     private func restoreContentFocus() {
-        let ids = viewModel.items.map(\.id)
+        let ids = visibleResults.map(\.id)
         let remembered: String? = tvFocusCoordinator.rememberedContentTarget(
             in: .search,
             availableIDs: ids
@@ -303,7 +407,7 @@ struct PlinxSearchView: View {
 #if os(tvOS)
 private struct SearchResultButton: View {
     let item: MediaDisplayItem
-    let plexApiContext: PlexAPIContext
+    let services: MediaServices?
     let isFocused: Bool
     let onSelect: () -> Void
     let onLongPress: () -> Void
@@ -311,15 +415,9 @@ private struct SearchResultButton: View {
     var body: some View {
         Button(action: onSelect) {
             HStack(spacing: 18) {
-                MediaImageView(
-                    viewModel: MediaImageViewModel(
-                        context: plexApiContext,
-                        artworkKind: .thumb,
-                        media: item
-                    )
-                )
-                .frame(width: 82, height: 82)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                ItemArtworkView(services: services, kind: .thumb, media: item)
+                    .frame(width: 82, height: 82)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text(item.primaryLabel)

@@ -2,44 +2,37 @@
 import SwiftUI
 import PlinxUI
 
+/// The production tvOS profile picker with two fixture Plex Home profiles, one PIN-protected, and no account behind
+/// them: choices are set directly and never loaded from the session.
 @MainActor
 struct AppleTVProfileSwitcherUITestHarness: View {
     @State private var viewModel: ProfileSwitcherViewModel
     @State private var presentsAsModal: Bool
     private let modal: Bool
 
-    init(
-        context: PlexAPIContext,
-        sessionManager: SessionManager,
-        modal: Bool
-    ) {
-        let viewModel = ProfileSwitcherViewModel(
-            context: context,
-            sessionManager: sessionManager
-        )
-        viewModel.users = [
-            PlexHomeUser(
-                id: 1,
-                uuid: "fixture-kids",
-                title: "Kids",
-                username: "kids",
-                email: nil,
-                friendlyName: "Kids",
-                thumb: nil,
-                protected: true,
-                pin: nil
+    init(sessionManager: SessionManager, modal: Bool) {
+        let viewModel = ProfileSwitcherViewModel(sessionManager: sessionManager)
+        viewModel.choices = [
+            ProfileChoice(
+                id: "fixture-kids",
+                name: "Kids",
+                detail: "kids",
+                avatarURL: nil,
+                requiresPIN: true,
+                isActive: false,
+                isLocal: false,
+                tint: ProfileTint.color(for: "fixture-kids")
             ),
-            PlexHomeUser(
-                id: 2,
-                uuid: "fixture-family",
-                title: "Family",
-                username: nil,
-                email: nil,
-                friendlyName: "Family",
-                thumb: nil,
-                protected: false,
-                pin: nil
-            )
+            ProfileChoice(
+                id: "fixture-family",
+                name: "Family",
+                detail: nil,
+                avatarURL: nil,
+                requiresPIN: false,
+                isActive: false,
+                isLocal: false,
+                tint: ProfileTint.color(for: "fixture-family")
+            ),
         ]
         _viewModel = State(initialValue: viewModel)
         _presentsAsModal = State(initialValue: !modal)
@@ -64,44 +57,79 @@ struct AppleTVProfileSwitcherUITestHarness: View {
     }
 
     private var profileSwitcher: some View {
-        PlinxProfileSwitcherTVView(
-            viewModel: viewModel,
-            loadsUsersOnAppear: false
-        )
+        ProfileSwitcherView(viewModel: viewModel, loadsProfilesOnAppear: false)
     }
 }
 
+/// The production tvOS player controls (classic style) over a paused, network-free fixture.
 struct AppleTVPlayerControlsUITestHarness: View {
     @State private var position = 112.0
+    @State private var sleepTimer = SleepTimer()
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            PlayerControlsTVView(
-                media: nil,
-                isPaused: true,
-                videoResolution: "4K",
-                videoFormatBadge: nil,
-                position: $position,
-                duration: 1_800,
-                bufferedAhead: 30,
-                bufferBasePosition: position,
-                isScrubbing: false,
-                onShowAudioSettings: {},
-                onShowSubtitleSettings: {},
-                onSeekBackward: {},
-                onPlayPause: {},
-                onSeekForward: {},
-                seekBackwardSeconds: 10,
-                seekForwardSeconds: 30,
-                onScrubbingChanged: { _ in },
-                skipMarkerTitle: "Skip Intro",
-                onSkipMarker: {},
-                onUserInteraction: {},
-                isSharePlay: false
-            )
+            PlayerControlsView(state: controlsState, actions: controlsActions, position: $position)
         }
+    }
+
+    private var controlsState: PlayerControlsState {
+        PlayerControlsState(
+            media: nil,
+            isPaused: true,
+            badges: PlayerControlBadge.playback(resolution: "4K", format: nil),
+            duration: 1_800,
+            bufferedAhead: 30,
+            bufferBasePosition: position,
+            playbackRate: 1,
+            showsEndsAtTime: false,
+            showsClock: false,
+            isScrubbing: false,
+            sleepTimer: sleepTimer,
+            chapters: [],
+            showsChaptersOnTimeline: false,
+            skipSegments: [],
+            scrubPreview: nil,
+            seekBackwardSeconds: 10,
+            seekForwardSeconds: 30,
+            skipMarkerTitle: "Skip Intro",
+            isSharePlay: false,
+            hasInfoPanel: false,
+            live: nil,
+            settingsControl: nil,
+            showsSubtitleOffsetIndicator: false,
+            settingsFocusGeneration: 0,
+            isShowingPanel: false,
+            menus: nil,
+            tabs: nil
+        )
+    }
+
+    private var controlsActions: PlayerControlsActions {
+        PlayerControlsActions(
+            playPause: {},
+            seekBackward: {},
+            seekForward: {},
+            scrubbingChanged: { _ in },
+            scrubbingCancelled: {},
+            skipMarker: {},
+            showInfoPanel: {},
+            userInteraction: {},
+            showAudioSettings: {},
+            showSubtitleSettings: {},
+            showSpeedSettings: {},
+            showSettings: {},
+            goLive: {},
+            showLiveChannels: {},
+            previousChannel: {},
+            nextChannel: {},
+            menuPresentationChanged: { _ in },
+            tabsPresentationChanged: { _ in },
+            selectChapter: { _ in },
+            restartFromBeginning: {},
+            selectQueueItem: { _ in }
+        )
     }
 }
 

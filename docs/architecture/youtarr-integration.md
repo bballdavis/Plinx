@@ -65,11 +65,14 @@ kid-facing sheet does not render `webpageUrl` or any other external link.
 The Explore presentation and navigation stack are entirely Plinx-owned.
 Explore has its own persistent root navigation stack and participates in the
 same main navigation as Home, Library, Search, and Downloads. It is not
-presented as a sheet or compact modal. Plinx maps this owned surface onto the
-upstream coordinator's otherwise-unused discovery path, avoiding a Strimr
-source change while retaining independent navigation state.
-Strimr's coordinator and the paired Strimr/Aether playback integration are
-unchanged.
+presented as a sheet or compact modal. Explore uses the main coordinator's
+discovery navigation path, which nothing else uses while Seerr is off for
+kids. Give Seerr and Explore separate paths before Seerr is enabled, because
+Seerr routes would otherwise land on the Explore stack.
+
+Youtarr does not go through `MediaServices`, so the
+[content boundary](strimr-integration.md#outside-the-boundary) lists it with
+its own control, `YoutarrExploreSafetyPolicy`.
 
 Keys with the `requests` feature and `requests:read` scope receive a My
 Requests surface. Video request buttons additionally require the

@@ -23,7 +23,7 @@ struct DownloadsView: View {
         .listStyle(.insetGrouped)
         .navigationTitle("downloads.title")
         .fullScreenCover(item: $selectedDownload) { item in
-            if let localURL = downloadManager.localVideoURL(for: item) {
+            if isPlayable(item), let localURL = downloadManager.localVideoURL(for: item) {
                 PlayerWrapper(
                     viewModel: PlayerViewModel(
                         localMedia: downloadManager.playbackMedia(for: item),
@@ -67,13 +67,26 @@ struct DownloadsView: View {
         }
     }
 
-    /// Signed in: the user's downloads, then those of other profiles or accounts. Signed out: everything.
+    /// Only the active profile's downloads that the current safety policy allows (fail closed): signed out, or with
+    /// no active profile, nothing is offered.
     private var primaryItems: [DownloadItem] {
-        downloadManager.activeOwnerIDs.isEmpty ? downloadManager.sortedItems : downloadManager.sortedOwnedItems
+        downloadManager.sortedOwnedItems.filter(isAllowedBySafetyPolicy)
     }
 
+    /// Other profiles' downloads, blocked ones and unowned legacy ones are listed only while the parent gate is
+    /// unlocked, so a parent can delete them. They are never playable from here.
     private var otherItems: [DownloadItem] {
-        downloadManager.activeOwnerIDs.isEmpty ? [] : downloadManager.sortedOtherItems
+        guard ContentSafetyGate.shared.isParentUnlocked else { return [] }
+        let primaryIDs = Set(primaryItems.map(\.id))
+        return downloadManager.sortedItems.filter { !primaryIDs.contains($0.id) }
+    }
+
+    private func isAllowedBySafetyPolicy(_ item: DownloadItem) -> Bool {
+        ContentSafetyGate.shared.isAllowed(downloadManager.playbackMedia(for: item))
+    }
+
+    private func isPlayable(_ item: DownloadItem) -> Bool {
+        item.isPlayable && downloadManager.isOwnedByActiveUser(item) && isAllowedBySafetyPolicy(item)
     }
 
     @ViewBuilder
@@ -107,7 +120,7 @@ struct DownloadsView: View {
         downloadRow(item)
             .contentShape(Rectangle())
             .onTapGesture {
-                guard item.isPlayable else { return }
+                guard isPlayable(item) else { return }
                 selectedDownload = item
             }
             .swipeActions(edge: .trailing, allowsFullSwipe: true) {

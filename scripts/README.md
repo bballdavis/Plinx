@@ -15,51 +15,24 @@ implementation helpers live in focused subdirectories:
 - `release/` — screenshot fixtures, release preflight/image helpers, and export options
 - `tests/` — test harnesses and their fixtures
 - `branding/` — deterministic brand asset generation
-- `strimr/` — tooling for the paired Strimr checkout
 
 Scripts in `support/` and `release/` are implementation details; invoke the
 documented root-level commands when one exists.
 
-## Strimr Source Of Truth
+## Source Of Truth
 
-Build and test scripts build from local files only. It's your responsibility to ensure the sibling `../strimr` checkout is on the correct branch and in a clean state before running any build command.
+Everything the app compiles is in this repository. The media, provider,
+session, and player code Plinx absorbed from Strimr lives in `PlinxApp/Core`
+and `PlinxApp/Platform`; there is no sibling checkout to fetch, pin, or verify.
+Swift packages (AetherEngine, GRDB, SwiftAssRenderer) are pinned exactly in
+`PlinxApp/project.yml` and resolved by Swift Package Manager.
 
-**Branch selection:** use `STRIMR_BRANCH` and `STRIMR_COMMIT` from the current
-Plinx checkout's `config/release-dependencies.env`. The stable patch train is
-`plinx-patches`; new engine development uses `dev-plinx`. A Plinx feature branch
-can continue to build against the stable pin. Do not run an unconditional
-`git pull` to select a moving dependency head.
+Build and test scripts build from your working tree, so uncommitted edits are
+part of the build. Release packaging (`build_compliance_bundle.sh`) requires a
+clean, committed checkout.
 
-Keep Strimr's `origin` pointed at the writable fork and `upstream` at the
-original project. See [local setup](../docs/development/setup.md) for the exact
-remote and tracking-branch commands.
-
-**Before building:**
-```bash
-git status                     # Verify clean working tree
-```
-
-At release boundaries, `dev-plinx` and `plinx-patches` are aligned to the same
-Strimr commit. Promote new `dev-plinx` work into `plinx-patches` with a
-fast-forward-only update; do not maintain separate replayed patch histories.
-
-If `../strimr` is on the wrong branch or has uncommitted changes, the build can pick up the wrong engine code. Developers are responsible for managing both local git states intentionally.
-
-Run the pairing verifier before a combined build:
-
-```bash
-# Verify source roots and required Strimr seam symbols.
-./scripts/verify_strimr_integration_contract.sh --quick
-
-# Also require a clean sibling, exact pin, expected branch, upstream ancestry,
-# and a linear downstream patch stack.
-./scripts/verify_strimr_integration_contract.sh --full
-```
-
-The exact pairing and seam inventory live in
-`config/release-dependencies.env`. See
-[`docs/development/branch-pairing.md`](../docs/development/branch-pairing.md)
-for candidate-update workflow and CI behavior.
+Upstream Strimr is reviewed and ported by hand, not pulled. See
+[upstream Strimr provenance](../docs/maintenance/upstream-strimr.md).
 
 ## Scripts
 
@@ -83,11 +56,13 @@ directly; update the approved source or manifest and regenerate.
 
 ### `generate_xcodeproj.sh` — Generate the App Project
 
-Applies the pinned Strimr release patch, runs XcodeGen, and adds separate iOS
-and tvOS resource phases so each product contains its asset catalog,
-localizations, and privacy manifest. The iOS phase also compiles the launch
-storyboard. Do not replace the target-owned phases with a shared build phase;
-Xcode may then omit resources from one platform bundle.
+Runs XcodeGen. The project's post-generation step
+(`support/patch_resources.py`) adds the asset catalog, localizations, demo
+media, and privacy manifest to each app target's own resource phase (the one
+XcodeGen generates for the license texts, or a new target-owned phase when
+there is none). The iOS phase also compiles the launch storyboard. Keep exactly
+one resource phase per app target, and never share a phase between iOS and
+tvOS; Xcode may then omit resources from one platform bundle.
 
 The generated `PlinxApp/Plinx.xcodeproj` is committed as Xcode Cloud's stable
 project input while `PlinxApp/project.yml` remains canonical. After changing
@@ -97,31 +72,6 @@ project diff after Xcode applies its current shared-scheme normalization.
 `./scripts/generate_xcodeproj.sh --check-portable` performs the generation and
 diff without invoking Xcode, so the automatic project-freshness workflow can
 run on an Ubuntu runner.
-
-### `strimr/run_ipad_sim.sh` — Build & Run Strimr Branch on iPad Simulator
-
-Builds and runs the **active branch of the sibling `../strimr` checkout** on an iPad simulator. Use this to test feature branches you want to feed back upstream before they become part of Plinx.
-
-```bash
-# Default: iPad (10th generation)
-./scripts/strimr/run_ipad_sim.sh
-
-# Custom device
-./scripts/strimr/run_ipad_sim.sh "iPad Pro 13-inch"
-```
-
-**Workflow:**
-```bash
-# Switch Strimr to the branch you want to test
-cd ../strimr && git switch feat/centered-clear-logo
-
-# Build & run it directly from Plinx scripts
-cd ../Plinx && ./scripts/strimr/run_ipad_sim.sh
-```
-
-The script reports the active Strimr branch and commit hash at the start so you always know exactly what you're running. It warns if there are uncommitted changes in Strimr.
-
-No XcodeGen required — builds directly from `Strimr.xcodeproj`.
 
 ---
 
@@ -316,7 +266,7 @@ Builds a signed archive for App Store Connect and validates the packaged app bun
 - Generates the Xcode project from `project.yml`
 - Archives the Release build for `generic/platform=iOS`
 - Overrides `CURRENT_PROJECT_VERSION` with a unique build number by default
-- Applies the pinned Strimr patch, generates the project, and runs `scripts/tests/validate_testflight_archive.sh`
+- Runs `scripts/tests/validate_testflight_archive.sh` on the finished archive
 - Validates version/build overrides, signing, architecture, launch assets, privacy manifest, and forbidden telemetry artifacts
 - With `--upload-testflight`, exports with `app-store-connect` settings and submits an internal-only TestFlight build using the supplied API key
 
@@ -379,18 +329,24 @@ individual manual diagnostic capture.
 
 ### `build_compliance_bundle.sh` — Package Corresponding Source
 
-Creates the release's Plinx and pinned Strimr source bundle. AetherEngine is an
-exact Swift Package Manager source dependency recorded by `project.yml` and the
-generated package resolution. Run only from a clean committed release checkout:
+Creates the release's corresponding-source bundle: a `git archive` of the
+current Plinx commit (which already contains the absorbed Strimr code), a copy
+of `docs/release/open-source-compliance.md`, and `SOURCE-MANIFEST.txt`. The
+manifest names the Plinx commit, the absorbed Strimr base from
+`config/release-dependencies.env`, and every remote Swift package with its
+exact pin from `PlinxApp/project.yml`. Swift Package Manager fetches those
+packages as source.
+
+Run it only from a clean, committed release checkout. It refuses a dirty tree
+and any remote package without an exact `revision` or `exactVersion`:
 
 ```bash
-./scripts/build_compliance_bundle.sh
+./scripts/build_compliance_bundle.sh               # writes build/compliance/
+./scripts/build_compliance_bundle.sh /path/to/dir  # custom output directory
 ```
 
-Both release scripts call `scripts/verify_release_dependency_state.sh`. It
-compares the live sibling tree against the exact Strimr commit in
-`config/release-dependencies.env`, preventing unrelated local dependency
-changes from entering a release archive.
+`scripts/tests/test_tooling_contracts.sh` exercises both refusals and the
+manifest in a throwaway repository.
 
 ---
 
@@ -406,6 +362,11 @@ Runs the repository documentation guard locally.
 - required `docs/` files exist
 - legacy path references are not reintroduced
 - duplicate instruction-style references are not reintroduced outside `AGENTS.md`
+- the retired Strimr pairing machinery (sibling checkout paths, pin and seam
+  keys, the old verifiers) does not return outside the historical records in
+  `docs/maintenance/`
+- `config/release-dependencies.env` records a valid absorbed Strimr base, and
+  current Swift package revisions are not copied into `docs/`
 - structural/code changes in PRs are paired with `AGENTS.md` or `docs/` updates
 
 ---
@@ -424,25 +385,19 @@ Or just run a script with an invalid name—it will show the available options.
 
 ## Requirements
 
-- Xcode 26.5 with the iOS 26.5 SDK and simulator runtime
+- The Xcode version in `PlinxApp/project.yml` (`options.xcodeVersion`), with
+  its iOS and tvOS SDKs and simulator runtimes; the
+  [current dependencies](../docs/maintenance/current-dependencies.mdx) page
+  shows the value
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen) installed (used by build scripts)
-- iOS Simulator runtime
 
-## Local Source And Package Dependencies
+## Source And Package Dependencies
 
-Plinx compiles the paired sibling Strimr checkout directly and resolves its
-player engine through Swift Package Manager:
-
-```bash
-<local repositories path>/
-  Plinx/
-  strimr/
-```
-
-The live app target compiles sibling `strimr/Shared` and platform feature paths.
-`AetherEngine` is pinned to an exact revision in `PlinxApp/project.yml`.
-Plinx excludes Strimr's Sentry-backed reporter and does not declare Sentry as a
-package dependency.
+A clone of this repository is the whole source tree; no other checkout is
+needed. The app targets compile the Plinx app layer, `PlinxApp/Core`,
+`PlinxApp/Platform/<platform>`, and the local `PlinxCore` and `PlinxUI`
+packages. AetherEngine, GRDB, and SwiftAssRenderer are pinned exactly in
+`PlinxApp/project.yml`. No crash-reporting or analytics package is linked.
 
 ## Troubleshooting
 

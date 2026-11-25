@@ -1,52 +1,82 @@
-import SwiftUI
+#if !os(tvOS)
 import PlinxUI
+import SwiftUI
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Plinx-branded profile switcher (replaces Strimr's ProfileSwitcherView)
+// Plinx profile picker (iPhone and iPad)
 //
-// Functionally identical to Strimr's version but uses Plinx theme colors
-// instead of Strimr asset catalog colors (.brandPrimary is already aliased
-// in ThemeExtensions.swift).
+// The one `ProfileSwitcherView` on iOS: launch profile selection, the Settings
+// profile switcher, and the Plex Home step of account setup. It drives the
+// absorbed `ProfileSwitcherViewModel` (local profiles, Plex Home users, PINs)
+// with the Plinx quiet-shell design. The tvOS picker lives in
+// `ProfileSwitcherView+tvOS.swift`.
 //
-// The only image removed was an asset catalog reference. All SF Symbols
-// are preserved.
+// Parental rules (picker reachable by a child at launch):
+//   • Continuing as the profile that was last active needs no gate.
+//   • Switching to any other profile, managing profiles, adding a connection
+//     and logging out are grown-up actions: they run behind the parental gate
+//     unless a parent already unlocked protected UI (opened from Settings),
+//     and the gate relocks once the action has run. The gate, not whether the
+//     active Plex profile is restricted, decides who may manage profiles.
+//   • Log Out is `PlinxSignOut.signOut`, the same full sign-out as Settings.
+//   • Choosing the Plex Home user while adding an account is part of account
+//     setup, which is already a grown-up flow.
 // ─────────────────────────────────────────────────────────────────────────────
 
 @MainActor
 struct ProfileSwitcherView: View {
-    @Environment(SessionManager.self) private var sessionManager
-    @Environment(PlinxSessionAccessCoordinator.self) private var sessionAccessCoordinator
-    @Environment(\.plinxTheme) private var theme
-    @State private var viewModel: ProfileSwitcherViewModel
-    @State private var pinPromptUser: PlexHomeUser?
-    @State private var pinInput: String = ""
-    @FocusState private var isPinFieldFocused: Bool
-    @State private var isShowingLogoutConfirmation = false
+    private enum ManagementSheet: Identifiable {
+        case profiles
+        case connection(LocalProfile)
 
-    #if !os(tvOS)
+        var id: String {
+            switch self {
+            case .profiles:
+                "profiles"
+            case let .connection(profile):
+                "connection.\(profile.id)"
+            }
+        }
+    }
+
+    @Environment(SessionManager.self) private var sessionManager
+    @Environment(DownloadManager.self) private var downloadManager
+    @Environment(ParentalAccessCoordinator.self) private var parentalAccess
+    @Environment(\.plinxTheme) private var theme
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    #endif
+    @State private var viewModel: ProfileSwitcherViewModel
+    @State private var pinPromptChoice: ProfileChoice?
+    @State private var pinInput = ""
+    @FocusState private var isPinFieldFocused: Bool
+    @State private var parentalRequest: PlinxParentalRequest?
+    @State private var managementSheet: ManagementSheet?
+    @State private var relocksAfterManagement = false
+    @State private var isShowingLogoutConfirmation = false
+    @State private var isSigningOut = false
 
     private let profileCardCornerRadius: CGFloat = 24
     private let onClose: (() -> Void)?
 
+    /// - Parameter onClose: set when presented from protected Settings; shows a close control.
     init(viewModel: ProfileSwitcherViewModel, onClose: (() -> Void)? = nil) {
         _viewModel = State(initialValue: viewModel)
         self.onClose = onClose
     }
 
     private var isExpanded: Bool {
-        #if os(tvOS)
-        true
-        #else
         horizontalSizeClass == .regular
-        #endif
     }
+
     private var avatarSize: CGFloat { isExpanded ? 104 : 80 }
     /// Every tile shares one height, whether or not a username is shown.
     private var profileCardHeight: CGFloat { isExpanded ? 216 : 182 }
-    /// True during onboarding; false when opened from protected settings.
-    private var isOnboarding: Bool { onClose == nil }
+
+    private var isChoosingHomeUser: Bool {
+        if case .chooseHomeUser = viewModel.mode {
+            return true
+        }
+        return false
+    }
 
     var body: some View {
         ZStack {
@@ -62,7 +92,7 @@ struct ProfileSwitcherView: View {
                         header
                             .frame(maxWidth: layout.usesColumns ? 280 : .infinity, alignment: .leading)
                         VStack(alignment: .leading, spacing: 0) {
-                            if let error = viewModel.errorMessage {
+                            if let error = viewModel.errorMessage, pinPromptChoice == nil {
                                 errorCard(error)
                                     .padding(.top, 20)
                             }
@@ -80,46 +110,98 @@ struct ProfileSwitcherView: View {
                 .scrollIndicators(.hidden)
             }
         }
-        .navigationTitle("auth.profile.title")
+        .navigationTitle(Text("auth.profile.header.title"))
         .toolbar(.hidden, for: .navigationBar)
         .safeAreaInset(edge: .top, spacing: 0) {
             chromeHeader
         }
-        .alert("common.actions.logOut", isPresented: $isShowingLogoutConfirmation) {
-            Button("common.actions.logOut", role: .destructive) {
-                Task { await sessionManager.signOutRevokingLocalAccess(sessionAccessCoordinator) }
+        .disabled(isSigningOut)
+        .alert(Text("common.actions.logOut", tableName: "Plinx"), isPresented: $isShowingLogoutConfirmation) {
+            Button(role: .destructive) {
+                isSigningOut = true
+                Task {
+                    // The one full sign-out: also revokes offline download
+                    // access, the offline cache and the parental unlock.
+                    await PlinxSignOut.signOut(
+                        sessionManager: sessionManager,
+                        downloadManager: downloadManager,
+                        parentalAccess: parentalAccess
+                    )
+                    isSigningOut = false
+                }
+            } label: {
+                Text("common.actions.logOut", tableName: "Plinx")
             }
             Button("common.actions.cancel", role: .cancel) {}
         } message: {
-            Text("more.logout.message")
+            Text(Self.logoutMessage)
         }
-        .task { await viewModel.loadUsers() }
-        .plinxRefreshable { await viewModel.loadUsers() }
-        .sheet(item: $pinPromptUser, onDismiss: resetPinPrompt) { user in
-            pinPromptContent(for: user)
-                #if !os(tvOS)
+        .task { await viewModel.load() }
+        .plinxRefreshable { await viewModel.load() }
+        .sheet(item: $pinPromptChoice, onDismiss: resetPinPrompt) { choice in
+            pinPromptContent(for: choice)
                 .presentationDetents([.medium, .large])
                 .presentationBackground(theme.palette.background)
-                #endif
+        }
+        .sheet(item: $managementSheet, onDismiss: managementDidClose) { sheet in
+            NavigationStack {
+                switch sheet {
+                case .profiles:
+                    ProfilesSettingsView()
+                case let .connection(profile):
+                    ProfileDetailView(profileID: profile.id, startsWithNewConnection: true)
+                }
+            }
+        }
+        .plinxParentalApproval($parentalRequest)
+        .onChange(of: viewModel.profileNeedingConnection) { _, profile in
+            guard let profile else { return }
+            viewModel.profileNeedingConnection = nil
+            presentManagement(.connection(profile))
         }
         .onChange(of: pinInput) { _, newValue in
-            pinInput = String(newValue.filter(\.isNumber).prefix(4))
+            let sanitized = String(newValue.filter(\.isNumber).prefix(4))
+            if sanitized != newValue {
+                pinInput = sanitized
+            }
         }
+        .accessibilityIdentifier("profileSwitcher")
     }
 
-    // MARK: - Subviews
+    // MARK: - Chrome
 
-    /// Plinx chrome in place of the system navigation bar. During onboarding:
-    /// log out on the leading edge and progress on the trailing edge. From
-    /// settings: log out leading and close trailing.
+    /// Plinx chrome in place of the system navigation bar.
     private var chromeHeader: some View {
         HStack(alignment: .center, spacing: 12) {
-            logoutChromeButton
-            Spacer(minLength: 0)
-            if let onClose {
-                PlinxChromeButton(systemImage: "xmark", action: onClose)
+            if isChoosingHomeUser {
+                PlinxOnboardingBackButton()
             } else {
+                logoutChromeButton
+            }
+            Spacer(minLength: 0)
+            if isChoosingHomeUser {
                 PlinxOnboardingStepIndicator(step: .profile, isExpanded: isExpanded)
+            } else {
+                HStack(spacing: 12) {
+                    if PlinxProfileSwitchRules.showsManageProfiles(mode: viewModel.mode) {
+                        PlinxChromeButton(systemImage: "person.2.badge.gearshape") {
+                            presentManagement(.profiles)
+                        }
+                        .accessibilityLabel(Text("profiles.manage"))
+                        .accessibilityIdentifier("profileSwitcher.manage")
+                    }
+                    if let onClose {
+                        PlinxChromeButton(systemImage: "xmark", action: onClose)
+                            .accessibilityLabel(Text("common.actions.close", tableName: "Plinx"))
+                            .accessibilityIdentifier("profileSwitcher.close")
+                    } else if viewModel.canCancel {
+                        PlinxChromeButton(systemImage: "xmark") {
+                            viewModel.cancel()
+                        }
+                        .accessibilityLabel(Text("common.actions.cancel", tableName: "Plinx"))
+                        .accessibilityIdentifier("profileSwitcher.cancel")
+                    }
+                }
             }
         }
         .padding(.horizontal, isExpanded ? 48 : PlinxPageHeaderMetrics.horizontalPadding)
@@ -132,8 +214,11 @@ struct ProfileSwitcherView: View {
             systemImage: "rectangle.portrait.and.arrow.right",
             accessibilityLabel: Text("common.actions.logOut", tableName: "Plinx")
         ) {
-            isShowingLogoutConfirmation = true
+            parentalAccess.requireParent($parentalRequest) {
+                isShowingLogoutConfirmation = true
+            }
         }
+        .accessibilityIdentifier("profileSwitcher.logout")
     }
 
     private var header: some View {
@@ -143,23 +228,26 @@ struct ProfileSwitcherView: View {
                 .foregroundStyle(Color.white)
                 .minimumScaleFactor(0.8)
                 .accessibilityAddTraits(.isHeader)
-            Text("auth.profile.header.subtitle")
+            Text(isChoosingHomeUser ? Self.homeUserSubtitle : Self.pickerSubtitle)
                 .font(.system(isExpanded ? .title3 : .body, design: .rounded, weight: .semibold))
                 .foregroundStyle(Color.brandSecondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
+
+    // MARK: - Profiles
 
     private var profilesGrid: some View {
         LazyVGrid(
             columns: [GridItem(.adaptive(minimum: isExpanded ? 190 : 140), spacing: isExpanded ? 18 : 14)],
             spacing: isExpanded ? 18 : 14
         ) {
-            if viewModel.users.isEmpty {
+            if viewModel.choices.isEmpty {
                 loadingState
             }
-            ForEach(viewModel.users) { user in
-                profileCard(for: user)
+            ForEach(viewModel.choices) { choice in
+                profileCard(for: choice)
             }
         }
     }
@@ -180,26 +268,19 @@ struct ProfileSwitcherView: View {
         }
     }
 
-    private func profileCard(for user: PlexHomeUser) -> some View {
-        let isSelected = viewModel.activeUserUUID == user.uuid
-        let isProtected = user.protected ?? false
-        let subtitle = profileSubtitle(for: user)
+    private func profileCard(for choice: ProfileChoice) -> some View {
+        let isSelected = choice.isActive
+        let subtitle = choice.detail ?? ""
 
         return Button {
-            if isProtected {
-                pinPromptUser = user
-                pinInput = ""
-                isPinFieldFocused = true
-            } else {
-                Task { await viewModel.switchToUser(user, pin: nil) }
-            }
+            choose(choice)
         } label: {
             VStack(spacing: 12) {
-                avatarView(for: user)
+                avatarView(for: choice)
                     .frame(width: avatarSize, height: avatarSize)
 
                 VStack(spacing: 3) {
-                    Text(user.friendlyName ?? user.title ?? "?")
+                    Text(choice.name)
                         .font(.system(isExpanded ? .title3 : .headline, design: .rounded, weight: .heavy))
                         .foregroundStyle(Color.white)
                         .lineLimit(1)
@@ -220,38 +301,53 @@ struct ProfileSwitcherView: View {
             .background(profileCardBackground(isSelected: isSelected))
             .overlay(profileCardBorder(isSelected: isSelected))
             .overlay(alignment: .topTrailing) {
-                profileStatusBadge(isSelected: isSelected, isProtected: isProtected)
+                profileStatusBadge(isSelected: isSelected, isProtected: choice.requiresPIN)
             }
             .contentShape(RoundedRectangle(cornerRadius: profileCardCornerRadius, style: .continuous))
             .animation(theme.springs.interactive, value: isSelected)
         }
         .buttonStyle(PlinkButtonStyle(springs: theme.springs))
+        .disabled(viewModel.switchingID != nil)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityHint(
-            isProtected ? Text("auth.profile.pin.required") : Text("")
+            choice.requiresPIN ? Text("auth.profile.pin.title") : Text(verbatim: "")
         )
+        .accessibilityIdentifier("profileSwitcher.profile.\(choice.id)")
     }
 
-    private func avatarView(for user: PlexHomeUser) -> some View {
+    private func avatarView(for choice: ProfileChoice) -> some View {
         ZStack {
-            if let url = user.thumb {
+            if let url = choice.avatarURL {
                 AsyncImage(url: url) { image in
                     image.resizable().scaledToFill()
                 } placeholder: {
-                    placeholderAvatar
+                    placeholderAvatar(for: choice)
                 }
             } else {
-                placeholderAvatar
+                placeholderAvatar(for: choice)
             }
         }
         .clipShape(Circle())
         .overlay {
-            if viewModel.switchingUserUUID == user.uuid {
+            if viewModel.switchingID == choice.id || viewModel.enteringID == choice.id {
                 Circle()
                     .fill(Color.black.opacity(0.35))
                 ProgressView().tint(Color.accentColor)
             }
         }
+    }
+
+    private func placeholderAvatar(for choice: ProfileChoice) -> some View {
+        LinearGradient(
+            colors: [choice.tint.opacity(0.95), choice.tint.opacity(0.55)],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .overlay(
+            Text(verbatim: choice.initials)
+                .font(.system(size: avatarSize * 0.36, weight: .heavy, design: .rounded))
+                .foregroundStyle(PlinxBrand.shell.opacity(0.85))
+        )
     }
 
     private func profileCardBackground(isSelected: Bool) -> some View {
@@ -294,30 +390,16 @@ struct ProfileSwitcherView: View {
         }
     }
 
-    private func profileSubtitle(for user: PlexHomeUser) -> String {
-        user.username ?? user.email ?? ""
-    }
+    // MARK: - PIN
 
-    private var placeholderAvatar: some View {
-        PlinxBrand.gradient
-            .overlay(
-                Image(systemName: "person.fill")
-                    .resizable()
-                    .scaledToFit()
-                    .foregroundStyle(PlinxBrand.shell.opacity(0.85))
-                    .padding(avatarSize * 0.26)
-            )
-    }
-
-    private func pinPromptContent(for user: PlexHomeUser) -> some View {
-        let displayName = user.friendlyName ?? user.title ?? "?"
-        return VStack(alignment: .leading, spacing: 16) {
+    private func pinPromptContent(for choice: ProfileChoice) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("auth.profile.pin.title")
                         .font(.title3.weight(.bold))
                         .foregroundStyle(.white)
-                    Text("auth.profile.pin.prompt \(displayName)")
+                    Text("auth.profile.pin.prompt \(choice.name)")
                         .foregroundStyle(.white.opacity(0.7))
                 }
                 Spacer(minLength: 0)
@@ -327,9 +409,7 @@ struct ProfileSwitcherView: View {
             }
 
             SecureField("auth.profile.pin.placeholder", text: $pinInput)
-                #if !os(tvOS)
                 .keyboardType(.numberPad)
-                #endif
                 .textContentType(.password)
                 .focused($isPinFieldFocused)
                 .font(.title2.monospacedDigit())
@@ -343,16 +423,18 @@ struct ProfileSwitcherView: View {
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .stroke(Color.accentColor.opacity(isPinFieldFocused ? 0.8 : 0.35), lineWidth: 1)
                 )
+                .accessibilityIdentifier("profileSwitcher.pin.field")
 
             Button {
                 let enteredPin = pinInput
-                Task { await viewModel.switchToUser(user, pin: enteredPin) }
                 resetPinPrompt()
+                Task { await viewModel.select(choice, pin: enteredPin) }
             } label: {
                 Text("common.actions.switchProfile")
             }
             .buttonStyle(PlinxActionButtonStyle())
             .disabled(pinInput.count < 4)
+            .accessibilityIdentifier("profileSwitcher.pin.submit")
 
             Spacer(minLength: 0)
         }
@@ -363,7 +445,6 @@ struct ProfileSwitcherView: View {
         .background(theme.palette.background.ignoresSafeArea())
         .tint(.accentColor)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(Text("auth.profile.pin.required"))
         .onAppear { isPinFieldFocused = true }
     }
 
@@ -372,7 +453,7 @@ struct ProfileSwitcherView: View {
             Text(message)
                 .foregroundStyle(.white)
             Button {
-                Task { await viewModel.loadUsers() }
+                Task { await viewModel.load() }
             } label: {
                 Text("common.actions.retry")
                     .fontWeight(.semibold)
@@ -382,6 +463,7 @@ struct ProfileSwitcherView: View {
                     .foregroundStyle(.white)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
+            .accessibilityIdentifier("profileSwitcher.retry")
         }
         .padding()
         .background(Color.white.opacity(0.04))
@@ -389,9 +471,112 @@ struct ProfileSwitcherView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    // MARK: - Actions
+
+    private func choose(_ choice: ProfileChoice) {
+        guard viewModel.switchingID == nil, !isSigningOut else { return }
+        if PlinxProfileSwitchRules.requiresParentalApproval(
+            choosing: choice,
+            mode: viewModel.mode,
+            sessionManager: sessionManager
+        ) {
+            parentalAccess.requireParent($parentalRequest) {
+                begin(choice)
+            }
+        } else {
+            begin(choice)
+        }
+    }
+
+    private func begin(_ choice: ProfileChoice) {
+        viewModel.highlightedID = choice.id
+        viewModel.errorMessage = nil
+        if choice.requiresPIN {
+            pinInput = ""
+            pinPromptChoice = choice
+        } else {
+            Task { await viewModel.select(choice, pin: nil) }
+        }
+    }
+
+    private func presentManagement(_ sheet: ManagementSheet) {
+        let wasUnlocked = parentalAccess.isUnlocked
+        parentalAccess.requireParent($parentalRequest, relocksAfterAction: false) {
+            relocksAfterManagement = !wasUnlocked
+            managementSheet = sheet
+        }
+    }
+
+    private func managementDidClose() {
+        viewModel.refreshChoices()
+        if relocksAfterManagement {
+            relocksAfterManagement = false
+            parentalAccess.lock()
+        }
+    }
+
     private func resetPinPrompt() {
-        pinPromptUser = nil
+        pinPromptChoice = nil
         pinInput = ""
         isPinFieldFocused = false
+    }
+}
+#endif
+
+// MARK: - Shared rules and copy
+
+/// Plinx's parental rules for the profile picker, shared by iOS and tvOS.
+@MainActor
+enum PlinxProfileSwitchRules {
+    /// Continuing as the profile that was last active (or picking one during
+    /// account setup) needs no gate; switching to anyone else is a grown-up
+    /// action.
+    static func requiresParentalApproval(
+        choosing choice: ProfileChoice,
+        mode: ProfileSwitcherViewModel.Mode,
+        sessionManager: SessionManager
+    ) -> Bool {
+        guard case .activateProfile = mode else { return false }
+        guard let current = sessionManager.activeProfile?.id ?? sessionManager.profileStore.activeProfileID else {
+            return false
+        }
+        return choice.id != current
+    }
+
+    /// "Manage profiles" is offered whenever the picker lists the family's
+    /// profiles, and opens behind the parental gate, as Settings does.
+    /// Upstream also hides it from a restricted Plex profile; in Plinx the gate
+    /// is the stronger check, so who is signed in does not decide.
+    static func showsManageProfiles(mode: ProfileSwitcherViewModel.Mode) -> Bool {
+        if case .activateProfile = mode {
+            return true
+        }
+        return false
+    }
+}
+
+extension ProfileSwitcherView {
+    static var pickerSubtitle: String {
+        String(
+            localized: "auth.profile.plinx.subtitle",
+            defaultValue: "Keep watching as yourself. Switching to another profile needs a grown-up.",
+            table: "Plinx"
+        )
+    }
+
+    static var homeUserSubtitle: String {
+        String(
+            localized: "auth.profile.plinx.homeUserSubtitle",
+            defaultValue: "Choose the Plex profile Plinx should use. Protected profiles ask for their PIN.",
+            table: "Plinx"
+        )
+    }
+
+    static var logoutMessage: String {
+        String(
+            localized: "auth.signOut.plinx.message",
+            defaultValue: "Plinx will remove every Plex account and Jellyfin server from this device. Downloaded videos stay on the device.",
+            table: "Plinx"
+        )
     }
 }

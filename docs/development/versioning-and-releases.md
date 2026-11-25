@@ -27,36 +27,36 @@ of the calendar version and should remain an increasing numeric value. The
 release archive script normally supplies a UTC timestamp; use `--build-number`
 when a reproducible build number is required.
 
-Strimr is a paired source dependency, not the Plinx product release. Its own
-marketing version remains managed by the Strimr repository. Plinx releases
-record the exact Strimr commit and branch in
-`config/release-dependencies.env` instead of deriving a version from Strimr.
+The code Plinx absorbed from Strimr is part of the Plinx release; it has no
+separate version or pin. A Plinx release is identified by its Plinx commit and
+tag alone. The Swift package pins in `PlinxApp/project.yml` are part of that
+commit.
 
 ## Promotion sequence
 
 Every release follows this order:
 
-1. Finish and commit the Strimr `dev-plinx` work as focused commits. Keep the
-   sibling checkout and any linked worktrees clean before publishing.
-2. Push `dev-plinx` and promote it into Strimr `plinx-patches` with a
-   fast-forward-only PR/update. The two Plinx patch branches should remain on
-   one linear history; do not replay commits or create a merge commit. Keep
-   Strimr `main` synchronized with upstream; it is not the Plinx release
-   branch.
-3. Fetch Strimr `plinx-patches`, set `STRIMR_BRANCH=plinx-patches`, and record
-   the exact merged SHA in Plinx `config/release-dependencies.env`.
-4. Run `./scripts/verify_strimr_integration_contract.sh --full`, the focused
-   seam tests, package tests, documentation checks, and the release build
+1. Finish the release work on Plinx `dev` as focused commits, with a clean
+   checkout.
+2. Run the package tests, both app builds and their unit tests (including
+   `SafeMediaServicesTests`), the documentation checks, and the release build
    gates from `docs/release/app-store.md`.
-5. Push Plinx `dev` and merge its PR into Plinx `main` without changing the
-   recorded dependency pin.
-6. Create the annotated tag `vYYYY.MM.PP` on the merged Plinx `main` commit,
-   then create the GitHub release from that tag with the user-visible summary,
-   validation results, and exact paired dependency revisions.
+3. Push Plinx `dev` and merge its PR into Plinx `main`.
+4. Create the annotated tag `vYYYY.MM.PP` on the merged Plinx `main` commit.
+5. Build the corresponding-source bundle from that tag with
+   `scripts/build_compliance_bundle.sh`; see
+   [open-source compliance](../release/open-source-compliance.md).
+6. Create the GitHub release from the tag with the user-visible summary,
+   validation results, and the bundle's `SOURCE-MANIFEST.txt` (Plinx commit
+   and Swift package pins).
 
-Do not tag a dirty checkout, a development branch, or a Plinx commit whose
-Strimr pin is not present on the configured paired branch. Rollback restores
-the Plinx tag and exact Strimr pin together.
+Do not tag a dirty checkout or a development branch. Rollback means
+re-releasing an earlier tag.
+
+Releases made before the Strimr absorption (2026-11-23) also depend on the
+Strimr commit recorded in that tag's `config/release-dependencies.env`. Rebuild
+or roll back to one of those releases only with that exact Strimr commit from
+the `bballdavis/strimr` repository.
 
 ## Next release number
 

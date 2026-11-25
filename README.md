@@ -31,13 +31,14 @@ for the iPad experience and playback controls.
 
 ## Develop locally
 
-Plinx compiles sources from a sibling `../strimr` checkout. Keep your fork as
-Strimr's `origin` and the original project as `upstream`; build the exact
-revision and branch recorded in `config/release-dependencies.env`.
-Follow [development setup](docs/development/setup.md) and run
-`./scripts/verify_strimr_integration_contract.sh --full` before a paired build.
-The [branch-pairing guide](docs/development/branch-pairing.md) explains how to
-keep development and stable patches aligned.
+Plinx is one repository. The media, provider, session, and player code it
+absorbed from Strimr lives in `PlinxApp/Core` and `PlinxApp/Platform`, and Swift
+packages are pinned exactly in `PlinxApp/project.yml`. Follow
+[development setup](docs/development/setup.md); the
+[codebase architecture](docs/architecture/strimr-integration.md) explains the
+layers and the content-safety boundary, and
+[upstream Strimr provenance](docs/maintenance/upstream-strimr.md) explains how
+upstream changes are ported.
 
 ## Documentation
 

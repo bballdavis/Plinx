@@ -1,21 +1,26 @@
-import SwiftUI
 import PlinxUI
+import SwiftUI
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Plinx-branded server selection (replaces Strimr's SelectServerView)
+// Plinx server selection (iPhone, iPad and Apple TV)
 //
-// Functionally identical to Strimr's version; presented as onboarding step 3 on
-// the quiet-shell layout shared with sign-in and profile selection.
+// The one `SelectServerView`: the server step of Plex account setup, drawn on
+// the quiet onboarding shell. Every server of the account is checked by
+// default; a parent can uncheck servers and give an unreachable or relayed
+// server a custom address. Driven by the absorbed `ServerSelectionViewModel`.
 // ─────────────────────────────────────────────────────────────────────────────
 
 struct SelectServerView: View {
-    @Environment(SessionManager.self) private var sessionManager
-    @Environment(PlinxSessionAccessCoordinator.self) private var sessionAccessCoordinator
-    @State var viewModel: ServerSelectionViewModel
-    @State private var isShowingLogoutConfirmation = false
-    #if !os(tvOS)
+    @State private var viewModel: ServerSelectionViewModel
+    #if os(tvOS)
+    @FocusState private var focusedServerID: String?
+    #else
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     #endif
+
+    init(viewModel: ServerSelectionViewModel) {
+        _viewModel = State(initialValue: viewModel)
+    }
 
     private var isExpanded: Bool {
         #if os(tvOS)
@@ -26,6 +31,39 @@ struct SelectServerView: View {
     }
 
     var body: some View {
+        content
+            .background(PlinxAmbientBackground(intensity: .hero))
+            .tint(.accentColor)
+            .task { await viewModel.load() }
+            .taskPresentation(item: $viewModel.customAddressModel) { model in
+                CustomServerAddressView(model: model)
+            }
+            .accessibilityIdentifier("serverSelection")
+    }
+
+    // MARK: - Layout
+
+    #if os(tvOS)
+    private var content: some View {
+        VStack(alignment: .leading, spacing: 28) {
+            HStack(alignment: .top) {
+                header
+                Spacer(minLength: 24)
+                PlinxOnboardingStepIndicator(step: .server, isExpanded: true)
+            }
+            serverContent
+        }
+        .padding(.horizontal, 64)
+        .padding(.vertical, 48)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onChange(of: viewModel.servers) { _, servers in
+            if focusedServerID == nil, let first = servers.first {
+                focusedServerID = first.clientIdentifier
+            }
+        }
+    }
+    #else
+    private var content: some View {
         GeometryReader { proxy in
             let layout = PlinxOnboardingLayout(width: proxy.size.width, height: proxy.size.height)
             let arrangement = layout.usesColumns
@@ -34,7 +72,7 @@ struct SelectServerView: View {
             arrangement {
                 header
                     .frame(maxWidth: layout.usesColumns ? 280 : .infinity, alignment: .leading)
-                content
+                serverContent
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
             .padding(.horizontal, layout.horizontalPadding)
@@ -43,17 +81,10 @@ struct SelectServerView: View {
             .frame(maxWidth: layout.usesColumns ? 1180 : 760)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
-        .background(PlinxAmbientBackground(intensity: .hero))
-        .tint(.accentColor)
         .toolbar(.hidden, for: .navigationBar)
         .safeAreaInset(edge: .top, spacing: 0) {
             HStack(alignment: .center) {
-                PlinxCompactDestructiveButton(
-                    systemImage: "rectangle.portrait.and.arrow.right",
-                    accessibilityLabel: Text("common.actions.logOut", tableName: "Plinx")
-                ) {
-                    isShowingLogoutConfirmation = true
-                }
+                PlinxOnboardingBackButton()
                 Spacer(minLength: 0)
                 PlinxOnboardingStepIndicator(step: .server, isExpanded: isExpanded)
             }
@@ -61,18 +92,8 @@ struct SelectServerView: View {
             .padding(.top, PlinxPageHeaderMetrics.topPadding)
             .padding(.bottom, PlinxPageHeaderMetrics.bottomPadding)
         }
-        .alert("common.actions.logOut", isPresented: $isShowingLogoutConfirmation) {
-            Button("common.actions.logOut", role: .destructive) {
-                Task { await sessionManager.signOutRevokingLocalAccess(sessionAccessCoordinator) }
-            }
-            Button("common.actions.cancel", role: .cancel) {}
-        } message: {
-            Text("more.logout.message")
-        }
-        .task {
-            await viewModel.load()
-        }
     }
+    #endif
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -81,7 +102,7 @@ struct SelectServerView: View {
                 .foregroundStyle(Color.white)
                 .minimumScaleFactor(0.8)
                 .accessibilityAddTraits(.isHeader)
-            Text("serverSelection.subtitle")
+            Text("serverSelection.multiple.subtitle")
                 .font(.system(isExpanded ? .title3 : .body, design: .rounded, weight: .semibold))
                 .foregroundStyle(Color.brandSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -90,7 +111,7 @@ struct SelectServerView: View {
     }
 
     @ViewBuilder
-    private var content: some View {
+    private var serverContent: some View {
         if viewModel.isLoading, viewModel.servers.isEmpty {
             PlinxBrandedLoadingView(
                 context: .content,
@@ -101,20 +122,37 @@ struct SelectServerView: View {
             emptyState
         } else {
             ScrollView {
-                LazyVStack(spacing: 12) {
+                LazyVStack(spacing: isTV ? 28 : 12) {
                     ForEach(viewModel.servers, id: \.clientIdentifier) { server in
                         serverRow(server)
                     }
+
+                    continueButton
+                        .padding(.top, isTV ? 24 : 12)
                 }
-                .padding(.vertical, 8)
+                .padding(.vertical, isTV ? 24 : 8)
+                #if os(tvOS)
+                .padding(.horizontal, 24)
+                #endif
             }
+            #if os(tvOS)
+            .scrollClipDisabled()
+            #endif
         }
+    }
+
+    private var isTV: Bool {
+        #if os(tvOS)
+        true
+        #else
+        false
+        #endif
     }
 
     private var emptyState: some View {
         VStack(spacing: 12) {
             Image(systemName: "server.rack")
-                .font(.system(size: 40, weight: .semibold))
+                .font(.system(size: isTV ? 64 : 40, weight: .semibold))
                 .foregroundStyle(Color.accentColor)
                 .padding(.bottom, 4)
             Text("serverSelection.empty.title")
@@ -123,7 +161,7 @@ struct SelectServerView: View {
             Text("serverSelection.empty.description")
                 .foregroundStyle(Color.brandSecondary)
                 .multilineTextAlignment(.center)
-            Button {
+            PlinxOnboardingActionButton {
                 Task { await viewModel.load() }
             } label: {
                 HStack {
@@ -133,29 +171,66 @@ struct SelectServerView: View {
                     Text("serverSelection.retry")
                         .fontWeight(.semibold)
                 }
-                .frame(maxWidth: .infinity)
             }
-            .buttonStyle(PlinxActionButtonStyle())
+            .frame(maxWidth: isTV ? 480 : .infinity)
             .padding(.top, 8)
             .disabled(viewModel.isLoading)
+            .accessibilityIdentifier("serverSelection.retry")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
+    private var continueButton: some View {
+        PlinxOnboardingActionButton {
+            viewModel.continueWithSelection()
+        } label: {
+            Text("common.actions.continue")
+        }
+        .frame(maxWidth: isTV ? 480 : 460)
+        .disabled(viewModel.selectedServerIDs.isEmpty)
+        .frame(maxWidth: .infinity)
+        #if os(tvOS)
+        .focusSection()
+        #endif
+        .accessibilityIdentifier("serverSelection.continue")
+    }
+
+    // MARK: - Rows
+
     private func serverRow(_ server: PlexCloudResource) -> some View {
-        let isConnecting = viewModel.selectingServerID == server.clientIdentifier
-        let shape = RoundedRectangle(cornerRadius: 20, style: .continuous)
+        VStack(alignment: .trailing, spacing: isTV ? 20 : 6) {
+            serverToggle(server)
+            if viewModel.suggestsCustomAddress(for: server) {
+                Button {
+                    viewModel.showCustomAddress(for: server)
+                } label: {
+                    Text("serverSelection.customAddress.suggest")
+                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                }
+                #if os(tvOS)
+                .plinxTVFocusButton(style: PlinxFocusSurfaceStyle(cornerRadius: 16, focusedFillOpacity: 0.1))
+                #else
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.accentColor)
+                .frame(minHeight: 44)
+                #endif
+                .accessibilityIdentifier("serverSelection.customAddress.\(server.clientIdentifier)")
+            }
+        }
+    }
+
+    private func serverToggle(_ server: PlexCloudResource) -> some View {
+        let isSelected = viewModel.isSelected(server)
+        let shape = RoundedRectangle(cornerRadius: isTV ? 24 : 20, style: .continuous)
 
         return Button {
-            Task {
-                await viewModel.select(server: server)
-            }
+            viewModel.toggle(server)
         } label: {
-            HStack(spacing: 14) {
+            HStack(spacing: isTV ? 28 : 14) {
                 Image(systemName: "server.rack")
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(.system(size: isTV ? 30 : 20, weight: .semibold))
                     .foregroundStyle(Color.accentColor)
-                    .frame(width: 48, height: 48)
+                    .frame(width: isTV ? 72 : 48, height: isTV ? 72 : 48)
                     .background(
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
                             .fill(Color.accentColor.opacity(0.14))
@@ -163,50 +238,44 @@ struct SelectServerView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(server.name)
-                        .font(.system(.headline, design: .rounded, weight: .heavy))
+                        .font(.system(isTV ? .title3 : .headline, design: .rounded, weight: .heavy))
                         .foregroundStyle(Color.white)
-                    connectionSummary(for: server)
-                        .font(.system(.subheadline, design: .rounded, weight: .medium))
-                        .foregroundStyle(Color.brandSecondary)
+                    ServerConnectionSummary(state: viewModel.probeState(of: server))
+                        .font(.system(isTV ? .callout : .subheadline, design: .rounded, weight: .medium))
                 }
 
                 Spacer(minLength: 8)
 
-                if isConnecting {
-                    ProgressView()
-                        .tint(.accentColor)
-                } else {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(Color.white.opacity(0.4))
-                }
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: isTV ? 34 : 24, weight: .semibold))
+                    .foregroundStyle(isSelected ? Color.accentColor : Color.white.opacity(0.4))
             }
-            .opacity(viewModel.isSelecting && !isConnecting ? 0.6 : 1)
-            .padding(14)
+            .padding(isTV ? 28 : 14)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(shape.fill(PlinxBrand.surface))
             .overlay(
                 shape.strokeBorder(
-                    isConnecting ? Color.accentColor : Color.white.opacity(0.08),
-                    lineWidth: isConnecting ? 2 : 1
+                    isSelected ? Color.accentColor.opacity(0.7) : Color.white.opacity(0.08),
+                    lineWidth: isSelected ? 2 : 1
                 )
             )
             .contentShape(shape)
         }
+        #if os(tvOS)
+        .focused($focusedServerID, equals: server.clientIdentifier)
+        .plinxTVFocusButton(
+            isSelected: isSelected,
+            style: PlinxFocusSurfaceStyle(cornerRadius: 24, focusedFillOpacity: 0.08)
+        )
+        #else
         .buttonStyle(PlinkButtonStyle())
-        .disabled(viewModel.isSelecting)
-    }
-
-    private func connectionSummary(for server: PlexCloudResource) -> some View {
-        guard let connection = server.connections?.first else {
-            return Text("serverSelection.connection.unavailable")
+        #endif
+        .contextMenu {
+            Button("serverSelection.customAddress.use") {
+                viewModel.showCustomAddress(for: server)
+            }
         }
-        if connection.isLocal {
-            return Text("serverSelection.connection.localFormat \(connection.address)")
-        }
-        if connection.isRelay {
-            return Text("serverSelection.connection.relay")
-        }
-        return Text(connection.address)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityIdentifier("serverSelection.server.\(server.clientIdentifier)")
     }
 }

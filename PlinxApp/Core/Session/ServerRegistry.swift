@@ -693,6 +693,8 @@ final class ServerRegistry {
         markReady(server, services: services) { $0.jellyfinContext = context }
     }
 
+    /// `services` already sit behind the content-safety boundary: `MediaServices.init` wraps every provider service in
+    /// `SafeMediaServices`, so the Plex, Jellyfin and demo services published here are all filtered.
     private func markReady(_ server: ServerIdentity, services: MediaServices?, update: (inout Entry) -> Void) {
         guard var entry = entries[server] else { return }
         guard let services else {
@@ -791,42 +793,6 @@ final class ServerRegistry {
         try await context.refreshServerAccess(using: resource)
         entries[server]?.plexResource = resource
     }
-
-    #if os(tvOS)
-        /// Ready servers with their address and token, for the Top Shelf extension.
-        func topShelfSessions() -> [TopShelfServerCredentials] {
-            order.compactMap { server -> TopShelfServerCredentials? in
-                guard let entry = entries[server], entry.session.isActive else { return nil }
-                if let context = entry.plexContext, let url = context.baseURLServer,
-                   let token = context.authTokenServer
-                {
-                    return TopShelfServerCredentials(
-                        session: TopShelfStoredSession(
-                            provider: MediaProvider.plex.rawValue,
-                            serverURL: url,
-                            serverID: server.id,
-                            userID: nil,
-                        ),
-                        token: token,
-                    )
-                }
-                if let connection = entry.jellyfinContext?.connection,
-                   let token = try? accountStore.token(forAccountID: entry.link.accountID)
-                {
-                    return TopShelfServerCredentials(
-                        session: TopShelfStoredSession(
-                            provider: MediaProvider.jellyfin.rawValue,
-                            serverURL: connection.baseURL,
-                            serverID: server.id,
-                            userID: connection.userID,
-                        ),
-                        token: token,
-                    )
-                }
-                return nil
-            }
-        }
-    #endif
 
     // MARK: - Publishing
 

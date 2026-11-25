@@ -187,7 +187,7 @@ struct JellyfinPlaybackService {
             audioStreamIndex: trackSelection?.audioStreamIndex,
             subtitleStreamIndex: trackSelection?.subtitlePreference.requestIndex,
             quality: quality,
-            deviceProfile: .strimr(quality: quality),
+            deviceProfile: .playback(quality: quality),
         )
         var query = [URLQueryItem(name: "UserId", value: userID)]
         if let mediaSourceID {
@@ -590,10 +590,10 @@ struct JellyfinDeviceProfile: Encodable {
         case responseProfiles = "ResponseProfiles"
     }
 
-    static func strimr(quality: TranscodeQualityPreset) -> JellyfinDeviceProfile {
+    static func playback(quality: TranscodeQualityPreset) -> JellyfinDeviceProfile {
         let maxBitrate = quality.jellyfinMaximumStreamingBitrate ?? 140_000_000
         return JellyfinDeviceProfile(
-            name: quality.isOriginal ? "Strimr Direct Play" : "Strimr Quality Transcode",
+            name: "\(PlexProductIdentity.name) \(quality.isOriginal ? "Direct Play" : "Quality Transcode")",
             maxStreamingBitrate: maxBitrate,
             maxStaticBitrate: maxBitrate,
             directPlayProfiles: [
@@ -631,7 +631,7 @@ struct JellyfinDeviceProfile: Encodable {
 
     static func liveTV() -> JellyfinDeviceProfile {
         JellyfinDeviceProfile(
-            name: "Strimr Live TV",
+            name: "\(PlexProductIdentity.name) Live TV",
             maxStreamingBitrate: 120_000_000,
             maxStaticBitrate: 100_000_000,
             directPlayProfiles: [

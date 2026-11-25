@@ -1,13 +1,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// PlinxMediaBackdropGradient.swift — iOS 26 SDK compatible replacement
+// MediaBackdropGradient — artwork-tinted backdrop behind detail and hero views
 // ─────────────────────────────────────────────────────────────────────────────
 //
-// Strimr's MediaBackdropGradient uses `Color.background` which is ambiguous
-// in the iOS 26 SDK (resolves to `BackgroundStyle` instead of `Color`).
-//
-// Fix: use `Color(uiColor: .systemBackground)` for explicit Color typing.
-//
-// Upstream PR: disambiguate Color.background in MediaBackdropGradient
+// Four radial gradients from the artwork's corner colors over the screen
+// background. Without corner colors (or without exactly four) the background
+// fades in steps instead. The background is an explicit `Color` on each
+// platform: `Color.background` is ambiguous in the iOS 26 SDK, and the
+// "Background" asset is not part of Plinx.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import SwiftUI
@@ -69,13 +68,14 @@ struct MediaBackdropGradient: View {
 }
 
 extension MediaBackdropGradient {
+    /// The artwork's corner colors in gradient order, or none when the provider sent none.
     static func colors(for media: MediaDisplayItem) -> [Color] {
-        guard let blur = media.ultraBlurColors else { return [] }
+        guard let corners = media.artworkCornerColors else { return [] }
         return [
-            Color(hex: blur.topLeft),
-            Color(hex: blur.topRight),
-            Color(hex: blur.bottomRight),
-            Color(hex: blur.bottomLeft),
+            Color(hex: corners.topLeft),
+            Color(hex: corners.topRight),
+            Color(hex: corners.bottomRight),
+            Color(hex: corners.bottomLeft),
         ]
     }
 }

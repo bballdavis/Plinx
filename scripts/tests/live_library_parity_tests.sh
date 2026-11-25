@@ -130,7 +130,7 @@ if [[ "$MODE" == "tvos" ]]; then
   fi
   DESTINATION="${1:-$DEFAULT_TVOS_DESTINATION}"
   TEST_TARGET="${PLINX_TEST_TARGET:-Plinx-tvOS-UnitTests/AppleTVLibraryParityLiveTests}"
-  REQUIRED_TEST_CASE="${PLINX_REQUIRED_TEST_CASE:-test_liveAppleTVBrowseParity_otherVideoLibrary_allowsUnratedNoneAgent}"
+  REQUIRED_TEST_CASE="${PLINX_REQUIRED_TEST_CASE:-test_liveAppleTVBrowseParity_otherVideoLibrary_hidesUnratedUnderFamilyPolicy}"
 else
   SCHEME="Plinx-iOS"
   DEFAULT_IOS_DESTINATION="$(discover_ios_destination || true)"

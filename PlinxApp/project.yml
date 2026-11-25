@@ -9,7 +9,7 @@
 #
 # Dependency flow:
 #   Plinx app target
-#     ├── App, Views, Adapters, Decorators, ViewModels (Plinx layer)
+#     ├── App, Views, Adapters, ViewModels (Plinx layer)
 #     ├── Core + Platform/<platform> (absorbed media stack)
 #     ├── PlinxUI (SPM) → PlinxCore (SPM)
 #     └── AetherEngine, GRDB, SwiftAssRenderer (SPM)
@@ -70,7 +70,6 @@ targets:
       # ── Plinx application code ──────────────────────────────────────
       - path: App
       - path: Views
-      - path: Decorators
       - path: Adapters
       - path: ViewModels
 
@@ -203,12 +202,74 @@ targets:
           - "Downloads/**"
           - "Player/PlinxPlayerControlButtons.swift"
           - "Player/PlinxPlayerControlsView.swift"
-      - path: Decorators
       - path: Adapters
       - path: ViewModels
 
       # ── Absorbed media stack ────────────────────────────────────────
       - path: Core
+        excludes:
+          # Upstream's tvOS target membership: tvOS has its own versions of
+          # these views, and offline storage and downloads are iOS-only.
+          - "Features/Downloads/DownloadManager.swift"
+          - "Features/Downloads/DownloadModels.swift"
+          - "Features/Downloads/DownloadOptionsView.swift"
+          - "Features/Downloads/DownloadRowViews.swift"
+          - "Features/Home/HomeView.swift"
+          - "Features/Library/LibraryBrowseView.swift"
+          - "Features/Library/LibraryBrowseViewModel.swift"
+          - "Features/Library/LibraryCollectionsViewModel.swift"
+          - "Features/Library/LibraryView.swift"
+          - "Features/MediaDetail/DetailFactsSection.swift"
+          - "Features/MediaDetail/DetailHeroTitle.swift"
+          - "Features/MediaDetail/DetailPlaybackCard.swift"
+          - "Features/MediaDetail/DetailRoundActionLabel.swift"
+          - "Features/MediaDetail/SeasonEpisodeComponents.swift"
+          - "Features/Player/Controls/PlayerControlButtonStyle.swift"
+          - "Features/Player/DoubleTapSeek.swift"
+          - "Features/Player/PlayerLayoutMode.swift"
+          - "Features/Search/SearchView.swift"
+          - "Features/Seerr/SeerrDiscoverView.swift"
+          - "Features/Seerr/SeerrManageRequestsSheetView.swift"
+          - "Features/Seerr/SeerrMediaDetailView.swift"
+          - "Features/Seerr/SeerrMediaRequestSheetView.swift"
+          - "Features/Settings/AccountPreferencesView.swift"
+          - "Features/Settings/IntegrationsView.swift"
+          - "Features/Settings/SeerrView.swift"
+          - "Features/Settings/SettingsAboutView.swift"
+          - "Features/Settings/SettingsAudioView.swift"
+          - "Features/Settings/SettingsInterfaceView.swift"
+          - "Features/Settings/SettingsLicensesView.swift"
+          - "Features/Settings/SettingsPlaybackView.swift"
+          - "Features/Settings/SettingsPrivacyView.swift"
+          - "Features/Settings/SettingsSubtitlesView.swift"
+          - "Features/Settings/SettingsView.swift"
+          - "Library/Player/PictureInPictureCoordinator.swift"
+          - "Offline/Artwork/CachedArtworkService.swift"
+          - "Offline/OfflineCoordinator.swift"
+          - "Offline/Pinning/OfflineEnrichmentService.swift"
+          - "Offline/Progress/PlaybackProgressRecorder.swift"
+          - "Offline/Progress/ProgressSynchronizer.swift"
+          - "Offline/Services/CachedDetailService.swift"
+          - "Offline/Services/CachedHomeService.swift"
+          - "Offline/Services/CachedLibraryService.swift"
+          - "Offline/Services/CachedPlaylistService.swift"
+          - "Offline/Services/CachedSearchService.swift"
+          - "Offline/Services/OfflineCachePolicy.swift"
+          - "Offline/Services/OfflineServiceDecorators.swift"
+          - "Offline/Session/AccountRemovalFlow.swift"
+          - "Offline/Session/OfflineSessionStore.swift"
+          - "Offline/Store/OfflineDatabase.swift"
+          - "Offline/Store/OfflineRecords.swift"
+          - "Offline/Store/OfflineStore.swift"
+          - "Offline/Views/OfflineMediaState.swift"
+          - "Offline/Views/OfflineViews.swift"
+          - "Offline/Views/SettingsStorageView.swift"
+          - "Views/InsetListStyle.swift"
+          - "Views/Seerr/SeerrDetailHeroTitle.swift"
+          - "Views/Seerr/SeerrEpisodeCardView.swift"
+          - "Views/Seerr/SeerrSeasonEpisodesSection.swift"
+          - "Views/TabRootChrome.swift"
+          - "Views/Theme/TileButtonStyle.swift"
       - path: Platform/tvOS
 
     resources:

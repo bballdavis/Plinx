@@ -26,11 +26,18 @@ struct LibraryViewsSettingsView: View {
             }
 
             Section("Libraries") {
-                ForEach(libraryStore.libraries) { library in
+                ForEach(librariesWithRecommendations, id: \.identity) { library in
                     NavigationLink {
                         LibraryViewSectionsConfigurationView(library: library)
                     } label: {
-                        Label(library.title, systemImage: library.iconName)
+                        Label {
+                            LibrarySettingsLabel(
+                                title: library.title,
+                                subtitle: libraryStore.showsServerNames ? libraryStore.serverName(for: library) : nil
+                            )
+                        } icon: {
+                            Image(systemName: library.iconName)
+                        }
                     }
                     #if os(tvOS)
                     .plinxSettingsListButton()
@@ -54,6 +61,18 @@ struct LibraryViewsSettingsView: View {
             }
         }
     }
+
+    /// Libraries whose detail screen has a Recommended tab to configure.
+    private var librariesWithRecommendations: [Library] {
+        PlinxLibraryVisibility.browsableLibraries(libraryStore.libraries).filter { library in
+            LibraryDetailTab.available(
+                for: library,
+                provider: library.server.provider,
+                displaysCollections: settingsManager.interface.displayCollections,
+                displaysPlaylists: false
+            ).contains(.recommended)
+        }
+    }
 }
 
 private struct LibraryViewSectionsConfigurationView: View {
@@ -65,8 +84,7 @@ private struct LibraryViewSectionsConfigurationView: View {
     let library: Library
 
     @Environment(SettingsManager.self) private var settingsManager
-    @Environment(PlexAPIContext.self) private var plexApiContext
-    @Environment(\.safetyPolicy) private var safetyPolicy
+    @Environment(ServerRegistry.self) private var registry
 
     @State private var sections: [RecommendSection] = []
     @State private var isLoading = false
@@ -184,15 +202,13 @@ private struct LibraryViewSectionsConfigurationView: View {
         settingsManager.plinxSetRecommendSectionOrder(sections.map(\.id), libraryId: library.id)
     }
 
+    /// The sections a child sees on this library's Recommended tab: the
+    /// server's hubs after `SafeMediaServices` drops blocked titles, without
+    /// the sections that filtering emptied.
     private func loadSections() async {
-        guard let sectionId = library.sectionId else {
+        guard let services = registry.services(for: library.server) else {
             sections = []
-            errorMessage = String(localized: "errors.missingLibraryIdentifier")
-            return
-        }
-        guard let hubRepository = try? HubRepository(context: plexApiContext) else {
-            sections = []
-            errorMessage = String(localized: "errors.selectServer.loadRecommendations")
+            errorMessage = String(localized: "server.unavailable.message")
             return
         }
 
@@ -201,10 +217,11 @@ private struct LibraryViewSectionsConfigurationView: View {
         defer { isLoading = false }
 
         do {
-            let response = try await hubRepository.getSectionHubs(sectionId: sectionId)
-            let filteredHubs = (response.mediaContainer.hub ?? [])
-                .map(Hub.init)
-                .compactMap { PlinxContentAuthorization.filtered($0, policy: safetyPolicy) }
+            let hubs = try await services.library.recommended(
+                in: library,
+                mergesNextUp: settingsManager.interface.mergesNextUpIntoContinueWatching
+            )
+            let filteredHubs = ContentSafetyGate.shared.filter(hubs)
 
             var seen = Set<String>()
             let availableSections = filteredHubs.compactMap { hub -> RecommendSection? in
@@ -225,6 +242,7 @@ private struct LibraryViewSectionsConfigurationView: View {
             let hiddenOrUnordered = availableSections.filter { !orderedVisibleIds.contains($0.id) }
             sections = orderedVisible + hiddenOrUnordered
         } catch {
+            guard !Task.isCancelled, !error.isCancellation else { return }
             sections = []
             errorMessage = error.localizedDescription
         }

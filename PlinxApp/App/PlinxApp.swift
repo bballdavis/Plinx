@@ -10,29 +10,25 @@ import UIKit
 // PlinxApp — Composition Root
 // ─────────────────────────────────────────────────────────────────────────────
 //
-// This is the single point where Strimr services, Plinx safety layer, theming,
-// and lifecycle management are wired together.
+// The single point where the absorbed media stack (Core + Platform), the Plinx
+// safety boundary, theming and lifecycle hardening are wired together.
 //
-// Dependency Injection Flow:
+//   SettingsManager ─┬─▶ TrackSelectionCoordinator ─┐
+//   FavoritesStore ──┴──────────────────────────────┴─▶ SessionManager
+//                                                          │ registry (ServerRegistry)
+//                                                          │   └─ every MediaServices is wrapped in
+//                                                          │      SafeMediaServices (ContentSafetyGate)
+//   LibraryStore, SeerrStore, SharePlayCoordinator ◀───────┤
+//   DownloadManager, OfflineCoordinator (iOS only)          │
+//   MainCoordinator (navigation + player presentation)      │
 //
-//   ┌─────────────┐     ┌──────────────┐     ┌────────────┐
-//   │ PlexAPIContext│────▶│SessionManager│     │ PlinxTheme │
-//   │ (Strimr)     │     │ (Strimr)     │     │ (PlinxUI)  │
-//   └──────┬───────┘     └──────────────┘     └────────────┘
-//          │
-//   ┌──────┴───────┐     ┌──────────────┐     ┌──────────────┐
-//   │ LibraryStore  │     │SettingsManager│    │ SafetyPolicy │
-//   │ (Strimr)      │     │ (Strimr)     │    │ (PlinxCore)  │
-//   └───────────────┘     └──────────────┘    └──────┬───────┘
-//                                                     │
-//   ┌──────────────┐     ┌──────────────────┐  ┌─────┴────────┐
-//   │MainCoordinator│    │PlaybackCoordinator│
-//   │ (Strimr)      │    │ (PlinxCore)       │
-//   └───────────────┘    └──────────────────┘
+// Plinx state layered on top: ParentalAccessCoordinator, PlinxWatchStatusStore,
+// PlaybackLaunchCoordinator, PlaybackCoordinator, PlinxTheme and the computed
+// SafetyPolicy. Screens get services from `ServerRegistry` or use the upstream
+// view models initialised with `SessionManager`/`SettingsManager`.
 //
-// All Strimr services are @Observable and injected via SwiftUI Environment.
-// Plinx-specific state (safety, theme, playback) is layered on top.
-//
+// The SafetyPolicy computed here is pushed into `ContentSafetyGate.shared`
+// before any session hydrates, and kept in sync with the parental gate.
 // ─────────────────────────────────────────────────────────────────────────────
 
 @main
@@ -42,118 +38,137 @@ struct PlinxApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate: AppDelegate
     #endif
 
-    // ── Strimr Services (upstream, unmodified) ──────────────────────────
-    @State private var plexApiContext: PlexAPIContext
+    // ── Media stack ─────────────────────────────────────────────────────
     @State private var sessionManager: SessionManager
     @State private var settingsManager: SettingsManager
     @State private var libraryStore: LibraryStore
-    @StateObject private var mainCoordinator = MainCoordinator()
-
-    /// SharePlay remains available to the playback stack for dependency
-    /// compatibility, while its initiation controls are hidden in kid-facing UI.
+    @State private var seerrStore: SeerrStore
+    /// SharePlay stays available to the playback stack; its initiation
+    /// controls are hidden in kid-facing UI (`sharePlayPresentationPolicy`).
     @State private var sharePlayCoordinator: SharePlayCoordinator
-
-    // ── Strimr DownloadManager (required by MediaDetailHeaderSection's @Environment) ──
-    // MediaDetailHeaderSection reads @Environment(DownloadManager.self). Without this
-    // injection the app crashes with an assertion failure when navigating to media detail.
-    @State private var downloadManager: DownloadManager
-    @State private var parentalAccessCoordinator: ParentalAccessCoordinator
-    @State private var downloadOwnershipStore: DownloadOwnershipStore
-    @State private var sessionAccessCoordinator: PlinxSessionAccessCoordinator
-
-    // ── Plinx Safety Layer ──────────────────────────────────────────────
-    @AppStorage("plinx.maxMovieRating") private var maxMovieRatingRaw = PlinxRating.g.rawValue
-    @AppStorage("plinx.maxTVRating") private var maxTVRatingRaw = PlinxRating.tvY.rawValue
-    /// Default is `true` for kid safety: unrated items are hidden unless a
-    /// parent explicitly turns this off.
-    @AppStorage("plinx.excludeUnrated") private var excludeUnrated = true
-
-    @AppStorage("plinx.maxMovieRating", store: DemoPreferences.defaults) private var demoMovieRatingRaw = PlinxRating.pg.rawValue
-    @AppStorage("plinx.maxTVRating", store: DemoPreferences.defaults) private var demoTVRatingRaw = PlinxRating.tvPg.rawValue
-    @AppStorage("plinx.excludeUnrated", store: DemoPreferences.defaults) private var demoExcludeUnrated = true
+    @StateObject private var mainCoordinator: MainCoordinator
     #if !os(tvOS)
-    @AppStorage("plinx.babyLockEnabled", store: DemoPreferences.defaults) private var demoBabyLockEnabled = false
+    @State private var downloadManager: DownloadManager
     #endif
 
-    private var isDemoSession: Bool {
-        DemoFixtureBootstrap.isActive && sessionManager.plexServer?.clientIdentifier == DemoFixtureBootstrap.serverIdentifier
-    }
-
-    private var safetyPolicy: SafetyPolicy {
-        let movieRating = PlinxRating.from(contentRating: isDemoSession ? demoMovieRatingRaw : maxMovieRatingRaw) ?? .g
-        let tvRating = PlinxRating.from(contentRating: isDemoSession ? demoTVRatingRaw : maxTVRatingRaw) ?? .tvY
-        return SafetyPolicy.ratingOnly(maxMovie: movieRating, maxTV: tvRating, allowUnrated: !(isDemoSession ? demoExcludeUnrated : excludeUnrated))
-    }
-
-    /// ── Plinx Playback / Lifecycle ──────────────────────────────────────
+    // ── Plinx layer ─────────────────────────────────────────────────────
+    @State private var parentalAccessCoordinator = ParentalAccessCoordinator()
+    @State private var watchStatusStore = PlinxWatchStatusStore()
+    @StateObject private var playbackLaunchCoordinator = PlaybackLaunchCoordinator()
     @StateObject private var playbackCoordinator = PlaybackCoordinator()
-
-    /// ── Plinx Theming ───────────────────────────────────────────────────
     @State private var theme = PlinxTheme()
 
-    // ── Plinx Safety Hardening ──────────────────────────────────────────
+    // ── Safety preferences ──────────────────────────────────────────────
+    @AppStorage(PlinxSafetyPreferences.maxMovieRatingKey)
+    private var maxMovieRatingRaw = PlinxSafetyPreferences.defaultMovieRating.rawValue
+    @AppStorage(PlinxSafetyPreferences.maxTVRatingKey)
+    private var maxTVRatingRaw = PlinxSafetyPreferences.defaultTVRating.rawValue
+    /// Default is `true` for kid safety: unrated items are hidden unless a
+    /// parent explicitly turns this off.
+    @AppStorage(PlinxSafetyPreferences.excludeUnratedKey)
+    private var excludeUnrated = true
+
+    @AppStorage(PlinxSafetyPreferences.maxMovieRatingKey, store: DemoPreferences.defaults)
+    private var demoMovieRatingRaw = PlinxRating.pg.rawValue
+    @AppStorage(PlinxSafetyPreferences.maxTVRatingKey, store: DemoPreferences.defaults)
+    private var demoTVRatingRaw = PlinxRating.tvPg.rawValue
+    @AppStorage(PlinxSafetyPreferences.excludeUnratedKey, store: DemoPreferences.defaults)
+    private var demoExcludeUnrated = true
+
+    // ── Plinx safety hardening and accent ───────────────────────────────
     #if !os(tvOS)
     @AppStorage("plinx.babyLockEnabled") private var babyLockEnabled = false
+    @AppStorage("plinx.babyLockEnabled", store: DemoPreferences.defaults) private var demoBabyLockEnabled = false
     #endif
-
-    /// ── Plinx Accent Color ──────────────────────────────────────────────
     @AppStorage("plinx.accentColorName") private var accentColorName = PlinxAccentColor.green.rawValue
 
     private var accentColor: Color {
         PlinxAccentColor(rawValue: accentColorName)?.color ?? PlinxAccentColor.green.color
     }
 
-    // MARK: - Init (Dependency Construction)
+    /// The App Review sample library runs with its own preferences and PIN.
+    private var isDemoSession: Bool {
+        DemoFixtureBootstrap.isDemoSession(sessionManager)
+    }
+
+    private var safetyPolicy: SafetyPolicy {
+        if isDemoSession {
+            return PlinxSafetyPreferences.policy(
+                maxMovieRating: demoMovieRatingRaw,
+                maxTVRating: demoTVRatingRaw,
+                excludeUnrated: demoExcludeUnrated
+            )
+        }
+        return PlinxSafetyPreferences.policy(
+            maxMovieRating: maxMovieRatingRaw,
+            maxTVRating: maxTVRatingRaw,
+            excludeUnrated: excludeUnrated
+        )
+    }
+
+    private var effectiveParentalAccess: ParentalAccessCoordinator {
+        isDemoSession ? DemoPreferences.parentalAccess : parentalAccessCoordinator
+    }
+
+    // MARK: - Init (dependency construction)
 
     init() {
         let processEnvironment = ProcessInfo.processInfo.environment
         ReleaseScreenshotCaptureMode.installNetworkMutationBlockerIfNeeded()
         LivePlexUITestBootstrap.primeCredentialsIfNeeded(environment: processEnvironment)
 
-        // Layer 1: Strimr infrastructure (no Plinx knowledge)
-        let context = PlexAPIContext()
-        let store = LibraryStore(context: context)
+        // Fail closed from the first request: the boundary carries the stored
+        // family policy before any session hydrates or any screen loads.
+        ContentSafetyGate.shared.policy = PlinxSafetyPreferences.storedPolicy()
+
+        let favoritesStore = FavoritesStore()
+        #if DEBUG
+        // Upstream's DEBUG-only screenshot mode (-ScreenshotMode) keeps its
+        // seeded stores apart from the family's Keychain and preferences.
+        let demoStores = DemoStores.makeIfEnabled()
+        let settings = demoStores.map { SettingsManager(userDefaults: $0.defaults) } ?? SettingsManager()
+        #else
         let settings = SettingsManager()
+        #endif
         PlinxSettingsSanitizer.applyPlinxDefaults(settings)
-        PlinxSettingsSanitizer.disableUnsupportedExternalDiscovery(settings)
-        let session = SessionManager(context: context, libraryStore: store)
-        _plexApiContext = State(initialValue: context)
+        PlinxSettingsSanitizer.disableUnsupportedFeatures(settings)
+
+        let trackSelectionCoordinator = TrackSelectionCoordinator(
+            store: TrackSelectionStore(),
+            settingsManager: settings
+        )
+        #if DEBUG
+        let session = SessionManager(
+            settingsManager: settings,
+            favoritesStore: favoritesStore,
+            trackSelectionCoordinator: trackSelectionCoordinator,
+            versionSelectionStore: MediaVersionSelectionStore(),
+            accountStore: demoStores?.accountStore,
+            profileStore: demoStores?.profileStore
+        )
+        #else
+        let session = SessionManager(
+            settingsManager: settings,
+            favoritesStore: favoritesStore,
+            trackSelectionCoordinator: trackSelectionCoordinator,
+            versionSelectionStore: MediaVersionSelectionStore()
+        )
+        #endif
+
         _sessionManager = State(initialValue: session)
         _settingsManager = State(initialValue: settings)
-        _libraryStore = State(initialValue: store)
+        _libraryStore = State(initialValue: LibraryStore(sessionManager: session, settingsManager: settings))
+        _seerrStore = State(initialValue: SeerrStore())
+        _sharePlayCoordinator = State(initialValue: SharePlayCoordinator(sessionManager: session))
+        _mainCoordinator = StateObject(wrappedValue: MainCoordinator(settingsManager: settings))
 
-        _sharePlayCoordinator = State(initialValue: SharePlayCoordinator(
-            sessionManager: session,
-            context: context
-        ))
-
-        // DownloadManager: inject so MediaDetailHeaderSection's @Environment(DownloadManager.self)
-        // resolves. Plinx supports downloads as a passthrough from Strimr.
         #if !os(tvOS)
         DownloadUITestFixtures.seedIfNeeded(environment: processEnvironment)
+        _downloadManager = State(initialValue: DownloadManager(settingsManager: settings))
         #endif
-        let downloads = DownloadManager(settingsManager: settings)
-        LivePlexUITestBootstrap.bootstrapIfNeeded(
-            environment: processEnvironment,
-            sessionManager: session,
-            context: context
-        )
-        DemoFixtureBootstrap.bootstrapForUITestIfNeeded(
-            environment: processEnvironment,
-            sessionManager: session,
-            context: context
-        )
-        _downloadManager = State(initialValue: downloads)
-        _parentalAccessCoordinator = State(initialValue: ParentalAccessCoordinator())
-        _downloadOwnershipStore = State(
-            initialValue: DownloadOwnershipStore(
-                existingDownloadItems: downloads.items,
-                canMigrateExistingDownloads: downloads.persistedIndexState.permitsOwnershipMigration
-            )
-        )
-        _sessionAccessCoordinator = State(initialValue: PlinxSessionAccessCoordinator())
 
-        // Layer 2: Plinx safety + theming are initialized via property defaults.
+        LivePlexUITestBootstrap.bootstrapIfNeeded(environment: processEnvironment, sessionManager: session)
+        DemoFixtureBootstrap.bootstrapForUITestIfNeeded(environment: processEnvironment, sessionManager: session)
     }
 
     // MARK: - Scene
@@ -162,23 +177,29 @@ struct PlinxApp: App {
         WindowGroup {
             PlinxContentView()
                 .defaultAppStorage(isDemoSession ? DemoPreferences.defaults : .standard)
-                // ── Strimr service injection ────────────────────────
-                .environment(plexApiContext)
+                // ── Media stack ─────────────────────────────────────
                 .environment(sessionManager)
+                .environment(sessionManager.registry)
                 .environment(isDemoSession ? DemoPreferences.settings : settingsManager)
                 .environment(libraryStore)
-                .environmentObject(mainCoordinator)
+                .environment(seerrStore)
                 .environment(sharePlayCoordinator)
+                .environmentObject(mainCoordinator)
+            #if !os(tvOS)
                 .environment(downloadManager)
-                .environment(isDemoSession ? DemoPreferences.parentalAccess : parentalAccessCoordinator)
-                .environment(downloadOwnershipStore)
-                .environment(sessionAccessCoordinator)
+                .environment(OfflineCoordinator.shared)
+            #endif
+                // ── Plinx layer ─────────────────────────────────────
+                .environment(effectiveParentalAccess)
+                .environment(watchStatusStore)
+                .environmentObject(playbackLaunchCoordinator)
+                .environmentObject(playbackCoordinator)
                 .environment(\.sharePlayPresentationPolicy, .hidden)
-                // ── Plinx layer injection ───────────────────────────
                 .environment(\.plinxTheme, theme)
                 .environment(\.safetyPolicy, safetyPolicy)
-                .environmentObject(playbackCoordinator)
+                .modifier(ContentSafetyBoundarySync(policy: safetyPolicy, parentalAccess: effectiveParentalAccess))
                 // ── Global configuration ────────────────────────────
+                .toastHost()
                 .preferredColorScheme(.dark)
                 .fontDesign(.rounded)
                 .tint(accentColor)
@@ -190,32 +211,77 @@ struct PlinxApp: App {
                     AppearanceSetup.apply(theme, accentColor: UIColor(accentColor))
                 }
                 .onChange(of: scenePhase) { _, newPhase in
+                    // Protected UI never survives leaving the foreground.
                     if newPhase != .active {
                         parentalAccessCoordinator.lock()
                         DemoPreferences.parentalAccess.lock()
                     }
                 }
-            // ── Lifecycle hardening ─────────────────────────────
-            #if !os(tvOS)
-                .lifecycleHardening(
-                    coordinator: playbackCoordinator,
-                    mainCoordinator: mainCoordinator,
-                    downloadManager: downloadManager,
-                    plexApiContext: plexApiContext,
-                    sessionManager: sessionManager,
-                    sessionAccessCoordinator: sessionAccessCoordinator,
-                    downloadOwnershipStore: downloadOwnershipStore
-                )
-            #else
+                // ── Lifecycle hardening ─────────────────────────────
                 .lifecycleHardening(
                     coordinator: playbackCoordinator,
                     mainCoordinator: mainCoordinator
                 )
-            #endif
             #if !os(tvOS)
-            // ── Touch-only baby lock overlay ───────────────────
+                // ── Touch-only baby lock overlay ───────────────────
                 .babyLock(isEnabled: isDemoSession ? $demoBabyLockEnabled : $babyLockEnabled)
             #endif
+        }
+    }
+}
+
+// MARK: - Safety preferences
+
+/// Parent-controlled ceilings stored in `UserDefaults`. Missing or unknown
+/// values fall back to the strictest defaults (G, TV-Y, unrated hidden).
+enum PlinxSafetyPreferences {
+    static let maxMovieRatingKey = "plinx.maxMovieRating"
+    static let maxTVRatingKey = "plinx.maxTVRating"
+    static let excludeUnratedKey = "plinx.excludeUnrated"
+    static let defaultMovieRating = PlinxRating.g
+    static let defaultTVRating = PlinxRating.tvY
+
+    static func policy(maxMovieRating: String, maxTVRating: String, excludeUnrated: Bool) -> SafetyPolicy {
+        SafetyPolicy.ratingOnly(
+            maxMovie: PlinxRating.from(contentRating: maxMovieRating) ?? defaultMovieRating,
+            maxTV: PlinxRating.from(contentRating: maxTVRating) ?? defaultTVRating,
+            allowUnrated: !excludeUnrated
+        )
+    }
+
+    /// The family policy as persisted, read before SwiftUI property wrappers exist.
+    static func storedPolicy(defaults: UserDefaults = .standard) -> SafetyPolicy {
+        policy(
+            maxMovieRating: defaults.string(forKey: maxMovieRatingKey) ?? defaultMovieRating.rawValue,
+            maxTVRating: defaults.string(forKey: maxTVRatingKey) ?? defaultTVRating.rawValue,
+            excludeUnrated: defaults.object(forKey: excludeUnratedKey) as? Bool ?? true
+        )
+    }
+}
+
+// MARK: - Safety boundary synchronisation
+
+/// Keeps `ContentSafetyGate.shared` equal to the policy the app computes and
+/// to the effective parental gate (the demo has its own coordinator).
+private struct ContentSafetyBoundarySync: ViewModifier {
+    let policy: SafetyPolicy
+    let parentalAccess: ParentalAccessCoordinator
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear(perform: synchronize)
+            .onChange(of: policy) { _, _ in synchronize() }
+            .onChange(of: parentalAccess.isUnlocked) { _, _ in synchronize() }
+            .onChange(of: ObjectIdentifier(parentalAccess)) { _, _ in synchronize() }
+    }
+
+    private func synchronize() {
+        let gate = ContentSafetyGate.shared
+        if gate.policy != policy {
+            gate.policy = policy
+        }
+        if gate.isParentUnlocked != parentalAccess.isUnlocked {
+            gate.isParentUnlocked = parentalAccess.isUnlocked
         }
     }
 }

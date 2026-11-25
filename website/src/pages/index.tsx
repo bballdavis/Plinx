@@ -71,9 +71,9 @@ export default function Home() {
           </div>
           <div>
             <p className={styles.eyebrow}>For contributors</p>
-            <h2>Plinx and Strimr, clearly mapped.</h2>
-            <p>Follow the supported sibling-checkout workflow, exact dependency pin, test layers, and ownership boundaries.</p>
-            <Link to="/docs/architecture/strimr-integration">Understand the integration →</Link>
+            <h2>One codebase, one safety boundary.</h2>
+            <p>See how the app is layered, where every title is checked against the parent's rules, how upstream Strimr changes are ported, and which tests guard each layer.</p>
+            <Link to="/docs/architecture/strimr-integration">Explore the architecture →</Link>
           </div>
         </section>
       </main>

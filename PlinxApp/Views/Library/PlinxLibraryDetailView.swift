@@ -1,22 +1,16 @@
-import OSLog
 import PlinxCore
 import PlinxUI
 import SwiftUI
 
 /// Plinx-specific library detail screen.
 ///
-/// This view owns all kid-safety, branding, and navigation chrome for the
-/// library drill-down. Plinx owns the presentation wrappers while Strimr
-/// supplies the library view models and their filtering seams.
+/// Plinx owns the branding, layout and navigation chrome of the library
+/// drill-down. The upstream library view models supply the content through the
+/// screen's `MediaServices` (provided by `ServerScopedView`), which
+/// `SafeMediaServices` has already filtered against the parent's policy.
 struct PlinxLibraryDetailView: View {
-    private static let logger = Logger(
-        subsystem: Bundle.main.bundleIdentifier ?? "Plinx",
-        category: "LibraryDetailSafety"
-    )
-
-    @Environment(PlexAPIContext.self) private var plexApiContext
+    @Environment(MediaServices.self) private var mediaServices
     @Environment(SettingsManager.self) private var settingsManager
-    @Environment(\.safetyPolicy) private var safetyPolicy
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var mainCoordinator: MainCoordinator
     #if os(tvOS)
@@ -30,7 +24,9 @@ struct PlinxLibraryDetailView: View {
     var onRequestShellNavigationFocus: () -> Void = {}
     var contentFocusRequest: Int = 0
 
-    @State private var selectedTab: LibraryDetailTab = .recommended
+    /// The tab the child picked on this visit; `nil` shows the library's default tab.
+    @State private var chosenTab: LibraryDetailTab?
+    @State private var browseSession = LibraryBrowseSession()
     #if os(tvOS)
     @State private var tvHeroMedia: MediaItem?
     @FocusState private var focusedLibraryFilterTab: LibraryDetailTab?
@@ -42,16 +38,11 @@ struct PlinxLibraryDetailView: View {
     var body: some View {
         Group {
             #if os(tvOS)
-            if selectedTab == .playlists {
-                selectedTabContent
-                    .safeAreaInset(edge: .top, spacing: 0) {
-                        tvHeaderContent
-                    }
-            } else {
-                tvSharedLayout
-            }
+            tvSharedLayout
             #else
             selectedTabContent
+                // A new content policy rebuilds the tab, so nothing loaded under the old one stays on screen.
+                .id(ContentSafetyGate.shared.revision)
             #endif
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -61,11 +52,6 @@ struct PlinxLibraryDetailView: View {
         )
         .navigationBarBackButtonHidden(true)
         .toolbarBackground(.hidden, for: .navigationBar)
-        .onChange(of: settingsManager.interface.displayCollections) { _, displayCollections in
-            if !displayCollections, selectedTab == .collections {
-                selectedTab = .recommended
-            }
-        }
         #if os(tvOS)
         .onChange(of: selectedTab) { _, newTab in
             focusedLibraryFilterTab = newTab
@@ -102,17 +88,54 @@ struct PlinxLibraryDetailView: View {
         #endif
     }
 
+    // MARK: - Tabs
+
+    /// Upstream's tabs for this library and provider. Playlists have no
+    /// kid-facing surface in Plinx, so that tab is never offered.
+    private var availableTabs: [LibraryDetailTab] {
+        LibraryDetailTab.available(
+            for: library,
+            provider: mediaServices.provider,
+            displaysCollections: settingsManager.interface.displayCollections,
+            displaysPlaylists: false
+        )
+    }
+
+    /// Falls back to the default tab when the chosen one has since been hidden in settings.
+    private var selectedTab: LibraryDetailTab {
+        LibraryDetailTab.resolved(saved: chosenTab, available: availableTabs, library: library)
+    }
+
+    private var selectedTabBinding: Binding<LibraryDetailTab> {
+        Binding { selectedTab } set: { chosenTab = $0 }
+    }
+
+    // MARK: - View models
+
+    private func makeRecommendedViewModel() -> LibraryRecommendedViewModel {
+        LibraryRecommendedViewModel(library: library, services: mediaServices, settingsManager: settingsManager)
+    }
+
+    private func makeBrowseViewModel() -> LibraryBrowseViewModel {
+        LibraryBrowseViewModel(
+            library: library,
+            services: mediaServices,
+            settingsManager: settingsManager,
+            browseSession: browseSession
+        )
+    }
+
+    private func usesLandscapeCards(on surface: LibraryCardLayoutPolicy.DetailSurface) -> Bool {
+        LibraryCardLayoutPolicy.usesLandscapeDetailCards(for: library, surface: surface)
+    }
+
+    // MARK: - iOS
+
+    #if !os(tvOS)
     @ViewBuilder
     private var selectedTabContent: some View {
         switch selectedTab {
         case .recommended:
-            #if os(tvOS)
-            LibraryTVRecommendedView(
-                viewModel: makeRecommendedViewModel(),
-                heroMedia: $tvHeroMedia,
-                onSelectMedia: onSelectMedia
-            )
-            #else
             PlinxLibraryRecommendedContentView(
                 viewModel: makeRecommendedViewModel(),
                 onSelectMedia: onSelectMedia,
@@ -123,44 +146,27 @@ struct PlinxLibraryDetailView: View {
                     mainCoordinator.showHubDetail(hub)
                 }
             )
-            #endif
         case .browse:
-            #if os(tvOS)
-            LibraryBrowseView(
-                viewModel: makeBrowseViewModel(),
-                onSelectMedia: onSelectMedia
-            )
-            #else
             PlinxLibraryBrowseContentView(
                 viewModel: makeBrowseViewModel(),
                 onSelectMedia: onSelectMedia,
                 onLongPressMedia: onLongPressMedia,
                 topContent: scrollingTopContent,
-                overrideLayout: preferredCarouselLayout,
-                showsControls: false
+                usesLandscapeCards: usesLandscapeCards(on: .browse)
             )
-            #endif
         case .collections:
-            #if os(tvOS)
-            LibraryCollectionsView(
-                viewModel: makeCollectionsViewModel(),
-                onSelectMedia: onSelectMedia
-            )
-            #else
             PlinxLibraryCollectionsContentView(
-                viewModel: makeCollectionsViewModel(),
+                viewModel: LibraryCollectionsViewModel(library: library, services: mediaServices),
                 onSelectMedia: onSelectMedia,
                 onLongPressMedia: onLongPressMedia,
                 topContent: scrollingTopContent
             )
-            #endif
         case .playlists:
             EmptyView()
         }
     }
 
-    // MARK: - Top content (scrolls with each tab's list)
-
+    /// Scrolls with each tab's list.
     private var scrollingTopContent: AnyView {
         AnyView(
             VStack(alignment: .leading, spacing: 8) {
@@ -177,8 +183,8 @@ struct PlinxLibraryDetailView: View {
                     Spacer(minLength: 0)
                 }
 
-                ZStack(alignment: .trailing) {
-                    PlinxLibraryTabPicker(tabs: availableTabs, selectedTab: $selectedTab)
+                if availableTabs.count > 1 {
+                    PlinxLibraryTabPicker(tabs: availableTabs, selectedTab: selectedTabBinding)
                         .frame(height: 76)
                         .frame(maxWidth: .infinity, alignment: .center)
                 }
@@ -187,27 +193,20 @@ struct PlinxLibraryDetailView: View {
         )
     }
 
-    // MARK: - Tab helpers
-
-    private var availableTabs: [LibraryDetailTab] {
-        LibraryDetailTab.allCases.filter { tab in
-            switch tab {
-            case .playlists:
-                // Plinx: playlists surface is hidden — not suitable for the
-                // primary kid-facing library tab.
-                false
-            case .collections:
-                settingsManager.interface.displayCollections
-            default:
-                true
-            }
-        }
+    /// Portrait (poster) for standard movie/TV libraries; landscape (letterbox)
+    /// for "none"-agent libraries (YouTube, Home Videos) and clip libraries.
+    private var preferredCarouselLayout: MediaCarousel.Layout? {
+        LibraryCardLayoutPolicy.prefersLandscape(for: library) ? .landscape : nil
     }
+    #endif
+
+    // MARK: - tvOS
 
     #if os(tvOS)
     private var tvSharedLayout: some View {
         SharedTvBrowsePageLayout(
             heroMedia: mediaFocusModel.focusedMedia ?? tvHeroMedia,
+            // Always shown, even with one tab: the shell routes focus into this row.
             showsFilters: true,
             navigationContent: {
                 EmptyView()
@@ -215,20 +214,22 @@ struct PlinxLibraryDetailView: View {
             filterContent: {
                 tvFilterRow
             },
-            rowsContent: { scrollProxy in
-                tvRowsContent(scrollProxy: scrollProxy)
+            rowsContent: { _ in
+                tvRowsContent
+                    // A new content policy rebuilds the rows, so nothing loaded under the old one stays on screen.
+                    .id(ContentSafetyGate.shared.revision)
             }
         )
     }
 
     @ViewBuilder
-    private func tvRowsContent(scrollProxy: ScrollViewProxy) -> some View {
+    private var tvRowsContent: some View {
         switch selectedTab {
         case .recommended:
             PlinxLibraryRecommendedRowsView(
                 viewModel: makeRecommendedViewModel(),
                 heroMedia: $tvHeroMedia,
-                usesLandscapeCards: LibraryCardLayoutPolicy.usesLandscapeDetailCards(for: library, surface: .recommended),
+                usesLandscapeCards: usesLandscapeCards(on: .recommended),
                 onSelectMedia: onSelectMedia,
                 onLongPressMedia: onLongPressMedia
             )
@@ -238,29 +239,23 @@ struct PlinxLibraryDetailView: View {
             PlinxLibraryBrowseRowsView(
                 viewModel: makeBrowseViewModel(),
                 heroMedia: $tvHeroMedia,
-                usesLandscapeCards: LibraryCardLayoutPolicy.usesLandscapeDetailCards(for: library, surface: .browse),
+                usesLandscapeCards: usesLandscapeCards(on: .browse),
                 onSelectMedia: onSelectMedia,
-                onLongPressMedia: onLongPressMedia,
-                onJumpToIndex: { index in
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        scrollProxy.scrollTo(index, anchor: .top)
-                    }
-                }
+                onLongPressMedia: onLongPressMedia
             )
             .padding(.horizontal, TvBrowseHeroMetrics.alignedContentInset)
             .padding(.bottom, 28)
         case .collections:
             PlinxLibraryCollectionsRowsView(
-                viewModel: makeCollectionsViewModel(),
+                viewModel: LibraryCollectionsViewModel(
+                    library: library,
+                    services: mediaServices,
+                    settingsManager: settingsManager
+                ),
                 heroMedia: $tvHeroMedia,
-                usesLandscapeCards: LibraryCardLayoutPolicy.usesLandscapeDetailCards(for: library, surface: .collections),
+                usesLandscapeCards: usesLandscapeCards(on: .collections),
                 onSelectMedia: onSelectMedia,
-                onLongPressMedia: onLongPressMedia,
-                onJumpToIndex: { index in
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        scrollProxy.scrollTo(index, anchor: .top)
-                    }
-                }
+                onLongPressMedia: onLongPressMedia
             )
             .padding(.horizontal, TvBrowseHeroMetrics.alignedContentInset)
             .padding(.bottom, 28)
@@ -280,7 +275,7 @@ struct PlinxLibraryDetailView: View {
 
     private func tvFilterButton(tab: LibraryDetailTab) -> some View {
         Button {
-            selectedTab = tab
+            chosenTab = tab
             focusedLibraryFilterTab = tab
         } label: {
             HStack(spacing: 6) {
@@ -301,96 +296,5 @@ struct PlinxLibraryDetailView: View {
             onRequestShellNavigationFocus()
         }
     }
-
-    private var tvHeaderContent: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Color.clear
-                .frame(height: PlinxTVShellMetrics.contentClearance + 12)
-                .accessibilityHidden(true)
-
-            // Library sub-tabs (Recommended / Browse / Collections)
-            tvFilterRow
-        }
-        .padding(.horizontal, 10)
-        .padding(.top, 2)
-        .padding(.bottom, 12)
-        .background(
-            LinearGradient(
-                colors: [Color.black.opacity(0.72), Color.black.opacity(0.46), Color.black.opacity(0.10)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
-    }
     #endif
-
-    // MARK: - Layout heuristic
-
-    /// Portrait (poster) for standard movie/TV libraries; landscape (letterbox)
-    /// for "none"-agent libraries (YouTube, Home Videos) and clip libraries.
-    private var preferredCarouselLayout: MediaCarousel.Layout? {
-        LibraryCardLayoutPolicy.prefersLandscape(for: library) ? .landscape : nil
-    }
-
-    // MARK: - ViewModel factories (Plinx-side safety injection)
-
-    private func makeRecommendedViewModel() -> LibraryRecommendedViewModel {
-        let vm = LibraryRecommendedViewModel(library: library, context: plexApiContext)
-        let policy = safetyPolicy
-        vm.hubFilter = { hub in filterRecommendedHub(hub, policy: policy) }
-        return vm
-    }
-
-    private func makeBrowseViewModel() -> LibraryBrowseViewModel {
-        let vm = LibraryBrowseViewModel(
-            library: library,
-            context: plexApiContext,
-            settingsManager: settingsManager
-        )
-        let policy = safetyPolicy
-        let libType = library.type
-        vm.itemFilter = { item in
-            if (libType == .movie || libType == .show), case .collection = item {
-                return false
-            }
-            return PlinxContentAuthorization.isAllowed(item, policy: policy)
-        }
-        return vm
-    }
-
-    private func makeCollectionsViewModel() -> LibraryCollectionsViewModel {
-        #if os(tvOS)
-        let vm = LibraryCollectionsViewModel(
-            library: library,
-            context: plexApiContext,
-            settingsManager: settingsManager
-        )
-        let policy = safetyPolicy
-        vm.itemFilter = { item in
-            PlinxContentAuthorization.isAllowed(item, policy: policy)
-        }
-        #else
-        let vm = LibraryCollectionsViewModel(library: library, context: plexApiContext)
-        let policy = safetyPolicy
-        vm.itemFilter = { item in
-            PlinxContentAuthorization.isAllowed(item, policy: policy)
-        }
-        #endif
-        return vm
-    }
-
-    private func filterRecommendedHub(_ hub: Hub, policy: SafetyPolicy) -> Hub? {
-        guard let safetyFiltered = PlinxContentAuthorization.filtered(hub, policy: policy) else {
-            Self.logger.debug(
-                "Drop hub id=\(hub.id, privacy: .public) title=\(hub.title, privacy: .public) reason=safety_filter_empty"
-            )
-            return nil
-        }
-        if safetyFiltered.items.count != hub.items.count {
-            Self.logger.debug(
-                "Filtered hub id=\(hub.id, privacy: .public) title=\(hub.title, privacy: .public) before=\(hub.items.count) after=\(safetyFiltered.items.count)"
-            )
-        }
-        return safetyFiltered
-    }
 }

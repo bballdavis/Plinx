@@ -46,6 +46,8 @@ protocol MediaAuthorizationService: AnyObject {
     var authorization: MediaAuthorization { get }
 }
 
+/// A server's services. Every service is the `SafeMediaServices` wrapper of the provider's: built here, so no
+/// unfiltered `MediaServices` can exist.
 @MainActor
 @Observable
 final class MediaServices {
@@ -69,6 +71,7 @@ final class MediaServices {
     let trackSelectionAccountIdentifier: String?
     @ObservationIgnored let versionSelectionStore: MediaVersionSelectionStore?
     @ObservationIgnored private let authorizationService: any MediaAuthorizationService
+    @ObservationIgnored let contentGate: ContentSafetyGate
     /// URL of an unauthenticated endpoint used to probe the server's reachability.
     @ObservationIgnored var availabilityProbeURL: (() -> URL?)?
     @ObservationIgnored var accountPreferences: (any AccountPreferencesService)?
@@ -102,9 +105,7 @@ final class MediaServices {
 
     func noteMediaDeleted(itemID: String) {
         deletedMediaIDs.insert(itemID)
-        #if !os(tvOS)
-            (detail as? CachedDetailService)?.forgetDeletedMedia(itemID: itemID)
-        #endif
+        (detail as? any OfflineDetailCacheReading)?.forgetDeletedMedia(itemID: itemID)
         noteMediaChanged(itemID: itemID)
     }
 
@@ -119,9 +120,9 @@ final class MediaServices {
         }
     }
 
-    /// Any change the home shows: watch state or the media themselves.
+    /// Any change the home shows: watch state, the media themselves, or the parent's content policy.
     var homeContentRevision: Int {
-        watchStateRevision + mediaRevision
+        watchStateRevision + mediaRevision + contentGate.revision
     }
 
     /// Scope of per-server preferences such as library browsing. A profile has one link per server, so the server and
@@ -154,29 +155,46 @@ final class MediaServices {
         trackSelectionCoordinator: TrackSelectionCoordinator? = nil,
         trackSelectionAccountIdentifier: String? = nil,
         versionSelectionStore: MediaVersionSelectionStore? = nil,
+        contentGate: ContentSafetyGate = .shared,
     ) {
+        let safe = SafeMediaServices(
+            gate: contentGate,
+            home: home,
+            library: library,
+            search: search,
+            artwork: artwork,
+            detail: detail,
+            favorites: favorites,
+            playlists: playlists,
+            playback: playback,
+            liveTV: liveTV,
+            downloads: downloads,
+            authorization: authorization,
+            management: management ?? UnsupportedMediaManagementService(),
+        )
         self.provider = provider
         self.identity = identity
         self.serverName = serverName
         self.capabilities = capabilities
-        self.home = home
-        self.library = library
-        self.search = search
-        self.artwork = artwork
-        self.detail = detail
-        self.favorites = favorites
-        self.playlists = playlists
-        self.playback = playback
-        self.liveTV = liveTV
+        self.home = safe.home
+        self.library = safe.library
+        self.search = safe.search
+        self.artwork = safe.artwork
+        self.detail = safe.detail
+        self.favorites = safe.favorites
+        self.playlists = safe.playlists
+        self.playback = safe.playback
+        self.liveTV = safe.liveTV
         liveTVStore = LiveTVStore(
-            service: liveTV,
+            service: safe.liveTV,
             recentChannels: LiveTVRecentChannels(server: identity, userID: trackSelectionAccountIdentifier),
         )
-        self.downloads = downloads
-        self.management = management ?? UnsupportedMediaManagementService()
+        self.downloads = safe.downloads
+        self.management = safe.management
         self.trackSelectionCoordinator = trackSelectionCoordinator
         self.trackSelectionAccountIdentifier = trackSelectionAccountIdentifier
         self.versionSelectionStore = versionSelectionStore
-        authorizationService = authorization
+        authorizationService = safe.authorization
+        self.contentGate = contentGate
     }
 }

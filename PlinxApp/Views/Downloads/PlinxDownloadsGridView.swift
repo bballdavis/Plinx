@@ -11,35 +11,35 @@ import AppKit
 private typealias PlatformImage = NSImage
 #endif
 
-/// The main downloads tab: a 5-column poster grid with an Edit button that
-/// opens the download management list (storage info, delete, etc.).
+/// The main downloads tab: a poster grid (or list) of the active profile's
+/// downloads, with an Edit button that opens the parent-gated management list
+/// (storage, every download on the device, delete).
+///
+/// Only downloads `DownloadAccessPolicy` allows are shown: owned by the active
+/// profile (upstream `ownerID`) and allowed by the current content policy
+/// through `ContentSafetyGate`. Playback goes through the app's single player
+/// presentation (`MainCoordinator.showLocalPlayer`), whose player re-checks the
+/// title before it loads.
 @MainActor
 struct PlinxDownloadsGridView: View {
     @Environment(DownloadManager.self) private var downloadManager
-    @Environment(PlexAPIContext.self) private var context
-    @Environment(SessionManager.self) private var sessionManager
-    @Environment(PlinxSessionAccessCoordinator.self) private var sessionAccessCoordinator
+    @Environment(ServerRegistry.self) private var registry
+    @Environment(SettingsManager.self) private var settingsManager
     @Environment(ParentalAccessCoordinator.self) private var parentalAccessCoordinator
-    @Environment(DownloadOwnershipStore.self) private var downloadOwnershipStore
-    @Environment(\.safetyPolicy) private var safetyPolicy
     @EnvironmentObject private var mainCoordinator: MainCoordinator
-    @State private var selectedDownload: DownloadItem?
     @State private var failedDownloadForActions: DownloadItem?
     @State private var failedDownloadActionError: String?
+    @State private var showsUnavailableDownload = false
     @State private var showManage = false
     @State private var layoutMode: LayoutMode = .grid
     @State private var viewportSize: CGSize = .zero
 
     private var accessPolicy: DownloadAccessPolicy {
-        DownloadAccessPolicy(
-            safetyPolicy: safetyPolicy,
-            currentIdentity: sessionManager.effectiveDownloadIdentity(using: sessionAccessCoordinator),
-            ownershipStore: downloadOwnershipStore
-        )
+        DownloadAccessPolicy(downloadManager: downloadManager)
     }
 
     private var visibleDownloads: [DownloadItem] {
-        accessPolicy.filter(downloadManager.sortedItems)
+        accessPolicy.filter(downloadManager.sortedOwnedItems)
     }
 
     private enum LayoutMode {
@@ -177,9 +177,6 @@ struct PlinxDownloadsGridView: View {
                 parentalAccessCoordinator.lock()
             }
         }
-        .fullScreenCover(item: $selectedDownload) { item in
-            OfflineDownloadPlayerView(item: item)
-        }
         .confirmationDialog(
             Text(failedDownloadForActions?.metadata.title ?? ""),
             isPresented: Binding(
@@ -212,28 +209,14 @@ struct PlinxDownloadsGridView: View {
         } message: {
             Text(failedDownloadActionError ?? "")
         }
-        .task(id: artworkReconciliationID) {
-            if downloadManager.persistedIndexState.permitsOwnershipMigration {
-                downloadOwnershipStore.prune(keeping: Set(downloadManager.items.map(\.id)))
-            }
-            if let currentIdentity = accessPolicy.currentIdentity {
-                downloadManager.resumePendingDownloads(
-                    context: context,
-                    eligibleDownloadIDs: downloadOwnershipStore
-                        .downloadIDs(ownedBy: currentIdentity)
-                        .intersection(visibleDownloads.map(\.id))
-                )
-            }
-            await downloadManager.reconcileArtworkMetadataIfNeeded(context: context)
+        .alert(
+            Text("downloads.offline.unavailable.title", tableName: "Plinx"),
+            isPresented: $showsUnavailableDownload
+        ) {
+            Button(String(localized: "common.actions.ok", table: "Plinx"), role: .cancel) {}
+        } message: {
+            Text("downloads.offline.unavailable.message", tableName: "Plinx")
         }
-    }
-
-    private var artworkReconciliationID: String {
-        return visibleDownloads
-            .map { item in
-                "\(item.id):\(item.metadata.artworkLayoutStyle?.rawValue ?? "unknown")"
-            }
-            .joined(separator: "|")
     }
 
     // MARK: - Tap handling
@@ -241,7 +224,7 @@ struct PlinxDownloadsGridView: View {
     private func handleTap(on item: DownloadItem) {
         switch DownloadTapAction.resolve(for: item, decision: accessPolicy.decision(for: item)) {
         case .play:
-            selectedDownload = item
+            play(item)
         case .showFailureActions:
             failedDownloadForActions = item
         case .none:
@@ -249,29 +232,60 @@ struct PlinxDownloadsGridView: View {
         }
     }
 
+    /// Plays the local file through the app's player presentation. The
+    /// request carries the download's owner, so watch progress is recorded
+    /// for that profile and synchronized once its server is reachable.
+    private func play(_ item: DownloadItem) {
+        guard accessPolicy.decision(for: item) == .allowed,
+              let request = downloadManager.localPlaybackRequest(for: item),
+              ContentSafetyGate.shared.isAllowed(request.media)
+        else {
+            showsUnavailableDownload = true
+            return
+        }
+        mainCoordinator.showLocalPlayer(request)
+    }
+
     private func remove(_ item: DownloadItem) async {
         guard accessPolicy.decision(for: item) == .allowed, item.status == .failed else { return }
         await downloadManager.delete(item)
     }
 
-    /// Starts a fresh download of the same item, then removes the failed
-    /// entry. Enqueueing first keeps the failed entry when the new request
-    /// cannot start, for example while offline. The new request goes through
-    /// the normal enrollment path, which re-checks content controls against
-    /// the server's current metadata.
+    /// Restarts a failed download. Upstream's retry resumes from the partial
+    /// file when iOS kept one, else prepares it again on the server, which goes
+    /// through the safety boundary and re-checks the title against the
+    /// server's current metadata. When the download cannot be retried in place
+    /// (its server's services are not registered yet), a fresh download is
+    /// enqueued first and the failed entry removed only once it started, so
+    /// nothing is lost while offline.
     private func redownload(_ item: DownloadItem) async {
-        guard accessPolicy.decision(for: item) == .allowed, item.status == .failed else { return }
-        guard sessionManager.plinxDownloadOwnerIdentity != nil else {
-            failedDownloadActionError = String(localized: "downloads.ownerUnavailable", table: "Plinx")
+        guard accessPolicy.decision(for: item) == .allowed, item.status == .failed,
+              let current = downloadManager.items.first(where: { $0.id == item.id })
+        else { return }
+
+        if downloadManager.canRetry(current) {
+            downloadManager.retry(current)
             return
         }
-        let newDownloadIDs = await downloadManager.enqueueItem(ratingKey: item.ratingKey, context: context)
+        // A newer copy of the same title is already scheduled or finished:
+        // that copy is the redownload, so only the failed entry goes.
+        guard current.canRetry(among: downloadManager.items) else {
+            await downloadManager.delete(current)
+            return
+        }
+        guard let server = current.identity?.server,
+              let services = registry.services(for: server)
+        else {
+            failedDownloadActionError = String(localized: "downloads.failed.redownloadError.message", table: "Plinx")
+            return
+        }
+        let newDownloadIDs = await downloadManager.enqueueItem(itemID: current.itemID, services: services)
         guard !newDownloadIDs.isEmpty else {
             failedDownloadActionError = String(localized: "downloads.failed.redownloadError.message", table: "Plinx")
             return
         }
-        if let current = downloadManager.items.first(where: { $0.id == item.id }) {
-            await downloadManager.delete(current)
+        if let stale = downloadManager.items.first(where: { $0.id == item.id }) {
+            await downloadManager.delete(stale)
         }
     }
 
@@ -462,11 +476,11 @@ struct PlinxDownloadsGridView: View {
             return joinedMeta([item.metadata.year.map(String.init), item.metadata.contentRating])
         case .season:
             return item.metadata.parentTitle
-        case .show:
+        case .series:
             return joinedMeta([item.metadata.contentRating, item.metadata.year.map(String.init)])
         case .clip:
             return item.metadata.year.map(String.init)
-        default:
+        case .collection, .playlist, .folder, .unknown:
             return item.metadata.subtitle
         }
     }
@@ -480,32 +494,21 @@ struct PlinxDownloadsGridView: View {
     }
 
     private func tertiaryLabel(for item: DownloadItem) -> String? {
-        switch item.status {
-        case .queued:
-            return NSLocalizedString("downloads.status.queued", tableName: "Plinx", comment: "")
-        case .deciding:
-            return NSLocalizedString("downloads.status.deciding", tableName: "Plinx", comment: "")
-        case .preparing:
-            return String.localizedStringWithFormat(
-                NSLocalizedString(
-                    item.preparationProgress == nil
-                        ? "downloads.status.preparing %lld"
-                        : "downloads.status.transcoding %lld",
-                    tableName: "Plinx",
-                    comment: ""
-                ),
-                Int64(((item.preparationProgress ?? 0) * 100).rounded())
-            )
-        case .downloading:
-            return String.localizedStringWithFormat(
-                NSLocalizedString("downloads.status.downloading %lld", tableName: "Plinx", comment: ""),
-                Int64((item.progress * 100).rounded())
-            )
-        case .completed:
-            return nil
-        case .failed:
-            return NSLocalizedString("downloads.status.failed", tableName: "Plinx", comment: "")
-        }
+        DownloadStatusText.label(
+            for: item,
+            isWaitingForWiFi: isWaitingForWiFi(item)
+        )
+    }
+
+    /// Same rule as upstream's downloads list: a transfer that has not
+    /// received a byte while Wi-Fi only applies and the device is off Wi-Fi.
+    private func isWaitingForWiFi(_ item: DownloadItem) -> Bool {
+        item.status == .downloading
+            && (item.allowsCellularAccess.map { !$0 } ?? settingsManager.downloads.wifiOnly)
+            && downloadManager.isOnWiFi == false
+            && item.progress == 0
+            && item.bytesWritten == 0
+            && item.taskIdentifier != nil
     }
 
     private func joinedMeta(_ parts: [String?]) -> String? {
@@ -544,15 +547,11 @@ struct PlinxDownloadsGridView: View {
             if item.status == .downloading || item.status == .preparing {
                 VStack {
                     Spacer()
-                    ProgressView(
-                        value: item.status == .preparing
-                            ? item.preparationProgress
-                            : item.progress
-                    )
-                    .progressViewStyle(.linear)
-                    .tint(Color.accentColor)
-                    .padding(.horizontal, 4)
-                    .padding(.bottom, 4)
+                    ProgressView(value: DownloadStatusText.progressValue(for: item))
+                        .progressViewStyle(.linear)
+                        .tint(Color.accentColor)
+                        .padding(.horizontal, 4)
+                        .padding(.bottom, 4)
                 }
             }
         }
@@ -560,11 +559,7 @@ struct PlinxDownloadsGridView: View {
         .clipped()
         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         .overlay {
-            if item.status == .downloading
-                || item.status == .queued
-                || item.status == .deciding
-                || item.status == .preparing
-            {
+            if item.status.isActive {
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .strokeBorder(Color.accentColor, lineWidth: 2)
             }
@@ -668,109 +663,133 @@ struct PlinxDownloadsGridView: View {
     }
 }
 
-// MARK: - Manage view wrapper
+// MARK: - Manage view
 
-/// Wraps the original DownloadsView (list + storage info) with a custom
-/// back button matching the app's navigation chrome style.
+/// Parent-only download management, shown inside the parental gate: storage,
+/// the active profile's downloads, and every other download on the device
+/// (other profiles' downloads, downloads kept without an owner from earlier
+/// versions, and titles the current content policy blocks) so a parent can
+/// delete them. Nothing here plays.
 @MainActor
 struct PlinxDownloadsManageView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(DownloadManager.self) private var downloadManager
-    @Environment(SessionManager.self) private var sessionManager
-    @Environment(PlinxSessionAccessCoordinator.self) private var sessionAccessCoordinator
-    @Environment(DownloadOwnershipStore.self) private var downloadOwnershipStore
-    @Environment(\.safetyPolicy) private var safetyPolicy
+    @Environment(OfflineCoordinator.self) private var offlineCoordinator
+    @Environment(ParentalAccessCoordinator.self) private var parentalAccessCoordinator
 
-    private var visibleDownloads: [DownloadItem] {
-        DownloadAccessPolicy(
-            safetyPolicy: safetyPolicy,
-            currentIdentity: sessionManager.effectiveDownloadIdentity(using: sessionAccessCoordinator),
-            ownershipStore: downloadOwnershipStore
-        ).filter(downloadManager.sortedItems)
+    private var profileDownloads: [DownloadItem] {
+        DownloadAccessPolicy(downloadManager: downloadManager).filter(downloadManager.sortedOwnedItems)
+    }
+
+    /// Listed only while the parental gate is unlocked, so this view fails
+    /// closed if it is ever shown outside the gate.
+    private var otherDownloads: [DownloadItem] {
+        guard parentalAccessCoordinator.isUnlocked else { return [] }
+        let profileDownloadIDs = Set(profileDownloads.map(\.id))
+        return downloadManager.sortedItems.filter { !profileDownloadIDs.contains($0.id) }
     }
 
     var body: some View {
         List {
-            if visibleDownloads.isEmpty {
+            Section {
+                DownloadsStorageSummaryView(summary: downloadManager.storageSummary)
+            }
+
+            if profileDownloads.isEmpty, otherDownloads.isEmpty {
                 Text("downloads.empty.message", tableName: "Plinx")
                     .foregroundStyle(.secondary)
-            } else {
-                ForEach(visibleDownloads) { item in
-                    HStack(spacing: 12) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(item.metadata.title)
-                                .font(.headline)
-                                .lineLimit(2)
+            }
 
-                            Text(item.status.rawValue.capitalized)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-
-                            if let qualitySummary = qualitySummary(for: item) {
-                                Text(qualitySummary)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(2)
-                            }
-
-                            if let sizeSummary = sizeSummary(for: item) {
-                                Text(sizeSummary)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(2)
-                            }
-
-                            if let reason = qualityReason(for: item) {
-                                Text(reason)
-                                    .font(.caption2)
-                                    .foregroundStyle(
-                                        item.qualityResolutionReason == .serverRejectedProfile
-                                            ? Color.red
-                                            : Color.secondary
-                                    )
-                                    .lineLimit(2)
-                            }
-
-                            if item.status == .failed, let errorMessage = item.errorMessage {
-                                Text(errorMessage)
-                                    .font(.caption2)
-                                    .foregroundStyle(.red)
-                                    .lineLimit(2)
-                            }
-                        }
-
-                        Spacer()
-
-                        if item.status.isActive {
-                            ProgressView(
-                                value: item.status == .preparing
-                                    ? item.preparationProgress
-                                    : item.progress
-                            )
-                            .frame(width: 90)
-                        }
-
-                        Button(role: .destructive) {
-                            Task { await downloadManager.delete(item) }
-                        } label: {
-                            Image(systemName: "trash")
-                        }
-                        .buttonStyle(.plain)
+            if !profileDownloads.isEmpty {
+                Section {
+                    ForEach(profileDownloads) { item in
+                        row(item)
                     }
-                    .padding(.vertical, 4)
+                }
+            }
+
+            if !otherDownloads.isEmpty {
+                Section {
+                    ForEach(otherDownloads) { item in
+                        row(item)
+                    }
+                } header: {
+                    Text("offline.downloads.others")
+                } footer: {
+                    Text("offline.downloads.others.footer")
                 }
             }
         }
-        #if os(tvOS)
-        .listStyle(.plain)
-        #endif
         .safeAreaInset(edge: .top, spacing: 0) {
             manageHeader
         }
         .toolbar(.hidden, for: .navigationBar)
         .task {
-            await downloadManager.recheckNetworkStatus()
+            // Queued downloads waiting for a connection start as soon as the
+            // monitor sees one.
+            offlineCoordinator.availability.refresh()
         }
+    }
+
+    private func row(_ item: DownloadItem) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.metadata.title)
+                    .font(.headline)
+                    .lineLimit(2)
+
+                if let subtitle = item.metadata.subtitle {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                if let status = DownloadStatusText.label(for: item, isWaitingForWiFi: false) {
+                    Text(status)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                if let qualitySummary = qualitySummary(for: item) {
+                    Text(qualitySummary)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+
+                if let sizeSummary = sizeSummary(for: item) {
+                    Text(sizeSummary)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                if item.status == .failed, let errorMessage = item.errorMessage {
+                    Text(errorMessage)
+                        .font(.caption2)
+                        .foregroundStyle(.red)
+                        .lineLimit(2)
+                }
+            }
+
+            Spacer()
+
+            if item.status.isActive {
+                ProgressView(value: DownloadStatusText.progressValue(for: item))
+                    .frame(width: 90)
+            }
+
+            Button(role: .destructive) {
+                Task { await downloadManager.delete(item) }
+            } label: {
+                Image(systemName: "trash")
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("common.actions.delete"))
+            .accessibilityIdentifier("downloads.manage.delete.\(item.id)")
+        }
+        .padding(.vertical, 4)
     }
 
     private var manageHeader: some View {
@@ -785,65 +804,85 @@ struct PlinxDownloadsManageView: View {
         .padding(.bottom, 10)
     }
 
+    /// The version and, when it is not the original file, the quality that
+    /// was requested and the one the server produced.
     private func qualitySummary(for item: DownloadItem) -> String? {
-        guard let requestedQuality = item.requestedQuality else { return nil }
-        let effectiveQuality = item.effectiveQuality ?? requestedQuality
-        return String.localizedStringWithFormat(
-            NSLocalizedString("downloads.manage.quality", tableName: "Plinx", comment: ""),
-            requestedQuality.title,
-            effectiveQuality.title
-        )
+        let requested = item.metadata.requestedQuality
+        let effective = item.metadata.effectiveQuality
+        let quality: String? = if requested.isOriginal, effective.isOriginal {
+            nil
+        } else {
+            String.localizedStringWithFormat(
+                NSLocalizedString("downloads.manage.quality", tableName: "Plinx", comment: ""),
+                requested.title,
+                effective.title
+            )
+        }
+        let parts = [item.metadata.versionLabel, quality].compactMap { value -> String? in
+            guard let value, !value.isEmpty else { return nil }
+            return value
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " • ")
     }
 
     private func sizeSummary(for item: DownloadItem) -> String? {
-        var values: [String] = []
-        if let sourceFileSize = item.sourceFileSize, sourceFileSize > 0 {
-            values.append(String.localizedStringWithFormat(
-                NSLocalizedString("downloads.manage.sourceSize", tableName: "Plinx", comment: ""),
-                Self.formattedBytes(sourceFileSize)
-            ))
+        guard item.status == .completed, let fileSize = item.metadata.fileSize, fileSize > 0 else {
+            return nil
         }
-        if let estimatedOutputBytes = item.estimatedOutputBytes, estimatedOutputBytes > 0 {
-            values.append(String.localizedStringWithFormat(
-                NSLocalizedString("downloads.manage.estimatedSize", tableName: "Plinx", comment: ""),
-                Self.formattedBytes(estimatedOutputBytes)
-            ))
-        }
-        if let finalSize = item.metadata.fileSize, finalSize > 0 {
-            values.append(String.localizedStringWithFormat(
-                NSLocalizedString("downloads.manage.finalSize", tableName: "Plinx", comment: ""),
-                Self.formattedBytes(finalSize)
-            ))
-            if let sourceFileSize = item.sourceFileSize, sourceFileSize > 0, finalSize < sourceFileSize {
-                let percent = Int(((1 - Double(finalSize) / Double(sourceFileSize)) * 100).rounded())
-                values.append(String.localizedStringWithFormat(
-                    NSLocalizedString("downloads.manage.savings", tableName: "Plinx", comment: ""),
-                    Int64(percent)
-                ))
-            }
-        }
-        return values.isEmpty ? nil : values.joined(separator: " • ")
-    }
-
-    private func qualityReason(for item: DownloadItem) -> String? {
-        guard let reason = item.qualityResolutionReason, reason != .requested else { return nil }
-        let key = switch reason {
-        case .requested:
-            "downloads.manage.reason.requested"
-        case .originalIsSmaller:
-            "downloads.manage.reason.originalSmaller"
-        case .insufficientSavings:
-            "downloads.manage.reason.insufficientSavings"
-        case .serverRejectedProfile:
-            "downloads.manage.reason.serverRejected"
-        case .actualSavingsTooSmall:
-            "downloads.manage.reason.actualSavings"
-        }
-        return NSLocalizedString(key, tableName: "Plinx", comment: "")
+        return String(localized: "downloads.status.completed \(Self.formattedBytes(fileSize))")
     }
 
     private static func formattedBytes(_ value: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: value, countStyle: .file)
+    }
+}
+
+// MARK: - Status text
+
+/// Status line and progress of a download, shared by the grid, the list and
+/// the management view.
+enum DownloadStatusText {
+    static func label(for item: DownloadItem, isWaitingForWiFi: Bool) -> String? {
+        switch item.status {
+        case .queued:
+            return String(localized: "downloads.status.queued", table: "Plinx")
+        case .preparing:
+            // While the server transcodes, `progress` is its preparation progress.
+            return String.localizedStringWithFormat(
+                NSLocalizedString("downloads.status.preparing %lld", tableName: "Plinx", comment: ""),
+                percent(item.progress)
+            )
+        case .downloading:
+            if isWaitingForWiFi {
+                return String(localized: "downloads.status.waitingForWiFi")
+            }
+            if item.totalBytes <= 0, item.bytesWritten > 0 {
+                // A live transcode sends no length: show what has arrived.
+                let received = ByteCountFormatter.string(fromByteCount: item.bytesWritten, countStyle: .file)
+                return String(localized: "downloads.status.downloadingBytes \(received)")
+            }
+            return String.localizedStringWithFormat(
+                NSLocalizedString("downloads.status.downloading %lld", tableName: "Plinx", comment: ""),
+                percent(item.progress)
+            )
+        case .completed:
+            return nil
+        case .failed:
+            return String(localized: "downloads.status.failed", table: "Plinx")
+        }
+    }
+
+    /// `nil` (an indeterminate bar) while a transfer of unknown length is
+    /// receiving data.
+    static func progressValue(for item: DownloadItem) -> Double? {
+        if item.status == .downloading, item.totalBytes <= 0, item.bytesWritten > 0 {
+            return nil
+        }
+        return min(max(item.progress, 0), 1)
+    }
+
+    private static func percent(_ progress: Double) -> Int64 {
+        Int64((min(max(progress, 0), 1) * 100).rounded())
     }
 }
 

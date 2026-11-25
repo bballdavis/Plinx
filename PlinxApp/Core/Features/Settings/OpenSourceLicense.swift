@@ -29,6 +29,10 @@ extension OpenSourceLicense {
         textFiles: ["GPL-3.0"],
     )
 
+    /// Every third-party component linked into the shipped app targets: the
+    /// packages in `project.yml` and the products they pull in. Test-only
+    /// packages, unlinked products (AetherEngineSMB's SMBClient) and
+    /// trait-gated ones that stay off (AetherEngine's LibTrueHD) are not here.
     static let dependencies: [OpenSourceLicense] = [
         OpenSourceLicense(
             name: "AetherEngine",
@@ -103,33 +107,15 @@ extension OpenSourceLicense {
             textFiles: ["libpng"],
         ),
         OpenSourceLicense(
-            name: "LibTrueHD",
-            license: "MIT, Apache-2.0",
-            url: URL(string: "https://github.com/superuser404notfound/LibTrueHD")!,
-            textFiles: ["LibTrueHD", "LibTrueHD-NOTICE", "Apache-2.0"],
-        ),
-        OpenSourceLicense(
             name: "libzvbi",
             license: "LGPL-2.1, MIT",
             url: URL(string: "https://github.com/zapping-vbi/zvbi")!,
             textFiles: ["LGPL-2.1", "libzvbi-ure"],
         ),
         OpenSourceLicense(
-            name: "Sentry",
-            license: "MIT",
-            url: URL(string: "https://github.com/getsentry/sentry-cocoa")!,
-            textFiles: ["Sentry"],
-        ),
-        OpenSourceLicense(
-            name: "SMBClient",
-            license: "MIT",
-            url: URL(string: "https://github.com/kishikawakatsumi/SMBClient")!,
-            textFiles: ["SMBClient"],
-        ),
-        OpenSourceLicense(
             name: "swift-ass-renderer",
             license: "MIT",
-            url: URL(string: "https://github.com/mihai8804858/swift-ass-renderer")!,
+            url: URL(string: "https://github.com/wunax/swift-ass-renderer")!,
             textFiles: ["swift-ass-renderer"],
         ),
         OpenSourceLicense(
@@ -139,16 +125,16 @@ extension OpenSourceLicense {
             textFiles: ["swift-concurrency-extras"],
         ),
         OpenSourceLicense(
+            name: "swift-issue-reporting",
+            license: "MIT",
+            url: URL(string: "https://github.com/pointfreeco/swift-issue-reporting")!,
+            textFiles: ["swift-issue-reporting"],
+        ),
+        OpenSourceLicense(
             name: "swift-libass",
             license: "MIT",
             url: URL(string: "https://github.com/mihai8804858/swift-libass")!,
             textFiles: ["swift-libass"],
-        ),
-        OpenSourceLicense(
-            name: "xctest-dynamic-overlay",
-            license: "MIT",
-            url: URL(string: "https://github.com/pointfreeco/xctest-dynamic-overlay")!,
-            textFiles: ["xctest-dynamic-overlay"],
         ),
         OpenSourceLicense(
             name: "zimg",

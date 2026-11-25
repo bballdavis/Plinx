@@ -1,11 +1,42 @@
 import Observation
 import SwiftUI
 
+/// What the episode picker offers: a series can switch between its seasons, a season stays on itself.
+enum EpisodeDownloadSelectionScope: Equatable {
+    case show
+    case season(String)
+
+    var allowsSeasonSwitching: Bool {
+        self == .show
+    }
+}
+
+/// Selection rules of the episode picker. Completed downloads stay listed but can never be selected or submitted.
+enum EpisodeDownloadSelectionPolicy {
+    static func selectableEpisodeIDs(
+        _ episodeIDs: [String],
+        statusForRatingKey: (String) -> DownloadStatus?,
+    ) -> Set<String> {
+        Set(episodeIDs.filter { statusForRatingKey($0) != .completed })
+    }
+
+    /// De-duplicated, in a stable order, and re-checked against the current status at submission.
+    static func orderedSubmissionIDs(
+        _ selectedEpisodeIDs: Set<String>,
+        statusForRatingKey: (String) -> DownloadStatus?,
+    ) -> [String] {
+        selectedEpisodeIDs
+            .filter { statusForRatingKey($0) != .completed }
+            .sorted()
+    }
+}
+
 @MainActor
 struct ShowDownloadSelectionSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(SettingsManager.self) private var settingsManager
     @Bindable var viewModel: MediaDetailViewModel
+    let scope: EpisodeDownloadSelectionScope
     let services: MediaServices
     let defaultQuality: TranscodeQualityPreset
     let onSubmitSelection: ([String], TranscodeQualityPreset, MediaTrackPreference, MediaVersionRequest) async -> Void
@@ -25,6 +56,7 @@ struct ShowDownloadSelectionSheet: View {
             quickActionsSection
             episodesSection
         }
+        .accessibilityIdentifier("downloads.episodeSelection")
         .navigationTitle("downloads.sheet.title")
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -37,6 +69,7 @@ struct ShowDownloadSelectionSheet: View {
                 Button(submitButtonTitle) {
                     submitSelection()
                 }
+                .accessibilityIdentifier("downloads.episodeSelection.submit")
                 .disabled(effectiveSelectionCount == 0 || isSubmitting)
             }
         }
@@ -44,7 +77,7 @@ struct ShowDownloadSelectionSheet: View {
             await initializeSheet()
         }
         .onChange(of: selectedSeasonID) { _, newSeasonID in
-            guard let newSeasonID else { return }
+            guard scope.allowsSeasonSwitching, let newSeasonID else { return }
             Task {
                 await viewModel.selectSeason(id: newSeasonID)
                 configureOptionsModel()
@@ -54,7 +87,17 @@ struct ShowDownloadSelectionSheet: View {
 
     @ViewBuilder
     private var seasonSection: some View {
-        if viewModel.isLoadingSeasons, viewModel.seasons.isEmpty {
+        if case .season = scope {
+            Section("downloads.sheet.bySeason") {
+                Text(viewModel.media.title)
+            }
+        } else if let error = viewModel.seasonsErrorMessage {
+            Section {
+                loadError(error) {
+                    await viewModel.loadSeasonsIfNeeded(forceReload: true)
+                }
+            }
+        } else if viewModel.isLoadingSeasons, viewModel.seasons.isEmpty {
             Section {
                 ProgressView("media.detail.loadingSeasons")
             }
@@ -91,6 +134,7 @@ struct ShowDownloadSelectionSheet: View {
             Button("downloads.sheet.selectAll") {
                 selectedEpisodeIDs.formUnion(selectableEpisodeIDsInCurrentSeason)
             }
+            .accessibilityIdentifier("downloads.episodeSelection.selectAll")
             .disabled(selectableEpisodeIDsInCurrentSeason.isEmpty)
 
             Button("downloads.sheet.clearSelection") {
@@ -106,7 +150,12 @@ struct ShowDownloadSelectionSheet: View {
 
     private var episodesSection: some View {
         Section("downloads.sheet.byEpisode") {
-            if viewModel.isLoadingEpisodes, viewModel.episodes.isEmpty {
+            if let error = viewModel.episodesErrorMessage {
+                loadError(error) {
+                    guard let seasonID = currentSeasonID else { return }
+                    await viewModel.selectSeason(id: seasonID)
+                }
+            } else if viewModel.isLoadingEpisodes, viewModel.episodes.isEmpty {
                 ProgressView("media.detail.loadingEpisodes")
             } else if viewModel.episodes.isEmpty {
                 Text("media.detail.noEpisodes")
@@ -150,6 +199,7 @@ struct ShowDownloadSelectionSheet: View {
         .buttonStyle(.plain)
         .disabled(isDownloaded)
         .opacity(isDownloaded ? 0.6 : 1)
+        .accessibilityIdentifier("downloads.episodeSelection.episode.\(episode.id)")
     }
 
     @ViewBuilder
@@ -196,17 +246,41 @@ struct ShowDownloadSelectionSheet: View {
     }
 
     private func initializeSheet() async {
-        await viewModel.loadSeasonsIfNeeded()
-
-        guard !viewModel.seasons.isEmpty else { return }
-        let initialSeasonID = selectedSeasonID ?? viewModel.selectedSeasonId ?? viewModel.seasons.first?.id
-        guard let initialSeasonID else { return }
+        let initialSeasonID: String
+        switch scope {
+        case .show:
+            await viewModel.loadSeasonsIfNeeded()
+            guard !viewModel.seasons.isEmpty,
+                  let seasonID = selectedSeasonID ?? viewModel.selectedSeasonId ?? viewModel.seasons.first?.id
+            else { return }
+            initialSeasonID = seasonID
+        case let .season(seasonID):
+            initialSeasonID = seasonID
+        }
 
         selectedSeasonID = initialSeasonID
-        if viewModel.selectedSeasonId != initialSeasonID || viewModel.episodes.isEmpty {
-            await viewModel.selectSeason(id: initialSeasonID)
-        }
+        // Episodes already loaded for this season are kept: the picker also works once the server went away.
+        await viewModel.selectSeason(id: initialSeasonID)
         configureOptionsModel()
+    }
+
+    private var currentSeasonID: String? {
+        switch scope {
+        case .show:
+            selectedSeasonID ?? viewModel.selectedSeasonId
+        case let .season(seasonID):
+            seasonID
+        }
+    }
+
+    private func loadError(_ message: String, retry: @escaping @MainActor () async -> Void) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(message, systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(.red)
+            Button("common.actions.retry") {
+                Task { await retry() }
+            }
+        }
     }
 
     private func configureOptionsModel() {
@@ -222,9 +296,10 @@ struct ShowDownloadSelectionSheet: View {
     }
 
     private func submitSelection() {
-        let orderedEpisodeIDs = selectedEpisodeIDs
-            .filter { !isAlreadyDownloaded(episodeID: $0) }
-            .sorted()
+        let orderedEpisodeIDs = EpisodeDownloadSelectionPolicy.orderedSubmissionIDs(
+            selectedEpisodeIDs,
+            statusForRatingKey: status(ofEpisodeID:),
+        )
         guard !orderedEpisodeIDs.isEmpty else { return }
 
         isSubmitting = true
@@ -245,11 +320,19 @@ struct ShowDownloadSelectionSheet: View {
     }
 
     private var selectableEpisodeIDsInCurrentSeason: Set<String> {
-        Set(viewModel.episodes.map(\.id).filter { !isAlreadyDownloaded(episodeID: $0) })
+        EpisodeDownloadSelectionPolicy.selectableEpisodeIDs(
+            viewModel.episodes.map(\.id),
+            statusForRatingKey: status(ofEpisodeID:),
+        )
     }
 
     private func isAlreadyDownloaded(episodeID: String) -> Bool {
-        guard let episode = viewModel.episodes.first(where: { $0.id == episodeID }) else { return false }
-        return statusForIdentity(episode.identity) == .completed
+        status(ofEpisodeID: episodeID) == .completed
+    }
+
+    /// Selections can span seasons of a series, so an episode is looked up on the sheet's server rather than in the
+    /// episodes listed right now.
+    private func status(ofEpisodeID episodeID: String) -> DownloadStatus? {
+        statusForIdentity(MediaIdentity(server: services.identity, itemID: episodeID))
     }
 }

@@ -48,7 +48,7 @@ Answer the App Store Connect questionnaire from the app’s maximum capability, 
 
 ## App Privacy
 
-Declare no tracking and no data collected by the Plinx developer only after confirming the final archive and Xcode privacy report contain no analytics or reporting SDK. The privacy policy must continue to disclose communication with Plex and an optional parent-configured Youtarr service.
+Declare no tracking and no data collected by the Plinx developer only after confirming the final archive and Xcode privacy report contain no analytics or reporting SDK. The archive must contain no Sentry, Trakt, or Simkl code or strings; those upstream integrations were removed when Plinx absorbed Strimr. The privacy policy must continue to disclose communication with Plex, with Jellyfin servers the family connects, and with an optional parent-configured Youtarr service. Plinx ships no Top Shelf extension and shares no session credentials with one.
 
 ## Reviewer Access
 
@@ -102,8 +102,11 @@ player, and Youtarr preferences in the demo do not modify family preferences.
 Downloads use the normal ownership checks with a dedicated synthetic server
 and profile identity. Personal identities cannot access demo downloads and
 vice versa. Demo downloads remain on-device until removed through Downloads;
-after relaunch, re-enter the demo to access them. The demo does not persist a
-Plex sign-in token or replace a personal offline-session snapshot.
+after relaunch, re-enter the demo to access them. The sample library is a
+temporary account with a synthetic token. It is offered only when no account
+exists and is removed, token included, when the reviewer leaves it or at the
+next launch. plex.tv requests carrying that token are answered on the device
+and never leave it.
 
 Explore uses a bundled fictional Youtarr catalog and an in-memory request
 queue. Sending a sample request records it as pending in the demo; it never
@@ -242,8 +245,10 @@ wide Top Shelf set includes both the 2320×720 1× rendition and the required
 - Clean iPhone, iPad, and Apple TV Release builds pass with the pinned
   Xcode/runtime.
 - Signed archive passes `scripts/tests/validate_testflight_archive.sh`.
-- Xcode privacy report is reviewed for the app, Strimr, AetherEngine, and
-  embedded frameworks.
+- Xcode privacy report is reviewed for the app (including the code absorbed
+  from Strimr), AetherEngine, GRDB, SwiftAssRenderer, and every embedded
+  framework.
+- The archive contains no Sentry, Trakt, or Simkl code or strings.
 - Privacy and support URLs are public.
 - Corresponding-source bundle is generated and GPL/EULA distribution is reviewed.
 - Demo-mode prior approval is recorded (or the live-account fallback is

@@ -87,9 +87,11 @@ Xcode Version: 27.2
 Archive scheme: Plinx-iOS
 ```
 
-`PlinxApp/ci_scripts/ci_post_clone.sh` runs automatically because it is beside
-the project. It clones the sibling Strimr repository at the exact commit from
-`config/release-dependencies.env` and verifies the source integration contract.
+Plinx has no `PlinxApp/ci_scripts` directory. The repository clone is the
+complete source, so Xcode Cloud only resolves the Swift packages pinned in
+`PlinxApp/project.yml` before it builds. If a custom build script is ever
+added there, Xcode Cloud runs it automatically, so review it like a workflow
+change.
 
 The same project-path change can be planned through the API after a status
 command reveals the workflow ID:

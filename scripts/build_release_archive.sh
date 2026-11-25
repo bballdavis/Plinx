@@ -219,7 +219,6 @@ fi
 # Generate project from XcodeGen
 echo "📋 Generating Xcode project..."
 bash ./scripts/generate_xcodeproj.sh --quiet
-bash ./scripts/verify_release_dependency_state.sh
 
 # Build archive
 echo "🏗️  Building archive..."

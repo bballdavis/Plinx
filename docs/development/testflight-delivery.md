@@ -8,17 +8,16 @@ the automatic `dev-testflight` push trigger is deliberately restored.
 For the active Xcode Cloud workflow, select
 `PlinxApp/Plinx.xcodeproj` as the Project or Workspace, Xcode 27.2 as the
 toolchain, and `Plinx-iOS` as the Archive scheme. The project must first be
-merged into the repository branch App Store Connect scans. Xcode Cloud then
-runs `PlinxApp/ci_scripts/ci_post_clone.sh` to fetch the exact pinned Strimr
-source before the archive. See
+merged into the repository branch App Store Connect scans. The clone Xcode
+Cloud makes is the complete source, so no post-clone script runs before the
+archive. See
 [Xcode Cloud monitoring and management](xcode-cloud-monitoring.md) for API-key
 setup, workflow-path updates, manual build starts, and failure diagnostics.
 
 When that trigger is enabled, `dev` is CI-only. Push the exact `dev` commit you
 want testers to receive to `dev-testflight`; the workflow then runs its
-package, integration, and Xcode checks. When they pass, the
-`testflight-internal` job archives the exact pinned source tree and submits it
-to App Store Connect. The archive gets a UTC-timestamp build number, so each
+package and Xcode checks. When they pass, the `testflight-internal` job
+archives that exact commit and submits it to App Store Connect. The archive gets a UTC-timestamp build number, so each
 submitted build is unique and increasing.
 
 The delivery uses Xcode's App Store Connect API-key support for automatic
@@ -121,7 +120,7 @@ delivery.
 ## Release Boundary
 
 `dev-testflight` builds do not replace the release process. Continue to follow
-the paired-dependency promotion, `main` merge, tag, metadata, screenshot, and
-review gates in [versioning and releases](versioning-and-releases.md) and the
+the `main` merge, tag, corresponding-source, metadata, screenshot, and review
+gates in [versioning and releases](versioning-and-releases.md) and the
 [App Store runbook](../release/app-store.md). A production release requires an
 explicit, separately reviewed distribution step.

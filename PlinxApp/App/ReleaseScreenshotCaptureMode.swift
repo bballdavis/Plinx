@@ -1,8 +1,9 @@
 import Foundation
 
 /// Local-only guardrails for capturing App Store imagery from the curated Plex
-/// library. This mode is unavailable in ordinary launches and deliberately
-/// blocks every Plex endpoint that can change watch state.
+/// library. This mode is unavailable in ordinary launches and in Release
+/// builds, and deliberately blocks every Plex endpoint that can change watch
+/// state.
 enum ReleaseScreenshotCaptureMode {
     static let launchArgument = "--release-screenshot-capture"
     private static let liveMode = "live"
@@ -11,9 +12,13 @@ enum ReleaseScreenshotCaptureMode {
         arguments: [String] = ProcessInfo.processInfo.arguments,
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> Bool {
-        arguments.contains("--ui-testing")
+        #if DEBUG
+        return arguments.contains("--ui-testing")
             && arguments.contains(launchArgument)
             && environment["PLINX_UI_TEST_MODE"] == liveMode
+        #else
+        return false
+        #endif
     }
 
     static func detailRatingKey(
@@ -61,7 +66,7 @@ enum ReleaseScreenshotCaptureMode {
             return false
         }
         switch url.path.lowercased() {
-        case "/:/timeline", "/:/scrobble", "/:/unscrobble":
+        case "/:/timeline", "/:/scrobble", "/:/unscrobble", "/actions/removefromcontinuewatching":
             return true
         default:
             return false
@@ -69,8 +74,10 @@ enum ReleaseScreenshotCaptureMode {
     }
 
     static func installNetworkMutationBlockerIfNeeded() {
+        #if DEBUG
         guard isActive() else { return }
         URLProtocol.registerClass(ReleaseScreenshotMutationBlocker.self)
+        #endif
     }
 
     private static func validatedSelector(_ rawValue: String?) -> String? {
@@ -83,9 +90,10 @@ enum ReleaseScreenshotCaptureMode {
     }
 }
 
-/// Intercepts only watch-state writes while release-capture mode is active.
-/// Returning a denial response keeps the upstream player fail-closed without
-/// requiring a Strimr source change.
+#if DEBUG
+/// Intercepts only watch-state writes (progress, played state, Continue
+/// Watching removal) while release-capture mode is active. Answering with a
+/// denial keeps every caller on its ordinary failure path.
 private final class ReleaseScreenshotMutationBlocker: URLProtocol {
     override class func canInit(with request: URLRequest) -> Bool {
         guard let url = request.url else { return false }
@@ -115,3 +123,4 @@ private final class ReleaseScreenshotMutationBlocker: URLProtocol {
 
     override func stopLoading() {}
 }
+#endif

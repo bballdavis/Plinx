@@ -1,5 +1,3 @@
-import OSLog
-import PlinxCore
 import PlinxUI
 import SwiftUI
 
@@ -54,11 +52,24 @@ enum LibraryRecommendationFallbackPolicy {
 
 @MainActor
 enum PlinxLibraryRecommendationLoader {
+    /// Hub identifiers that read better as landscape rows on Recommended.
+    static let landscapeHubIdentifiers = ["inprogress", "nextup"]
+
+    /// Size of the recently-added sample the discovery row is drawn from.
+    static let discoveryCandidateLimit = 48
+
+    /// Loads (or refreshes) the upstream recommended hubs, then applies the
+    /// Plinx post-processing: the parent's hidden and reordered sections and,
+    /// when no browsable hub is left, a "Recently Added" discovery row.
+    ///
+    /// Hubs arrive from `SafeMediaServices` already filtered; they pass the
+    /// gate once more before they are published, so nothing assigned here can
+    /// bypass the parent's policy.
     static func load(
         viewModel: LibraryRecommendedViewModel,
-        context: PlexAPIContext,
+        services: MediaServices,
         settingsManager: SettingsManager,
-        policy: SafetyPolicy,
+        gate: ContentSafetyGate = .shared,
         refreshIfNeeded: Bool = false
     ) async {
         if refreshIfNeeded {
@@ -73,11 +84,10 @@ enum PlinxLibraryRecommendationLoader {
         guard !viewModel.isLoading else { return }
 
         var discoveryCandidates: [MediaDisplayItem] = []
-        if LibraryRecommendationFallbackPolicy.needsDiscoveryHub(viewModel.hubs),
-           let catalog = try? await LibraryCatalogLoader(context: context).recentItems(
+        if LibraryRecommendationFallbackPolicy.needsDiscoveryHub(gate.filter(viewModel.hubs)),
+           let catalog = try? await LibraryCatalogLoader(services: services, gate: gate).recentItems(
                for: viewModel.library,
-               limit: 120,
-               policy: policy
+               limit: discoveryCandidateLimit
            )
         {
             discoveryCandidates = catalog.items
@@ -87,15 +97,18 @@ enum PlinxLibraryRecommendationLoader {
         // Re-read the hubs after the catalog await; never merge into a
         // snapshot taken before it.
         let hubs = LibraryRecommendationFallbackPolicy.mergingDiscoveryHub(
-            into: viewModel.hubs,
+            into: gate.filter(viewModel.hubs),
             candidates: discoveryCandidates,
             title: String(localized: "home.recentlyAdded.prefix", table: "Plinx")
         )
-        viewModel.hubs = visibleOrderedHubs(
+        let published = visibleOrderedHubs(
             hubs,
             libraryID: viewModel.library.id,
             settingsManager: settingsManager
         )
+        if published != viewModel.hubs {
+            viewModel.hubs = published
+        }
     }
 
     private static func visibleOrderedHubs(

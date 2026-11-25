@@ -1,7 +1,9 @@
+import PlinxUI
 import SwiftUI
 
 /// Hosts `AccountSetupFlow`: provider choice, sign-in, Plex Home user, server choice and, at first launch, the
-/// optional "add another account" step.
+/// optional "add another account" step. Every step uses the Plinx onboarding screens (`ProviderSelectionView`,
+/// `SignInView`, `ProfileSwitcherView`, `SelectServerView`); Jellyfin sign-in uses the absorbed Jellyfin screen.
 struct AccountSetupView: View {
     @State private var flow: AccountSetupFlow
     private let onFinished: () -> Void
@@ -13,24 +15,24 @@ struct AccountSetupView: View {
 
     var body: some View {
         NavigationStack(path: $flow.path) {
-            ProviderSelectionView(onSelect: flow.choose)
-                .safeAreaInset(edge: .bottom) {
-                    if flow.canFinishFromProviderChoice {
-                        Button("common.actions.continue") {
-                            Task { await flow.finish() }
-                        }
-                        .actionButtonStyle(.primary)
-                        .padding()
+            ProviderSelectionView(
+                onSelect: flow.choose,
+                offersSampleLibrary: flow.purpose == .firstLaunch && !flow.canFinishFromProviderChoice,
+                onCancel: flow.purpose == .firstLaunch ? nil : { flow.cancel() }
+            )
+            .safeAreaInset(edge: .bottom) {
+                if flow.canFinishFromProviderChoice {
+                    PlinxOnboardingActionButton {
+                        Task { await flow.finish() }
+                    } label: {
+                        Text("common.actions.continue")
                     }
+                    .frame(maxWidth: 460)
+                    .padding()
+                    .accessibilityIdentifier("accountSetup.finish")
                 }
-                .toolbar {
-                    if flow.purpose != .firstLaunch {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("common.actions.cancel") { flow.cancel() }
-                        }
-                    }
-                }
-                .navigationDestination(for: AccountSetupFlow.Step.self, destination: destination)
+            }
+            .navigationDestination(for: AccountSetupFlow.Step.self, destination: destination)
         }
         .onChange(of: flow.isFinished) { _, isFinished in
             if isFinished {
@@ -78,46 +80,65 @@ struct AccountSetupView: View {
     }
 }
 
-/// Optional last step of the first launch.
+/// Optional last step of the first launch, on the Plinx quiet shell.
 struct AddAnotherAccountView: View {
     let onAddAccount: () -> Void
     let onContinue: () -> Void
 
     var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
-            Image(systemName: "person.2.badge.plus")
-                .font(.system(size: 56))
-                .foregroundStyle(.textSecondary)
-            Text("onboarding.addAnother.title")
-                .font(.heroTitle)
-                .foregroundStyle(.textPrimary)
-                .multilineTextAlignment(.center)
-            Text("onboarding.addAnother.subtitle")
-                .font(.bodyText)
-                .foregroundStyle(.textSecondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 560)
-            Button(action: onContinue) {
-                Text("common.actions.continue")
-                    .fontWeight(.semibold)
-                    .frame(maxWidth: 420)
-                    .padding(.vertical, 4)
-            }
-            .actionButtonStyle(.primary)
-            .controlSize(.large)
-            Button(action: onAddAccount) {
-                Text("onboarding.addAnother.button")
-                    .fontWeight(.semibold)
+        ZStack {
+            PlinxAmbientBackground(intensity: .hero)
+
+            VStack(spacing: 24) {
+                Spacer()
+                Image(systemName: "person.2.badge.plus")
+                    .font(.system(size: 56, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .accessibilityHidden(true)
+                Text("onboarding.addAnother.title")
+                    .font(.system(size: 40, weight: .heavy, design: .rounded))
+                    .foregroundStyle(Color.white)
                     .multilineTextAlignment(.center)
-                    .frame(maxWidth: 420)
-                    .padding(.vertical, 4)
+                    .accessibilityAddTraits(.isHeader)
+                Text(Self.subtitle)
+                    .font(.system(.title3, design: .rounded, weight: .semibold))
+                    .foregroundStyle(Color.brandSecondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 560)
+                PlinxOnboardingActionButton(action: onContinue) {
+                    Text("common.actions.continue")
+                }
+                .frame(maxWidth: 420)
+                .accessibilityIdentifier("accountSetup.addAnother.continue")
+                PlinxOnboardingActionButton(treatment: .secondary, action: onAddAccount) {
+                    Text(Self.addButtonTitle)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: 420)
+                .accessibilityIdentifier("accountSetup.addAnother.add")
+                Spacer()
             }
-            .actionButtonStyle(.secondary)
-            .controlSize(.large)
-            Spacer()
+            .padding(32)
         }
-        .padding(32)
+        #if !os(tvOS)
+        .toolbar(.hidden, for: .navigationBar)
+        #endif
         .navigationBarBackButtonHidden()
+    }
+
+    static var subtitle: String {
+        String(
+            localized: "onboarding.addAnother.plinx.subtitle",
+            defaultValue: "Plinx can show several Plex accounts and Jellyfin servers together, filtered by the same parental controls. You can also do this later in Settings.",
+            table: "Plinx"
+        )
+    }
+
+    static var addButtonTitle: String {
+        String(
+            localized: "onboarding.addAnother.plinx.button",
+            defaultValue: "Add a Plex account or Jellyfin server",
+            table: "Plinx"
+        )
     }
 }

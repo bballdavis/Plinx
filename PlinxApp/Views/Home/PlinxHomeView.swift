@@ -45,10 +45,16 @@ enum HomeHeroSelection {
 }
 #endif
 
+/// The kid-facing Home: Continue Watching from the absorbed `HomeViewModel`
+/// (merged across the profile's servers), then Plinx's recently-added rows
+/// built from each visible library (`HomeRecentlyAddedStore` and
+/// `HomeRecentlyAddedProjection`). Every title arrives through the safety
+/// boundary in `MediaServices`; rows are filtered again with
+/// `ContentSafetyGate` when drawn, so a stricter policy hides titles at once.
 struct PlinxHomeView: View {
     private static let logger = Logger(subsystem: "com.plinx.app", category: "home")
 
-    @State var viewModel: SafeHomeViewModel
+    @State var viewModel: HomeViewModel
     var topContent: AnyView? = nil
     var onSelectMedia: (MediaDisplayItem) -> Void
     var onLongPressMedia: (MediaDisplayItem) -> Void = { _ in }
@@ -58,9 +64,11 @@ struct PlinxHomeView: View {
     /// Injected by parent to reflect optimistic local overrides.
     var isItemWatched: (MediaDisplayItem) -> Bool = { $0.isFullyWatched }
 
-    @Environment(PlexAPIContext.self) private var plexApiContext
+    @Environment(ServerRegistry.self) private var registry
     @Environment(LibraryStore.self) private var libraryStore
-    @Environment(\.safetyPolicy) private var safetyPolicy
+    @Environment(\.scenePhase) private var scenePhase
+    @EnvironmentObject private var mainCoordinator: MainCoordinator
+    @State private var recentlyAdded = HomeRecentlyAddedStore()
     @State private var artworkRefreshToken = UUID()
     #if os(tvOS)
     @Environment(MediaFocusModel.self) private var mediaFocusModel
@@ -91,11 +99,11 @@ struct PlinxHomeView: View {
 
     var body: some View {
         Group {
-            if viewModel.isLoading && !viewModel.hasContent {
+            if isAwaitingContent && !hasContent {
                 fullscreenLoading
-            } else if let error = viewModel.errorMessage, !viewModel.hasContent {
+            } else if let error = errorMessage, !hasContent {
                 PlinxErrorView(message: error) {
-                    Task { await viewModel.reload() }
+                    Task { await refreshContent() }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -103,18 +111,43 @@ struct PlinxHomeView: View {
             }
         }
         .task { await viewModel.load() }
-        .plinxRefreshable { await refreshContent() }
-        .onChange(of: safetyPolicy) { _, newPolicy in
-            // When the parent updates the safety policy (max rating changed,
-            // excludeUnrated toggled) re-filter cached hub data immediately
-            // without a full network reload.
-            viewModel.updatePolicy(newPolicy)
+        .task(id: recentlyAddedSource) {
+            // Libraries of servers that joined since the shell loaded them.
+            try? await libraryStore.loadLibraries()
+            guard !Task.isCancelled else { return }
+            await recentlyAdded.sync(libraries: libraryStore.visibleLibraries, registry: registry)
         }
+        .task(id: recentlyAddedRefreshKey) {
+            // Changes made from the app (watched, deleted, refreshed) reload
+            // their server once playback ends, grouped like the upstream home.
+            guard !mainCoordinator.isPresentingPlayer else { return }
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled else { return }
+            await recentlyAdded.refreshChangedServers(registry: registry)
+        }
+        .task(id: scenePhase) {
+            guard scenePhase == .active else { return }
+            await viewModel.refreshPeriodically()
+        }
+        .onAppear {
+            Task { await viewModel.refreshIfNeeded() }
+        }
+        .onChange(of: viewModel.contentRevisions) {
+            viewModel.refreshAfterContentChanges()
+        }
+        .onChange(of: scenePhase) { _, newValue in
+            guard newValue == .active else { return }
+            Task {
+                await viewModel.refreshIfNeeded()
+                await recentlyAdded.refreshIfStale(registry: registry)
+            }
+        }
+        .plinxRefreshable { await refreshContent() }
         #if os(tvOS)
         .onAppear {
             synchronizeHeroSelection()
         }
-        .onChange(of: defaultHeroMedia?.id) { _, _ in
+        .onChange(of: defaultHeroMedia.map(Self.mediaKey)) { _, _ in
             synchronizeHeroSelection()
         }
         .onChange(of: contentFocusRequest) { _, _ in
@@ -125,6 +158,47 @@ struct PlinxHomeView: View {
             restoreContentFocusIfAvailable(forceTransfer: isContentFocusPending)
         }
         #endif
+    }
+
+    // MARK: - Loading state
+
+    /// What the recently-added rows are built from: a change loads the libraries it adds and drops the others.
+    private var recentlyAddedSource: RecentlyAddedSource {
+        RecentlyAddedSource(
+            libraries: libraryStore.visibleLibraries.map(\.identity),
+            readyServers: registry.readyServers,
+            policyRevision: ContentSafetyGate.shared.revision
+        )
+    }
+
+    private var recentlyAddedRefreshKey: RecentlyAddedRefreshKey {
+        RecentlyAddedRefreshKey(
+            revisions: Dictionary(
+                registry.connectedServices.map { ($0.identity, $0.watchStateRevision + $0.mediaRevision) },
+                uniquingKeysWith: { first, _ in first }
+            ),
+            isPlayerPresented: mainCoordinator.isPresentingPlayer
+        )
+    }
+
+    private var isAwaitingContent: Bool {
+        viewModel.isLoading
+            || recentlyAdded.isLoading
+            || !recentlyAdded.hasSynced
+            || libraryStore.isLoading
+            || registry.isConnecting
+    }
+
+    private var hasContent: Bool {
+        !homeRows.isEmpty
+    }
+
+    private var errorMessage: String? {
+        if let message = viewModel.errorMessage {
+            return message
+        }
+        guard recentlyAdded.hasFailed || libraryStore.loadFailed else { return nil }
+        return String(localized: "home.error.unavailable")
     }
 
     // MARK: - Subviews
@@ -190,41 +264,25 @@ struct PlinxHomeView: View {
     }
 
     private func refreshContent() async {
-        await viewModel.reload()
+        let viewModel = viewModel
+        let recentlyAdded = recentlyAdded
+        let registry = registry
+        async let home: Void = viewModel.reload()
+        async let recent: Void = recentlyAdded.reload(registry: registry)
+        _ = await (home, recent)
         artworkRefreshToken = UUID()
     }
 
-    private var homeRows: [HomeRow] {
-        var rows: [HomeRow] = []
-        let groups = displayedGroups
+    private var homeRows: [ShelfRow] {
+        var rows: [ShelfRow] = []
+        let groups = recentlyAddedRows
 
         for sectionId in orderedHomeSections {
             switch sectionId {
             case "continueWatching":
-                rows.append(contentsOf: HomeLibraryGrouping.continueWatchingRows(from: viewModel.continueWatching).map {
-                    HomeRow(
-                        id: $0.id,
-                        hub: Hub(id: $0.id, title: $0.title, items: $0.items),
-                        layout: .landscape,
-                        sectionKey: $0.sectionKey
-                    )
-                })
-            case "moviesAndTV":
-                rows.append(contentsOf: groups.filter { $0.sectionKey == "moviesAndTV" && $0.hub.hasItems }.map {
-                    HomeRow(id: $0.id, hub: $0.hub, layout: $0.layout, sectionKey: "moviesAndTV")
-                })
-            case "recentMovies":
-                rows.append(contentsOf: groups.filter { $0.sectionKey == "recentMovies" && $0.hub.hasItems }.map {
-                    HomeRow(id: $0.id, hub: $0.hub, layout: $0.layout, sectionKey: "recentMovies")
-                })
-            case "recentTV":
-                rows.append(contentsOf: groups.filter { $0.sectionKey == "recentTV" && $0.hub.hasItems }.map {
-                    HomeRow(id: $0.id, hub: $0.hub, layout: $0.layout, sectionKey: "recentTV")
-                })
-            case "otherVideos":
-                rows.append(contentsOf: groups.filter { $0.sectionKey == "otherVideos" && $0.hub.hasItems }.map {
-                    HomeRow(id: $0.id, hub: $0.hub, layout: $0.layout, sectionKey: "otherVideos")
-                })
+                rows.append(contentsOf: continueWatchingRows)
+            case "moviesAndTV", "recentMovies", "recentTV", "otherVideos":
+                rows.append(contentsOf: groups.filter { $0.sectionKey == sectionId && $0.hub.hasItems })
             default:
                 break
             }
@@ -241,13 +299,18 @@ struct PlinxHomeView: View {
         availableHeroMedia.first
     }
 
+    /// Identifies a title across servers, for hero selection and focus memory.
+    private static func mediaKey(_ media: MediaItem) -> String {
+        HomeLibraryGrouping.itemKey(.playable(media))
+    }
+
     #if os(tvOS)
     private func synchronizeHeroSelection() {
-        let availableIDs = availableHeroMedia.map(\.id)
-        guard let selectedID = HomeHeroSelection.resolvedMediaID(
-            currentID: selectedHeroMedia?.id,
-            availableIDs: availableIDs
-        ), let media = availableHeroMedia.first(where: { $0.id == selectedID }) else {
+        let available = availableHeroMedia
+        guard let selectedKey = HomeHeroSelection.resolvedMediaID(
+            currentID: selectedHeroMedia.map(Self.mediaKey),
+            availableIDs: available.map(Self.mediaKey)
+        ), let media = available.first(where: { Self.mediaKey($0) == selectedKey }) else {
             selectedHeroMedia = nil
             return
         }
@@ -275,8 +338,8 @@ struct PlinxHomeView: View {
         }
         let preferredTarget = tvFocusCoordinator.rememberedContentTarget(
             in: .home,
-            availableIDs: homeRows.flatMap { $0.hub.items.map(\.id) }
-        ).flatMap(focusTarget(forMediaID:))
+            availableIDs: homeRows.flatMap { $0.hub.items.map(HomeLibraryGrouping.itemKey) }
+        ).flatMap(focusTarget(forItemKey:))
         guard let target = PlinxTVFocusCoordinator.resolvedContentID(
             currentID: focusedCard,
             availableIDs: availableTargets,
@@ -308,9 +371,9 @@ struct PlinxHomeView: View {
         }
     }
 
-    private func focusTarget(forMediaID mediaID: String) -> HomeFocusTarget? {
+    private func focusTarget(forItemKey itemKey: String) -> HomeFocusTarget? {
         for (rowIndex, row) in homeRows.enumerated() {
-            if let itemIndex = row.hub.items.firstIndex(where: { $0.id == mediaID }) {
+            if let itemIndex = row.hub.items.firstIndex(where: { HomeLibraryGrouping.itemKey($0) == itemKey }) {
                 return .card(row: rowIndex, item: itemIndex)
             }
         }
@@ -318,22 +381,26 @@ struct PlinxHomeView: View {
     }
     #endif
 
-    // MARK: - Hub layout groups
+    // MARK: - Rows
 
     enum CardLayout { case portrait, landscape }
 
-    private struct HubGroup: Identifiable {
+    private struct ShelfRow: Identifiable {
         let id: String
         let hub: Hub
         let layout: CardLayout
         let sectionKey: String
     }
 
-    private struct HomeRow: Identifiable {
-        let id: String
-        let hub: Hub
-        let layout: CardLayout
-        let sectionKey: String
+    private struct RecentlyAddedSource: Equatable {
+        let libraries: [LibraryIdentity]
+        let readyServers: Set<ServerIdentity>
+        let policyRevision: Int
+    }
+
+    private struct RecentlyAddedRefreshKey: Equatable {
+        let revisions: [ServerIdentity: Int]
+        let isPlayerPresented: Bool
     }
 
     #if os(tvOS)
@@ -342,15 +409,32 @@ struct PlinxHomeView: View {
     }
     #endif
 
+    /// Continue Watching (and Next Up) from the upstream home, re-checked against the current policy.
+    private var continueWatchingRows: [ShelfRow] {
+        let gate = ContentSafetyGate.shared
+        return HomeLibraryGrouping.continueWatchingRows(from: viewModel.rows).compactMap { row in
+            let items = gate.filter(row.items)
+            guard !items.isEmpty else { return nil }
+            return ShelfRow(
+                id: row.id,
+                hub: Hub(id: row.id, title: row.title, items: items),
+                layout: .landscape,
+                sectionKey: row.sectionKey
+            )
+        }
+    }
+
     // MARK: - Home library filtering & ordering
 
-    private var displayedGroups: [HubGroup] {
-        let hiddenIds = decodeHomeStringArray(homeHiddenIdsJson)
-        let order = decodeHomeStringArray(homeOrderJson)
+    private var recentlyAddedRows: [ShelfRow] {
+        let gate = ContentSafetyGate.shared
+        let catalogs = recentlyAdded.catalogs.map {
+            LibraryCatalogResult(library: $0.library, items: gate.filter($0.items))
+        }
         let rows = HomeRecentlyAddedProjection.rows(
-            from: viewModel.recentCatalogs,
-            hiddenLibraryIDs: Set(hiddenIds),
-            libraryOrder: order,
+            from: catalogs,
+            hiddenLibraryIDs: Set(decodeHomeStringArray(homeHiddenIdsJson)),
+            libraryOrder: decodeHomeStringArray(homeOrderJson),
             combineMoviesTV: combineMoviesTV
         )
 
@@ -359,10 +443,9 @@ struct PlinxHomeView: View {
         )
 
         return rows.map { row in
-            let hub = Hub(id: row.id, title: row.title, items: row.items)
-            return HubGroup(
+            ShelfRow(
                 id: row.id,
-                hub: hub,
+                hub: Hub(id: row.id, title: row.title, items: row.items),
                 layout: row.layout == .landscape ? .landscape : .portrait,
                 sectionKey: row.sectionKey
             )
@@ -381,7 +464,7 @@ struct PlinxHomeView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: cardSpacing) {
-                    ForEach(Array(hub.items.enumerated()), id: \.element.id) { index, item in
+                    ForEach(Array(hub.items.enumerated()), id: \.element.homeItemKey) { index, item in
                         mediaCardButton(
                             item,
                             layout: layout,
@@ -427,7 +510,7 @@ struct PlinxHomeView: View {
                       let playableItem = item.playableItem
                 else { return }
                 selectHeroMedia(playableItem)
-                tvFocusCoordinator.rememberContentTarget(item.id, in: .home)
+                tvFocusCoordinator.rememberContentTarget(item.homeItemKey, in: .home)
             }
             .plinxQuickActionLongPress { onLongPressMedia(item) }
             .onMoveCommand { direction in
@@ -476,11 +559,9 @@ struct PlinxHomeView: View {
             item: item,
             isLandscape: isLandscape
         )
-        let imageViewModel = MediaImageViewModel(
-            context: plexApiContext,
-            artworkKind: artworkKind,
-            media: item
-        )
+        let imageViewModel = registry.services(for: item.server).map {
+            MediaImageViewModel(services: $0, artworkKind: artworkKind, media: item)
+        }
 
         return HomeMediaCardBody(
             item: item,
@@ -540,5 +621,12 @@ struct PlinxHomeView: View {
         #else
         120
         #endif
+    }
+}
+
+private extension MediaDisplayItem {
+    /// Row identity across servers, whose item ids can repeat.
+    var homeItemKey: String {
+        HomeLibraryGrouping.itemKey(self)
     }
 }

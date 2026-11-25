@@ -6,22 +6,32 @@ import PlinxUI
 // HomeScreenSettingsView
 //
 // Controls which libraries appear in the "Recently Added" rows on the home
-// screen, and in what order. Settings are stored independently from the
-// "Visible Libraries" toggle so users can, e.g., hide a library from the
-// Library tab while still showing it on the home screen.
+// screen, and in what order. These settings only narrow Home further: a
+// library hidden with "Visible Libraries" is left out of Home, the Library tab
+// and search whatever is stored here, so this list only offers the libraries
+// the active profile shows.
+//
+// Libraries are identified by `LibraryIdentity.stableKey`
+// (`<provider>:<serverID>:<libraryID>`), so two servers with the same library
+// id never share a setting. Builds before multi-server stored the plain
+// library id; `HomeLibrarySettingKeys.migrated` rewrites such an id to the
+// stable key of the one library that has it, and keeps it as stored when
+// several libraries (or none) have it. `HomeRecentlyAddedProjection` honors
+// both forms, so nothing a family set is lost either way.
 //
 // Persistence keys (app-level AppStorage / UserDefaults.standard):
-//   plinx.homeHiddenLibraryIds   – JSON [String]  library IDs hidden from home
-//   plinx.homeLibraryOrder       – JSON [String]  library IDs in display order
+//   plinx.homeHiddenLibraryIds   – JSON [String]  library keys hidden from home
+//   plinx.homeLibraryOrder       – JSON [String]  library keys in display order
 //   plinx.homeCombineMoviesTV    – Bool            combine movies+TV into one section
 // ─────────────────────────────────────────────────────────────────────────────
 
 struct HomeScreenSettingsView: View {
     @Environment(LibraryStore.self) private var libraryStore
+    @Environment(ServerRegistry.self) private var registry
 
-    /// JSON-encoded [String] of library IDs hidden from the home screen.
+    /// JSON-encoded [String] of library keys hidden from the home screen.
     @AppStorage("plinx.homeHiddenLibraryIds") private var hiddenIdsJson = "[]"
-    /// JSON-encoded [String] of library IDs in preferred display order.
+    /// JSON-encoded [String] of library keys in preferred display order.
     @AppStorage("plinx.homeLibraryOrder") private var orderJson = "[]"
     /// JSON-encoded [String] of section IDs in display order.
     @AppStorage("plinx.homeSectionOrder") private var sectionOrderJson = "[]"
@@ -67,6 +77,11 @@ struct HomeScreenSettingsView: View {
 
     private var hiddenIds: Set<String> {
         Set(decodeStringArray(hiddenIdsJson))
+    }
+
+    private func isHidden(_ library: Library) -> Bool {
+        let hidden = hiddenIds
+        return HomeLibrarySettingKeys.keys(for: library).contains(where: hidden.contains)
     }
 
     // MARK: - Body
@@ -146,10 +161,10 @@ struct HomeScreenSettingsView: View {
 
             // MARK: Recently Added library visibility & order
             Section {
-                ForEach(orderedLibraries) { library in
+                ForEach(orderedLibraries, id: \.identity) { library in
                     HomeLibraryRow(
                         library: library,
-                        isEnabled: !hiddenIds.contains(library.id),
+                        isEnabled: !isHidden(library),
                         onToggle: { enabled in
                             toggle(library: library, enabled: enabled)
                         }
@@ -184,10 +199,12 @@ struct HomeScreenSettingsView: View {
             if libraryStore.libraries.isEmpty {
                 try? await libraryStore.loadLibraries()
             }
+            migrateLegacyLibraryKeys()
             buildOrderedList()
             buildSectionOrder()
         }
-        .onChange(of: libraryStore.libraries) { _, _ in
+        .onChange(of: libraryStore.visibleLibraries) { _, _ in
+            migrateLegacyLibraryKeys()
             buildOrderedList()
         }
         .onChange(of: combineMoviesTV) { _, newValue in
@@ -199,17 +216,40 @@ struct HomeScreenSettingsView: View {
 
     /// Merge stored order with actual libraries (handles new libraries added to server).
     private func buildOrderedList() {
-        let all = libraryStore.libraries
+        let all = PlinxLibraryVisibility.browsableLibraries(libraryStore.visibleLibraries)
         let storedOrder = decodeStringArray(orderJson)
 
         if storedOrder.isEmpty {
             orderedLibraries = all
         } else {
             // Put stored-order libraries first, then append any new ones not in stored order.
-            let storedSet = Set(storedOrder)
-            let ordered = storedOrder.compactMap { id in all.first { $0.id == id } }
-            let extras = all.filter { !storedSet.contains($0.id) }
+            var placed = Set<LibraryIdentity>()
+            let ordered = storedOrder.flatMap { key in
+                all.filter { HomeLibrarySettingKeys.keys(for: $0).contains(key) && placed.insert($0.identity).inserted }
+            }
+            let extras = all.filter { !placed.contains($0.identity) }
             orderedLibraries = ordered + extras
+        }
+    }
+
+    /// Rewrites plain library ids stored before multi-server to stable keys,
+    /// once every enabled server's libraries are known: an id is only
+    /// unambiguous when no server is missing from the comparison.
+    private func migrateLegacyLibraryKeys() {
+        let enabledServers = Set(registry.enabledSessions.map(\.identity))
+        guard !enabledServers.isEmpty,
+              enabledServers.isSubset(of: libraryStore.librariesByServer.keys)
+        else { return }
+        let libraries = libraryStore.libraries
+        let hidden = decodeStringArray(hiddenIdsJson)
+        let migratedHidden = HomeLibrarySettingKeys.migrated(hidden, libraries: libraries)
+        if migratedHidden != hidden {
+            hiddenIdsJson = encodeStringArray(migratedHidden.sorted())
+        }
+        let order = decodeStringArray(orderJson)
+        let migratedOrder = HomeLibrarySettingKeys.migrated(order, libraries: libraries)
+        if migratedOrder != order {
+            orderJson = encodeStringArray(migratedOrder)
         }
     }
 
@@ -262,13 +302,21 @@ struct HomeScreenSettingsView: View {
     }
 
     private func toggle(library: Library, enabled: Bool) {
-        var ids = Set(decodeStringArray(hiddenIdsJson))
+        var keys = Set(decodeStringArray(hiddenIdsJson))
+        let key = HomeLibrarySettingKeys.key(for: library)
         if enabled {
-            ids.remove(library.id)
+            keys.remove(key)
+            if keys.remove(library.id) != nil {
+                // A plain id kept because several libraries share it hid all
+                // of them: the others stay hidden under their own keys.
+                for other in libraryStore.libraries where other.id == library.id && other.identity != library.identity {
+                    keys.insert(HomeLibrarySettingKeys.key(for: other))
+                }
+            }
         } else {
-            ids.insert(library.id)
+            keys.insert(key)
         }
-        hiddenIdsJson = encodeStringArray(Array(ids).sorted())
+        hiddenIdsJson = encodeStringArray(Array(keys).sorted())
     }
 
     private func moveSection(at index: Int, by offset: Int) {
@@ -278,6 +326,41 @@ struct HomeScreenSettingsView: View {
         sectionOrderJson = encodeStringArray(orderedSections)
     }
 
+}
+
+// MARK: - Library keys
+
+/// Keys of the Home library settings (`plinx.homeHiddenLibraryIds`,
+/// `plinx.homeLibraryOrder`). New values are `LibraryIdentity.stableKey`;
+/// plain library ids written before multi-server are still read.
+enum HomeLibrarySettingKeys {
+    /// The key written for `library`.
+    static func key(for library: Library) -> String {
+        library.identity.stableKey
+    }
+
+    /// Every stored form that refers to `library`: its stable key, then the
+    /// plain library id of single-server builds.
+    static func keys(for library: Library) -> [String] {
+        HomeRecentlyAddedProjection.settingKeys(for: library)
+    }
+
+    /// Replaces each plain library id by the stable key of the one library in
+    /// `libraries` with that id, keeping order and dropping duplicates. An id
+    /// that several libraries share, or none, stays as stored.
+    static func migrated(_ stored: [String], libraries: [Library]) -> [String] {
+        var seen = Set<String>()
+        return stored.compactMap { value in
+            var resolved = value
+            if LibraryIdentity(stableKey: value) == nil {
+                let matches = libraries.filter { $0.id == value }
+                if matches.count == 1 {
+                    resolved = key(for: matches[0])
+                }
+            }
+            return seen.insert(resolved).inserted ? resolved : nil
+        }
+    }
 }
 
 // MARK: - Row

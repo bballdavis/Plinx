@@ -1,204 +1,95 @@
+#if !os(tvOS)
 import Foundation
-import Observation
-import PlinxCore
 
-struct DownloadOwnerIdentity: Codable, Hashable {
-    let serverIdentifier: String
-    let profileIdentifier: String
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// DownloadAccessPolicy — which downloads the active profile sees and plays
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Ownership is the download's own `ownerID` (`MediaOwner`: provider, server
+// and server user), recorded by `DownloadManager` from the services that
+// created it. A profile owns the downloads of the owners `DownloadManager`
+// activated for it (`activateSession(services:)` online, `activateOwners(_:)`
+// offline). Pre-fork downloads get the owner pre-fork Plinx recorded for them,
+// once, at launch (`LegacyDownloadOwnership`). A download without an owner,
+// for example one kept from before per-profile downloads, belongs to nobody:
+// no profile sees or plays it, and only a parent lists it (to delete it).
+//
+// Content is re-checked through `ContentSafetyGate`, the same boundary every
+// provider response goes through, on both the metadata stored with the
+// download and the server metadata pinned for it. A download saved under an
+// older, looser ceiling disappears as soon as a parent lowers it, and an
+// unrated download stays hidden unless unrated content is allowed.
+//
+// Downloads are iOS only (the download stack is not in the tvOS target).
+//
+// ─────────────────────────────────────────────────────────────────────────────
 
-@MainActor
-@Observable
-final class DownloadOwnershipStore {
-    private(set) var identitiesByDownloadID: [String: DownloadOwnerIdentity]
-    private(set) var grandfatheredLegacyDownloadIDs: Set<String>
-    private(set) var unprovenancedDownloadIDs: Set<String>
-    private(set) var loadState: LoadState
-
-    enum LoadState: Equatable { case loaded, migrated, unavailable, corrupt }
-    private struct Envelope: Codable {
-        var version: Int
-        var owned: [String: DownloadOwnerIdentity]
-        var grandfatheredLegacy: [String]
-        var unprovenanced: [String]
-    }
-
-    private let defaults: UserDefaults
-    private let storageKey = "plinx.downloadOwnership.v1"
-
-    init(
-        defaults: UserDefaults = .standard,
-        existingDownloadItems: [DownloadItem] = [],
-        canMigrateExistingDownloads: Bool = true
-    ) {
-        self.defaults = defaults
-        grandfatheredLegacyDownloadIDs = []
-        unprovenancedDownloadIDs = []
-        loadState = .loaded
-        guard let data = defaults.data(forKey: storageKey) else {
-            identitiesByDownloadID = [:]
-            guard canMigrateExistingDownloads else {
-                loadState = .unavailable
-                return
-            }
-            grandfatheredLegacyDownloadIDs = Set(existingDownloadItems.map(\.id))
-            if !grandfatheredLegacyDownloadIDs.isEmpty {
-                loadState = .migrated; persist()
-            }
-            return
-        }
-        do {
-            if let decoded = try? JSONDecoder().decode(Envelope.self, from: data), decoded.version == 2 {
-                identitiesByDownloadID = decoded.owned
-                grandfatheredLegacyDownloadIDs = Set(decoded.grandfatheredLegacy)
-                unprovenancedDownloadIDs = Set(decoded.unprovenanced)
-            } else if let legacy = try? JSONDecoder().decode([String: DownloadOwnerIdentity].self, from: data) {
-                identitiesByDownloadID = legacy
-                guard canMigrateExistingDownloads else {
-                    loadState = .unavailable
-                    return
-                }
-                grandfatheredLegacyDownloadIDs = Set(existingDownloadItems.map(\.id)).subtracting(legacy.keys)
-                loadState = .migrated
-                persist()
-            } else {
-                throw CocoaError(.coderReadCorrupt)
-            }
-        } catch {
-            identitiesByDownloadID = [:]
-            grandfatheredLegacyDownloadIDs = []
-            unprovenancedDownloadIDs = []
-            loadState = .corrupt
-        }
-    }
-
-    func identity(for downloadID: String) -> DownloadOwnerIdentity? {
-        identitiesByDownloadID[downloadID]
-    }
-
-    func downloadIDs(ownedBy identity: DownloadOwnerIdentity) -> Set<String> {
-        Set(identitiesByDownloadID.compactMap { downloadID, owner in
-            owner == identity ? downloadID : nil
-        })
-    }
-
-    func claim(downloadIDs: [String], as identity: DownloadOwnerIdentity) {
-        guard loadState == .loaded || loadState == .migrated else { return }
-        for downloadID in downloadIDs {
-            identitiesByDownloadID[downloadID] = identity
-        }
-        grandfatheredLegacyDownloadIDs.subtract(downloadIDs)
-        unprovenancedDownloadIDs.subtract(downloadIDs)
-        persist()
-    }
-
-    func claimOrThrow(downloadIDs: [String], as identity: DownloadOwnerIdentity) throws {
-        guard loadState == .loaded || loadState == .migrated else {
-            throw DownloadOwnershipError.storeUnreadable
-        }
-        for downloadID in downloadIDs {
-            identitiesByDownloadID[downloadID] = identity
-        }
-        grandfatheredLegacyDownloadIDs.subtract(downloadIDs)
-        unprovenancedDownloadIDs.subtract(downloadIDs)
-        try persistOrThrow()
-    }
-
-    func enroll(_ downloadID: String, as identity: DownloadOwnerIdentity) throws {
-        guard loadState == .loaded || loadState == .migrated else {
-            throw DownloadOwnershipError.storeUnreadable
-        }
-        identitiesByDownloadID[downloadID] = identity
-        grandfatheredLegacyDownloadIDs.remove(downloadID)
-        unprovenancedDownloadIDs.remove(downloadID)
-        try persistOrThrow()
-    }
-
-    func removeEnrollment(_ downloadID: String, expectedIdentity: DownloadOwnerIdentity) throws {
-        guard loadState == .loaded || loadState == .migrated else {
-            throw DownloadOwnershipError.storeUnreadable
-        }
-        guard identitiesByDownloadID[downloadID] == expectedIdentity else { return }
-        identitiesByDownloadID.removeValue(forKey: downloadID)
-        try persistOrThrow()
-    }
-
-    func prune(keeping downloadIDs: Set<String>) {
-        guard loadState == .loaded || loadState == .migrated else { return }
-        let previousOwned = identitiesByDownloadID
-        let previousLegacy = grandfatheredLegacyDownloadIDs
-        let previousUnprovenanced = unprovenancedDownloadIDs
-        identitiesByDownloadID = identitiesByDownloadID.filter {
-            downloadIDs.contains($0.key)
-        }
-        grandfatheredLegacyDownloadIDs.formIntersection(downloadIDs)
-        unprovenancedDownloadIDs.formIntersection(downloadIDs)
-        if identitiesByDownloadID != previousOwned
-            || grandfatheredLegacyDownloadIDs != previousLegacy
-            || unprovenancedDownloadIDs != previousUnprovenanced
-        {
-            persist()
-        }
-    }
-
-    private func persist() {
-        guard let data = try? JSONEncoder().encode(Envelope(version: 2, owned: identitiesByDownloadID,
-                                                            grandfatheredLegacy: Array(grandfatheredLegacyDownloadIDs), unprovenanced: Array(unprovenancedDownloadIDs))) else { return }
-        defaults.set(data, forKey: storageKey)
-    }
-
-    private func persistOrThrow() throws {
-        let data = try JSONEncoder().encode(Envelope(version: 2, owned: identitiesByDownloadID,
-                                                     grandfatheredLegacy: Array(grandfatheredLegacyDownloadIDs), unprovenanced: Array(unprovenancedDownloadIDs)))
-        defaults.set(data, forKey: storageKey)
-    }
-}
-
-enum DownloadOwnershipError: Error { case storeUnreadable }
-
-enum PlinxDownloadEnrollmentError: Error {
-    case blockedByContentPolicy
-    case authorizationChanged
-}
-
-enum PlinxDownloadEnrollmentAuthorization {
-    static func permits(
-        capturedIdentity: DownloadOwnerIdentity,
-        liveIdentity: DownloadOwnerIdentity?
-    ) -> Bool {
-        liveIdentity == capturedIdentity
-    }
-}
-
+/// Whether the active profile may see and use a download.
 enum DownloadAccessDecision: Equatable {
     case allowed
+    /// The title is above the parent's ceiling, unrated while unrated content is hidden, or adult-only.
     case blockedByContentPolicy
+    /// The download belongs to another profile, account or server user.
     case wrongOwner
+    /// The download has no recorded owner.
     case missingOwner
 }
 
+/// Fail-closed access decisions for the downloads of the active profile.
 @MainActor
 struct DownloadAccessPolicy {
-    let safetyPolicy: SafetyPolicy
-    let currentIdentity: DownloadOwnerIdentity?
-    let ownershipStore: DownloadOwnershipStore
+    private let activeOwnerIDs: Set<String>
+    private let gate: ContentSafetyGate
+    private let pinnedMedia: @MainActor (DownloadItem) -> MediaItem?
+
+    /// The content-policy revision these decisions were made under. Reading it when the policy is built (inside a
+    /// view's body) makes the view re-evaluate its downloads when a parent changes the ceilings.
+    let policyRevision: Int
+
+    /// - Parameter gate: The content boundary to check against; `nil` is the app's shared gate.
+    init(downloadManager: DownloadManager, gate: ContentSafetyGate? = nil) {
+        self.init(
+            activeOwnerIDs: downloadManager.activeOwnerIDs,
+            gate: gate,
+            pinnedMedia: { downloadManager.playbackMedia(for: $0) }
+        )
+    }
+
+    /// - Parameters:
+    ///   - gate: The content boundary to check against; `nil` is the app's shared gate.
+    ///   - pinnedMedia: Server metadata kept for a download (its enriched offline record), checked in addition to
+    ///     the metadata stored with the download.
+    init(
+        activeOwnerIDs: Set<String>,
+        gate: ContentSafetyGate? = nil,
+        pinnedMedia: @escaping @MainActor (DownloadItem) -> MediaItem? = { _ in nil }
+    ) {
+        let resolvedGate = gate ?? ContentSafetyGate.shared
+        self.activeOwnerIDs = activeOwnerIDs
+        self.gate = resolvedGate
+        self.pinnedMedia = pinnedMedia
+        policyRevision = resolvedGate.revision
+    }
 
     func decision(for item: DownloadItem) -> DownloadAccessDecision {
-        guard PlinxContentAuthorization.isAllowed(item.metadata.localMediaItem, policy: safetyPolicy) else {
-            return .blockedByContentPolicy
-        }
-
-        guard let owner = ownershipStore.identity(for: item.id) else {
-            return ownershipStore.grandfatheredLegacyDownloadIDs.contains(item.id) ? .allowed : .missingOwner
-        }
-        guard let currentIdentity, owner == currentIdentity else {
-            return .wrongOwner
-        }
+        guard isAllowedByContentPolicy(item) else { return .blockedByContentPolicy }
+        guard let ownerID = item.ownerID else { return .missingOwner }
+        guard activeOwnerIDs.contains(ownerID) else { return .wrongOwner }
         return .allowed
     }
 
+    /// The downloads the active profile may see, in the given order.
     func filter(_ items: [DownloadItem]) -> [DownloadItem] {
         items.filter { decision(for: $0) == .allowed }
+    }
+
+    /// Both the stored and the pinned metadata must pass the gate.
+    func isAllowedByContentPolicy(_ item: DownloadItem) -> Bool {
+        guard gate.isAllowed(item.localMediaItem) else { return false }
+        if let pinned = pinnedMedia(item), !gate.isAllowed(pinned) {
+            return false
+        }
+        return true
     }
 }
 
@@ -217,60 +108,4 @@ enum DownloadTapAction: Equatable {
         return item.status == .failed ? .showFailureActions : .none
     }
 }
-
-extension SessionManager {
-    var plinxDownloadOwnerIdentity: DownloadOwnerIdentity? {
-        guard let serverIdentifier = plexServer?.clientIdentifier else { return nil }
-        if DemoFixtureBootstrap.isActive,
-           serverIdentifier == DemoFixtureBootstrap.serverIdentifier,
-           authToken == DemoFixtureBootstrap.serverToken {
-            return DownloadOwnerIdentity(serverIdentifier: serverIdentifier, profileIdentifier: "demo-family")
-        }
-        let profileIdentifier = user?.uuid
-            ?? user?.id.map(String.init)
-            ?? user?.username
-        guard let profileIdentifier, !profileIdentifier.isEmpty else { return nil }
-        return DownloadOwnerIdentity(
-            serverIdentifier: serverIdentifier,
-            profileIdentifier: profileIdentifier
-        )
-    }
-}
-
-extension DownloadManager {
-    func configurePlinxEnrollment(
-        identity: DownloadOwnerIdentity?,
-        safetyPolicy: SafetyPolicy,
-        ownershipStore: DownloadOwnershipStore,
-        sessionManager: SessionManager
-    ) {
-        configureEnrollmentContextProvider {
-            guard let identity else { return nil }
-            let scope = DownloadAccessScope(
-                serverIdentifier: identity.serverIdentifier,
-                accessScopeIdentifier: identity.profileIdentifier
-            )
-            return DownloadEnrollmentContext(
-                scope: scope,
-                authorizeAndEnroll: { downloadID, metadata in
-                    guard PlinxDownloadEnrollmentAuthorization.permits(
-                        capturedIdentity: identity,
-                        liveIdentity: sessionManager.plinxDownloadOwnerIdentity
-                    ) else {
-                        throw PlinxDownloadEnrollmentError.authorizationChanged
-                    }
-                    guard PlinxContentAuthorization.isAllowed(
-                        metadata.localMediaItem,
-                        policy: safetyPolicy
-                    ) else {
-                        throw PlinxDownloadEnrollmentError.blockedByContentPolicy
-                    }
-                    try ownershipStore.enroll(downloadID, as: identity)
-                },
-                rollbackEnrollment: { downloadID in
-                    try ownershipStore.removeEnrollment(downloadID, expectedIdentity: identity)
-                }
-            )
-        }
-    }
-}
+#endif

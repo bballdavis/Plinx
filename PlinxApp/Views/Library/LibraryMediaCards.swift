@@ -2,6 +2,12 @@ import PlinxCore
 import PlinxUI
 import SwiftUI
 
+extension EnvironmentValues {
+    /// Artwork a library's landscape cards prefer; Other Videos libraries ask
+    /// for each item's own thumbnail instead of its backdrop art.
+    @Entry var preferredLandscapeArtworkKind: MediaImageViewModel.ArtworkKind?
+}
+
 struct PlinxLibraryPortraitMediaCard: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
 
@@ -51,7 +57,7 @@ struct PlinxLibraryPortraitMediaCard: View {
 }
 
 /// Plinx's library-detail landscape card honors the library-specific artwork
-/// preference so Other Videos displays each item's Plex thumbnail.
+/// preference so Other Videos displays each item's own thumbnail.
 struct PlinxLibraryLandscapeMediaCard: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.preferredLandscapeArtworkKind) private var preferredArtworkKind
@@ -103,11 +109,27 @@ struct PlinxLibraryLandscapeMediaCard: View {
     }
 }
 
+/// Placeholder sized like a library card, shown while its page loads.
+struct PlinxLibraryCardPlaceholder: View {
+    let width: CGFloat
+    let usesLandscapeCard: Bool
+    var showsLabels = true
+
+    var body: some View {
+        if usesLandscapeCard {
+            LandscapeSkeletonCard(width: width, showsLabels: showsLabels)
+        } else {
+            PosterSkeletonCard(width: width, showsLabels: showsLabels)
+        }
+    }
+}
+
 /// One Plinx-owned media-card renderer for every library surface. Keeping the
 /// focus decoration here prevents individual tabs from drifting back to the
 /// inset-ring behavior of the upstream card.
 private struct PlinxLibraryMediaCard: View {
-    @Environment(PlexAPIContext.self) private var plexApiContext
+    @Environment(ServerRegistry.self) private var registry
+    @Environment(MediaServices.self) private var scopedServices: MediaServices?
     #if os(tvOS)
     @Environment(MediaFocusModel.self) private var focusModel
     @FocusState private var isFocused: Bool
@@ -152,12 +174,13 @@ private struct PlinxLibraryMediaCard: View {
             }
         }
         .frame(width: size.width, alignment: .leading)
+        .offlineAvailability(of: media)
         #if os(tvOS)
         .focusable()
         .focused($isFocused)
         .onChange(of: isFocused) { _, focused in
             if focused, let playableItem = media.playableItem {
-                focusModel.focusedMedia = playableItem
+                focusModel.focus(playableItem)
             }
         }
         .onPlayPauseCommand(perform: onTap)
@@ -166,12 +189,10 @@ private struct PlinxLibraryMediaCard: View {
     }
 
     private var artwork: some View {
-        MediaImageView(
-            viewModel: MediaImageViewModel(
-                context: plexApiContext,
-                artworkKind: artworkKind,
-                media: media
-            )
+        ItemArtworkView(
+            services: registry.services(for: media, scoped: scopedServices),
+            kind: artworkKind,
+            media: media
         )
         .frame(width: size.width, height: size.height)
         .clipped()

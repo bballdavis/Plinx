@@ -57,14 +57,43 @@ final class SettingsManagerPlaybackTests: XCTestCase {
         XCTAssertEqual(reloaded.playback.maxVolumePercent, 100)
     }
 
-    func test_downloadQualitySelectionPersistsForFutureEnqueues() {
+    func test_downloadQualityPresetSelectionPersistsForFutureEnqueues() {
         let settings = SettingsManager(userDefaults: defaults)
 
-        settings.setDownloadQuality(.megabits3_720p)
+        settings.setDownloadQualityPreset(.p720_2mbps)
 
-        XCTAssertEqual(settings.downloads.quality, .megabits3_720p)
+        XCTAssertEqual(settings.downloads.qualityPreset, .p720_2mbps)
         let reloaded = SettingsManager(userDefaults: defaults)
-        XCTAssertEqual(reloaded.downloads.quality, .megabits3_720p)
+        XCTAssertEqual(reloaded.downloads.qualityPreset, .p720_2mbps)
+    }
+
+    /// A parent's pre-fork download quality (stored as `downloads.quality`) survives the upgrade
+    /// through the real settings store, and the next save writes it under the new key.
+    func test_preForkDownloadQualitySurvivesLoadAndNextSave() {
+        let stored = """
+        {
+          "playback": {
+            "autoPlayNextEpisode": true,
+            "seekBackwardSeconds": 10,
+            "seekForwardSeconds": 10
+          },
+          "interface": {},
+          "downloads": {
+            "wifiOnly": true,
+            "quality": "megabits3_720p"
+          }
+        }
+        """
+        defaults.set(Data(stored.utf8), forKey: "strimr.settings")
+
+        let settings = SettingsManager(userDefaults: defaults)
+        XCTAssertEqual(settings.downloads.qualityPreset, .p720_2mbps)
+
+        settings.setDownloadWiFiOnly(false)
+
+        let reloaded = SettingsManager(userDefaults: defaults)
+        XCTAssertEqual(reloaded.downloads.qualityPreset, .p720_2mbps)
+        XCTAssertFalse(reloaded.downloads.wifiOnly)
     }
 
     func test_loadingOutOfRangePersistedVolumeClampsImmediately() {
@@ -143,99 +172,102 @@ final class SettingsManagerPlaybackTests: XCTestCase {
         PlinxSettingsSanitizer.applyPlinxDefaults(settings, userDefaults: defaults)
         XCTAssertFalse(settings.interface.displayCollections)
     }
-    func test_searchVisibleSectionIDs_omitHiddenLibraries() {
+
+    // MARK: - Visible Libraries (search)
+
+    func test_hiddenLibraries_areReadForTheirProfileOnly() {
+        let settings = SettingsManager(userDefaults: defaults)
         let libraries = [
-            Library(id: "1", title: "Movies", type: .movie, sectionId: 1),
-            Library(id: "2", title: "Shows", type: .show, sectionId: 2),
-            Library(id: "3", title: "Videos", type: .clip, sectionId: 3)
+            Library(id: "1", title: "Movies", type: .movie, sectionId: 1, server: plexServer),
+            Library(id: "2", title: "Shows", type: .series, sectionId: 2, server: plexServer),
+            Library(id: "3", title: "Videos", type: .clip, sectionId: 3, server: plexServer),
         ]
 
-        let visibleSectionIDs = SearchViewModel.resolvedVisibleSectionIDs(
-            libraries: libraries,
-            hiddenLibraryIDs: ["2"]
-        )
+        settings.updateLibraryPreferences(profileID: "kid") { $0.hiddenLibraries = [libraries[1].identity] }
 
-        XCTAssertEqual(visibleSectionIDs, Set([1, 3]))
+        let hidden = PlinxLibraryVisibility.hiddenLibraries(settingsManager: settings, profileID: "kid")
+        XCTAssertEqual(hidden, [LibraryIdentity(server: plexServer, libraryID: "2")])
+        XCTAssertEqual(libraries.filter { !hidden.contains($0.identity) }.map(\.id), ["1", "3"])
+        XCTAssertTrue(PlinxLibraryVisibility.hiddenLibraries(settingsManager: settings, profileID: "other").isEmpty)
+
+        let reloaded = SettingsManager(userDefaults: defaults)
+        XCTAssertEqual(PlinxLibraryVisibility.hiddenLibraries(settingsManager: reloaded, profileID: "kid"), hidden)
     }
 
-    func test_searchResultFiltering_respectsVisibleSections() {
-        let visibleSectionIDs: Set<Int> = [1, 3]
-        let visibleItem = makePlexSearchItem(ratingKey: "visible", librarySectionID: 3)
-        let hiddenItem = makePlexSearchItem(ratingKey: "hidden", librarySectionID: 2)
+    func test_searchResultFiltering_respectsHiddenLibraries() {
+        let hidden: Set<LibraryIdentity> = [LibraryIdentity(server: plexServer, libraryID: "2")]
+        let visibleItem = makeSearchSource(itemID: "visible", librarySectionID: "3", server: plexServer)
+        let hiddenItem = makeSearchSource(itemID: "hidden", librarySectionID: "2", server: plexServer)
+        let sameLibraryIDOtherServer = makeSearchSource(itemID: "other", librarySectionID: "2", server: otherServer)
 
-        XCTAssertTrue(SearchViewModel.shouldIncludeSearchResult(visibleItem, visibleSectionIDs: visibleSectionIDs))
-        XCTAssertFalse(SearchViewModel.shouldIncludeSearchResult(hiddenItem, visibleSectionIDs: visibleSectionIDs))
+        XCTAssertTrue(PlinxLibraryVisibility.isVisible(visibleItem.media, on: plexServer, hiddenLibraries: hidden))
+        XCTAssertFalse(PlinxLibraryVisibility.isVisible(hiddenItem.media, on: plexServer, hiddenLibraries: hidden))
+        XCTAssertEqual(
+            PlinxLibraryVisibility.visibleSources(
+                [visibleItem, hiddenItem, sameLibraryIDOtherServer],
+                hiddenLibraries: hidden,
+            ).map(\.media.id),
+            ["visible", "other"],
+        )
+    }
+
+    /// A result that does not name its library cannot be matched, so it is hidden while the
+    /// profile hides any library of that server, and shown when the profile hides nothing there.
+    func test_searchResultWithoutLibrary_failsClosedWhileItsServerHidesALibrary() {
+        let hidden: Set<LibraryIdentity> = [LibraryIdentity(server: plexServer, libraryID: "2")]
+        let unscopedHere = makeSearchSource(itemID: "shared", librarySectionID: nil, server: plexServer)
+        let unscopedElsewhere = makeSearchSource(itemID: "jellyfin", librarySectionID: nil, server: otherServer)
+
+        XCTAssertFalse(PlinxLibraryVisibility.isVisible(unscopedHere.media, on: plexServer, hiddenLibraries: hidden))
+        XCTAssertTrue(
+            PlinxLibraryVisibility.isVisible(unscopedElsewhere.media, on: otherServer, hiddenLibraries: hidden),
+        )
+        XCTAssertTrue(PlinxLibraryVisibility.isVisible(unscopedHere.media, on: plexServer, hiddenLibraries: []))
     }
 }
 
-private func makePlexSearchItem(ratingKey: String, librarySectionID: Int?) -> PlexItem {
-    PlexItem(
-        ratingKey: ratingKey,
-        key: "/library/metadata/\(ratingKey)",
-        guid: "plex://movie/\(ratingKey)",
-        librarySectionID: librarySectionID,
-        type: .movie,
-        title: "Item \(ratingKey)",
+private let plexServer = ServerIdentity(provider: .plex, id: "plex-server")
+private let otherServer = ServerIdentity(provider: .jellyfin, id: "jellyfin-server")
+
+private func makeSearchSource(
+    itemID: String,
+    librarySectionID: String?,
+    server: ServerIdentity,
+) -> SearchResultSource {
+    let item = MediaItem(
+        id: itemID,
+        identity: MediaIdentity(server: server, itemID: itemID),
+        guid: "plex://movie/\(itemID)",
         summary: nil,
-        thumb: nil,
-        art: nil,
+        title: "Item \(itemID)",
+        type: .movie,
+        parentRatingKey: nil,
+        grandparentRatingKey: nil,
+        genres: [],
         year: nil,
-        viewOffset: nil,
-        lastViewedAt: nil,
-        viewCount: nil,
-        originallyAvailableAt: nil,
         duration: nil,
-        audienceRating: nil,
-        audienceRatingImage: nil,
-        contentRating: nil,
-        contentRatingAge: nil,
-        tagline: nil,
-        ultraBlurColors: nil,
-        images: nil,
-        guids: nil,
-        genres: nil,
-        countries: nil,
-        directors: nil,
-        writers: nil,
-        roles: nil,
-        ratings: nil,
-        media: nil,
-        markers: nil,
-        slug: nil,
-        studio: nil,
+        videoResolution: nil,
         rating: nil,
-        chapterSource: nil,
-        primaryExtraKey: nil,
-        ratingImage: nil,
-        index: nil,
+        ratings: [],
+        contentRating: "G",
+        studio: nil,
+        tagline: nil,
+        thumbPath: nil,
+        artPath: nil,
+        artworkCornerColors: nil,
+        viewOffset: nil,
+        viewCount: nil,
+        childCount: nil,
         leafCount: nil,
         viewedLeafCount: nil,
-        childCount: nil,
-        parentRatingKey: nil,
-        parentGuid: nil,
-        parentSlug: nil,
-        parentStudio: nil,
-        parentKey: nil,
-        parentTitle: nil,
-        parentThumb: nil,
-        parentYear: nil,
-        parentIndex: nil,
-        grandparentRatingKey: nil,
-        grandparentGuid: nil,
-        grandparentSlug: nil,
-        titleSort: nil,
-        grandparentKey: nil,
         grandparentTitle: nil,
-        originalTitle: nil,
-        grandparentThumb: nil,
-        grandparentArt: nil,
-        onDeck: nil,
-        playQueueItemID: nil,
-        subtype: nil,
-        minYear: nil,
-        maxYear: nil,
-        composite: nil,
-        playlistType: nil,
-        smart: nil
+        parentTitle: nil,
+        parentIndex: nil,
+        index: nil,
+        grandparentThumbPath: nil,
+        grandparentArtPath: nil,
+        parentThumbPath: nil,
+        librarySectionID: librarySectionID,
     )
+    return SearchResultSource(server: server, serverName: server.id, media: .playable(item))
 }

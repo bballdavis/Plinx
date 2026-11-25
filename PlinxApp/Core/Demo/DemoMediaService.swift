@@ -598,6 +598,7 @@
             syncPlay: false,
         )
 
+        @MainActor
         static func make(server: ServerIdentity) throws -> MediaServices {
             let catalog = try DemoCatalog.load(server: server)
             guard let directory = DemoMode.contentDirectory else { throw DemoCatalog.LoadError.missingContentDirectory }

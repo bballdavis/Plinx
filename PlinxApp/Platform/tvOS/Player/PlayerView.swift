@@ -73,6 +73,14 @@ struct PlayerView: View {
     @State private var isSystemMenuPresented = false
     @State private var isShowingSystemTabs = false
     @FocusState private var focusedPlayerSurface: PlayerFocusTarget?
+    /// Plinx draws its own branded buffering indicator above the player and turns this one off.
+    private let showsBufferingOverlay: Bool
+    /// Final playback check (kid safety): every item is checked right before it loads, including next
+    /// episodes, queue picks and SharePlay hand-offs. A refusal stops playback and closes the player.
+    private let isPlaybackAuthorized: @MainActor (MediaItem) -> Bool
+    /// Told the item on screen whenever it changes (autoplay, queue picks, SharePlay), so overlays drawn around the
+    /// player act on what is playing rather than on the item the player opened with.
+    private let onCurrentMediaChange: @MainActor (MediaItem?) -> Void
 
     private let controlsHideDelay: TimeInterval = 3.0
     private let seekFeedbackDelay: TimeInterval = 1.2
@@ -93,10 +101,16 @@ struct PlayerView: View {
         viewModel: PlayerViewModel,
         controlsStyle: PlayerControlsStyle,
         onExit: @escaping () -> Void,
+        showsBufferingOverlay: Bool = true,
+        isPlaybackAuthorized: @escaping @MainActor (MediaItem) -> Bool = { ContentSafetyGate.shared.isAllowed($0) },
+        onCurrentMediaChange: @escaping @MainActor (MediaItem?) -> Void = { _ in },
     ) {
         _viewModel = State(initialValue: viewModel)
         _controlsStyle = State(initialValue: controlsStyle)
         self.onExit = onExit
+        self.showsBufferingOverlay = showsBufferingOverlay
+        self.isPlaybackAuthorized = isPlaybackAuthorized
+        self.onCurrentMediaChange = onCurrentMediaChange
     }
 
     var body: some View {
@@ -124,6 +138,7 @@ struct PlayerView: View {
                     playerController.onMediaLoaded = handleMediaLoaded
                     playerController.onLiveDemuxFailure = fallBackToServerTranscode
                     playerController.onPlaybackEnded = handlePlaybackEnded
+                    applyMaximumVolume()
                     configureSleepTimer()
                     showControls(temporarily: true)
                     playbackRate = viewModel.initialPlaybackRate(
@@ -202,6 +217,9 @@ struct PlayerView: View {
                 }
                 .onChange(of: playerController.videoFormatBadge) { _, newValue in
                     videoFormatBadge = newValue
+                }
+                .onChange(of: settingsManager.playback.maxVolumePercent) { _, _ in
+                    applyMaximumVolume()
                 },
         )
 
@@ -298,6 +316,9 @@ struct PlayerView: View {
 
         let sessionObservers = AnyView(
             playbackObservers
+                .onChange(of: viewModel.media?.identity, initial: true) { _, _ in
+                    onCurrentMediaChange(viewModel.media)
+                }
                 .onChange(of: sharePlayCoordinator.activityChangeID) { _, _ in
                     guard let activity = sharePlayCoordinator.activity,
                           activity.ratingKey != viewModel.currentRatingKey
@@ -656,7 +677,7 @@ struct PlayerView: View {
                     }
             }
 
-            if viewModel.isBuffering || isRecoveringServerAccess {
+            if showsBufferingOverlay, viewModel.isBuffering || isRecoveringServerAccess {
                 bufferingOverlay
             }
 
@@ -1480,6 +1501,11 @@ struct PlayerView: View {
         shouldResumeAfterLoad: Bool = false,
         shouldPauseAfterLoad: Bool = false,
     ) {
+        // Every load passes here, so this is the player's last word on what may play. No media means no playback.
+        guard let media = viewModel.media, isPlaybackAuthorized(media) else {
+            refuseUnauthorizedPlayback()
+            return
+        }
         activePlaybackURL = url
         if resetTrackSelection {
             appliedPreferredAudio = false
@@ -1917,7 +1943,8 @@ struct PlayerView: View {
         }
 
         switch media.type {
-        case .movie:
+        // Plinx plays clips (Other Videos libraries, playlists of clips) like movies, continuing their queue.
+        case .movie, .clip:
             Task {
                 await handleMovieCompletion(stopsForSleepTimer: stopsForSleepTimer)
             }
@@ -1977,11 +2004,33 @@ struct PlayerView: View {
     }
 
     private func startPlayback(using nextViewModel: PlayerViewModel) async {
+        // Queue items carry their media up front: refuse before the server prepares a stream for it.
+        let isAuthorized = await MainActor.run {
+            guard let media = nextViewModel.media else { return false }
+            return isPlaybackAuthorized(media)
+        }
+        guard isAuthorized else {
+            await MainActor.run { refuseUnauthorizedPlayback() }
+            return
+        }
         await MainActor.run {
             activePlaybackURL = nil
             viewModel = nextViewModel
         }
         await viewModel.load()
+    }
+
+    private func refuseUnauthorizedPlayback() {
+        nextEpisodePresentation.cancel()
+        playerController.stop()
+        if sharePlayCoordinator.isInSession {
+            sharePlayCoordinator.leave()
+        }
+        dismissPlayer(force: true)
+    }
+
+    private func applyMaximumVolume() {
+        playerController.setMaximumVolume(settingsManager.playback.maximumVolume)
     }
 
     private func startPlayback(for activity: StrimrWatchActivity) async {

@@ -46,7 +46,8 @@ Downloads does not appear.
 ## Troubleshooting
 
 - If a server is missing, confirm the selected Plex account and profile can see
-  it, then return to protected settings to choose the server again.
+  it (or that the Jellyfin server and user are correct), then open **Accounts
+  and servers** in protected settings to reconnect or choose it again.
 - If focus seems lost, press Menu to dismiss the current sheet and use the
   directional controls to select a visible action. Every primary Apple TV
   action is intended to be reachable by remote navigation.

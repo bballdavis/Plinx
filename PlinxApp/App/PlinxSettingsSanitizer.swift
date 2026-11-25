@@ -1,5 +1,7 @@
 import Foundation
 
+/// Launch-time corrections that keep absorbed settings inside the Plinx
+/// product scope, whatever an earlier build or a restored backup persisted.
 @MainActor
 enum PlinxSettingsSanitizer {
     static func applyPlinxDefaults(
@@ -10,11 +12,53 @@ enum PlinxSettingsSanitizer {
         settingsManager.setDisplayCollections(false)
     }
 
-    /// Seerr discovery/request flows are not part of the first Plinx release
-    /// because they do not yet pass through Plinx's parental authorization.
+    /// Everything Plinx does not ship to kids yet: Seerr discovery, Live TV,
+    /// and the absorbed settings Plinx hides from its settings screens.
+    static func disableUnsupportedFeatures(_ settingsManager: SettingsManager) {
+        disableUnsupportedExternalDiscovery(settingsManager)
+        disableLiveTV(settingsManager)
+        resetHiddenSettings(settingsManager)
+    }
+
+    /// Seerr discovery/request flows stay off until the Seerr kid model
+    /// (per-kid Seerr user, certification filtering) lands; they do not yet
+    /// pass through Plinx's parental authorization.
     static func disableUnsupportedExternalDiscovery(_ settingsManager: SettingsManager) {
         guard settingsManager.interface.displaySeerrDiscoverTab else { return }
         settingsManager.setDisplaySeerrDiscoverTab(false)
+    }
+
+    /// Live TV programs and channels carry no rating, so per-item filtering
+    /// cannot fail closed (hard-fork decision D5). The safety boundary also
+    /// turns the capability off; this keeps the startup tab from asking for it.
+    static func disableLiveTV(_ settingsManager: SettingsManager) {
+        guard settingsManager.interface.displayLiveTVTab else { return }
+        settingsManager.setDisplayLiveTVTab(false)
+    }
+
+    /// Settings Plinx does not offer, pinned to the values its kid-facing
+    /// screens assume, so a value persisted by an earlier build or a restored
+    /// backup cannot switch them back on with no way for a parent to see it.
+    static func resetHiddenSettings(_ settingsManager: SettingsManager) {
+        if settingsManager.interface.homeHero != .off {
+            settingsManager.setHomeHero(.off)
+        }
+        // Subtitle search writes to the server; it is a parent-only action.
+        if settingsManager.playback.automaticSubtitleSearch {
+            settingsManager.setAutomaticSubtitleSearch(false)
+        }
+        // External players leave the Plinx player and its safety checks.
+        if settingsManager.playback.externalPlayer != nil {
+            settingsManager.setExternalPlayer(nil)
+        }
+        // Plinx removed playback speed control.
+        if settingsManager.playback.defaultPlaybackRate != 1.0 {
+            settingsManager.setDefaultPlaybackRate(1.0)
+        }
+        // The tvOS system player style bypasses the Plinx chrome and timeline.
+        if settingsManager.playback.playerControlsStyle != .classic {
+            settingsManager.setPlayerControlsStyle(.classic)
+        }
     }
 
     private static func hasPersistedDisplayCollections(in defaults: UserDefaults) -> Bool {

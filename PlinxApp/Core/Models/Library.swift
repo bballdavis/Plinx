@@ -7,6 +7,8 @@ struct Library: Identifiable, Equatable, Hashable, Codable {
     let sectionId: Int?
     /// Plex's items shared one by one with the user, browsed like a library without a section.
     let isShared: Bool
+    /// The provider's metadata agent identifier (Plex `agent`); empty when the provider has none.
+    let agent: String
     private(set) var server: ServerIdentity
 
     var identity: LibraryIdentity {
@@ -18,6 +20,12 @@ struct Library: Identifiable, Equatable, Hashable, Codable {
             return "/library/sections/\(sectionId)/all"
         }
         return isShared ? PlexSharedLibrary.browsePath : nil
+    }
+
+    /// Plex libraries scanned with the "None" agent (personal media, home videos) carry no
+    /// metadata such as content ratings.
+    var isNoneAgentLibrary: Bool {
+        !agent.isEmpty && agent.lowercased().contains("none")
     }
 
     var iconName: String {
@@ -48,6 +56,7 @@ struct Library: Identifiable, Equatable, Hashable, Codable {
         type: MediaKind,
         sectionId: Int? = nil,
         isShared: Bool = false,
+        agent: String = "",
         server: ServerIdentity,
     ) {
         self.id = id
@@ -55,6 +64,7 @@ struct Library: Identifiable, Equatable, Hashable, Codable {
         self.type = type
         self.sectionId = sectionId
         self.isShared = isShared
+        self.agent = agent
         self.server = server
     }
 
@@ -65,6 +75,7 @@ struct Library: Identifiable, Equatable, Hashable, Codable {
         type = try container.decode(MediaKind.self, forKey: .type)
         sectionId = try container.decodeIfPresent(Int.self, forKey: .sectionId)
         isShared = try container.decodeIfPresent(Bool.self, forKey: .isShared) ?? false
+        agent = try container.decodeIfPresent(String.self, forKey: .agent) ?? ""
         server = try container.decodeIfPresent(ServerIdentity.self, forKey: .server) ?? .unassigned
     }
 
@@ -82,6 +93,7 @@ extension Library {
             title: plexSection.title,
             type: plexSection.type.mediaKind,
             sectionId: Int(plexSection.key),
+            agent: plexSection.agent,
             server: server,
         )
     }

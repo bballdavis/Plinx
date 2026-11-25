@@ -7,24 +7,26 @@ import AVFoundation
 import UIKit
 #endif
 
-/// Plinx-styled player screen.
+/// Plinx-styled player screen around the upstream `PlayerWrapper`.
 ///
-/// Wraps Strimr's `PlayerWrapper` with kid-safe UI:
-/// - Plinx-sized player overlay header
-/// - Branded buffering and loading presentation
-///
-/// The core playback is still delegated to `PlayerWrapper`/`PlayerViewModel`
-/// from Strimr. A full bespoke player is planned for Phase 3.
+/// Plinx adds its branded loading and buffering presentation, the video fill
+/// toggle and the More Actions menu (watched state, More Info). Playback is
+/// authorized at the load site through `ContentSafetyGate`, so every queue
+/// item, autoplay and SharePlay item is checked before it plays.
 struct PlinxPlayerView: View {
     @Binding var isPresented: Bool
     let viewModel: PlayerViewModel
+    /// The services of the playing item's server; `nil` for a downloaded file, which offers no quick actions.
+    let services: MediaServices?
     let onRequestMoreInfo: (MediaItem) -> Void
 
-    @Environment(\.safetyPolicy) private var safetyPolicy
-    @Environment(PlexAPIContext.self) private var plexApiContext
     @Environment(PlinxWatchStatusStore.self) private var watchStatusStore
     @State private var quickActionMedia: MediaItem?
     @State private var quickActionErrorMessage: String?
+    #if os(tvOS)
+    /// The item on screen, which autoplay, queue picks and SharePlay move past `viewModel`'s first item.
+    @State private var currentMedia: MediaItem?
+    #endif
 
     var body: some View {
         ZStack {
@@ -35,8 +37,10 @@ struct PlinxPlayerView: View {
                 onExit: {
                     isPresented = false
                 },
-                isPlaybackAuthorized: { item in
-                    PlinxContentAuthorization.isAllowed(item, policy: safetyPolicy)
+                onCurrentMediaChange: { media in
+                    #if os(tvOS)
+                    currentMedia = media
+                    #endif
                 }
             )
             // PlayerSurfaceView extends the video itself to every edge. Keep
@@ -45,14 +49,15 @@ struct PlinxPlayerView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             #if os(iOS)
             // The More Actions button lives in the player header, so it shows
-            // and hides with the rest of the auto-hiding controls.
+            // and hides with the rest of the auto-hiding controls. The header
+            // passes the item on screen, which autoplay may have advanced.
             .environment(\.plinxPlayerMoreActions, moreActionsHandler)
             .allowsHitTesting(quickActionMedia == nil)
             .accessibilityHidden(quickActionMedia != nil)
             #endif
             #if os(tvOS)
             .plinxQuickActionLongPress {
-                guard let media = viewModel.media else { return }
+                guard services != nil, let media = currentMedia else { return }
                 presentQuickActions(for: media)
             }
             .allowsHitTesting(quickActionMedia == nil)
@@ -85,18 +90,21 @@ struct PlinxPlayerView: View {
     }
 
     #if os(iOS)
-    private var moreActionsHandler: (() -> Void)? {
-        guard let media = viewModel.media,
-              PlinxContentAuthorization.isAllowed(media, policy: safetyPolicy)
-        else { return nil }
-        return { presentQuickActions(for: media) }
+    /// No quick actions without the item's server (a downloaded file).
+    private var moreActionsHandler: ((MediaItem) -> Void)? {
+        guard services != nil else { return nil }
+        return { media in presentQuickActions(for: media) }
     }
     #endif
 
+    /// The services of `media`'s own server, the only ones allowed to act on it.
+    private func services(for media: MediaItem) -> MediaServices? {
+        guard let services, services.identity == media.identity.server else { return nil }
+        return services
+    }
+
     private func presentQuickActions(for media: MediaItem) {
-        guard viewModel.media?.id == media.id,
-              PlinxContentAuthorization.isAllowed(media, policy: safetyPolicy)
-        else {
+        guard ContentSafetyGate.shared.isAllowed(media), services(for: media) != nil else {
             quickActionErrorMessage = String(localized: "media.unavailable.title", table: "Plinx")
             return
         }
@@ -122,7 +130,7 @@ struct PlinxPlayerView: View {
                 systemImage: "info.circle",
                 role: nil,
                 action: {
-                    guard PlinxContentAuthorization.isAllowed(media, policy: safetyPolicy) else {
+                    guard ContentSafetyGate.shared.isAllowed(media) else {
                         quickActionErrorMessage = String(localized: "media.unavailable.title", table: "Plinx")
                         return
                     }
@@ -134,12 +142,16 @@ struct PlinxPlayerView: View {
     }
 
     private func toggleWatched(_ media: MediaItem) async {
-        guard PlinxContentAuthorization.isAllowed(media, policy: safetyPolicy) else {
+        guard let services = services(for: media) else {
             quickActionErrorMessage = String(localized: "media.unavailable.title", table: "Plinx")
             return
         }
         do {
-            _ = try await watchStatusStore.toggle(media, context: plexApiContext, isAllowed: true)
+            _ = try await watchStatusStore.toggle(
+                media,
+                services: services,
+                isAllowed: ContentSafetyGate.shared.isAllowed(media)
+            )
         } catch {
             quickActionErrorMessage = error.localizedDescription
         }
@@ -212,34 +224,48 @@ private struct PlinxPlayerExitButtonStyle: ButtonStyle {
     }
 }
 
-/// Plinx-owned presentation layer around Strimr's playback engine.
-///
-/// Strimr keeps transport and controls; Plinx owns the branded buffering
-/// presentation and disables the upstream spinner through a default-safe seam.
+/// Plinx presentation around the upstream player: the branded buffering
+/// overlay replaces the upstream spinner. The player loads only what
+/// `isPlaybackAuthorized` allows (the shared safety gate by default).
 struct PlinxPlayerPlaybackView: View {
     let viewModel: PlayerViewModel
     let onExit: () -> Void
-    let isPlaybackAuthorized: (PlexItem) -> Bool
+    let isPlaybackAuthorized: @MainActor (MediaItem) -> Bool
+    /// tvOS only: the item on screen after each change. The iOS header passes it to its own actions.
+    let onCurrentMediaChange: @MainActor (MediaItem?) -> Void
+
+    init(
+        viewModel: PlayerViewModel,
+        onExit: @escaping () -> Void,
+        isPlaybackAuthorized: @escaping @MainActor (MediaItem) -> Bool = { ContentSafetyGate.shared.isAllowed($0) },
+        onCurrentMediaChange: @escaping @MainActor (MediaItem?) -> Void = { _ in }
+    ) {
+        self.viewModel = viewModel
+        self.onExit = onExit
+        self.isPlaybackAuthorized = isPlaybackAuthorized
+        self.onCurrentMediaChange = onCurrentMediaChange
+    }
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
             #if os(tvOS)
-            PlayerTVWrapper(
+            PlayerWrapper(
                 viewModel: viewModel,
                 onExit: onExit,
                 showsBufferingOverlay: false,
-                isPlaybackAuthorized: isPlaybackAuthorized
+                isPlaybackAuthorized: isPlaybackAuthorized,
+                onCurrentMediaChange: onCurrentMediaChange
             )
             #else
+            // The upstream player dismisses its presentation itself.
             PlayerWrapper(
                 viewModel: viewModel,
                 showsBufferingOverlay: false,
                 isPlaybackAuthorized: isPlaybackAuthorized
             )
             .plinxVideoPresentation()
-            .onDisappear(perform: onExit)
             #endif
 
             PlinxVideoBufferingOverlay()
@@ -322,52 +348,140 @@ struct PlinxPlaybackLoadingView: View {
     }
 }
 
+/// What the full-screen player shows: the loading screen while a launch
+/// prepares, then the player for what `MainCoordinator` presents.
+///
+/// This is the final check before anything plays: a queue is shown only when
+/// every item is allowed, and a downloaded file only when it is allowed. Live
+/// TV is not offered, so a live presentation is closed.
 struct PlinxPlaybackPresentationView: View {
     @EnvironmentObject private var mainCoordinator: MainCoordinator
     @EnvironmentObject private var playbackLaunchCoordinator: PlaybackLaunchCoordinator
-    @Environment(PlexAPIContext.self) private var plexApiContext
-    @State private var playerViewModel: PlayerViewModel?
+    @State private var session: PlinxPlayerSession?
     let onRequestMoreInfo: (MediaItem) -> Void
 
     var body: some View {
         Group {
-            if let playerViewModel {
+            if let session {
                 PlinxPlayerView(
                     isPresented: playerPresentationBinding,
-                    viewModel: playerViewModel,
+                    viewModel: session.viewModel,
+                    services: session.services,
                     onRequestMoreInfo: onRequestMoreInfo
                 )
+                .environment(session.services)
+                // A new presentation is a new player, never the previous one with new data.
+                .id(session.key)
             } else {
                 PlinxPlaybackLoadingView {
-                    playbackLaunchCoordinator.cancelPendingLaunch()
-                    mainCoordinator.resetPlayer()
+                    closePlayer()
                 }
             }
         }
-        .task(id: mainCoordinator.selectedPlayQueue?.id) {
-            guard let playQueue = mainCoordinator.selectedPlayQueue else {
-                playerViewModel = nil
+        .task(id: presentationKey) {
+            resolveSession(for: presentationKey)
+        }
+    }
+
+    private var presentationKey: PlinxPlayerSession.Key {
+        if let queue = mainCoordinator.selectedMediaQueue, mainCoordinator.selectedMediaServices != nil {
+            return .queue(queue.id)
+        }
+        #if !os(tvOS)
+        if let request = mainCoordinator.selectedLocalPlayback {
+            return .local(request.id)
+        }
+        #endif
+        if mainCoordinator.selectedLiveTVContext != nil {
+            return .live
+        }
+        return .idle
+    }
+
+    private func resolveSession(for key: PlinxPlayerSession.Key) {
+        let gate = ContentSafetyGate.shared
+        switch key {
+        case .idle:
+            // A new launch is preparing: show its loading screen. Otherwise the
+            // presentation is closing and keeps the player until it is gone.
+            if playbackLaunchCoordinator.pendingLaunch != nil {
+                session = nil
+            }
+        case .queue:
+            guard let queue = mainCoordinator.selectedMediaQueue,
+                  let services = mainCoordinator.selectedMediaServices,
+                  queue.items.indices.contains(queue.currentIndex),
+                  queue.items.allSatisfy({ gate.isAllowed($0.media) })
+            else {
+                refuse()
                 return
             }
-
-            playerViewModel = PlayerViewModel(
-                playQueue: playQueue,
-                context: plexApiContext,
-                shouldResumeFromOffset: mainCoordinator.shouldResumeFromOffset
+            session = PlinxPlayerSession(
+                key: key,
+                viewModel: PlayerViewModel(
+                    queue: queue,
+                    services: services,
+                    shouldResumeFromOffset: mainCoordinator.shouldResumeFromOffset,
+                    launchNotice: mainCoordinator.playerNotice
+                ),
+                services: services
             )
+        case .local:
+            #if !os(tvOS)
+            guard let request = mainCoordinator.selectedLocalPlayback,
+                  gate.isAllowed(request.media)
+            else {
+                refuse()
+                return
+            }
+            session = PlinxPlayerSession(
+                key: key,
+                viewModel: PlayerViewModel(request: request),
+                services: nil
+            )
+            #else
+            refuse()
+            #endif
+        case .live:
+            // Live TV is not part of Plinx: its channels carry no ratings.
+            refuse()
         }
+    }
+
+    private func refuse() {
+        session = nil
+        closePlayer()
+    }
+
+    private func closePlayer() {
+        playbackLaunchCoordinator.cancelPendingLaunch()
+        mainCoordinator.resetPlayer()
     }
 
     private var playerPresentationBinding: Binding<Bool> {
         Binding(
-            get: { mainCoordinator.selectedPlayQueue != nil },
+            get: { mainCoordinator.isPresentingPlayer },
             set: { isPresented in
                 if !isPresented {
-                    mainCoordinator.resetPlayer()
+                    closePlayer()
                 }
             }
         )
     }
+}
+
+/// One presented player: what it plays and the services of the item's server.
+struct PlinxPlayerSession {
+    enum Key: Hashable {
+        case idle
+        case queue(UUID)
+        case local(UUID)
+        case live
+    }
+
+    let key: Key
+    let viewModel: PlayerViewModel
+    let services: MediaServices?
 }
 
 #if os(iOS)
@@ -376,7 +490,7 @@ private struct PlinxVideoFillKey: EnvironmentKey {
 }
 
 private struct PlinxPlayerMoreActionsKey: EnvironmentKey {
-    static let defaultValue: (() -> Void)? = nil
+    static let defaultValue: ((MediaItem) -> Void)? = nil
 }
 
 extension EnvironmentValues {
@@ -385,9 +499,9 @@ extension EnvironmentValues {
         set { self[PlinxVideoFillKey.self] = newValue }
     }
 
-    /// Opens the player's quick-action menu. `nil` hides the header button,
-    /// for example in offline playback or when the item is not allowed.
-    var plinxPlayerMoreActions: (() -> Void)? {
+    /// Opens the player's quick-action menu for the item on screen. `nil`
+    /// hides the header button, for example in offline playback.
+    var plinxPlayerMoreActions: ((MediaItem) -> Void)? {
         get { self[PlinxPlayerMoreActionsKey.self] }
         set { self[PlinxPlayerMoreActionsKey.self] = newValue }
     }
@@ -419,7 +533,7 @@ private struct PlinxVideoPresentationModifier: ViewModifier {
 }
 
 /// Decorates Aether's public render view using public AVFoundation layer APIs.
-/// Keeping this in Plinx avoids changing Strimr's private engine ownership.
+/// Keeping this outside the engine leaves its private layer ownership untouched.
 /// Observe layer replacement and gravity resets so native/software dispatch
 /// changes and subsequent queue items retain the session's presentation mode.
 @MainActor

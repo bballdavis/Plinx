@@ -1,33 +1,39 @@
 import XCTest
 @testable import Plinx
 
+private let groupingServer = ServerIdentity(provider: .plex, id: "grouping-server")
+
 final class HomeLibraryGroupingTests: XCTestCase {
     private let movieLibrary = Library(
         id: "1",
         title: "Movies",
         type: .movie,
         sectionId: 1,
-        agent: "tv.plex.agents.movie"
+        agent: "tv.plex.agents.movie",
+        server: groupingServer
     )
     private let showLibrary = Library(
         id: "2",
         title: "TV Shows",
-        type: .show,
+        type: .series,
         sectionId: 2,
-        agent: "tv.plex.agents.series"
+        agent: "tv.plex.agents.series",
+        server: groupingServer
     )
     private let clipLibrary = Library(
         id: "3",
         title: "Home Videos",
         type: .clip,
-        sectionId: 3
+        sectionId: 3,
+        server: groupingServer
     )
     private let youtubeLibrary = Library(
         id: "6",
         title: "YouTube Videos",
         type: .movie,
         sectionId: 6,
-        agent: "tv.plex.agents.none"
+        agent: "tv.plex.agents.none",
+        server: groupingServer
     )
 
     func test_standardMovieAndShowLibraries_areMoviesOrTV() {
@@ -68,10 +74,11 @@ final class HomeLibraryGroupingTests: XCTestCase {
     }
 }
 
-private func makeDisplayItem(id: String, type: PlexItemType) -> MediaDisplayItem {
+private func makeDisplayItem(id: String, type: MediaKind) -> MediaDisplayItem {
     .playable(
         MediaItem(
             id: id,
+            identity: MediaIdentity(server: groupingServer, itemID: id),
             guid: "guid://\(id)",
             summary: nil,
             title: id,
@@ -89,7 +96,7 @@ private func makeDisplayItem(id: String, type: PlexItemType) -> MediaDisplayItem
             tagline: nil,
             thumbPath: "/library/metadata/\(id)/thumb",
             artPath: "/library/metadata/\(id)/art",
-            ultraBlurColors: nil,
+            artworkCornerColors: nil,
             viewOffset: nil,
             viewCount: nil,
             childCount: nil,

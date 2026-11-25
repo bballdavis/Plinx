@@ -11,12 +11,14 @@ enum LibraryCardLayoutPolicy {
     static let bannerArtworkCountStorageKey = "plinx.libraryBannerArtworkCount"
     static let hotReloadLibraryArtworkStorageKey = "plinx.libraryBannerHotReload"
 
-    /// Portrait (poster) for standard movie/TV libraries; landscape (letterbox)
-    /// for clip and none-agent libraries (YouTube, Home Videos).
+    /// Portrait (poster) for standard movie/TV libraries and Plex's "Shared with
+    /// you" view; landscape (letterbox) for clip and none-agent libraries
+    /// (YouTube, Home Videos) and everything else.
     static func prefersLandscape(for library: Library) -> Bool {
         if library.isNoneAgentLibrary { return true }
+        if library.isShared { return false }
         switch library.type {
-        case .movie, .show:
+        case .movie, .series:
             return false
         default:
             return true
@@ -58,6 +60,8 @@ enum LibraryCardLayoutPolicy {
         return GridMetrics(columnCount: columns, cardWidth: cardWidth, spacing: spacing)
     }
 
+    /// The tile also never shows more backdrops than the library preview
+    /// returns (`LibraryPreview.artworkCount`).
     static func maximumBannerArtworkDisplayCount(userInterfaceIdiom: UIUserInterfaceIdiom) -> Int {
         userInterfaceIdiom == .phone ? 3 : 5
     }

@@ -308,7 +308,7 @@ struct AppleTVBrowseFocusUITestHarness: View {
             .library
         case .search:
             .search
-        case .more, .seerrDiscover:
+        case .more, .seerrDiscover, .downloads, .favorites, .liveTV:
             .other
         }
     }
@@ -447,6 +447,9 @@ private extension MainCoordinator.Tab {
         case .search: "search"
         case .more: "more"
         case .seerrDiscover: "explore"
+        case .downloads: "downloads"
+        case .favorites: "favorites"
+        case .liveTV: "liveTV"
         }
     }
 }

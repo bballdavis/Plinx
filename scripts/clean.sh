@@ -37,8 +37,8 @@ remove_tree() {
 }
 
 # These are disposable outputs only. Source, Git metadata, credentials, the
-# checked-in Xcode Cloud project, the sibling Strimr checkout, and user-created
-# files are intentionally excluded.
+# checked-in Xcode Cloud project, and user-created files are intentionally
+# excluded.
 remove_tree "$PROJECT_ROOT/build"
 remove_tree "$PROJECT_ROOT/Packages/PlinxCore/.build"
 remove_tree "$PROJECT_ROOT/Packages/PlinxCore/build"

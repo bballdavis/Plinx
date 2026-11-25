@@ -9,21 +9,22 @@ family browsing.
 
 ## Before you begin
 
-You need:
+You need one of:
 
-- a Plex account;
-- access to a Plex Media Server and the libraries you want to make available;
-- a Plex Home profile if your family uses them.
+- a Plex account with access to a Plex Media Server and the libraries you want
+  to make available, plus a Plex Home profile if your family uses them; or
+- a Jellyfin server and a user account on it.
 
 ## First-time setup
 
-On iPhone and iPad, the connection screen shows three steps: connect your
-account, choose a profile, and choose a server. **Sign-in information** explains
-Plex setup and offers a sample library you can explore first.
+The first screen asks a grown-up to choose how to connect: **Continue with
+Plex** or Jellyfin. On iPhone and iPad, **Sign-in information** on that screen
+explains setup and offers a sample library you can explore first.
 
-1. Sign in with the Plex account used to manage your server.
-2. Choose a Plex Home profile. Protected profiles require their Plex PIN.
-3. Choose the Plex Media Server to use.
+1. Sign in with the Plex account used to manage your server, or enter your
+   Jellyfin server and user.
+2. Choose a profile. Protected Plex Home profiles require their Plex PIN.
+3. Choose the servers that profile should use.
 4. Open Settings through the parental gate and set the libraries, rating limits,
    and other controls appropriate for your family.
 5. Return to the main tabs to browse, search, and watch approved media.
@@ -35,7 +36,9 @@ choices.
 ## Try Plinx without an account
 
 On iPhone or iPad, tap **Sign-in information**, then **Explore the Demo Library**.
-On Apple TV, select **Explore the Demo Library** on the connection screen.
+On Apple TV, choose Plex, then select **Explore the Demo Library** on the
+sign-in screen. The sample library is offered only while no account is set
+up.
 The sample library includes movies, episodes, collections, playlists, and a
 sample Explore catalog. Its original 90-second videos support playback,
 seeking, audio tracks, captions, and downloads without an external server.
@@ -43,8 +46,8 @@ Sample requests stay in the demo and do not request external videos.
 
 The demo parental PIN is **2468**. Demo controls are separate from your family's
 settings and reset when you enter the demo again. Sample downloads remain
-until deleted; re-enter the demo after relaunch to access them. Sign out through
-Settings to return to account setup. Apple TV requires a Plex account.
+until deleted; re-enter the demo after relaunch to access them. Log out through
+Settings to leave the sample library and return to account setup.
 
 See the [product tour](product-tour.md) for screenshots.
 
@@ -57,6 +60,8 @@ to browse and stream; download actions are intentionally unavailable. See the
 
 ## If a server is missing
 
-Confirm that the account can see the server in Plex, that the server is online,
-and that the selected profile has access to the intended libraries. A parent
-can change the server later from protected settings.
+Confirm that the account can see the server in Plex (or that the Jellyfin
+server address and user are correct), that the server is online, and that the
+selected profile has access to the intended libraries. A parent can add,
+reconnect, or choose servers later under **Accounts and servers** in protected
+settings.

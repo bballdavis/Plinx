@@ -2,76 +2,106 @@
 
 ## Release Safety Boundaries
 
-`ParentalAccessCoordinator` is the single authorization state for settings and other parent-only surfaces. Content flows through Plinx decorators for display and through `SafePlaybackAuthorizing` again immediately before queue launch. Playlists are reduced to authorized entries, and offline items require both current content-policy approval and a matching server/profile ownership record.
+`ParentalAccessCoordinator` is the single authorization state for settings and
+other parent-only surfaces. Every content source a provider exposes passes one
+boundary: `MediaServices.init` wraps each service in `SafeMediaServices`,
+which asks `ContentSafetyGate` about every title (`PlinxApp/Core/Safety`).
+Playback checks each title again in `PlinxPlaybackLauncher` and at the player's
+load site. Playlists are reduced to allowed entries, and a download plays only
+for the profile that owns it and only while the current policy allows it.
 
 The 2026.08 App Store release ships iOS, iPadOS, and tvOS product routes.
-Downloads remain limited to iOS and iPadOS. Seerr discovery/request navigation
-is disabled until it can use the same authorization boundaries.
+Downloads remain limited to iOS and iPadOS. Seerr discovery and requests stay
+off for kids until they can use the same authorization boundaries, and Live TV
+is not offered.
 
 ## Product Model
 
-Plinx is a kid-safe product layer built on top of a sibling Strimr checkout. Plinx owns the product shell, branding, safety rules, parental controls, and app-specific adapters. Strimr remains the underlying media engine and Plex foundation.
+Plinx is one codebase. In November 2026 it absorbed the source of Strimr, the
+open-source Plex and Jellyfin client it used to build against; that code is
+now Plinx code, edited in place. Plinx owns the whole app: the product shell,
+branding, safety rules, parental controls, the provider layer for Plex and
+Jellyfin, sessions, playback, and downloads.
 
 Core constraints:
 
 - Kid safety is the top-level product requirement.
 - Zero collection is the privacy baseline.
-- Prefer Plinx-owned adapters, decorators, and views before patching Strimr.
-- Avoid copying upstream logic into Plinx-owned folders when a thin integration layer will do.
+- No external links in kid-facing UI.
+- One implementation per concept: change or delete the original instead of
+  adding a wrapper or a same-named replacement.
+- Enforce content safety at the boundary, not screen by screen.
 
 ## Runtime Shape
 
-The live iOS app does not consume Strimr as a clean public package today.
+`PlinxApp/project.yml` defines one app target per platform (`Plinx-iOS`,
+`Plinx-tvOS`). Each compiles a single module from:
 
-The app target defined in `PlinxApp/project.yml` compiles together:
+- the Plinx layer: `PlinxApp/App`, `Views`, `ViewModels`, and `Adapters`
+- the absorbed media stack: `PlinxApp/Core` and
+  `PlinxApp/Platform/<platform>`
+- the local packages `Packages/PlinxCore` and `Packages/PlinxUI`
+- Swift packages pinned exactly in `project.yml`: AetherEngine (playback),
+  GRDB (the offline store), and SwiftAssRenderer (ASS and SSA subtitles)
 
-- Plinx-owned code from `PlinxApp/App`, `Views`, `ViewModels`, `Adapters`, and `Decorators`
-- sibling Strimr source from `../strimr/Shared`
-- sibling Strimr iOS feature source from `../strimr/Strimr-iOS/Features`
-- `Packages/PlinxCore`
-- `Packages/PlinxUI`
-- AetherEngine, pinned to an exact source revision
-
-This same-module compilation model exists because parts of Strimr still depend on Swift `internal` access. AetherEngine replaces the previous MPVKit integration and is consumed only by the app target.
+AetherEngine is consumed only by the app targets. See the
+[runtime build graph](runtime-build-graph.md) and the
+[codebase architecture](strimr-integration.md) for the composition root,
+sessions, and the safety boundary.
 
 ## Module Ownership
 
-### `PlinxApp/`
+### `PlinxApp/App`
 
-Owns the application shell and composition root:
+The composition root (`PlinxApp.swift`), lifecycle hardening,
+`ParentalAccessCoordinator`, settings sanitizing, the App Review sample
+library, UI-test bootstraps, and the Youtarr client.
 
-- app lifecycle and dependency wiring
-- Plinx screens and navigation shells
-- adapters that replace unsafe or incompatible Strimr implementations
-- decorators that wrap upstream models/view models with Plinx behavior
-- app-specific resources, unit tests, and UI tests
+### `PlinxApp/Views`, `ViewModels`, `Adapters`
+
+Plinx presentation: root tabs and onboarding, profile selection, Home,
+Library, Search, detail screens, player chrome and timeline, parent settings
+(including sign-out), the downloads grid, playback launch, and watched state.
+
+### `PlinxApp/Core`
+
+The shared media stack: sessions, accounts and the server registry, the Plex
+and Jellyfin providers, the content-safety boundary (`Core/Safety`), feature
+view models, the player controller, models, networking, the offline store and
+downloads (iOS), and the settings store.
+
+### `PlinxApp/Platform/<platform>`
+
+Platform screens kept from upstream: player wrappers and views, detail and
+library pieces, downloads (iOS), and settings sections Plinx reuses.
 
 ### `Packages/PlinxCore/`
 
-Owns Plinx domain logic:
+Plinx domain logic with no app dependencies:
 
-- safety and rating filtering
+- `SafetyPolicy`, `SafetyInterceptor`, and rating normalization
 - parental gate helpers
-- playback policy owned by Plinx
-- public bridge models that do not depend on Strimr internals
 - app-domain utilities like haptics
 
 ### `Packages/PlinxUI/`
 
-Owns the Plinx design system:
+The Plinx design system:
 
 - shared theme primitives
 - reusable kid-facing components
 - loading, lock, and interaction affordances
-- presentation-layer abstractions that do not import Strimr
-
-### `../strimr`
-
-This sibling checkout is the active Strimr codebase feeding the app build. It owns generic Plex networking, playback, downloads, repositories, shared models, and other engine concerns that are not Plinx-specific.
 
 ## Practical Editing Rules
 
-1. Plinx branding, safety, parental controls, layout, tone, and product behavior belong in Plinx-owned layers.
-2. Generic playback, download, repository, or model fixes belong in the Strimr fork.
-3. If Plinx needs to override a narrow upstream behavior, prefer an adapter or decorator before editing Strimr.
-4. If Strimr must change, keep the patch minimal and suitable for an upstream PR where possible.
+1. Put a change where its concept lives: shared session, provider, model, and
+   player behavior in `Core`; a platform screen in `Platform/<platform>`;
+   Plinx presentation in `Views`, `ViewModels`, and `Adapters`; app wiring in
+   `App`; policy and design primitives in the packages.
+2. Content safety belongs in `Core/Safety`. A new provider requirement needs a
+   classification in `SafeMediaServices.reviewedRequirements` and coverage in
+   `SafeMediaServicesTests`.
+3. Keep persisted identifiers, such as the Keychain key
+   `strimr.plex.authToken`, unless a migration preserves families' sign-in and
+   data.
+4. Port upstream Strimr changes by hand, following
+   [upstream Strimr provenance](../maintenance/upstream-strimr.md).

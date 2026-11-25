@@ -1,237 +1,319 @@
+import PlinxUI
 import SwiftUI
 
+/// First step of account setup on the Plinx quiet shell: a grown-up connects
+/// the family's Plex account or Jellyfin server. At first launch on iPhone and
+/// iPad, the sign-in information sheet also offers the sample library.
 struct ProviderSelectionView: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(SessionManager.self) private var sessionManager
+    #if os(tvOS)
     @FocusState private var focusedProvider: MediaProvider?
+    #else
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @State private var isShowingInformation = false
+    @State private var launchDemoAfterInformation = false
+    #endif
+    @State private var isLaunchingDemo = false
+    @State private var demoLaunchFailed = false
+
     let onSelect: (MediaProvider) -> Void
+    /// First launch only: login help and the sample library entry.
+    var offersSampleLibrary = false
+    /// Adding a connection from Settings or a profile can be abandoned.
+    var onCancel: (() -> Void)?
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: verticalSpacing) {
-                Image("Icon")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: appLogoSize, height: appLogoSize)
-                    .clipShape(RoundedRectangle(cornerRadius: appLogoCornerRadius, style: .continuous))
-                    .accessibilityHidden(true)
-
-                header
-                providerChoices
+        content
+            #if !os(tvOS)
+            .toolbar(.hidden, for: .navigationBar)
+            .sheet(isPresented: $isShowingInformation, onDismiss: {
+                guard launchDemoAfterInformation else { return }
+                launchDemoAfterInformation = false
+                launchDemo()
+            }) {
+                PlinxSignInInformationSheet(
+                    isDemoDisabled: isLaunchingDemo,
+                    onExploreDemo: {
+                        launchDemoAfterInformation = true
+                        isShowingInformation = false
+                    },
+                    onDone: { isShowingInformation = false }
+                )
             }
-            .frame(maxWidth: contentMaxWidth)
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, horizontalPadding)
-            .padding(.vertical, verticalPadding)
-        }
-        .scrollBounceBehavior(.basedOnSize)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+            #endif
+            .accessibilityIdentifier("providerSelection")
     }
 
-    private var header: some View {
-        VStack(spacing: 10) {
-            Text("provider.selection.title")
-                .font(.heroTitle)
-                .foregroundStyle(.textPrimary)
-                .multilineTextAlignment(.center)
-            Text("provider.selection.subtitle")
-                .font(.bodyText)
-                .foregroundStyle(.textSecondary)
-                .multilineTextAlignment(.center)
+    // MARK: - iPhone and iPad
+
+    #if !os(tvOS)
+    private var content: some View {
+        GeometryReader { proxy in
+            let layout = PlinxOnboardingLayout(width: proxy.size.width, height: proxy.size.height)
+            let isExpanded = layout != .compact
+
+            ZStack {
+                PlinxAmbientBackground(intensity: .hero)
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack(alignment: .center, spacing: 12) {
+                            if let onCancel {
+                                PlinxChromeButton(systemImage: "xmark", action: onCancel)
+                                    .accessibilityLabel(Text("common.actions.cancel", tableName: "Plinx"))
+                                    .accessibilityIdentifier("providerSelection.cancel")
+                            }
+                            PlinxBrandLogoView(
+                                asset: .lockupOnDark,
+                                accessibilityIdentifier: "providerSelection.logo",
+                                maxWidth: layout.logoWidth
+                            )
+                            Spacer(minLength: 16)
+                            PlinxOnboardingStepIndicator(step: .connect, isExpanded: isExpanded)
+                        }
+                        .padding(.top, isExpanded ? 32 : 12)
+
+                        Spacer(minLength: isExpanded ? 48 : 56)
+
+                        VStack(alignment: .leading, spacing: 14) {
+                            PlinxOnboardingGrownUpEyebrow(isExpanded: isExpanded)
+
+                            Text(Self.title)
+                                .font(.system(size: layout.titleSize, weight: .heavy, design: .rounded))
+                                .foregroundStyle(Color.white)
+                                .minimumScaleFactor(0.8)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .accessibilityAddTraits(.isHeader)
+                                .accessibilityIdentifier("providerSelection.title")
+
+                            Text(Self.subtitle)
+                                .font(.system(isExpanded ? .title2 : .title3, design: .rounded, weight: .semibold))
+                                .foregroundStyle(Color.brandSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        providerButtons(minHeight: isExpanded ? 70 : 84)
+                            .frame(maxWidth: 460)
+                            .padding(.top, 40)
+
+                        sampleLibraryFooter
+                            .frame(maxWidth: 460)
+                            .padding(.top, 18)
+                    }
+                    .padding(.horizontal, layout.horizontalPadding)
+                    .padding(.bottom, isExpanded ? 40 : 24)
+                    .frame(maxWidth: layout.contentMaxWidth, alignment: .leading)
+                    .frame(maxWidth: .infinity)
+                }
+                .scrollIndicators(.hidden)
+                .scrollBounceBehavior(.basedOnSize)
+            }
         }
-        .frame(maxWidth: 620)
     }
 
-    private var providerChoices: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: cardSpacing) {
-                providerButtons
+    private func providerButtons(minHeight: CGFloat) -> some View {
+        VStack(spacing: 14) {
+            Button {
+                onSelect(.plex)
+            } label: {
+                Label {
+                    Text("signIn.button.continue")
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                } icon: {
+                    Image(systemName: "play.rectangle.fill")
+                }
             }
-            .frame(minWidth: horizontalLayoutMinimumWidth)
+            .buttonStyle(PlinxActionButtonStyle(treatment: .primary, minHeight: minHeight))
+            .disabled(isLaunchingDemo)
+            .accessibilityIdentifier("provider.plex")
 
-            VStack(spacing: cardSpacing) {
-                providerButtons
+            Button {
+                onSelect(.jellyfin)
+            } label: {
+                Label {
+                    Text(Self.jellyfinTitle)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                } icon: {
+                    Image(systemName: "server.rack")
+                }
             }
+            .buttonStyle(PlinxActionButtonStyle(treatment: .secondary))
+            .disabled(isLaunchingDemo)
+            .accessibilityIdentifier("provider.jellyfin")
         }
+        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
     }
 
     @ViewBuilder
-    private var providerButtons: some View {
-        providerButton(
-            title: "provider.plex",
-            symbol: "play.rectangle.fill",
-            accent: Color(red: 0.95, green: 0.68, blue: 0.0),
-            provider: .plex,
-        )
-        providerButton(
-            title: "provider.jellyfin",
-            symbol: "server.rack",
-            accent: Color(red: 0.46, green: 0.49, blue: 0.96),
-            provider: .jellyfin,
-        )
+    private var sampleLibraryFooter: some View {
+        if offersSampleLibrary {
+            VStack(spacing: 10) {
+                HStack(spacing: 4) {
+                    Text(Self.helpLabel)
+                        .font(.system(.footnote, design: .rounded, weight: .semibold))
+                        .foregroundStyle(Color.white.opacity(0.62))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    PlinxSignInInformationButton(isCompact: true) {
+                        isShowingInformation = true
+                    }
+                    .disabled(isLaunchingDemo)
+                }
+                if isLaunchingDemo {
+                    ProgressView()
+                        .accessibilityLabel(Text("signIn.demo.loading", tableName: "Plinx"))
+                }
+                if demoLaunchFailed {
+                    Text("signIn.demo.failed", tableName: "Plinx")
+                        .font(.callout)
+                        .foregroundStyle(Color.brandSecondary)
+                        .accessibilityIdentifier("signIn.demoError")
+                }
+            }
+        }
+    }
+    #endif
+
+    // MARK: - Apple TV
+
+    #if os(tvOS)
+    private var content: some View {
+        ZStack {
+            PlinxAmbientBackground(intensity: .hero)
+
+            VStack(spacing: 40) {
+                PlinxBrandLogoView(
+                    asset: .lockupWhite,
+                    accessibilityIdentifier: "providerSelection.logo",
+                    maxWidth: 390
+                )
+                .frame(height: 130)
+
+                VStack(spacing: 14) {
+                    PlinxOnboardingGrownUpEyebrow(isExpanded: true)
+                    Text(Self.title)
+                        .font(.system(size: 56, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color.white)
+                        .multilineTextAlignment(.center)
+                        .accessibilityIdentifier("providerSelection.title")
+                    Text(Self.subtitle)
+                        .font(.system(size: 27, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Color.white.opacity(0.78))
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 1_100)
+                }
+
+                HStack(spacing: 48) {
+                    providerCard(
+                        title: Text("provider.plex"),
+                        systemImage: "play.rectangle.fill",
+                        provider: .plex
+                    )
+                    providerCard(
+                        title: Text("provider.jellyfin"),
+                        systemImage: "server.rack",
+                        provider: .jellyfin
+                    )
+                }
+                .focusSection()
+
+                if let onCancel {
+                    Button(action: onCancel) {
+                        Text("common.actions.cancel", tableName: "Plinx")
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 420, height: 60)
+                            .background(
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .fill(PlinxBrand.surface)
+                            )
+                    }
+                    .plinxTVFocusButton(style: PlinxFocusSurfaceStyle(cornerRadius: 18, focusedFillOpacity: 0.08))
+                    .accessibilityIdentifier("providerSelection.cancel")
+                }
+            }
+            .padding(.horizontal, 80)
+            .padding(.vertical, 60)
+        }
+        .defaultFocus($focusedProvider, .plex)
     }
 
-    private func providerButton(
-        title: LocalizedStringKey,
-        symbol: String,
-        accent: Color,
-        provider: MediaProvider,
-    ) -> some View {
-        let isFocused = focusedProvider == provider
-
-        return Button {
+    private func providerCard(title: Text, systemImage: String, provider: MediaProvider) -> some View {
+        Button {
             onSelect(provider)
         } label: {
-            HStack(spacing: symbolSpacing) {
-                Image(systemName: symbol)
-                    .font(.system(size: symbolSize, weight: .semibold))
-                    .foregroundStyle(accent)
-                    .accessibilityHidden(true)
-                Text(title)
-                    .font(.tileTitle)
-                    .foregroundStyle(.textPrimary)
+            VStack(spacing: 24) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 64, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
+                title
+                    .font(.system(size: 34, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
             }
-            .frame(maxWidth: .infinity, minHeight: logoAreaHeight)
-            .padding(cardPadding)
-            .frame(maxWidth: .infinity, minHeight: cardMinimumHeight, alignment: .leading)
-            .background {
-                RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-                    .fill(isFocused ? Color.surfaceRaised : Color.surfaceSubtle)
-                    .overlay {
-                        accent.opacity(isFocused ? 0.16 : 0.08)
-                            .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
-                    }
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-                    .stroke(
-                        isFocused ? accent.opacity(0.9) : Color.strokeSubtle,
-                        lineWidth: isFocused ? 3 : 1,
-                    )
-            }
-            .shadow(color: isFocused ? accent.opacity(0.22) : .clear, radius: 24, y: 8)
-            .animation(Motion.focus, value: isFocused)
-            .scaleEffect(isFocused && !reduceMotion ? 1.035 : 1)
-            .animation(Motion.animation(Motion.focusScale, reduceMotion: reduceMotion), value: isFocused)
+            .frame(width: 420, height: 260)
+            .background(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .fill(PlinxBrand.surface)
+            )
         }
-        .buttonStyle(ProviderCardButtonStyle())
         .focused($focusedProvider, equals: provider)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(title)
+        .plinxTVFocusButton(
+            style: PlinxFocusSurfaceStyle(
+                focusedScale: 1.04,
+                focusedShadowRadius: 22,
+                cornerRadius: 28,
+                focusedFillOpacity: 0.1
+            )
+        )
+        .accessibilityIdentifier("provider.\(provider.rawValue)")
+    }
+    #endif
+
+    // MARK: - Sample library
+
+    private func launchDemo() {
+        guard !isLaunchingDemo else { return }
+        isLaunchingDemo = true
+        demoLaunchFailed = false
+        Task { @MainActor in
+            await DemoFixtureBootstrap.start(sessionManager: sessionManager)
+            demoLaunchFailed = sessionManager.status != .ready
+            isLaunchingDemo = false
+        }
     }
 
-    private var contentMaxWidth: CGFloat {
-        #if os(tvOS)
-            1120
-        #else
-            820
-        #endif
+    // MARK: - Copy
+
+    static var title: String {
+        String(
+            localized: "provider.plinx.title",
+            defaultValue: "Connect your family’s videos",
+            table: "Plinx"
+        )
     }
 
-    private var horizontalLayoutMinimumWidth: CGFloat {
-        #if os(tvOS)
-            900
-        #else
-            600
-        #endif
+    static var subtitle: String {
+        String(
+            localized: "provider.plinx.subtitle",
+            defaultValue: "Use the Plex account or Jellyfin server your family already has. You’ll choose who’s watching next.",
+            table: "Plinx"
+        )
     }
 
-    private var appLogoSize: CGFloat {
-        #if os(tvOS)
-            192
-        #else
-            128
-        #endif
+    static var jellyfinTitle: String {
+        String(
+            localized: "provider.plinx.jellyfin",
+            defaultValue: "Use a Jellyfin server",
+            table: "Plinx"
+        )
     }
 
-    private var appLogoCornerRadius: CGFloat {
-        #if os(tvOS)
-            40
-        #else
-            28
-        #endif
-    }
-
-    private var horizontalPadding: CGFloat {
-        #if os(tvOS)
-            64
-        #else
-            24
-        #endif
-    }
-
-    private var verticalPadding: CGFloat {
-        #if os(tvOS)
-            72
-        #else
-            32
-        #endif
-    }
-
-    private var verticalSpacing: CGFloat {
-        #if os(tvOS)
-            56
-        #else
-            32
-        #endif
-    }
-
-    private var cardSpacing: CGFloat {
-        #if os(tvOS)
-            32
-        #else
-            16
-        #endif
-    }
-
-    private var cardPadding: CGFloat {
-        #if os(tvOS)
-            40
-        #else
-            24
-        #endif
-    }
-
-    private var cardMinimumHeight: CGFloat {
-        #if os(tvOS)
-            210
-        #else
-            140
-        #endif
-    }
-
-    private var cardCornerRadius: CGFloat {
-        LayoutMetrics.overlayCornerRadius
-    }
-
-    private var symbolSize: CGFloat {
-        #if os(tvOS)
-            56
-        #else
-            36
-        #endif
-    }
-
-    private var symbolSpacing: CGFloat {
-        #if os(tvOS)
-            24
-        #else
-            14
-        #endif
-    }
-
-    private var logoAreaHeight: CGFloat {
-        #if os(tvOS)
-            112
-        #else
-            80
-        #endif
-    }
-}
-
-private struct ProviderCardButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
-            .animation(Motion.focus, value: configuration.isPressed)
+    static var helpLabel: String {
+        String(
+            localized: "provider.plinx.help",
+            defaultValue: "Sign-in help and the sample library",
+            table: "Plinx"
+        )
     }
 }

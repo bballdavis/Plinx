@@ -25,46 +25,37 @@ files already stored on the device.
 Reduced-quality presets are used only when they are estimated to save at least
 20 percent. The estimate combines the selected video bitrate, 192 kbps stereo
 AAC audio, and container overhead. If the estimate cannot meet that threshold,
-that item downloads at Original quality instead. Plinx validates the profile
-selected by Plex and also verifies the prepared and completed file sizes. A
-result that saves less than 20 percent is discarded and replaced with the
-original source file.
+that item downloads at Original quality instead.
 
-For a reduced-quality download, Plinx submits the item to Plex Media Server's
-download queue. The Downloads tab shows a preparation phase while the server
-decides whether it can direct play, direct stream, or must transcode the item.
-When the queue reports transcode progress, Plinx labels that phase
-“Transcoding”; the device transfer begins only when the queued media is
+For a reduced-quality Plex download, Plinx submits the item to Plex Media
+Server's download queue. The Downloads tab shows a preparation phase while the
+server prepares the item; a transcode of unknown length shows the bytes
+received so far. The device transfer begins only when the queued media is
 available. Server-side preparation can continue while Plinx is not active, and
-Plinx resumes monitoring it when the correct server and profile return.
-The parent-gated Manage Downloads screen shows the requested and effective
-quality, source and estimated sizes, final size, savings, and any reason Plinx
-used Original instead.
+Plinx resumes monitoring it when the correct server and profile return. The
+parent-gated Manage Downloads screen shows storage use and each download's
+quality.
 
 This flow requires Plex Media Server 1.41.9 or newer and a Plex account that is
 permitted to use server downloads/transcoding. A failed item stays on the
-Downloads tab marked **Download failed**. Tap it to choose **Redownload**, which
-starts a fresh download and then removes the failed one, or **Remove**. A
-redownload rechecks the current content rules and needs a connection to the
-same server and profile. If it cannot start, the failed item stays so you can
-try again later. Failed items also appear in the parent-gated Manage Downloads
-screen.
+Downloads tab marked **Download failed**. Tap it to choose **Redownload** or
+**Remove**. A redownload resumes or prepares the file again, rechecks the
+current content rules, and needs a connection to the same server and profile.
+If it cannot start, the failed item stays so you can try again later. Failed
+items also appear in the parent-gated Manage Downloads screen.
 
 ## Download rules
 
-- A download must be allowed by the current content policy.
-- Offline media downloaded by the current version is tied to the Plex server
-  and profile that created it.
-- Plinx records that ownership before a new item can appear in the download
-  list. A profile or server switch during preparation cannot transfer the
-  remaining items in a season or show batch to the new identity.
-- If a parent logs out or changes profile while preparation is still running,
-  the old authorization is rejected before the item appears or a transfer
-  begins.
-- Downloads already on a device when Plinx is upgraded have no historical
-  profile record. Plinx treats those legacy downloads as shared offline media,
-  but still hides and blocks playback whenever they exceed the active profile's
-  current rating limits.
+- A download must be allowed by the current content policy, and so must each
+  episode of a season or show.
+- Each download belongs to the server and profile (Plex Home user or Jellyfin
+  user) that created it, and only that profile sees it.
+- The first time this version runs, Plinx moves the profile records that
+  earlier versions kept for each download onto the downloads themselves.
+- A download with no profile record, such as one made before Plinx tracked
+  profiles, belongs to no profile. Children never see it. A parent sees it
+  under **Other downloads** in Manage Downloads and can delete it there, but it
+  cannot be played.
 - Plinx validates download integrity before it becomes available to play.
 - HTML, JSON, XML, empty, truncated, and unsuccessful HTTP responses are never
   promoted to playable media.
@@ -75,11 +66,9 @@ Use the Downloads tab to monitor, play, or remove offline media. If an item is
 not available, reconnect to the intended server/profile and confirm the parent
 rating and library settings still allow it.
 
-After one successful signed-in session, a temporary internet or Plex outage
-keeps the matching Downloads view available. Plinx stores the last authorized
-server/profile context in Keychain without copying the Plex token into download
-metadata. Signing out explicitly revokes that automatic offline access but does
-not silently delete the media files.
+During an internet or server outage, the profile's downloads stay available.
+**Log Out** hides every download until the profile that made it signs in
+again, but does not delete the media files.
 
 When Plinx opens, it shows its loading screen while it connects. The
 **Connection unavailable** card and the offline Downloads view appear only if

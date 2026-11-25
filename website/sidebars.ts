@@ -38,7 +38,6 @@ const sidebars: SidebarsConfig = {
         'development/ui-testing',
         'development/ci',
         'development/testflight-delivery',
-        'development/branch-pairing',
         'development/versioning-and-releases',
         'development/xcode-cloud-monitoring',
       ],
@@ -76,6 +75,7 @@ const sidebars: SidebarsConfig = {
       label: 'Maintenance',
       items: [
         'maintenance/current-dependencies',
+        'maintenance/upstream-strimr',
         'maintenance/strimr-upstream-audit-2026-07-25',
         'maintenance/strimr-hard-fork-plan',
         'maintenance/strimr-contributions/upstream-main-migration-plan',

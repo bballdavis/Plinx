@@ -1,6 +1,9 @@
 import SwiftUI
-import PlinxUI
 
+/// Download preferences, reached from protected Settings (and from the absorbed
+/// `SettingsView`): Wi-Fi only and the default download quality. Lower presets
+/// ask the server for a smaller transcode; `DownloadSpaceSavingsPolicy` keeps
+/// the original file when the transcode would not save space.
 @MainActor
 struct SettingsDownloadsView: View {
     @Environment(SettingsManager.self) private var settingsManager
@@ -15,6 +18,7 @@ struct SettingsDownloadsView: View {
                         set: { settingsManager.setDownloadWiFiOnly($0) }
                     )
                 )
+                .accessibilityIdentifier("settings.downloads.wifiOnly")
             } footer: {
                 Text("settings.downloads.wifiOnly.footer", tableName: "Plinx")
             }
@@ -23,14 +27,15 @@ struct SettingsDownloadsView: View {
                 Picker(
                     String(localized: "settings.downloads.quality", table: "Plinx"),
                     selection: Binding(
-                        get: { settingsManager.downloads.quality },
-                        set: { settingsManager.setDownloadQuality($0) }
+                        get: { settingsManager.downloads.qualityPreset },
+                        set: { settingsManager.setDownloadQualityPreset($0) }
                     )
                 ) {
-                    ForEach(DownloadQuality.allCases) { quality in
-                        Text(quality.title).tag(quality)
+                    ForEach(TranscodeQualityPreset.displayOrder) { preset in
+                        Text(preset.title).tag(preset)
                     }
                 }
+                .accessibilityIdentifier("settings.downloads.quality")
                 #if !os(tvOS)
                 .pickerStyle(.navigationLink)
                 #endif

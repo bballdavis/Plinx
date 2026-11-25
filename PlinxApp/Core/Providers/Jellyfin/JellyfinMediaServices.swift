@@ -1272,15 +1272,22 @@ final class JellyfinMediaServiceAdapter: MediaHomeService, MediaLibraryService, 
         let selectedSource = Self.source(in: sources, versions: versions, request: version)
         let selectedVersion = selectedSource.flatMap { source in versions.first { $0.id == source.id } }
         let versionLabel = versions.count > 1 ? selectedVersion?.displayLabel(among: versions) : nil
+        let sourceSatisfiesQuality = selectedSource?.satisfiesDownloadQuality(quality) ?? false
+        // A transcode that would not save enough space downloads the original instead.
         guard !quality.isOriginal,
               let source = selectedSource,
-              !source.satisfiesDownloadQuality(quality)
+              !sourceSatisfiesQuality,
+              DownloadSpaceSavingsPolicy.shouldTranscode(
+                  quality: quality,
+                  sourceFileSize: source.size,
+                  duration: media.duration,
+              )
         else {
             let url = try originalDownloadURL(item: item, source: selectedSource)
             return try MediaDownloadPreparation(
                 media: media,
                 requestedQuality: quality,
-                effectiveQuality: quality.isOriginal ? .original : quality,
+                effectiveQuality: quality.isOriginal || !sourceSatisfiesQuality ? .original : quality,
                 request: context.mediaRequest(url: url),
                 remoteReference: nil,
                 sidecars: selectedSource.map {

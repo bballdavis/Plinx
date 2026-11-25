@@ -2,10 +2,12 @@
 
 ## Pinned Release Toolchain And Dependencies
 
-CI uses macOS 26, Xcode 27.2, the exact Strimr sibling commit in
-`config/release-dependencies.env`, and the exact AetherEngine revision in
-`PlinxApp/project.yml`. Dependency checkout or resolution failure is fatal; do
-not restore branch-based or `|| true` dependency fetches.
+CI builds a single Plinx checkout: the code absorbed from Strimr is in
+`PlinxApp/Core` and `PlinxApp/Platform`, so no other repository is cloned for
+the app. Swift packages resolve at the exact pins in `PlinxApp/project.yml`.
+Xcode Cloud workflows are set to the Xcode version recorded there (27.2);
+change both together. Package resolution failure is fatal; do not add
+branch-based or `|| true` dependency fetches.
 
 The iOS destinations are pinned to dedicated iPhone 17 Pro and iPad Pro
 13-inch simulators on iOS 26.5. CI downloads the iOS 26.5 runtime when it is
@@ -24,19 +26,19 @@ because that job still requires a push to `dev-testflight`.
 The separate `.github/workflows/xcode-project.yml` workflow is still automatic.
 It runs on an Ubuntu runner when app project inputs change, builds the pinned
 XcodeGen release, regenerates `PlinxApp/Plinx.xcodeproj`, and fails if the
-checked-in deployment mirror differs. It also checks out the pinned Strimr
-revision because the generated project contains references to that sibling
-source tree. The XcodeGen build directory is cached between runs; this check
-does not compile Plinx, start a simulator, or consume a macOS runner.
+checked-in deployment mirror differs. The generated project references only
+files in this repository, so the check needs no other checkout. The XcodeGen
+build directory is cached between runs; this check does not compile Plinx,
+start a simulator, or consume a macOS runner.
 
 See [Xcode Cloud monitoring and management](xcode-cloud-monitoring.md) for the
 local App Store Connect client, checked-in project requirement, credential
 boundary, explicit management operations, and scheduled monitoring setup.
 
 Xcode Cloud must use the checked-in `PlinxApp/Plinx.xcodeproj`, Xcode 27.2,
-and the shared `Plinx-iOS` and `Plinx-tvOS` schemes. Its post-clone script
-fetches and verifies the exact pinned sibling Strimr source before a build or
-archive action begins.
+and the shared `Plinx-iOS` and `Plinx-tvOS` schemes. Plinx has no
+`ci_scripts`: the clone Xcode Cloud makes is the complete source, and it
+resolves Swift packages from the project.
 
 The checked-in deployment mirror intentionally includes both build schemes at
 `PlinxApp/Plinx.xcodeproj/xcshareddata/xcschemes/Plinx-iOS.xcscheme` and
@@ -47,8 +49,6 @@ Cloud can use both platform build plans. Regenerate them from
 When manually dispatched, it enforces:
 
 - documentation and repository-structure guardrails
-- the full Plinx↔Strimr contract after checking out the configured branch at
-  the exact pinned commit
 - `PlinxCore` package tests, including safety behavior
 - `PlinxUI` package tests
 - deterministic checked-in Xcode project verification
@@ -94,7 +94,11 @@ CI includes a documentation guard job that verifies:
 - duplicate instruction-style references are not reintroduced outside `AGENTS.md`
 - PRs that change code, scripts, workflows, or key root files also update repository guidance
 - the Docusaurus source and required user/maintenance entry points exist
-- current Strimr revisions are not copied into pairing narrative pages
+- the retired Strimr pairing machinery (sibling checkout paths, pin and seam
+  keys, the old verifiers) does not return outside the historical records in
+  `docs/maintenance/`
+- `config/release-dependencies.env` records a valid absorbed Strimr base, and
+  current Swift package revisions are not copied into `docs/`
 
 The job installs `ripgrep` explicitly before running the guard so it does not
 depend on the default macOS runner image.
@@ -135,18 +139,10 @@ The iPhone and iPad jobs intentionally share one `$RUNNER_TEMP/plinx-derived-dat
 root. The builds run sequentially, so they can reuse package checkouts and
 compiler artifacts instead of creating one SourcePackages tree per device.
 
-The workflow creates a local branch matching the configured exact commit only
-inside its disposable clone, then runs:
-
-```bash
-./scripts/verify_strimr_integration_contract.sh --full
-```
-
-This is a read-only contract check. It confirms the sibling is clean, the
-branch and pin match `config/release-dependencies.env`, the configured upstream
-base is an ancestor, the downstream stack is linear, and the source seams that
-Plinx compiles still exist. It never pushes, rebases, or otherwise mutates a
-remote branch.
+The app build is the integration check for the absorbed code: a change in
+`PlinxApp/Core` or `PlinxApp/Platform` that breaks a Plinx caller fails to
+compile. `SafeMediaServicesTests` in the app unit tests is the conformance gate
+for the content-safety boundary.
 
 ## What CI Does Not Cover By Default
 
@@ -174,4 +170,4 @@ Update this file in the same PR when changing:
 - TestFlight delivery triggers, signing, or upload behavior
 - enforced test scope
 - docs-guard rules
-- required branch pairing or dependency assumptions that CI relies on
+- dependency pins or toolchain assumptions that CI relies on

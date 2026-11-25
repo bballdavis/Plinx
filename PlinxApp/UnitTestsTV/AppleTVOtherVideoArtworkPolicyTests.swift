@@ -3,14 +3,17 @@ import XCTest
 @testable import Plinx
 
 final class AppleTVOtherVideoArtworkPolicyTests: XCTestCase {
+    private let server = ServerIdentity(provider: .plex, id: "artwork-policy-server")
+
     func test_otherVideoLibraries_useLandscapeThumbsAcrossDetailSurfaces() {
-        let clipLibrary = Library(id: "3", title: "Other Videos", type: .clip, sectionId: 3)
+        let clipLibrary = Library(id: "3", title: "Other Videos", type: .clip, sectionId: 3, server: server)
         let noneAgentMovieLibrary = Library(
             id: "6",
             title: "YouTube Videos",
             type: .movie,
             sectionId: 6,
-            agent: "tv.plex.agents.none"
+            agent: "tv.plex.agents.none",
+            server: server
         )
 
         assertOtherVideoLibraryPolicy(clipLibrary)
@@ -18,8 +21,8 @@ final class AppleTVOtherVideoArtworkPolicyTests: XCTestCase {
     }
 
     func test_standardMovieAndShowLibraries_keepPosterDetailCards() {
-        let movieLibrary = Library(id: "1", title: "Movies", type: .movie, sectionId: 1)
-        let showLibrary = Library(id: "2", title: "Shows", type: .show, sectionId: 2)
+        let movieLibrary = Library(id: "1", title: "Movies", type: .movie, sectionId: 1, server: server)
+        let showLibrary = Library(id: "2", title: "Shows", type: .series, sectionId: 2, server: server)
 
         assertStandardLibraryPolicy(movieLibrary)
         assertStandardLibraryPolicy(showLibrary)

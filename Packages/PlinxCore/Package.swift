@@ -9,14 +9,15 @@ import PackageDescription
 //   • SafetyInterceptor + SafetyPolicy — content filtering (fail-closed)
 //   • MathGate — parental gate challenge generator
 //   • PlinxRating / PlinxMediaItem — public model types (bridge types)
+//   • ContentRatingNormalizer — raw Plex/Jellyfin rating text → PlinxRating
 //   • HapticManager — tactile feedback
 //   • PlaybackCoordinator + PlaybackPolicy — lifecycle management
 //
 // Module Boundary:
-//   PlinxCore does not import Strimr directly.
+//   PlinxCore does not import the app's media stack.
 //   Instead, PlinxCore defines its own public model types. The PlinxApp target
-//   bridges sibling Strimr source into those types through adapters and
-//   decorators.
+//   maps provider items into them at one boundary: `ContentSafetyGate`, which
+//   `SafeMediaServices` applies to every provider service.
 //
 // ─────────────────────────────────────────────────────────────────────────────
 

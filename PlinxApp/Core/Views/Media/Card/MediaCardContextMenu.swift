@@ -83,7 +83,10 @@ private struct MediaCardContextMenu: ViewModifier {
                     reloadAfterServerUpdate(item)
                 }
                 .modifier(Feedback(failure: $failure, successCount: successCount))
-        } else if case let .playlist(playlist) = media, !playlist.isSmart, let services, isOnline(services) {
+        } else if case let .playlist(playlist) = media, !playlist.isSmart, let services, isOnline(services),
+                  // Playlist edits are parent-only.
+                  ContentSafetyGate.shared.isParentUnlocked
+        {
             content
                 .contextMenu {
                     PlaylistManagementMenuItems(
@@ -171,7 +174,7 @@ private struct MediaCardContextMenu: ViewModifier {
             quickActions.menuActions(
                 for: item,
                 canDownload: canDownload(item, services: services),
-                canAddToPlaylist: isOnline(services),
+                canAddToPlaylist: isOnline(services) && ContentSafetyGate.shared.isParentUnlocked,
                 offersDetails: offersDetails,
                 isInContinueWatching: isInContinueWatching && isOnline(services),
                 canManage: isOnline(services),

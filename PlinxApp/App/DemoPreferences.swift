@@ -1,7 +1,8 @@
 import Foundation
 import PlinxCore
 
-/// Sample settings and PIN never change the family's preferences or PIN.
+/// Sample settings and PIN never change the family's preferences or PIN. They live in their own defaults domain and
+/// an in-memory PIN store, and `reset()` restores them each time the sample library starts.
 @MainActor
 enum DemoPreferences {
     static let defaults = UserDefaults(suiteName: "com.bballdavis.plinx.demo")!
@@ -22,6 +23,8 @@ enum DemoPreferences {
         defaults.set(PlinxRating.tvPg.rawValue, forKey: "plinx.maxTVRating")
         defaults.set(true, forKey: "plinx.excludeUnrated")
         settings = SettingsManager(userDefaults: defaults)
+        // The same product scope as the family settings: no Seerr discovery or Live TV for kids.
+        PlinxSettingsSanitizer.disableUnsupportedFeatures(settings)
         settings.setDisplayCollections(true)
         settings.setDisplayPlaylists(true)
         defaults.set(true, forKey: YoutarrExplorePreference.storageKey)

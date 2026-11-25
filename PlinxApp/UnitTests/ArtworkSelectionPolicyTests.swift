@@ -2,6 +2,8 @@ import XCTest
 @testable import Plinx
 
 final class ArtworkSelectionPolicyTests: XCTestCase {
+    private let server = ServerIdentity(provider: .plex, id: "artwork-server")
+
     func test_otherVideosHomeSectionUsesThumbArtworkInLandscape() {
         let item = makeDisplayItem(id: "clip-1", type: .movie)
 
@@ -44,7 +46,8 @@ final class ArtworkSelectionPolicyTests: XCTestCase {
             title: "Youtube Videos",
             type: .movie,
             sectionId: 6,
-            agent: "tv.plex.agents.none"
+            agent: "tv.plex.agents.none",
+            server: server
         )
 
         let kind = ArtworkSelectionPolicy.preferredLandscapeArtworkKind(for: library)
@@ -57,7 +60,8 @@ final class ArtworkSelectionPolicyTests: XCTestCase {
             id: "3",
             title: "Other Videos",
             type: .clip,
-            sectionId: 3
+            sectionId: 3,
+            server: server
         )
 
         let kind = ArtworkSelectionPolicy.preferredLandscapeArtworkKind(for: library)
@@ -71,7 +75,8 @@ final class ArtworkSelectionPolicyTests: XCTestCase {
             title: "Movies",
             type: .movie,
             sectionId: 1,
-            agent: "tv.plex.agents.movie"
+            agent: "tv.plex.agents.movie",
+            server: server
         )
 
         let kind = ArtworkSelectionPolicy.preferredLandscapeArtworkKind(for: library)
@@ -117,10 +122,11 @@ final class ArtworkSelectionPolicyTests: XCTestCase {
         XCTAssertEqual(kind, .thumb)
     }
 
-    private func makeDisplayItem(id: String, type: PlexItemType) -> MediaDisplayItem {
+    private func makeDisplayItem(id: String, type: MediaKind) -> MediaDisplayItem {
         .playable(
             MediaItem(
                 id: id,
+                identity: MediaIdentity(server: server, itemID: id),
                 guid: "guid://\(id)",
                 summary: nil,
                 title: id,
@@ -138,7 +144,7 @@ final class ArtworkSelectionPolicyTests: XCTestCase {
                 tagline: nil,
                 thumbPath: "/library/metadata/\(id)/thumb",
                 artPath: "/library/metadata/\(id)/art",
-                ultraBlurColors: nil,
+                artworkCornerColors: nil,
                 viewOffset: nil,
                 viewCount: nil,
                 childCount: nil,

@@ -1,14 +1,28 @@
 import {usePluginData} from '@docusaurus/useGlobalData';
 import styles from './styles.module.css';
 
+type SwiftPackagePin = {
+  name: string;
+  url: string;
+  pinKind: string;
+  pin: string;
+};
+
 type DependencyStatusData = {
-  strimr: {branch: string; commit: string; upstreamBase: string};
-  aetherEngine: {revision: string};
+  strimr: {forkBase: string};
+  packages: SwiftPackagePin[];
   xcode: {version: string};
 };
 
 function shortRevision(revision: string) {
   return revision.slice(0, 12);
+}
+
+function PackagePin({dependency}: {dependency: SwiftPackagePin}) {
+  if (dependency.pinKind === 'revision') {
+    return <code title={dependency.pin}>{shortRevision(dependency.pin)}</code>;
+  }
+  return <code>{dependency.pin}</code>;
 }
 
 export default function DependencyStatus() {
@@ -25,25 +39,17 @@ export default function DependencyStatus() {
       </thead>
       <tbody>
         <tr>
-          <td>Strimr branch</td>
-          <td><code>{data.strimr.branch}</code></td>
+          <td>Absorbed Strimr base (<code>wunax/strimr</code>)</td>
+          <td><code title={data.strimr.forkBase}>{shortRevision(data.strimr.forkBase)}</code></td>
           <td><code>config/release-dependencies.env</code></td>
         </tr>
-        <tr>
-          <td>Strimr exact commit</td>
-          <td><code title={data.strimr.commit}>{shortRevision(data.strimr.commit)}</code></td>
-          <td><code>config/release-dependencies.env</code></td>
-        </tr>
-        <tr>
-          <td>Strimr upstream base</td>
-          <td><code title={data.strimr.upstreamBase}>{shortRevision(data.strimr.upstreamBase)}</code></td>
-          <td><code>config/release-dependencies.env</code></td>
-        </tr>
-        <tr>
-          <td>AetherEngine revision</td>
-          <td><code title={data.aetherEngine.revision}>{shortRevision(data.aetherEngine.revision)}</code></td>
-          <td><code>PlinxApp/project.yml</code></td>
-        </tr>
+        {data.packages.map((dependency) => (
+          <tr key={dependency.name}>
+            <td>{dependency.name} {dependency.pinKind === 'revision' ? 'revision' : 'version'}</td>
+            <td><PackagePin dependency={dependency} /></td>
+            <td><code>PlinxApp/project.yml</code></td>
+          </tr>
+        ))}
         <tr>
           <td>Configured Xcode version</td>
           <td><code>{data.xcode.version}</code></td>

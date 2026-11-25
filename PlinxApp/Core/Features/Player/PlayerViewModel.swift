@@ -30,8 +30,10 @@ final class PlayerViewModel {
     }
 
     /// Live streams cannot play faster than real time, and SharePlay takes the group's rate.
-    func initialPlaybackRate(settings: PlaybackSettings, isSharePlay: Bool) -> Float {
-        isLivePlayback || isSharePlay ? 1.0 : settings.defaultPlaybackRate
+    /// Always normal speed in Plinx: the default playback speed setting (#334) is not offered, and a value stored
+    /// before is ignored.
+    func initialPlaybackRate(settings _: PlaybackSettings, isSharePlay _: Bool) -> Float {
+        1.0
     }
 
     var liveChannel: LiveTVChannel? {
@@ -123,8 +125,10 @@ final class PlayerViewModel {
         chapters.count >= 2
     }
 
+    /// Subtitle downloads are a parent-only ability: the menus and the automatic search need the parental gate open.
     var canSearchSubtitles: Bool {
-        !isLocalPlayback
+        ContentSafetyGate.shared.isParentUnlocked
+            && !isLocalPlayback
             && !currentRatingKey.isEmpty
             && mediaServices?.detail.supportsRemoteSubtitleSearch == true
             && mediaServices?.authorization.canManageSubtitles == true
@@ -428,10 +432,12 @@ final class PlayerViewModel {
     func makeNextPlayerViewModel() -> PlayerViewModel? {
         #if !os(tvOS)
             if isLocalPlayback {
-                // Offline chaining only uses downloaded episodes.
+                // Offline chaining only uses downloaded episodes. The offline store is read directly, so the next
+                // episode must pass the gate before anything of it shows.
                 guard let media,
                       let next = DownloadManager.shared?.nextDownloadedEpisode(after: media),
-                      let request = DownloadManager.shared?.localPlaybackRequest(for: next, resumes: false)
+                      let request = DownloadManager.shared?.localPlaybackRequest(for: next, resumes: false),
+                      ContentSafetyGate.shared.isAllowed(request.media)
                 else { return nil }
                 return PlayerViewModel(request: request)
             }
@@ -697,8 +703,9 @@ final class PlayerViewModel {
         else { return nil }
 
         let changesAtStart = manualSubtitleChanges
+        // Relocking the parental gate meanwhile stops the search before anything is downloaded.
         var isStillWanted: Bool {
-            !Task.isCancelled && manualSubtitleChanges == changesAtStart
+            !Task.isCancelled && manualSubtitleChanges == changesAtStart && ContentSafetyGate.shared.isParentUnlocked
         }
 
         let account: AccountPreferences?
@@ -796,7 +803,8 @@ final class PlayerViewModel {
     func handlePlaybackState(isPaused: Bool, isBuffering: Bool) {
         let previousState = playbackState
         self.isPaused = isPaused
-        self.isBuffering = isBuffering
+        // A downloaded file reads from disk: brief engine stalls are not network buffering, so no spinner.
+        self.isBuffering = isLocalPlayback ? false : isBuffering
 
         if previousState != playbackState {
             reportTimeline(state: playbackState, force: true)

@@ -4,23 +4,88 @@ import PlinxCore
 import XCTest
 @testable import Plinx
 
+/// The sample catalog answers by path and query only; any host reaches it.
+private let demoBaseURL = "http://demo.plinx.invalid"
+
 @MainActor
 final class DemoFixtureTests: XCTestCase {
-    func testDemoTransportIsScopedToSyntheticHost() {
-        DemoFixtureURLProtocol.activate()
-        defer { DemoFixtureURLProtocol.deactivate() }
+    func testPlexCloudStandInAnswersOnlyPlexTVRequestsCarryingARegisteredToken() throws {
+        let token = "plinx-stand-in-test-\(UUID().uuidString)"
+        let session = try XCTUnwrap(PlexDirectSession(
+            userUUID: "plinx-stand-in-test",
+            displayName: "Stand-in Test",
+            token: token,
+            serverName: "Stand-in Test Server",
+            serverIdentifier: "plinx-stand-in-test-server",
+            serverURL: URL(string: "http://127.0.0.1:32400")!
+        ))
+        PlexCloudStandIn.register(session)
+        defer { PlexCloudStandIn.unregister(token: token) }
 
-        let demoRequest = URLRequest(url: URL(string: "http://\(DemoFixtureBootstrap.serverHost)/library/sections/all")!)
-        let realRequest = URLRequest(url: URL(string: "https://plex.tv/api/v2/user")!)
-        let nearMatchRequest = URLRequest(url: URL(string: "http://notdemo.\(DemoFixtureBootstrap.serverHost)/library/sections/all")!)
+        func request(_ string: String, token: String?, method: String = "GET") -> URLRequest {
+            var request = URLRequest(url: URL(string: string)!)
+            request.httpMethod = method
+            if let token {
+                request.setValue(token, forHTTPHeaderField: "X-Plex-Token")
+            }
+            return request
+        }
 
-        XCTAssertTrue(DemoFixtureURLProtocol.canInit(with: demoRequest))
-        XCTAssertFalse(DemoFixtureURLProtocol.canInit(with: realRequest))
-        XCTAssertFalse(DemoFixtureURLProtocol.canInit(with: nearMatchRequest))
+        // Answered on the device: plex.tv and its subdomains, with the registered token in a header or the query.
+        XCTAssertTrue(PlexCloudStandIn.canInit(with: request("https://plex.tv/api/v2/resources", token: token)))
+        XCTAssertTrue(PlexCloudStandIn.canInit(with: request("https://clients.plex.tv/api/v2/user", token: token)))
+        XCTAssertTrue(PlexCloudStandIn.canInit(with: request("https://plex.tv/api/v2/user?X-Plex-Token=\(token)", token: nil)))
+        // Never touched: other tokens, sign-in without a token, the server itself and look-alike hosts.
+        XCTAssertFalse(PlexCloudStandIn.canInit(with: request("https://plex.tv/api/v2/user", token: "family-token")))
+        XCTAssertFalse(PlexCloudStandIn.canInit(with: request("https://plex.tv/api/v2/pins", token: nil, method: "POST")))
+        XCTAssertFalse(PlexCloudStandIn.canInit(with: request("http://127.0.0.1:32400/library/sections", token: token)))
+        XCTAssertFalse(PlexCloudStandIn.canInit(with: request("https://notplex.tv/api/v2/user", token: token)))
+        XCTAssertFalse(PlexCloudStandIn.canInit(with: request("https://plex.tv.example.com/api/v2/user", token: token)))
+
+        // The resources are the session's one loopback server, which the account does not administer.
+        let resources = try XCTUnwrap(PlexCloudStandIn.response(for: request("https://plex.tv/api/v2/resources", token: token)))
+        XCTAssertEqual(resources.statusCode, 200)
+        let decoded = try JSONDecoder().decode([PlexCloudResource].self, from: resources.body)
+        XCTAssertEqual(decoded, [session.resource])
+        XCTAssertEqual(decoded.first?.connections?.first?.address, "127.0.0.1")
+        XCTAssertEqual(decoded.first?.owned, false)
+
+        // Anything without a stand-in answer is refused on the device instead of being sent with the token.
+        let watchlist = request("https://discover.provider.plex.tv/library/sections/watchlist/all", token: token)
+        XCTAssertTrue(PlexCloudStandIn.canInit(with: watchlist))
+        XCTAssertEqual(PlexCloudStandIn.response(for: watchlist)?.statusCode, 404)
+
+        // Once unregistered, the token is no longer answered.
+        PlexCloudStandIn.unregister(token: token)
+        XCTAssertFalse(PlexCloudStandIn.canInit(with: request("https://plex.tv/api/v2/resources", token: token)))
+        XCTAssertNil(PlexCloudStandIn.response(for: request("https://plex.tv/api/v2/resources", token: token)))
+    }
+
+    func testSampleLibraryNeverJoinsAnExistingFamilySession() async throws {
+        defer { DemoFixtureBootstrap.stop() }
+        let family = MediaAccount.jellyfin(JellyfinAccount(connection: JellyfinConnection(
+            baseURL: URL(string: "https://family.invalid")!,
+            serverID: "family-server",
+            serverName: "Family",
+            serverVersion: "10.11.0",
+            userID: "family-user",
+            username: "Family"
+        )))
+        let session = try makeIsolatedSession(accounts: [(family, "family-token")])
+        try await waitForHydration(of: session)
+        let statusBefore = session.status
+        XCTAssertNotEqual(statusBefore, .needsAccount)
+
+        await DemoFixtureBootstrap.start(sessionManager: session)
+
+        XCTAssertFalse(DemoFixtureBootstrap.isActive)
+        XCTAssertEqual(session.accounts.map(\.id), [family.id])
+        XCTAssertNil(session.accountStore.account(id: DemoFixtureBootstrap.accountID))
+        XCTAssertEqual(session.status, statusBefore)
     }
 
     func testSectionsFixtureIncludesDedicatedRatingLibraries() throws {
-        let request = URLRequest(url: URL(string: "http://\(DemoFixtureBootstrap.serverHost)/library/sections/all")!)
+        let request = URLRequest(url: URL(string: "\(demoBaseURL)/library/sections/all")!)
         let response = DemoFixtureCatalog.response(for: request)
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: response.data) as? [String: Any])
         let container = try XCTUnwrap(object["MediaContainer"] as? [String: Any])
@@ -32,7 +97,7 @@ final class DemoFixtureTests: XCTestCase {
     }
 
     func testDemoHomeContainsContinueWatchingAndEnoughRows() throws {
-        let request = URLRequest(url: URL(string: "http://\(DemoFixtureBootstrap.serverHost)/hubs/continueWatching")!)
+        let request = URLRequest(url: URL(string: "\(demoBaseURL)/hubs/continueWatching")!)
         let response = DemoFixtureCatalog.response(for: request)
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: response.data) as? [String: Any])
         let mediaContainer = try XCTUnwrap(object["MediaContainer"] as? [String: Any])
@@ -45,7 +110,7 @@ final class DemoFixtureTests: XCTestCase {
     }
 
     func testDemoSearchReturnsFictionalMatchingContent() throws {
-        var components = URLComponents(string: "http://\(DemoFixtureBootstrap.serverHost)/library/search")!
+        var components = URLComponents(string: "\(demoBaseURL)/library/search")!
         components.queryItems = [URLQueryItem(name: "query", value: "moon")]
         let request = URLRequest(url: components.url!)
         let response = DemoFixtureCatalog.response(for: request)
@@ -58,7 +123,7 @@ final class DemoFixtureTests: XCTestCase {
     }
 
     func testDemoRelatedContentReturnsAHub() throws {
-        let request = URLRequest(url: URL(string: "http://\(DemoFixtureBootstrap.serverHost)/library/metadata/moonbound/related")!)
+        let request = URLRequest(url: URL(string: "\(demoBaseURL)/library/metadata/moonbound/related")!)
         let response = DemoFixtureCatalog.response(for: request)
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: response.data) as? [String: Any])
         let mediaContainer = try XCTUnwrap(object["MediaContainer"] as? [String: Any])
@@ -72,7 +137,7 @@ final class DemoFixtureTests: XCTestCase {
     }
 
     func testDemoPlayQueueReturnsTheRequestedItem() throws {
-        var components = URLComponents(string: "http://\(DemoFixtureBootstrap.serverHost)/playQueues")!
+        var components = URLComponents(string: "\(demoBaseURL)/playQueues")!
         components.queryItems = [URLQueryItem(name: "uri", value: "/library/metadata/moonbound")]
         var request = URLRequest(url: components.url!)
         request.httpMethod = "POST"
@@ -124,41 +189,38 @@ final class DemoFixtureTests: XCTestCase {
 
     func testEpisodeQueueKeepsTheRequestedEpisode() throws {
         let id = "space-camp-season-1-e-2"
-        var request = URLRequest(url: URL(string: "http://demo.plinx.invalid/playQueues?uri=/library/metadata/\(id)")!)
+        var request = URLRequest(url: URL(string: "\(demoBaseURL)/playQueues?uri=/library/metadata/\(id)")!)
         request.httpMethod = "POST"
         let response = try JSONDecoder().decode(PlexPlayQueueResponse.self, from: DemoFixtureCatalog.response(for: request).data)
         XCTAssertEqual(response.mediaContainer.metadata?.first?.ratingKey, id)
-        let videoRequest = URLRequest(url: URL(string: "http://demo.plinx.invalid/video/\(id).mp4")!)
+        let videoRequest = URLRequest(url: URL(string: "\(demoBaseURL)/video/\(id).mp4")!)
         let video = DemoFixtureCatalog.response(for: videoRequest)
         XCTAssertEqual(video.mimeType, "video/mp4")
         XCTAssertEqual(video.data.count, DemoSampleMedia.byteCount(isEpisode: true))
-        let unknown = URLRequest(url: URL(string: "http://demo.plinx.invalid/video/not-an-item.mp4")!)
+        let unknown = URLRequest(url: URL(string: "\(demoBaseURL)/video/not-an-item.mp4")!)
         XCTAssertEqual(DemoFixtureCatalog.response(for: unknown).statusCode, 404)
     }
 
     func testMixedCollectionActuallyExercisesSafetyFiltering() throws {
-        let request = URLRequest(url: URL(string: "http://demo.plinx.invalid/library/collections/demo-mix/children")!)
+        let request = URLRequest(url: URL(string: "\(demoBaseURL)/library/collections/demo-mix/children")!)
         let response = try JSONDecoder().decode(PlexItemMediaContainer.self, from: DemoFixtureCatalog.response(for: request).data)
         let items = try XCTUnwrap(response.mediaContainer.metadata)
         XCTAssertEqual(items.count, 4)
         let policy = SafetyPolicy.ratingOnly(maxMovie: .pg, maxTV: .tvPg, allowUnrated: false)
-        let permitted = items.filter { PlinxContentAuthorization.isAllowed(MediaItem(plexItem: $0), policy: policy) }
+        let permitted = items.filter { PlinxContentRules.isAllowed(MediaItem(plexItem: $0), policy: policy) }
         XCTAssertEqual(Set(permitted.map(\.ratingKey)), ["moonbound", "hidden-gardens"])
     }
 
     func testRatingLibrariesFilterEveryCeilingIndependentlyThroughProductionLoader() async throws {
         defer { DemoFixtureBootstrap.stop() }
-        let context = PlexAPIContext()
-        let store = LibraryStore(context: context)
-        let session = SessionManager(context: context, libraryStore: store)
-        for _ in 0..<100 where session.status == .hydrating {
-            try await Task.sleep(for: .milliseconds(50))
-        }
-        await DemoFixtureBootstrap.start(sessionManager: session, context: context)
-        XCTAssertEqual(session.status, .ready)
-        let movies = try XCTUnwrap(store.libraries.first(where: { $0.sectionId == 4 }))
-        let television = try XCTUnwrap(store.libraries.first(where: { $0.sectionId == 5 }))
-        let loader = LibraryCatalogLoader(context: context)
+        // Every request goes through `SafeMediaServices`, which follows the shared gate; restore the app's policy.
+        let originalPolicy = ContentSafetyGate.shared.policy
+        defer { ContentSafetyGate.shared.policy = originalPolicy }
+        let (_, services) = try await startSampleLibrary()
+        let libraries = try await services.library.libraries()
+        let movies = try XCTUnwrap(libraries.first(where: { $0.sectionId == 4 }))
+        let television = try XCTUnwrap(libraries.first(where: { $0.sectionId == 5 }))
+        let loader = LibraryCatalogLoader(services: services)
         let movieCases: [(PlinxRating, [String])] = [
             (.g, ["g"]), (.pg, ["g", "pg"]), (.pg13, ["g", "pg", "pg13"]), (.r, ["g", "pg", "pg13", "r"]),
         ]
@@ -173,40 +235,40 @@ final class DemoFixtureTests: XCTestCase {
         for (movieCeiling, movieIDs) in movieCases {
             for (tvCeiling, tvIDs) in tvCases {
                 for allowUnrated in [false, true] {
-                    let policy = SafetyPolicy.ratingOnly(maxMovie: movieCeiling, maxTV: tvCeiling, allowUnrated: allowUnrated)
-                    let movieResult = try await loader.recentItems(for: movies, limit: 20, policy: policy)
-                    let tvResult = try await loader.recentItems(for: television, limit: 20, policy: policy)
+                    ContentSafetyGate.shared.policy = SafetyPolicy.ratingOnly(maxMovie: movieCeiling, maxTV: tvCeiling, allowUnrated: allowUnrated)
+                    let movieResult = try await loader.recentItems(for: movies, limit: 20)
+                    let tvResult = try await loader.recentItems(for: television, limit: 20)
                     let expectedMovies = (movieIDs + (allowUnrated ? ["unrated"] : [])).map { "rating-movie-\($0)" }
                     let expectedTV = (tvIDs + (allowUnrated ? ["unrated"] : [])).map { "rating-tv-\($0)" }
-                    XCTAssertEqual(Set(movieResult.items.map(\.id)), Set(expectedMovies), "Movie \(movieCeiling), TV \(tvCeiling), unrated \(allowUnrated)")
-                    XCTAssertEqual(Set(tvResult.items.map(\.id)), Set(expectedTV), "Movie \(movieCeiling), TV \(tvCeiling), unrated \(allowUnrated)")
+                    XCTAssertEqual(Set(movieResult.items.map { $0.id }), Set(expectedMovies), "Movie \(movieCeiling), TV \(tvCeiling), unrated \(allowUnrated)")
+                    XCTAssertEqual(Set(tvResult.items.map { $0.id }), Set(expectedTV), "Movie \(movieCeiling), TV \(tvCeiling), unrated \(allowUnrated)")
                 }
             }
         }
         // Lower again after the permissive cases; prior access must not stick.
-        let resetPolicy = SafetyPolicy.ratingOnly(maxMovie: .pg, maxTV: .tvPg, allowUnrated: false)
-        let resetMovies = try await loader.recentItems(for: movies, limit: 20, policy: resetPolicy)
-        XCTAssertEqual(Set(resetMovies.items.map(\.id)), ["rating-movie-g", "rating-movie-pg"])
+        ContentSafetyGate.shared.policy = SafetyPolicy.ratingOnly(maxMovie: .pg, maxTV: .tvPg, allowUnrated: false)
+        let resetMovies = try await loader.recentItems(for: movies, limit: 20)
+        XCTAssertEqual(Set(resetMovies.items.map { $0.id }), ["rating-movie-g", "rating-movie-pg"])
     }
 
     func testTVRatingExamplesPropagateToSeasonsEpisodesAndPlaybackAuthorization() throws {
         for (key, rating) in [("tvy", "TV-Y"), ("tvy7", "TV-Y7"), ("tvg", "TV-G"), ("tvpg", "TV-PG"), ("tv14", "TV-14"), ("tvma", "TV-MA"), ("unrated", "")] {
             let showID = "rating-tv-\(key)"
             for id in [showID, "\(showID)-season-1", "\(showID)-season-1-e-1"] {
-                let request = URLRequest(url: URL(string: "http://demo.plinx.invalid/library/metadata/\(id)")!)
+                let request = URLRequest(url: URL(string: "\(demoBaseURL)/library/metadata/\(id)")!)
                 let result = DemoFixtureCatalog.response(for: request)
                 let response = try JSONDecoder().decode(PlexItemMediaContainer.self, from: result.data)
                 let item = try XCTUnwrap(response.mediaContainer.metadata?.first)
                 XCTAssertEqual(item.contentRating ?? "", rating)
                 XCTAssertEqual(item.librarySectionID, 5)
                 let policy = SafetyPolicy.ratingOnly(maxMovie: .r, maxTV: .tvPg, allowUnrated: false)
-                XCTAssertEqual(PlinxContentAuthorization.isAllowed(item, policy: policy), !["tv14", "tvma", "unrated"].contains(key))
+                XCTAssertEqual(PlinxContentRules.isAllowed(item, policy: policy), !["tv14", "tvma", "unrated"].contains(key))
             }
-            let episodesRequest = URLRequest(url: URL(string: "http://demo.plinx.invalid/library/metadata/\(showID)/grandchildren")!)
+            let episodesRequest = URLRequest(url: URL(string: "\(demoBaseURL)/library/metadata/\(showID)/grandchildren")!)
             let episodes = try JSONDecoder().decode(PlexItemMediaContainer.self, from: DemoFixtureCatalog.response(for: episodesRequest).data)
             XCTAssertEqual(episodes.mediaContainer.metadata?.count, 4)
         }
-        let raw = URLRequest(url: URL(string: "http://demo.plinx.invalid/library/metadata/rating-movie-unrated")!)
+        let raw = URLRequest(url: URL(string: "\(demoBaseURL)/library/metadata/rating-movie-unrated")!)
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: DemoFixtureCatalog.response(for: raw).data) as? [String: Any])
         let container = try XCTUnwrap(object["MediaContainer"] as? [String: Any])
         let items = try XCTUnwrap(container["Metadata"] as? [[String: Any]])
@@ -215,25 +277,21 @@ final class DemoFixtureTests: XCTestCase {
 
     func testProductionDownloadCompletesAndRemainsPlayableWithoutServer() async throws {
         defer { DemoFixtureBootstrap.stop() }
-        let context = PlexAPIContext()
-        let session = SessionManager(context: context, libraryStore: LibraryStore(context: context))
-        for _ in 0..<100 where session.status == .hydrating {
-            try await Task.sleep(for: .milliseconds(50))
-        }
-        await DemoFixtureBootstrap.start(sessionManager: session, context: context)
-        XCTAssertEqual(session.status, .ready)
-        let identity = try XCTUnwrap(session.plinxDownloadOwnerIdentity)
-        let manager = try XCTUnwrap(DownloadManager.shared)
-        let suite = "PlinxDemoDownloadTest-\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let owners = DownloadOwnershipStore(defaults: defaults)
+        // Downloads are prepared through `SafeMediaServices`, which follows the shared gate; restore the app's policy.
+        let originalPolicy = ContentSafetyGate.shared.policy
+        defer { ContentSafetyGate.shared.policy = originalPolicy }
         let policy = SafetyPolicy.ratingOnly(maxMovie: .pg, maxTV: .tvPg, allowUnrated: false)
-        manager.configurePlinxEnrollment(identity: identity, safetyPolicy: policy, ownershipStore: owners, sessionManager: session)
+        ContentSafetyGate.shared.policy = policy
+        let (session, services) = try await startSampleLibrary()
+        let manager = try XCTUnwrap(DownloadManager.shared)
+        let owner = services.owner
+        let gate = ContentSafetyGate(policy: policy)
+        let personalOwner = MediaOwner(server: ServerIdentity(provider: .plex, id: "personal-server"), userID: "parent")
         var downloaded: [(DownloadItem, URL)] = []
-        for ratingKey in ["hidden-gardens", "space-camp-season-1-e-2"] {
-            let ids = await manager.enqueueItem(ratingKey: ratingKey, context: context)
-            let id = try XCTUnwrap(ids.first)
+        for itemID in ["hidden-gardens", "space-camp-season-1-e-2"] {
+            // The sample server has no transcoder, so downloads keep the original file.
+            let ids = await manager.enqueueItem(itemID: itemID, quality: .original, services: services)
+            let id = try XCTUnwrap(ids.first, manager.lastErrorMessage ?? "Download was not created")
             for _ in 0..<200 {
                 if manager.items.first(where: { $0.id == id })?.status == .completed { break }
                 try await Task.sleep(for: .milliseconds(100))
@@ -241,26 +299,25 @@ final class DemoFixtureTests: XCTestCase {
             let item = try XCTUnwrap(manager.items.first(where: { $0.id == id }))
             XCTAssertEqual(item.status, .completed, item.errorMessage ?? "Download did not finish")
             let file = try XCTUnwrap(manager.localVideoURL(for: item))
-            XCTAssertEqual(try Data(contentsOf: file), DemoSampleMedia.data(isEpisode: ratingKey != "hidden-gardens"))
-            XCTAssertEqual(DownloadAccessPolicy(safetyPolicy: policy, currentIdentity: identity, ownershipStore: owners).decision(for: item), .allowed)
-            let personalIdentity = DownloadOwnerIdentity(serverIdentifier: "personal-server", profileIdentifier: "parent")
-            XCTAssertNotEqual(DownloadAccessPolicy(safetyPolicy: policy, currentIdentity: personalIdentity, ownershipStore: owners).decision(for: item), .allowed)
+            XCTAssertEqual(try Data(contentsOf: file), DemoSampleMedia.data(isEpisode: itemID != "hidden-gardens"))
+            // Owned by the sample profile's server user, and only that owner may use it.
+            XCTAssertEqual(item.ownerID, owner.id)
+            XCTAssertEqual(DownloadAccessPolicy(activeOwnerIDs: [owner.id], gate: gate).decision(for: item), .allowed)
+            XCTAssertEqual(DownloadAccessPolicy(activeOwnerIDs: [personalOwner.id], gate: gate).decision(for: item), .wrongOwner)
             downloaded.append((item, file))
         }
-        let priorIdentity = DownloadOwnerIdentity(serverIdentifier: "personal", profileIdentifier: "parent")
-        let persistence = InMemoryOfflineSessionPersistence(snapshot: OfflineSessionSnapshot(identity: priorIdentity, serverName: "Personal"))
-        let access = PlinxSessionAccessCoordinator(persistence: persistence)
-        access.recordReadySession(sessionManager: session)
-        XCTAssertEqual(access.snapshot?.identity, priorIdentity)
+        // Ending the sample library removes its account and services; it never leaves a session behind.
         DemoFixtureBootstrap.stop()
-        XCTAssertNil(session.plinxDownloadOwnerIdentity)
+        XCTAssertFalse(DemoFixtureBootstrap.isActive)
+        XCTAssertNil(session.registry.services(for: DemoFixtureBootstrap.server))
+        XCTAssertNil(session.activeProfile)
+        XCTAssertTrue(session.accounts.isEmpty)
+        XCTAssertEqual(session.status, .needsAccount)
         for (item, file) in downloaded {
             let duration = try await AVURLAsset(url: file).load(.duration)
             XCTAssertEqual(duration.seconds, 90, accuracy: 0.1)
             await manager.delete(item)
         }
-        await session.signOut()
-        manager.configureEnrollmentContextProvider { nil }
     }
 
     func testYoutarrSampleSupportsCatalogAndRequestLifecycleOverHTTP() async throws {
@@ -303,8 +360,17 @@ final class DemoFixtureTests: XCTestCase {
         defer { DemoMediaServer.shared.stop() }
         let controller = PlayerController()
         defer { controller.stop() }
-        controller.load(url: baseURL.appendingPathComponent("video/hidden-gardens.mp4"),
-                        startPosition: nil, preferredAudioTrackID: nil, losslessAudio: false)
+        controller.load(
+            url: baseURL.appendingPathComponent("video/hidden-gardens.mp4"),
+            startPosition: nil,
+            preferredAudioTrackID: nil,
+            losslessAudio: false,
+            spatialAudioLayout: nil,
+            styledASSSubtitles: false,
+            mediaIdentifier: "hidden-gardens",
+            providerStreamIDsByFFIndex: [:],
+            externalSubtitles: []
+        )
         for _ in 0..<150 {
             if controller.position > 1 || controller.errorMessage != nil { break }
             try await Task.sleep(for: .milliseconds(100))
@@ -327,4 +393,69 @@ final class DemoFixtureTests: XCTestCase {
         XCTAssertTrue(controller.isPaused)
     }
 
+    // MARK: - Helpers
+
+    /// A `SessionManager` on stores of its own: a throwaway defaults suite and an in-memory secret store. The sample
+    /// account never reaches the Keychain or the family's preferences, and the sample library's first-launch condition
+    /// (no account yet) holds whatever the simulator has stored.
+    private func makeIsolatedSession(accounts: [(MediaAccount, String)] = []) throws -> SessionManager {
+        let suite = "PlinxDemoFixtureTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        addTeardownBlock { UserDefaults.standard.removePersistentDomain(forName: suite) }
+        let accountStore = AccountStore(userDefaults: defaults, secureStore: DemoFixtureTestSecureStore())
+        for (account, token) in accounts {
+            try accountStore.save(account, token: token)
+        }
+        let settings = SettingsManager(userDefaults: defaults)
+        return SessionManager(
+            settingsManager: settings,
+            favoritesStore: FavoritesStore(userDefaults: defaults),
+            trackSelectionCoordinator: TrackSelectionCoordinator(
+                store: TrackSelectionStore(userDefaults: defaults),
+                settingsManager: settings
+            ),
+            versionSelectionStore: MediaVersionSelectionStore(userDefaults: defaults),
+            accountStore: accountStore,
+            profileStore: ProfileStore(userDefaults: defaults)
+        )
+    }
+
+    private func waitForHydration(of session: SessionManager) async throws {
+        var attempts = 0
+        while session.status == .hydrating, attempts < 100 {
+            attempts += 1
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        XCTAssertNotEqual(session.status, .hydrating, "Session did not finish hydrating")
+    }
+
+    /// Starts the sample library on an isolated session through the production bootstrap, `ServerRegistry` and
+    /// `SafeMediaServices`, and returns the session with the sample server's services. Callers stop it.
+    private func startSampleLibrary() async throws -> (SessionManager, MediaServices) {
+        let session = try makeIsolatedSession()
+        try await waitForHydration(of: session)
+        XCTAssertEqual(session.status, .needsAccount)
+        await DemoFixtureBootstrap.start(sessionManager: session)
+        XCTAssertEqual(session.status, .ready)
+        XCTAssertTrue(DemoFixtureBootstrap.isDemoSession(session))
+        let services = try XCTUnwrap(session.registry.services(for: DemoFixtureBootstrap.server))
+        return (session, services)
+    }
+}
+
+/// Secrets of an isolated test session; nothing reaches the Keychain.
+private final class DemoFixtureTestSecureStore: SecureStore {
+    private var values: [String: String] = [:]
+
+    func string(forKey key: String) throws -> String? {
+        values[key]
+    }
+
+    func setString(_ value: String, forKey key: String) throws {
+        values[key] = value
+    }
+
+    func deleteValue(forKey key: String) throws {
+        values[key] = nil
+    }
 }

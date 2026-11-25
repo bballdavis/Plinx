@@ -113,7 +113,10 @@ struct FeaturedTrendingLoader {
             return nil
         }
         return sessions.compactMap { session -> FeaturedCandidate? in
-            guard case let item?? = result.value[session.identity] else { return nil }
+            // The items come from the filtered services already; Seerr's trending list itself never reaches the hero.
+            guard case let item?? = result.value[session.identity], ContentSafetyGate.shared.isAllowed(item) else {
+                return nil
+            }
             return FeaturedCandidate(item: item, reason: .trending)
         }
     }

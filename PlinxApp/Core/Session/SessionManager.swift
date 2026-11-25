@@ -1,8 +1,5 @@
 import Foundation
 import Observation
-#if os(tvOS)
-    import TVServices
-#endif
 
 /// Global session state: accounts, the active profile and its servers. There is no current server: services are
 /// always those of an item's server, resolved through `registry`.
@@ -68,9 +65,6 @@ final class SessionManager {
     @ObservationIgnored private var isPromptingProfileOnReturn = false
 
     @ObservationIgnored private let keychain = Keychain(service: Bundle.main.bundleIdentifier!)
-    #if os(tvOS)
-        @ObservationIgnored private let topShelfSessionStore = TopShelfSessionStore()
-    #endif
 
     init(
         settingsManager: SettingsManager,
@@ -272,10 +266,14 @@ final class SessionManager {
         profilePromptOnReturn.didEnterBackground(at: .now)
     }
 
-    /// Shows the profile picker when the app comes back after a long absence. Also called before handling a Top Shelf
-    /// link, which can arrive before the scene turns active, so the link waits for the chosen profile.
+    /// Plinx: the profile re-prompt after a long absence (upstream #419) is off. Switching profiles is a grown-up
+    /// action behind the parental gate, so the picker is never offered to whoever picks the device back up.
+    static let promptsForProfileOnReturn = false
+
+    /// Shows the profile picker when the app comes back after a long absence.
     func sceneWillReturnFromBackground() {
-        guard profilePromptOnReturn.shouldPrompt(at: .now, isPlaybackActive: isPlaybackActive),
+        guard Self.promptsForProfileOnReturn,
+              profilePromptOnReturn.shouldPrompt(at: .now, isPlaybackActive: isPlaybackActive),
               status == .ready, profileStore.asksProfileOnLaunch, profiles.count > 1
         else { return }
         isPromptingProfileOnReturn = true
@@ -559,20 +557,6 @@ final class SessionManager {
         registry.handleTerminalAccessFailure(error, server: server)
     }
 
-    #if os(tvOS)
-        /// Shares the active profile's servers with the Top Shelf extension.
-        func updateTopShelf() {
-            let sessions = registry.topShelfSessions()
-            do {
-                if sessions.isEmpty {
-                    topShelfSessionStore.clear()
-                } else {
-                    try topShelfSessionStore.save(sessions)
-                }
-            } catch {
-                ErrorReporter.capture(error)
-            }
-            TVTopShelfContentProvider.topShelfContentDidChange()
-        }
-    #endif
+    // Plinx ships no Top Shelf extension, so the session never shares server addresses or tokens outside the app.
+    // `TopShelfSessionStore.clear()` (called by `PlinxSignOut`) removes anything an earlier build stored.
 }

@@ -3,50 +3,81 @@ import PlinxCore
 import PlinxUI
 import SwiftUI
 
+/// Plinx media detail page.
+///
+/// The upstream `MediaDetailViewModel` loads everything through the screen's
+/// `MediaServices`, which `SafeMediaServices` already filters fail-closed
+/// (blocked titles throw, seasons, episodes, cast filmography, extras and
+/// related hubs are filtered, management is denied while the parental gate is
+/// locked). This view adds one last check of its own: the title it was opened
+/// with must still pass `ContentSafetyGate`, so a card built under an older,
+/// looser policy never shows its artwork or summary.
 struct PlinxMediaDetailView: View {
-    @State var viewModel: SafeMediaDetailViewModel
-    var onPlay: (String, PlexItemType) -> Void
-    var onShuffle: (String, PlexItemType) -> Void
-    var onSelectRelated: (MediaDisplayItem) -> Void
-    var onSelectParentSeries: (PlayableMediaItem) -> Void = { _ in }
-    var onRequestShellNavigationFocus: () -> Void = {}
-    var contentFocusRequest: Int = 0
-
+    @EnvironmentObject private var coordinator: MainCoordinator
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.safetyPolicy) private var safetyPolicy
+    @State private var viewModel: MediaDetailViewModel
+
+    private let onPlay: (String, MediaKind) -> Void
+    private let onPlayFromStart: (String, MediaKind) -> Void
+    private let onShuffle: (String, MediaKind) -> Void
+    private let onSelectRelated: (MediaDisplayItem) -> Void
+    private let onSelectParentSeries: (PlayableMediaItem) -> Void
+    private let onSelectPerson: ((Person) -> Void)?
+    private let onRequestShellNavigationFocus: () -> Void
+    private let contentFocusRequest: Int
+
+    /// - Parameters:
+    ///   - onPlayFromStart: Starts the title from the beginning. Defaults to `onPlay`.
+    ///   - onSelectPerson: Opens a cast member's page. Defaults to the person route on the title's server.
+    init(
+        viewModel: MediaDetailViewModel,
+        onPlay: @escaping (String, MediaKind) -> Void,
+        onPlayFromStart: ((String, MediaKind) -> Void)? = nil,
+        onShuffle: @escaping (String, MediaKind) -> Void,
+        onSelectRelated: @escaping (MediaDisplayItem) -> Void,
+        onSelectParentSeries: @escaping (PlayableMediaItem) -> Void = { _ in },
+        onSelectPerson: ((Person) -> Void)? = nil,
+        onRequestShellNavigationFocus: @escaping () -> Void = {},
+        contentFocusRequest: Int = 0
+    ) {
+        _viewModel = State(initialValue: viewModel)
+        self.onPlay = onPlay
+        self.onPlayFromStart = onPlayFromStart ?? onPlay
+        self.onShuffle = onShuffle
+        self.onSelectRelated = onSelectRelated
+        self.onSelectParentSeries = onSelectParentSeries
+        self.onSelectPerson = onSelectPerson
+        self.onRequestShellNavigationFocus = onRequestShellNavigationFocus
+        self.contentFocusRequest = contentFocusRequest
+    }
+
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            if viewModel.isBlocked || !ReleaseScreenshotCaptureMode.allowsDetail(
-                ratingKey: viewModel.media.id
-            ) {
+            if isBlocked {
                 blockedView
             } else {
                 #if os(tvOS)
                 PlinxMediaDetailTVView(
-                    viewModel: viewModel.rawViewModel,
+                    viewModel: viewModel,
                     onPlay: onPlay,
-                    onPlayFromStart: { ratingKey, type in
-                        onPlay(ratingKey, type)
-                    },
+                    onPlayFromStart: onPlayFromStart,
                     onSelectMedia: onSelectRelated,
+                    onSelectPerson: selectPerson,
                     onDismiss: { dismiss() },
                     onRequestShellNavigationFocus: onRequestShellNavigationFocus,
                     contentFocusRequest: contentFocusRequest
                 )
                 #else
                 MediaDetailView(
-                    viewModel: viewModel.rawViewModel,
+                    viewModel: viewModel,
                     onPlay: onPlay,
-                    onPlayFromStart: { ratingKey, type in
-                        onPlay(ratingKey, type)
-                    },
-                    onShuffle: { ratingKey, type in
-                        onShuffle(ratingKey, type)
-                    },
+                    onPlayFromStart: onPlayFromStart,
+                    onShuffle: onShuffle,
                     onSelectMedia: onSelectRelated,
-                    onSelectParentSeries: onSelectParentSeries
+                    onSelectParentSeries: onSelectParentSeries,
+                    onSelectPerson: selectPerson
                 )
                 #endif
             }
@@ -59,8 +90,34 @@ struct PlinxMediaDetailView: View {
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
         .accessibilityIdentifier("media.detail.screen")
-        .onChange(of: safetyPolicy) { _, newPolicy in
-            viewModel.updatePolicy(newPolicy)
+        .onChange(of: contentPolicyRevision) { _, _ in
+            // Content loaded under the previous policy is dropped, not merged.
+            guard !isBlocked else { return }
+            Task { await viewModel.loadDetails() }
+        }
+    }
+
+    // MARK: - Safety
+
+    private var contentPolicyRevision: Int {
+        ContentSafetyGate.shared.revision
+    }
+
+    /// Fails closed: a title the current policy rejects, or any title other
+    /// than the curated one during App Store capture, shows the blocked page.
+    private var isBlocked: Bool {
+        let gate = ContentSafetyGate.shared
+        // Read so the page re-evaluates when the parent changes the policy.
+        _ = gate.revision
+        return !gate.isAllowed(viewModel.media.mediaItem)
+            || !ReleaseScreenshotCaptureMode.allowsDetail(ratingKey: viewModel.media.id)
+    }
+
+    private func selectPerson(_ person: Person) {
+        if let onSelectPerson {
+            onSelectPerson(person)
+        } else {
+            coordinator.showPersonDetail(person, server: viewModel.server)
         }
     }
 
@@ -92,19 +149,42 @@ struct PlinxMediaDetailView: View {
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: 280)
+            #if os(tvOS)
+            Button {
+                dismiss()
+            } label: {
+                Label {
+                    Text("common.actions.back", tableName: "Plinx")
+                } icon: {
+                    Image(systemName: "chevron.left")
+                }
+                .font(.headline.weight(.semibold))
+            }
+            .buttonStyle(TvPillButtonStyle(isSelected: false, cornerRadius: 16))
+            .focusEffectDisabled()
+            #endif
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        #if os(tvOS)
+        .onExitCommand { dismiss() }
+        #endif
     }
 }
 
 #if os(tvOS)
 /// Plinx-owned tvOS presentation for media detail.
 ///
-/// Strimr continues to own the detail model and reusable content sections. This
-/// shell supplies the television-specific reading order, focus behavior, and
-/// backdrop treatment without turning a Home hero into a detail page.
+/// The upstream `MediaDetailViewModel` owns loading, playback targets and
+/// watch state; this shell supplies the television reading order, focus
+/// behavior and backdrop treatment. It offers no Manage menu, file info,
+/// playlist editing or track pickers: those are parent tools, and kids only
+/// see Play, Play from start, Watched and Favorite. SharePlay appears only
+/// when a parent-facing surface sets `sharePlayPresentationPolicy` to
+/// `.enabled`.
 private struct PlinxMediaDetailTVView: View {
     @EnvironmentObject private var coordinator: MainCoordinator
+    @Environment(MediaServices.self) private var mediaServices
+    @Environment(SettingsManager.self) private var settingsManager
     @Environment(SharePlayCoordinator.self) private var sharePlayCoordinator
     @Environment(\.sharePlayPresentationPolicy) private var sharePlayPresentationPolicy
     @Environment(\.scenePhase) private var scenePhase
@@ -116,18 +196,20 @@ private struct PlinxMediaDetailTVView: View {
     @State private var isSummaryExpanded = false
     @FocusState private var isBackFocused: Bool
 
-    private let onPlay: (String, PlexItemType) -> Void
-    private let onPlayFromStart: (String, PlexItemType) -> Void
+    private let onPlay: (String, MediaKind) -> Void
+    private let onPlayFromStart: (String, MediaKind) -> Void
     private let onSelectMedia: (MediaDisplayItem) -> Void
+    private let onSelectPerson: (Person) -> Void
     private let onDismiss: () -> Void
     private let onRequestShellNavigationFocus: () -> Void
     private let contentFocusRequest: Int
 
     init(
         viewModel: MediaDetailViewModel,
-        onPlay: @escaping (String, PlexItemType) -> Void,
-        onPlayFromStart: @escaping (String, PlexItemType) -> Void,
+        onPlay: @escaping (String, MediaKind) -> Void,
+        onPlayFromStart: @escaping (String, MediaKind) -> Void,
         onSelectMedia: @escaping (MediaDisplayItem) -> Void,
+        onSelectPerson: @escaping (Person) -> Void,
         onDismiss: @escaping () -> Void,
         onRequestShellNavigationFocus: @escaping () -> Void,
         contentFocusRequest: Int
@@ -136,9 +218,14 @@ private struct PlinxMediaDetailTVView: View {
         self.onPlay = onPlay
         self.onPlayFromStart = onPlayFromStart
         self.onSelectMedia = onSelectMedia
+        self.onSelectPerson = onSelectPerson
         self.onDismiss = onDismiss
         self.onRequestShellNavigationFocus = onRequestShellNavigationFocus
         self.contentFocusRequest = contentFocusRequest
+    }
+
+    private var spoilerProtection: SpoilerProtectionLevel {
+        settingsManager.interface.spoilerProtection
     }
 
     var body: some View {
@@ -187,7 +274,7 @@ private struct PlinxMediaDetailTVView: View {
                             detailOverview
                             detailRows
                         }
-                            .frame(width: detailWidth, alignment: .leading)
+                        .frame(width: detailWidth, alignment: .leading)
                     }
                     .padding(.top, 14)
                     .padding(.horizontal, horizontalInset)
@@ -202,11 +289,21 @@ private struct PlinxMediaDetailTVView: View {
             }
         }
         .task {
-            await bindableViewModel.loadDetails()
+            await bindableViewModel.loadDetailsIfNeeded()
         }
         .onChange(of: coordinator.isPresentingPlayer) { _, isPresenting in
             guard !isPresenting else { return }
-            Task { await bindableViewModel.loadDetails() }
+            hasHandledInitialEpisodePosition = false
+            hasUserSelectedSeason = false
+            Task { await bindableViewModel.reloadAfterPlayback() }
+        }
+        .onChange(of: mediaServices.mediaRevision) { _, _ in
+            guard !bindableViewModel.wasDeleted else {
+                onDismiss()
+                return
+            }
+            let changedMediaID = mediaServices.lastChangedMediaID
+            Task { await bindableViewModel.refreshAfterMediaChange(itemID: changedMediaID) }
         }
         .onChange(of: scenePhase) { _, newValue in
             guard newValue == .active else { return }
@@ -234,6 +331,7 @@ private struct PlinxMediaDetailTVView: View {
             }
         }
         .onExitCommand(perform: onDismiss)
+        .themeMusic(for: bindableViewModel.media.mediaItem)
         .toolbar(.hidden, for: .tabBar)
         .alert(
             "sharePlay.error.title",
@@ -304,21 +402,16 @@ private struct PlinxMediaDetailTVView: View {
 
     private var titleSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if let titleLogoURL = viewModel.titleLogoURL {
-                AsyncImage(url: titleLogoURL) { phase in
-                    if let image = phase.image {
-                        image
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxWidth: 620, maxHeight: 170, alignment: .leading)
-                            .accessibilityLabel(Text(verbatim: viewModel.detailPrimaryLabel))
-                    } else {
-                        titleText
-                    }
-                }
-            } else {
-                titleText
-            }
+            // The series logo stands in for its seasons and episodes, which have none of their own.
+            TitleLogoView(
+                media: viewModel.media.mediaItem,
+                title: viewModel.detailPrimaryLabel(spoilerProtection: spoilerProtection),
+                logoPath: viewModel.media.mediaItem.preferredLogoPath
+                    ?? viewModel.parentSeries?.mediaItem.logoPath,
+                maxSize: CGSize(width: 620, height: 170),
+                alignment: .bottomLeading
+            )
+            .frame(maxWidth: 620, alignment: .leading)
 
             if let secondary = viewModel.detailSecondaryLabel, !secondary.isEmpty {
                 Text(secondary)
@@ -334,17 +427,13 @@ private struct PlinxMediaDetailTVView: View {
         }
     }
 
-    private var titleText: some View {
-        Text(viewModel.detailPrimaryLabel)
-            .font(.system(size: 56, weight: .bold, design: .rounded))
-            .foregroundStyle(.white)
-            .lineLimit(3)
-            .minimumScaleFactor(0.72)
-    }
-
     @ViewBuilder
     private var summarySection: some View {
-        if let summary = viewModel.media.summary, !summary.isEmpty {
+        if viewModel.media.mediaItem.shouldHideSpoilerSummary(at: spoilerProtection) {
+            Label("media.spoilerProtection.summaryHidden", systemImage: "eye.slash")
+                .font(.title3)
+                .foregroundStyle(.white.opacity(0.7))
+        } else if let summary = viewModel.media.summary, !summary.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
                 Text(summary)
                     .font(.title3)
@@ -356,10 +445,7 @@ private struct PlinxMediaDetailTVView: View {
                     isSummaryExpanded.toggle()
                 } label: {
                     Label {
-                        Text(
-                            isSummaryExpanded ? "common.actions.showLess" : "common.actions.readMore",
-                            tableName: "Plinx"
-                        )
+                        Text(isSummaryExpanded ? "common.actions.showLess" : "common.actions.readMore")
                     } icon: {
                         Image(systemName: isSummaryExpanded ? "chevron.up" : "chevron.down")
                     }
@@ -438,6 +524,12 @@ private struct PlinxMediaDetailTVView: View {
                 .foregroundStyle(.red)
         }
 
+        if let favoriteActionErrorMessage = viewModel.favoriteActionErrorMessage {
+            Label(favoriteActionErrorMessage, systemImage: "exclamationmark.octagon.fill")
+                .font(.headline)
+                .foregroundStyle(.red)
+        }
+
         if viewModel.isLoading {
             ProgressView("media.detail.updating")
                 .font(.headline)
@@ -473,10 +565,15 @@ private struct PlinxMediaDetailTVView: View {
                 seasonsSection
             }
 
-            CastSection(viewModel: viewModel)
+            CastSection(viewModel: viewModel, onSelectPerson: onSelectPerson)
+            ExtrasSection(viewModel: viewModel) { extra in
+                onPlay(extra.id, .clip)
+            }
             RelatedHubsSection(viewModel: viewModel, onSelectMedia: onSelectMedia)
         }
     }
+
+    // MARK: - Actions
 
     private var actionStack: some View {
         VStack(spacing: 14) {
@@ -488,6 +585,10 @@ private struct PlinxMediaDetailTVView: View {
                 }
 
                 watchToggleButton
+
+                if viewModel.shouldShowFavoriteButton {
+                    favoriteButton
+                }
             }
 
             if sharePlayPresentationPolicy == .enabled {
@@ -495,6 +596,14 @@ private struct PlinxMediaDetailTVView: View {
             }
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// The episode a series resumes and the time left, under the play title.
+    private var primaryActionDetail: String? {
+        let remaining = viewModel.primaryActionRemainingTime
+        guard [.show, .season].contains(viewModel.media.type) else { return remaining }
+        let parts = [viewModel.primaryActionItem?.tertiaryLabel, remaining].compactMap(\.self)
+        return parts.isEmpty ? nil : parts.joined(separator: " • ")
     }
 
     private var playButton: some View {
@@ -509,7 +618,7 @@ private struct PlinxMediaDetailTVView: View {
                         .font(.headline.weight(.semibold))
                         .lineLimit(1)
                         .minimumScaleFactor(0.78)
-                    if let detail = viewModel.primaryActionDetail, !detail.isEmpty {
+                    if let detail = primaryActionDetail, !detail.isEmpty {
                         Text(detail)
                             .font(.footnote)
                             .foregroundStyle(.white.opacity(0.72))
@@ -559,6 +668,30 @@ private struct PlinxMediaDetailTVView: View {
         .accessibilityIdentifier("media.detail.watch")
     }
 
+    private var favoriteButton: some View {
+        Button {
+            Task { await viewModel.toggleFavoriteStatus() }
+        } label: {
+            if viewModel.isLoadingFavoriteStatus || viewModel.isUpdatingFavoriteStatus {
+                ProgressView()
+                    .tint(.white)
+                    .frame(width: PlinxTVDetailActionMetrics.height, height: PlinxTVDetailActionMetrics.height)
+            } else {
+                Image(systemName: viewModel.favoriteActionIcon)
+                    .font(.title2.weight(.semibold))
+                    .frame(width: PlinxTVDetailActionMetrics.height, height: PlinxTVDetailActionMetrics.height)
+            }
+        }
+        .plinxTVDetailActionSurface()
+        .disabled(
+            viewModel.isLoading
+                || viewModel.isLoadingFavoriteStatus
+                || viewModel.isUpdatingFavoriteStatus
+        )
+        .accessibilityLabel(Text(viewModel.favoriteActionTitle))
+        .accessibilityIdentifier("media.detail.favorite")
+    }
+
     private var sharePlayButton: some View {
         Button {
             Task { await activateSharePlay() }
@@ -572,6 +705,7 @@ private struct PlinxMediaDetailTVView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .plinxTVDetailActionSurface()
+        .disabled(sharePlayCoordinator.isActivating)
         .accessibilityLabel(Text("sharePlay.action", tableName: "Plinx"))
         .accessibilityIdentifier("media.detail.shareplay")
     }
@@ -582,6 +716,8 @@ private struct PlinxMediaDetailTVView: View {
             table: "Plinx"
         )
     }
+
+    // MARK: - Seasons and episodes
 
     private var seasonsSection: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -651,7 +787,11 @@ private struct PlinxMediaDetailTVView: View {
                         ForEach(viewModel.episodes) { episode in
                             PlinxTVEpisodeArtworkCard(
                                 episode: episode,
-                                imageURL: viewModel.imageURL(for: episode, width: 640, height: 360),
+                                artworkPath: viewModel.artworkPath(
+                                    for: episode,
+                                    spoilerProtection: spoilerProtection
+                                ),
+                                title: episode.spoilerSafeTitle(at: spoilerProtection),
                                 runtime: viewModel.runtimeText(for: episode),
                                 progress: viewModel.progressFraction(for: episode),
                                 width: 460,
@@ -663,7 +803,11 @@ private struct PlinxMediaDetailTVView: View {
                     }
                     .padding(.vertical, 16)
                 }
-                .task(id: viewModel.episodes.map(\.id)) {
+                .task(id: EpisodePositionTrigger(
+                    episodeIDs: viewModel.episodes.map(\.id),
+                    primaryEpisodeID: viewModel.primaryActionItem?.id,
+                    isLoading: viewModel.isLoading
+                )) {
                     await positionOnDeckEpisodeIfNeeded(using: scrollProxy)
                 }
                 .focusSection()
@@ -671,9 +815,16 @@ private struct PlinxMediaDetailTVView: View {
         }
     }
 
+    private struct EpisodePositionTrigger: Equatable {
+        let episodeIDs: [String]
+        let primaryEpisodeID: String?
+        let isLoading: Bool
+    }
+
     @MainActor
     private func positionOnDeckEpisodeIfNeeded(using scrollProxy: ScrollViewProxy) async {
-        guard !hasHandledInitialEpisodePosition, !hasUserSelectedSeason else { return }
+        // Waits for the whole load: the next episode is resolved after the episodes are shown.
+        guard !hasHandledInitialEpisodePosition, !hasUserSelectedSeason, !viewModel.isLoading else { return }
         hasHandledInitialEpisodePosition = true
 
         guard let primaryEpisodeID = viewModel.primaryActionItem?.id,
@@ -690,6 +841,8 @@ private struct PlinxMediaDetailTVView: View {
 
         scrollProxy.scrollTo(primaryEpisodeID, anchor: .leading)
     }
+
+    // MARK: - Playback
 
     private func handlePlay() {
         Task {
@@ -715,7 +868,8 @@ private struct PlinxMediaDetailTVView: View {
     }
 
     private func activateSharePlay() async {
-        guard let ratingKey = viewModel.primaryActionRatingKey,
+        guard sharePlayPresentationPolicy == .enabled,
+              let ratingKey = viewModel.primaryActionRatingKey,
               let playbackType = viewModel.primaryActionType,
               let item = viewModel.primaryActionItem
         else { return }
@@ -724,7 +878,8 @@ private struct PlinxMediaDetailTVView: View {
             ratingKey: ratingKey,
             type: playbackType,
             title: item.primaryLabel,
-            initialPosition: viewModel.primaryActionInitialPosition
+            initialPosition: viewModel.primaryActionInitialPosition,
+            server: viewModel.server
         )
     }
 }
@@ -825,7 +980,8 @@ private struct PlinxTVSeasonPillButton: View {
 
 private struct PlinxTVEpisodeArtworkCard: View {
     let episode: MediaItem
-    let imageURL: URL?
+    let artworkPath: String?
+    let title: String
     let runtime: String?
     let progress: Double?
     let width: CGFloat
@@ -835,22 +991,50 @@ private struct PlinxTVEpisodeArtworkCard: View {
     @FocusState private var isFocused: Bool
 
     var body: some View {
-        EpisodeArtworkView(
-            episode: episode,
-            imageURL: imageURL,
-            width: width,
-            runtime: runtime,
-            progress: progress
-        )
-        .focusable()
-        .focused($isFocused)
-        .scaleEffect(isFocused ? 1.10 : 1)
-        .animation(.easeOut(duration: 0.15), value: isFocused)
-        .onChange(of: isFocused) { _, focused in
-            if focused { onFocus() }
+        VStack(alignment: .leading, spacing: 14) {
+            EpisodeArtworkView(
+                episode: episode,
+                artworkPath: artworkPath,
+                width: width,
+                progress: progress
+            )
+            .focusable()
+            .focused($isFocused)
+            .scaleEffect(isFocused ? 1.10 : 1)
+            .animation(.easeOut(duration: 0.15), value: isFocused)
+            .onChange(of: isFocused) { _, focused in
+                if focused { onFocus() }
+            }
+            .onPlayPauseCommand(perform: onPlay)
+            .onTapGesture(perform: onPlay)
+
+            caption
         }
-        .onPlayPauseCommand(perform: onPlay)
-        .onTapGesture(perform: onPlay)
+        .frame(width: width, alignment: .leading)
+    }
+
+    private var caption: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let eyebrow {
+                Text(eyebrow)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.white.opacity(isFocused ? 0.82 : 0.56))
+                    .lineLimit(1)
+            }
+            Text(title)
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(.white.opacity(isFocused ? 1 : 0.68))
+                .lineLimit(1)
+        }
+        // Follows the focused artwork's lift so the scaled card never covers its caption.
+        .offset(y: isFocused ? (width / (16 / 9)) * 0.05 : 0)
+        .animation(.easeOut(duration: 0.15), value: isFocused)
+    }
+
+    private var eyebrow: String? {
+        let number = episode.index.map { String(localized: "media.detail.episodeNumber \($0)") }
+        let parts = [number, runtime].compactMap(\.self)
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 }
 #endif

@@ -1,21 +1,46 @@
 import Foundation
+import PlinxCore
 import PlinxUI
 import SwiftUI
 
+/// Root of the window: follows `SessionManager.status`, owns player
+/// presentation, and keeps the offline, download and safety state of the
+/// session in step with scene and network changes.
+///
+/// Launch rule: while an enrolled family connects, the screen shows Plinx
+/// loading, never an offline warning. Offline content appears only once the
+/// session is ready (cached content and the family's downloads), or, when the
+/// session cannot be restored and the device has no network, as the offline
+/// Downloads root.
 struct PlinxContentView: View {
     @Environment(SessionManager.self) private var sessionManager
-    @Environment(PlinxSessionAccessCoordinator.self) private var sessionAccessCoordinator
-    @Environment(PlexAPIContext.self) private var plexApiContext
-    @Environment(\.safetyPolicy) private var safetyPolicy
+    @Environment(ServerRegistry.self) private var registry
+    @Environment(SettingsManager.self) private var settingsManager
+    @Environment(ParentalAccessCoordinator.self) private var parentalAccessCoordinator
+    @Environment(PlinxWatchStatusStore.self) private var watchStatusStore
+    #if !os(tvOS)
+    @Environment(DownloadManager.self) private var downloadManager
+    @Environment(OfflineCoordinator.self) private var offlineCoordinator
+    #endif
+    @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var mainCoordinator: MainCoordinator
-    @StateObject private var playbackLaunchCoordinator = PlaybackLaunchCoordinator()
-    @State private var watchStatusStore = PlinxWatchStatusStore()
+    @EnvironmentObject private var playbackLaunchCoordinator: PlaybackLaunchCoordinator
     @State private var pendingPlayerDetail: MediaItem?
-    @State private var networkPath = PlinxNetworkPathMonitor()
-    @State private var reconnectsAfterHydration = false
+    /// Content-policy revision the visible tab shell was built under.
+    @State private var observedSafetyRevision: Int?
+    /// Bumped when a new content policy is applied, which rebuilds the tab
+    /// shell so every screen reloads through the updated safety boundary.
+    @State private var safetyGeneration = 0
 
     private struct PlaybackPresentationToken: Identifiable {
         let id = "plinx.playback.presentation"
+    }
+
+    /// Identity of the tab shell: a new profile activation (registry
+    /// generation) or a newly applied content policy starts it fresh.
+    private struct RootIdentity: Hashable {
+        let registryGeneration: Int
+        let safetyGeneration: Int
     }
 
     private var uiTestScreenOverride: String? {
@@ -41,40 +66,172 @@ struct PlinxContentView: View {
 
             rootContent
         }
-        .environmentObject(playbackLaunchCoordinator)
-        .environment(watchStatusStore)
         .fullScreenCover(item: playbackPresentationBinding, onDismiss: consumePendingPlayerDetail) { _ in
             PlinxPlaybackPresentationView(onRequestMoreInfo: queuePlayerDetail)
                 .environmentObject(playbackLaunchCoordinator)
                 .environment(watchStatusStore)
         }
         .onAppear {
-            synchronizeSessionAccess()
-            networkPath.start()
+            applySafetyRevisionIfIdle()
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 500_000_000)
                 AppStoreScreenshotBootstrap.applyRequestedOrientation()
             }
         }
-        .onChange(of: sessionManager.status) { _, _ in
-            synchronizeSessionAccess()
-            resumeDeferredReconnectIfNeeded()
-        }
-        .onChange(of: networkPath.isSatisfied) { wasSatisfied, isSatisfied in
-            synchronizeNetworkAvailability(from: wasSatisfied, to: isSatisfied)
-        }
-        .onChange(of: sessionRootIdentity) { _, _ in
+        .onChange(of: registry.generation) { _, _ in
+            // A new profile (or a new set of its servers) never inherits the
+            // previous profile's pending navigation or optimistic state.
             pendingPlayerDetail = nil
             watchStatusStore.reset()
-            synchronizeSessionAccess()
+        }
+        .onChange(of: mainCoordinator.isPresentingPlayer, initial: true) { _, isPresenting in
+            sessionManager.isPlaybackActive = isPresenting
+        }
+        // ── Content policy ──────────────────────────────────────────
+        .onChange(of: ContentSafetyGate.shared.revision) { _, _ in
+            applySafetyRevisionIfIdle()
+        }
+        .onChange(of: parentalAccessCoordinator.isUnlocked) { _, _ in
+            applySafetyRevisionIfIdle()
+        }
+        // ── Network and scene phase (as upstream's ContentView) ─────
+        .onChange(of: registry.availability.hasNetworkPath) { _, hasNetworkPath in
+            guard hasNetworkPath, sessionManager.status == .migrationFailed else { return }
+            Task {
+                await sessionManager.hydrate()
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            handleScenePhase(phase)
+        }
+        #if !os(tvOS)
+        .onChange(of: settingsManager.downloads.offlineCacheLimitMB, initial: true) { _, megabytes in
+            offlineCoordinator.setCacheLimit(megabytes: megabytes)
+        }
+        .onChange(of: registry.connectedServices.map(ObjectIdentifier.init), initial: true) { _, _ in
+            downloadManager.activateSession(services: registry.connectedServices)
+        }
+        #endif
+    }
+
+    // MARK: - Session content
+
+    @ViewBuilder
+    private var sessionContent: some View {
+        if showsStaticDownloads {
+            offlineDownloadsRoot
+        } else {
+            switch sessionManager.status {
+            case .hydrating:
+                // Connecting is not being offline: no warning until the
+                // session is ready or known to have failed.
+                PlinxBrandedLoadingView(context: .appTransition)
+            case .needsAccount:
+                // Families add a Plex account or a Jellyfin server.
+                AccountSetupView(purpose: .firstLaunch, sessionManager: sessionManager)
+            case .needsProfileSelection:
+                NavigationStack {
+                    ProfileSwitcherView(viewModel: ProfileSwitcherViewModel(sessionManager: sessionManager))
+                }
+            case .migrationFailed:
+                ZStack {
+                    PlinxAmbientBackground(intensity: .hero)
+                    PlinxConnectionRecoveryView()
+                }
+            case .ready:
+                RootTabView(
+                    homeViewModel: HomeViewModel(sessionManager: sessionManager, settingsManager: settingsManager)
+                )
+                .id(RootIdentity(registryGeneration: registry.generation, safetyGeneration: safetyGeneration))
+            }
         }
     }
+
+    /// Without a restorable session and without network, downloads are shown
+    /// directly at launch (upstream's static downloads). Plinx limits this to a
+    /// session that could not be restored (`migrationFailed`): with no account
+    /// at all there is no profile that could own downloads, so onboarding
+    /// stays in front. Only downloads of the active owners that the content
+    /// policy allows count, never every profile's downloads on the device:
+    /// with no owner active the recovery card is shown alone (fail closed).
+    private var showsStaticDownloads: Bool {
+        #if os(tvOS)
+        false
+        #else
+        guard sessionManager.status == .migrationFailed,
+              !offlineCoordinator.availability.hasNetworkPath
+        else {
+            return false
+        }
+        return !DownloadAccessPolicy(downloadManager: downloadManager)
+            .filter(downloadManager.ownedItems)
+            .isEmpty
+        #endif
+    }
+
+    @ViewBuilder
+    private var offlineDownloadsRoot: some View {
+        #if !os(tvOS)
+        ZStack(alignment: .bottom) {
+            NavigationStack {
+                PlinxDownloadsGridView()
+                    .background(PlinxAmbientBackground(intensity: .restrained))
+                    .toolbar(.hidden, for: .navigationBar)
+            }
+            PlinxConnectionRecoveryView(downloadsAvailable: true)
+        }
+        #endif
+    }
+
+    // MARK: - Scene phase
+
+    private func handleScenePhase(_ phase: ScenePhase) {
+        switch phase {
+        case .active:
+            sessionManager.sceneWillReturnFromBackground()
+            #if !os(tvOS)
+            offlineCoordinator.availability.refresh()
+            #endif
+            registry.retryUnavailable()
+        case .background:
+            sessionManager.sceneDidEnterBackground()
+            #if !os(tvOS)
+            offlineCoordinator.evictCacheIfNeeded()
+            #endif
+        case .inactive:
+            sessionManager.sceneWillReturnFromBackground()
+        @unknown default:
+            break
+        }
+    }
+
+    // MARK: - Content policy
+
+    /// Applies a new content policy by rebuilding the tab shell. While a parent
+    /// is in protected settings (gate unlocked) the rebuild waits, so changing
+    /// a rating ceiling never closes the settings being edited; relocking on
+    /// close applies it. Pushed screens are popped because they may show an
+    /// item the new policy no longer allows.
+    private func applySafetyRevisionIfIdle() {
+        let revision = ContentSafetyGate.shared.revision
+        guard let observed = observedSafetyRevision else {
+            observedSafetyRevision = revision
+            return
+        }
+        guard revision != observed, !parentalAccessCoordinator.isUnlocked else { return }
+        observedSafetyRevision = revision
+        pendingPlayerDetail = nil
+        mainCoordinator.resetAllToRoot()
+        safetyGeneration &+= 1
+    }
+
+    // MARK: - Player presentation
 
     private var playbackPresentationBinding: Binding<PlaybackPresentationToken?> {
         Binding(
             get: {
                 guard playbackLaunchCoordinator.pendingLaunch != nil
-                    || mainCoordinator.selectedPlayQueue != nil
+                    || mainCoordinator.isPresentingPlayer
                 else {
                     return nil
                 }
@@ -92,16 +249,18 @@ struct PlinxContentView: View {
     /// boundary only after dismissal. This avoids competing navigation updates
     /// and makes an ordinary player exit a no-op for root navigation.
     private func queuePlayerDetail(_ media: MediaItem) {
-        guard PlinxContentAuthorization.isAllowed(media, policy: safetyPolicy) else { return }
+        guard ContentSafetyGate.shared.isAllowed(media) else { return }
         pendingPlayerDetail = media
     }
 
     private func consumePendingPlayerDetail() {
         guard let media = pendingPlayerDetail else { return }
         pendingPlayerDetail = nil
-        guard PlinxContentAuthorization.isAllowed(media, policy: safetyPolicy) else { return }
+        guard ContentSafetyGate.shared.isAllowed(media) else { return }
         mainCoordinator.showMediaDetail(media)
     }
+
+    // MARK: - UI test routes
 
     @ViewBuilder
     private var rootContent: some View {
@@ -112,12 +271,14 @@ struct PlinxContentView: View {
             case "parentalPINGate":
                 ParentalGateUITestHarness(pin: "2468")
             case "signIn":
-                SignInView(
-                    viewModel: PlinxSignInViewModel(
-                        sessionManager: sessionManager,
-                        context: plexApiContext
-                    )
-                )
+                NavigationStack {
+                    SignInView(viewModel: SignInViewModel(onToken: { token in
+                        _ = try await sessionManager.addPlexAccount(token: token)
+                        await sessionManager.finishFirstLaunch()
+                    }))
+                }
+            case "accountSetup":
+                AccountSetupView(purpose: .firstLaunch, sessionManager: sessionManager)
             case "playerSettings":
                 playerSettingsPreview
             case "playerTimeline":
@@ -161,11 +322,7 @@ struct PlinxContentView: View {
             case "appleTVSearchFocus":
                 AppleTVBrowseFocusUITestHarness(scenario: .search)
             case "profileSwitcherModal":
-                AppleTVProfileSwitcherUITestHarness(
-                    context: plexApiContext,
-                    sessionManager: sessionManager,
-                    modal: true
-                )
+                AppleTVProfileSwitcherUITestHarness(sessionManager: sessionManager, modal: true)
             case "playerControls":
                 AppleTVPlayerControlsUITestHarness()
             case "playerTracks":
@@ -180,37 +337,19 @@ struct PlinxContentView: View {
             case "profileSwitcher":
                 NavigationStack {
                     #if os(tvOS)
-                    AppleTVProfileSwitcherUITestHarness(
-                        context: plexApiContext,
-                        sessionManager: sessionManager,
-                        modal: false
-                    )
+                    AppleTVProfileSwitcherUITestHarness(sessionManager: sessionManager, modal: false)
                     #else
-                    ProfileSwitcherView(
-                        viewModel: ProfileSwitcherViewModel(
-                            context: plexApiContext,
-                            sessionManager: sessionManager
-                        )
-                    )
+                    ProfileSwitcherView(viewModel: ProfileSwitcherViewModel(sessionManager: sessionManager))
                     #endif
                 }
             case "selectServer":
                 NavigationStack {
-                    #if os(tvOS)
-                    SelectServerTVView(
-                        viewModel: ServerSelectionViewModel(
-                            sessionManager: sessionManager,
-                            context: plexApiContext
-                        )
-                    )
-                    #else
                     SelectServerView(
                         viewModel: ServerSelectionViewModel(
-                            sessionManager: sessionManager,
-                            context: plexApiContext
+                            loadServers: { try await uiTestPlexServers() },
+                            onContinue: { _ in }
                         )
                     )
-                    #endif
                 }
             case YoutarrLiveTestBootstrap.screenName:
                 if let configuration = YoutarrLiveTestBootstrap.configuration() {
@@ -239,7 +378,7 @@ struct PlinxContentView: View {
                 }
             #if !os(tvOS)
             case DownloadUITestFixtures.screenName:
-                PlinxDownloadsGridView()
+                DownloadUITestHarness()
             case "seasonDownloadOffline":
                 SeasonDownloadUITestHarness()
             case "demoPlayer":
@@ -253,91 +392,31 @@ struct PlinxContentView: View {
         }
     }
 
+    /// Servers of the first Plex account, for the server-selection route.
+    private func uiTestPlexServers() async throws -> [PlexCloudResource] {
+        guard let account = sessionManager.accountStore.plexAccounts.first else { return [] }
+        return try await sessionManager.plexServers(
+            accountID: MediaAccount.plexID(account.id),
+            userUUID: account.id
+        )
+    }
+
+    /// Player settings now live inside the player and depend on a running
+    /// playback session; the standalone preview only shows a placeholder.
     private var playerSettingsPreview: some View {
-        #if os(tvOS)
-        return AnyView(
-            VStack(spacing: 12) {
-                Image(systemName: "captions.bubble.fill")
-                    .font(.system(size: 44, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
+        VStack(spacing: 12) {
+            Image(systemName: "captions.bubble.fill")
+                .font(.system(size: 44, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
 
-                Text("player.settings.previewUnavailable", tableName: "Plinx")
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                    .multilineTextAlignment(.center)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding()
-            .background(Color.appBackground.ignoresSafeArea())
-        )
-        #else
-        let audioTracks = [
-            PlaybackSettingsTrack(
-                track: PlayerTrack(
-                    id: 1,
-                    ffIndex: 1,
-                    type: .audio,
-                    title: "English",
-                    language: "en",
-                    codec: "AAC",
-                    isDefault: true,
-                    isForced: false,
-                    isHearingImpaired: false,
-                    isCommentary: false,
-                    isExternal: false,
-                    isSelected: true
-                ),
-                plexStream: nil
-            ),
-            PlaybackSettingsTrack(
-                track: PlayerTrack(
-                    id: 2,
-                    ffIndex: 2,
-                    type: .audio,
-                    title: "Spanish",
-                    language: "es",
-                    codec: "AAC",
-                    isDefault: false,
-                    isForced: false,
-                    isHearingImpaired: false,
-                    isCommentary: false,
-                    isExternal: false,
-                    isSelected: false
-                ),
-                plexStream: nil
-            ),
-        ]
-
-        let subtitleTracks = [
-            PlaybackSettingsTrack(
-                track: PlayerTrack(
-                    id: 11,
-                    ffIndex: 11,
-                    type: .subtitle,
-                    title: "English CC",
-                    language: "en",
-                    codec: "SRT",
-                    isDefault: true,
-                    isForced: false,
-                    isHearingImpaired: true,
-                    isCommentary: false,
-                    isExternal: false,
-                    isSelected: false
-                ),
-                plexStream: nil
-            ),
-        ]
-
-        return PlaybackSettingsView(
-            audioTracks: audioTracks,
-            subtitleTracks: subtitleTracks,
-            selectedAudioTrackID: 1,
-            selectedSubtitleTrackID: 11,
-            onSelectAudio: { _ in },
-            onSelectSubtitle: { _ in },
-            onClose: {}
-        )
-        #endif
+            Text("player.settings.previewUnavailable", tableName: "Plinx")
+                .font(.headline)
+                .foregroundStyle(.white)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding()
+        .background(Color.appBackground.ignoresSafeArea())
     }
 
     private var loadingGalleryPreview: some View {
@@ -404,14 +483,20 @@ struct PlinxContentView: View {
                     try? await Task.sleep(for: .milliseconds(25))
                     guard !Task.isCancelled else { return }
                 }
-                await DemoFixtureBootstrap.start(sessionManager: sessionManager, context: plexApiContext)
-                guard DemoFixtureBootstrap.isActive, sessionManager.status == .ready else { return }
+                await DemoFixtureBootstrap.start(sessionManager: sessionManager)
+                guard DemoFixtureBootstrap.isActive,
+                      sessionManager.status == .ready,
+                      let demoServer = registry.sessions.first(where: {
+                          $0.identity.id == DemoFixtureBootstrap.serverIdentifier
+                      }),
+                      let services = registry.services(for: demoServer.identity)
+                else { return }
                 let launcher = PlaybackLauncher(
-                    context: plexApiContext,
+                    services: services,
                     coordinator: mainCoordinator,
                     safetyPolicy: .ratingOnly(maxMovie: .pg, maxTV: .tvPg, allowUnrated: false)
                 )
-                await launcher.play(ratingKey: "moonbound", type: .movie, shouldResumeFromOffset: false)
+                _ = await launcher.play(ratingKey: "moonbound", type: .movie, shouldResumeFromOffset: false)
             }
     }
     #endif
@@ -479,151 +564,6 @@ struct PlinxContentView: View {
         .plinxRefreshable {
             try? await Task.sleep(nanoseconds: 3_000_000_000)
         }
-    }
-
-    @ViewBuilder
-    private var sessionContent: some View {
-        #if os(tvOS)
-        // Apple TV has no offline Downloads screen. Keep the session flow in
-        // front until streaming is ready instead of mounting the tab shell
-        // behind a download recovery overlay during hydration.
-        if sessionAccessCoordinator.isLocallyEnrolled,
-           sessionManager.status == .signedOut {
-            if sessionAccessCoordinator.isAwaitingInitialConnection {
-                // The failure is applied on the next change callback; avoid a
-                // blank frame before the recovery card.
-                PlinxBrandedLoadingView(context: .appTransition)
-            } else {
-                PlinxConnectionRecoveryView()
-            }
-        } else {
-            sessionStatusContent
-        }
-        #else
-        if sessionAccessCoordinator.isLocallyEnrolled,
-           sessionAccessCoordinator.isAwaitingInitialConnection {
-            // Launch connection in progress: show loading, not an offline
-            // warning. Offline Downloads appear only after the connection
-            // fails or the device reports no network path.
-            if sessionManager.status == .needsProfileSelection {
-                sessionStatusContent
-            } else {
-                PlinxBrandedLoadingView(context: .appTransition)
-            }
-        } else if sessionAccessCoordinator.isLocallyEnrolled {
-            ZStack {
-                RootTabView()
-                if sessionManager.status != .ready {
-                    PlinxConnectionRecoveryView()
-                }
-            }
-        } else {
-            sessionStatusContent
-        }
-        #endif
-    }
-
-    @ViewBuilder
-    private var sessionStatusContent: some View {
-        switch sessionManager.status {
-        case .hydrating:
-            PlinxBrandedLoadingView(context: .appTransition)
-        case .signedOut:
-            SignInView(
-                viewModel: PlinxSignInViewModel(
-                    sessionManager: sessionManager,
-                    context: plexApiContext
-                )
-            )
-        case .needsProfileSelection:
-            NavigationStack {
-                #if os(tvOS)
-                PlinxProfileSwitcherTVView(
-                    viewModel: ProfileSwitcherViewModel(
-                        context: plexApiContext,
-                        sessionManager: sessionManager
-                    )
-                )
-                #else
-                ProfileSwitcherView(
-                    viewModel: ProfileSwitcherViewModel(
-                        context: plexApiContext,
-                        sessionManager: sessionManager
-                    )
-                )
-                #endif
-            }
-        case .needsServerSelection:
-            NavigationStack {
-                #if os(tvOS)
-                SelectServerTVView(
-                    viewModel: ServerSelectionViewModel(
-                        sessionManager: sessionManager,
-                        context: plexApiContext
-                    )
-                )
-                #else
-                SelectServerView(
-                    viewModel: ServerSelectionViewModel(
-                        sessionManager: sessionManager,
-                        context: plexApiContext
-                    )
-                )
-                #endif
-            }
-        case .ready:
-            RootTabView()
-                .id(sessionRootIdentity)
-        }
-    }
-
-    private func synchronizeSessionAccess() {
-        if sessionManager.status == .ready {
-            sessionAccessCoordinator.recordReadySession(sessionManager: sessionManager)
-        } else if sessionManager.status == .signedOut || sessionManager.status == .needsServerSelection {
-            sessionAccessCoordinator.markRemoteFailure()
-        }
-    }
-
-    private func synchronizeNetworkAvailability(from wasSatisfied: Bool?, to isSatisfied: Bool?) {
-        switch isSatisfied {
-        case false:
-            sessionAccessCoordinator.markNetworkUnavailable()
-        case true:
-            // Only a real return of connectivity retries; the first path
-            // report at launch is not a reconnect signal.
-            guard wasSatisfied == false else { return }
-            switch sessionManager.status {
-            case .ready:
-                // A ready session (including the sample library) is never
-                // replaced by an automatic reconnect.
-                break
-            case .hydrating:
-                // Never run two hydrations at once. Retry once this one ends
-                // if it fails.
-                reconnectsAfterHydration = true
-            default:
-                sessionAccessCoordinator.networkBecameAvailable(using: sessionManager)
-            }
-        case nil:
-            break
-        }
-    }
-
-    private func resumeDeferredReconnectIfNeeded() {
-        guard reconnectsAfterHydration, sessionManager.status != .hydrating else { return }
-        reconnectsAfterHydration = false
-        guard sessionManager.status != .ready, networkPath.isSatisfied == true else { return }
-        sessionAccessCoordinator.networkBecameAvailable(using: sessionManager)
-    }
-
-    private var sessionRootIdentity: String {
-        let server = sessionManager.plexServer?.clientIdentifier ?? "no-server"
-        let profile = sessionManager.user?.uuid
-            ?? sessionManager.user?.id.map(String.init)
-            ?? sessionManager.user?.username
-            ?? "no-profile"
-        return "\(server)|\(profile)"
     }
 }
 
@@ -731,10 +671,12 @@ private struct ParentalGateUITestHarness: View {
                     shellFocusHistory.append("library")
                 case .search:
                     shellFocusHistory.append("search")
-                case .more:
+                case .more, .downloads:
                     shellFocusHistory.append("more")
                 case .seerrDiscover:
                     shellFocusHistory.append("explore")
+                case .favorites, .liveTV:
+                    shellFocusHistory.append("other")
                 }
             case .settings:
                 shellFocusHistory.append("settings")

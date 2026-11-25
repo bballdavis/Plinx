@@ -393,8 +393,10 @@ final class LibraryBrowseViewModel {
         }
     }
 
+    /// The offline store is read directly, outside the provider services: its titles pass the gate here.
     private func downloadedLibraryItems() -> [MediaDisplayItem] {
-        OfflineCoordinator.shared.store?.downloadedLibraryItems(libraryID: library.id, owner: owner) ?? []
+        let items = OfflineCoordinator.shared.store?.downloadedLibraryItems(libraryID: library.id, owner: owner) ?? []
+        return ContentSafetyGate.shared.filter(items)
     }
 
     private func loadFirstPage() async {

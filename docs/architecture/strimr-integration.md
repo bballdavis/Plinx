@@ -1,244 +1,235 @@
-# Strimr Integration
+# Absorbed Strimr Codebase
 
-## Expected Local Layout
+Plinx is one codebase. On 2026-11-23 it absorbed the source of
+[Strimr](https://github.com/wunax/strimr), the open-source Plex and Jellyfin
+client it used to build against, and that code is now Plinx code. There is no
+sibling checkout, pinned engine commit, pairing branch, or seam contract. The
+[upstream provenance page](../maintenance/upstream-strimr.md) records where the
+code came from and how upstream changes are ported. The
+[current dependencies](../maintenance/current-dependencies.mdx) page shows the
+absorbed upstream base and the exact package pins.
 
-Sibling checkouts should look like:
+## Layers
 
-```text
-Repos/
-  Plinx/
-  strimr/
-```
+Each app target (`Plinx-iOS`, `Plinx-tvOS`) compiles one module from these
+folders in `PlinxApp/`, plus the local packages and Swift packages below.
 
-Plinx runtime builds currently expect the Strimr checkout at `../strimr` relative to the repo root and `../../strimr` relative to `PlinxApp/project.yml`.
-AetherEngine is resolved by Swift Package Manager at the exact revision pinned
-in `project.yml`; it is no longer a sibling checkout.
+| Layer | Path | Owns |
+|---|---|---|
+| App shell | `App/` | Composition root (`PlinxApp.swift`), lifecycle hardening, `ParentalAccessCoordinator`, settings sanitizing, the App Review demo, UI-test bootstraps, Youtarr |
+| Plinx presentation | `Views/`, `ViewModels/`, `Adapters/` | Root tabs and onboarding, Home, Library, Search, detail screens, player chrome and timeline, parent settings, downloads grid, playback launch, watched state |
+| Shared media stack | `Core/` | Sessions and accounts, the provider layer, the safety boundary, feature view models, player controller, models, networking, offline store (iOS), settings store |
+| Platform screens | `Platform/iOS/`, `Platform/tvOS/` | Upstream platform screens Plinx kept: player wrappers and views, detail and library pieces, downloads (iOS), settings sections |
+| Domain package | `Packages/PlinxCore` | `SafetyPolicy`, `SafetyInterceptor`, rating normalization, parental gate logic |
+| Design package | `Packages/PlinxUI` | Theme, brand components, loading and focus affordances |
 
-## Branch Pairing
+Swift packages, pinned exactly in `PlinxApp/project.yml`:
 
-Stable branch pairing:
+- **AetherEngine:** the playback engine, used only by the app targets.
+- **GRDB:** the offline store.
+- **SwiftAssRenderer:** ASS and SSA subtitle rendering.
 
-- Plinx `main` ↔ Strimr `plinx-patches`
-- Plinx `dev` ↔ Strimr `dev-plinx`
+`Core/` and `Platform/` keep upstream's folder shapes so that upstream changes
+are easy to find and compare. They are not vendored: edit them in place.
 
-`dev-plinx` and `plinx-patches` are maintained as one linear downstream
-history. They are aligned at release boundaries so the next development stack
-can promote with a fast-forward-only update. Strimr `main` remains the
-upstream-synced branch and is never used as Plinx's patch target.
+### One implementation per concept
 
-CI and release builds use an exact configured Strimr commit rather than
-resolving a moving branch head. View the branch, commit, and upstream base on
-the generated [current dependency status](../maintenance/current-dependencies.mdx)
-page.
+Where Plinx already had its own version of an upstream type, the upstream copy
+was deleted and upstream callers now use the Plinx one. This covers:
 
-See `docs/development/branch-pairing.md` for commands and day-to-day verification steps.
+- the player timeline, iOS player controls and buttons, and the tvOS player
+  buttons and track selection
+- the playback launcher
+- sign-in, server and profile selection
+- the root tabs and content view
+- the backdrop gradient and rating label
+- the downloads settings screen
+- the no-op `ErrorReporter`
 
-## Integration Contract
+Do not reintroduce overrides by excluding a file and declaring a same-named
+type elsewhere. Change the one implementation instead.
 
-`config/release-dependencies.env` is the single machine-readable contract for
-the paired Strimr revision. Along with the exact commit, it records the paired
-branch, upstream base, Plinx-compiled source roots, and narrow source seams.
-`scripts/verify_strimr_integration_contract.sh --quick` verifies the static
-source integration; `--full` additionally verifies the local Git pairing is
-clean, pinned, based on the configured upstream commit, and linear. This keeps
-the same-module integration explicit without treating Strimr's moving branch
-head as a build dependency.
+The tvOS target still excludes some `Core/` files in `project.yml`, either
+because they are iOS-only (downloads, the offline store) or because Plinx has
+its own tvOS screen. Keep exclusions to those two reasons. Delete a file that
+neither target reaches.
 
-## When To Change Plinx Instead Of Strimr
+## Composition And Sessions
 
-Prefer Plinx-owned layers when the change is:
+`PlinxApp.swift` builds the upstream stack in upstream's order:
 
-- product-specific
-- kid-safety specific
-- branding or copy specific
-- a layout or UX override
-- a narrow adaptation around upstream behavior
+- `SettingsManager`
+- `SessionManager`, which owns the `ServerRegistry`
+- `LibraryStore`
+- `SeerrStore`
+- `SharePlayCoordinator`
+- `MainCoordinator`
+- `DownloadManager` and `OfflineCoordinator` (iOS only)
 
-Preferred order:
+It adds the Plinx objects: `ParentalAccessCoordinator`, the watched-status
+store, the playback launch and playback coordinators, the theme, and the
+computed `SafetyPolicy`. All of them go into the SwiftUI environment.
 
-1. Plinx view or view model
-2. Plinx adapter or decorator
-3. Plinx package API
-4. minimal Strimr patch only if the above are not sufficient
+`PlinxContentView` switches on `SessionManager.status`:
 
-## Plinx-owned player timeline
+| Status | Shown |
+|---|---|
+| `hydrating` | Plinx loading screen, never an offline warning |
+| `needsAccount` | Provider choice and sign-in (Plex or Jellyfin) |
+| `needsProfileSelection` | Plinx profile picker |
+| `migrationFailed` | Plinx connection recovery |
+| `ready` | Root tabs |
 
-Both app targets exclude Strimr's shared `PlayerTimelineView.swift` and compile
-the Plinx-owned timeline in `PlinxApp/Views/Player/`. The replacement retains
-the same position binding, duration, buffer inputs, and editing callback, so
-the upstream iOS and tvOS player lifecycle remains the owner of seeking and
-playback completion. Plinx owns vector geometry, touch tracking, remote focus,
-accessibility, and interaction cleanup. No paired-source patch is required.
+The environment does not hold a Plex request context. Screens get a server's
+services from `registry.services(for: ServerIdentity)` or
+`registry.connectedServices`, or use upstream view models that take
+`sessionManager` and `settingsManager`. Plex and Jellyfin build their services
+in `Core/Providers`; the protocols are in `Core/Services/Protocols`.
 
-The parent resets its timeline binding on editing begin. The timeline must
-therefore send the begin callback before writing a preview, then finish once
-with the final valid position already in the binding. Interruptions finish
-the current preview; they do not introduce pause/resume or end-of-media
-events. Timer cancellation and generation checks prevent stale TV commits.
+## Safety Boundary
 
-Unknown duration disables new interactions. If duration disappears during
-scrubbing, the timeline restores the last finite authoritative position before
-closing the existing editing callback. This compatibility callback still
-passes through the existing seek handler; it is not a new engine cancel API.
+Every title a family sees passes one boundary in `Core/Safety`.
 
-## Plinx-owned watched actions
+- **`ContentSafetyGate`** holds the active `SafetyPolicy` and whether the
+  parental gate is unlocked. `PlinxApp` keeps both in sync with the parent's
+  settings and `ParentalAccessCoordinator`. The gate judges a title on its own
+  content rating against the ceiling for that rating's scale. A missing or
+  unrecognized rating is rejected unless the parent allows unrated content.
+  Adult-only ratings are always rejected. Each policy change bumps
+  `revision`, which reloads Home and rebuilds the tab shell.
+- **`SafeMediaServices`** wraps every service a provider builds. The wrap
+  happens inside `MediaServices.init`, so no unwrapped `MediaServices` exists
+  for Plex, Jellyfin, or the demo, on iOS or tvOS. It does the following:
+  - drops blocked titles from home, library, search, detail, favorites,
+    playlists, queues and downloads
+  - removes hubs and rows that end up empty, and re-indexes paged listings
+  - throws when a blocked title is looked up directly
+  - denies server rights, management, playlist edits and subtitle downloads
+    unless the parental gate is unlocked
+  - replaces Live TV with a service that is never available, and refuses
+    external playback
+- **The conformance test, `SafeMediaServicesTests`,** checks that a blocked
+  item never leaves the wrapper. It also fails when a provider protocol gains
+  a requirement that `SafeMediaServices.reviewedRequirements` does not
+  classify.
 
-Quick-action presentation and optimistic watched status are Plinx-owned. A
-shared status store spans the root and full-screen player presentations while
-the paired Strimr `ScrobbleRepository` remains the only server mutation path.
-The player exposes watched and More Info actions only after media is loaded and
-passes Plinx content authorization; it never exposes download actions. More
-Info queues root navigation until the player cover has dismissed, so a normal
-player exit cannot navigate to a detail screen. The App Review demo uses the
-same player and watched actions; its loopback fixture server accepts the
-timeline and scrobble requests without persisting them.
+Two details of the rules matter when you work near them. Seasons and episodes
+are judged on their own rating and do not inherit the show's. Adult-only means
+NC-17, X, XXX and any 18 certificate, and those are rejected even when
+unrated content is allowed. Collections, playlists and folders are
+containers: they are listed, and their entries are filtered when opened.
 
-## When Strimr Should Change
+### Reviewed requirements
 
-Patch the Strimr fork when the fix is generic and would still matter without the Plinx product, especially for:
+`SafeMediaServices.reviewedRequirements` lists every requirement of every
+protocol `MediaServices` is built from, by protocol and selector, with one of
+these treatments:
 
-- Plex networking or repositories
-- playback engine behavior
-- download engine behavior
-- shared models and stores
-- engine-level concurrency or lifecycle bugs
+| Treatment | Meaning | Examples |
+|---|---|---|
+| `filtered` | Returns titles. Every one passes the gate, and a blocked subject throws `ContentSafetyError.blocked` | Home rows, library items and previews, search, detail and seasons, favorites, playlist entries, queues, `prepare`, `prepareDownload` |
+| `container` | Returns collections or playlists as they are; their entries are filtered when opened | `collections(in:)`, `playlists(in:)` |
+| `gated` | Parent-only: refused, empty or false unless the parental gate is unlocked | Server rights (`authorization`), every management action, playlist edits, subtitle search and install |
+| `passthrough` | Returns no titles: writes, reports, settings, or artwork of titles the caller already has | Played state, favorites writes, progress reports, artwork |
+| `disabled` | Never reaches the provider | Live TV and DVR, external playback, Plex letter indexes |
 
-The migration keeps Plinx-only presentation, maximum-volume policy, and
-fail-closed playback authorization out of generic upstream PRs. Reusable
-filtering injection points, strict Plex boolean decoding, clip support, and the
-SharePlay presentation policy are maintained as independently reviewable
-upstream candidates.
+When you add a protocol requirement, classify it here. A `filtered`
+requirement also needs a probe in `SafeMediaServicesTests` that returns an
+allowed and a blocked title.
 
-## Upstream PR Candidate Criteria
+Later checks catch anything that reaches playback or storage some other way:
 
-Flag a Strimr-side change as an upstream candidate when it is:
+- `PlinxPlaybackLauncher` fetches the title again through the boundary and
+  requires every queue member to be allowed before it presents anything.
+- The player presentation checks the queue and any local file again, and
+  closes a Live TV presentation.
+- The iOS and tvOS player wrappers check every item at the single load site,
+  including autoplay, queue advance and SharePlay. Their
+  `isPlaybackAuthorized` defaults to the gate.
+- `DownloadManager` checks every item before it enqueues a download, including
+  each episode of a season or show.
 
-- generic rather than Plinx-branded
-- not dependent on Plinx-only product rules
-- small enough to explain and review independently
-- backed by a focused test or reproducible failure case
+### Outside the boundary
 
-When a Plinx need forces a Strimr patch, document:
+These paths don't go through `MediaServices`, so each has its own fail-closed
+control:
 
-1. why the patch could not live in Plinx-owned layers
-2. whether it is temporary or expected to remain upstreamable
-3. which branch pairing or dependency assumption it relies on
+| Path | Control |
+|---|---|
+| Youtarr Explore | `YoutarrExploreSafetyPolicy`: a video must pass both the Youtarr key's server policy and the local policy. Unknown and adult-only labels are rejected, unrated videos need both policies to allow them, and the kid UI has no external links |
+| Downloaded files and the offline store | `DownloadAccessPolicy` checks stored and pinned metadata with the gate. The downloads screens list only the active profile's allowed downloads; other downloads appear only while the parental gate is unlocked and never play from that list. The "downloaded only" library listing checks every item it reads |
+| Seerr discovery and requests | Off for kids until the Seerr kid model ships (a Seerr user per kid, certification filtering). `PlinxSettingsSanitizer` disables the discover tab and the Home hero. Trending candidates are only library titles fetched through the boundary, and are checked again |
+| Artwork | Passed through: it only draws titles the caller already has |
+| Plex account, Home user and server lists | Carry no titles |
 
-## Current Release Patch
-
-The pinned Strimr revision contains the Strimr-side injection points that
-cannot be supplied by a Plinx decorator:
-
-- host-app Plex product identity and encoded authentication-URL construction,
-  required because Plex PIN creation headers and the browser claim URL must use
-  the same product name before control returns to a Plinx-owned view;
-- tvOS playback-gain propagation and MPV lifecycle reapplication;
-- an optional authorization callback before autoplay or next-queue playback on iOS and tvOS;
-- a default-enabled `showsBufferingOverlay` option on the iOS and tvOS player wrappers;
-- default-allow playlist and media-detail cache authorization hooks required because those upstream views load their own models.
-
-Plinx supplies the actual content decision in `StrimrAdapter`; Strimr remains unaware of Plinx policy or product copy.
-
-## Download Queue Ownership
-
-Download transcoding lives in Strimr because queue negotiation, polling,
-background transfer, persisted recovery, and cleanup are generic Plex download
-engine behavior. Original-quality downloads transfer the selected source part
-directly. Reduced-quality downloads use Plex Media Server's versioned
-`/downloadQueue` API and persist only the queue identifiers needed to resume a
-request. Strimr does not know about Plinx profiles or kid policy.
-
-Plinx owns the safety boundary around that engine. Strimr captures an immutable
-server/access scope and Plex request context at the start of each item, season,
-or show operation. Each concrete movie or episode must pass Plinx authorization
-and have its local download ID enrolled before Strimr publishes it to the index.
-If index persistence fails, Strimr rolls the enrollment back and removes the
-staged item before starting any transfer. The enrollment callback revalidates
-the captured identity against the live SessionManager owner at publication,
-invalidating work after logout or a profile change. Plinx also observes the
-owner identity itself, because a successful profile switch can leave session
-status at `ready` while the owner changes.
-Status, progress, and duplicate checks use the server/access-scope/rating-key
-tuple rather than a device-wide rating key. Lifecycle
-resume passes only the IDs owned by that identity back to Strimr. Consequently,
-switching Plex profiles cancels preparation polling for the prior profile and
-cannot resume, clean up, or expose another profile's queued download. An
-already-running background file transfer remains hidden and is subject to the
-same ownership check before playback. Existing unowned downloads are
-grandfathered once during a valid index migration; a missing record in the new
-version is not treated as sharing permission. Corrupt ownership or download
-indexes fail closed and remain available for recovery instead of being replaced
-by an empty persisted index. Only newly queued and explicitly owned items
-can have server preparation resumed.
-
-The server queue item is best-effort deleted after a validated local transfer
-or explicit user deletion. Tokens, media paths, queue error text, account
-identifiers, and server identifiers are not emitted to diagnostics or shown in
-kid-facing UI. This Strimr change is an upstream PR candidate because the queue
-transport and state machine are product-neutral; Plinx ownership filtering is
-not part of that candidate.
-
-The Plex identity seam reads the host bundle display name and falls back to
-`Strimr`, so the generic client remains correctly branded while Plinx sends
-`Plinx` consistently in both `X-Plex-Product` and the encoded browser
-authorization context. This cannot live only in a Plinx adapter because the
-paired Strimr networking clients construct those requests internally. The seam
-is expected to remain upstreamable.
-
-## Player Buffering Ownership
-
-Strimr retains its native buffering overlay for existing consumers because
-`showsBufferingOverlay` defaults to `true`. Plinx passes `false` at its player
-boundary and renders `PlinxVideoBufferingOverlay` from
-`PlayerViewModel.isLoading || PlayerViewModel.isBuffering`. That ensures the
-compiled player presents exactly one loading indicator while keeping all Plinx
-assets, copy, and animation rules in Plinx-owned code.
-
-This is a narrow, generic upstream seam: hosts may replace presentation without
-changing transport or buffering state. Strimr must not import `PlinxUI` or
-encode Plinx branding. The literal option is part of
-`STRIMR_REQUIRED_SEAMS`, so the quick integration contract fails if a paired
-Strimr revision drops it.
-
-Playback preparation is serialized in the Plinx-owned launch coordinator. A
-video tap presents the full-screen playback shell immediately, showing the
-hero Plinx loader while authorization and queue creation run. Additional taps
-are ignored until that launch finishes, and the shell's back action cancels the
-in-flight task. The launcher performs one final cancellation check before it
-hands the queue to the player, preventing a late network response from
-re-presenting playback after the child backs out.
+A new content source must either go through `MediaServices` or appear in this
+table with its own fail-closed control. The
+[privacy and safety guide](../security/privacy-and-safety.md) describes the
+player, download, profile and sign-out controls in full.
 
 ## Home Catalog Loading
 
-Plinx does not use Strimr's promoted Home hubs for recently-added library
-rows. `LibraryCatalogLoader` requests each visible Plex section through
-`/library/sections/{id}/all`, newest first, and applies the same
-`MediaDisplayItem` mapping and content authorization used by Library Browse.
-Results remain keyed by their source `Library`, so none-agent sections such as
-YouTube cannot disappear because of hub classification or be merged into the
-Movies row.
+Plinx Home draws two sources:
 
-Continue Watching remains a promoted-hub concept. Its items pass through the
-same app-internal content authorization adapter before appearing on Home.
+- **Continue Watching** comes from the absorbed `HomeViewModel`, merged across
+  every connected server. Next Up items join the end of the same row without
+  duplicates. Plinx adopts upstream's load, periodic refresh and
+  refresh-after-content-change lifecycle.
+- **Recently added** rows come from `HomeRecentlyAddedStore`. It loads each
+  visible movie, series and clip library with
+  `LibraryCatalogLoader(services:).recentItems(for:limit:)` over that
+  server's `MediaServices`, a few libraries at a time; a library that fails is
+  left out. When a server becomes ready only its libraries reload, and a
+  server's libraries reload after its watch state or media changes. A policy
+  change (`ContentSafetyGate.revision`) discards every row and reloads, and
+  results that arrive under an old policy are dropped.
+  `HomeRecentlyAddedProjection` then applies the movie and TV grouping and
+  the parent's Home order and hiding.
 
-## Player Control Presentation
+Every row is checked with the gate again when it is drawn, so a stricter
+policy hides titles at once. Items, the hero selection and tvOS focus memory
+are keyed by server plus item ID, because two servers can use the same ID.
+Upstream's Home hero carousel is not drawn, and the sanitizer turns it off.
 
-Plinx excludes Strimr's `PlayerControlButtons.swift` and
-`PlayerControlsView.swift` from the iOS source set and provides same-module
-replacements in `Views/Player/`. This keeps the playback engine and control
-actions upstream while Plinx owns the overlay presentation. The transport
-controls use responsive, high-contrast sizing; the existing back and settings
-controls and video title use a focused 1.5x emphasis. Plinx does not add a
-second persistent dismiss control over the player. The upstream
-`PlayerControlsView(` call remains an integration-contract seam so signature
-drift is caught during a Strimr upgrade. Plinx does not add a persistent
-content-rating chip over the playback surface.
+## Features Not Shipped
 
-tvOS follows the same ownership boundary for the visible controls. Plinx
-excludes Strimr's tvOS button and track-selection implementations, then supplies
-same-module replacements while retaining Strimr's player controller, overlay
-layout, commands, and track actions. Rewind, play/pause, forward, marker-skip,
-audio, subtitle, and track-row focus therefore use dark Plinx surfaces and the
-shared gradient ring without the native white focus plate. The upstream calls
-to `PlayerSettingButton(`, `SkipMarkerButton(`, and
-`PlayerTrackSelectionView(` are required integration-contract seams.
+- **Removed:** Trakt and Simkl sync (no viewing history leaves the device),
+  Sentry, the macOS app, and the Top Shelf extension.
+- **Off in the kid app:** Live TV and external players
+  (`ExternalPlayerApps` always fails).
+- **Hidden by default:** SharePlay; `\.sharePlayPresentationPolicy` defaults
+  to `.hidden`.
+- **Not carried over:** the tvOS system player style and playback-speed
+  control. Plinx keeps its own player chrome.
+
+The [hard-fork plan](../maintenance/strimr-hard-fork-plan.md) records the
+reasoning and the later phases for Seerr, Live TV and Top Shelf.
+
+## Persisted Identifiers
+
+Keys that came from Strimr keep their names, such as the Keychain item
+`strimr.plex.authToken`. Renaming one would sign families out or reset what
+they saved. Add a migration if a rename is ever unavoidable.
+
+The Plex product identity reads the app's display name, so requests and the
+sign-in page say Plinx.
+
+## Working In The Codebase
+
+1. Put a change where its concept lives. Use `Core/` for shared session,
+   provider, model and player behavior, `Platform/` for a platform screen, and
+   `Views/` for Plinx presentation. There is no "upstream-owned" layer to
+   route around.
+2. Enforce content safety at the boundary, not in a screen. If a screen needs
+   a filter that `SafeMediaServices` doesn't apply, add it to the boundary and
+   its test.
+3. New provider protocol requirements need an entry in
+   `reviewedRequirements` and, for content, a probe in
+   `SafeMediaServicesTests`.
+4. Keep kid-facing UI free of external links, social actions and app
+   hand-offs. Parent-only tools render only while the parental gate is
+   unlocked.
+5. Port upstream changes by hand, following the
+   [upstream provenance page](../maintenance/upstream-strimr.md). Judge each
+   change against kid safety, zero collection and the no-external-links rule
+   before you adopt it.

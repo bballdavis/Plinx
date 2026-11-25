@@ -11,16 +11,15 @@ This backlog is intentionally separate from the current documentation reorg so r
 ## Priority 2
 
 - Rationalize script wrappers versus implementation scripts so the public entrypoints are obvious and duplicated wrapper layers stay minimal.
-- [x] Remove stale references to the nonexistent `Packages/StrimrEngine`; the paired checkout is the only Strimr source of truth.
+- [x] Remove stale references to the nonexistent `Packages/StrimrEngine`. Since the absorption the Strimr code lives in `PlinxApp/Core` and `PlinxApp/Platform`.
 - Audit root-level docs periodically so new operational notes do not bypass `docs/`.
 
 ## Priority 3
 
 - Evaluate low-risk directory consolidations inside `PlinxApp/` only when they do not cause broad churn in runtime code references.
 - Revisit the current split between app unit tests, live parity tests, and shared test support for any naming or placement cleanup opportunities.
-- Reassess whether future Strimr seam improvements could reduce same-module compilation pressure and simplify the runtime build graph.
+- Revisit splitting `PlinxApp/Core` into a local package once upstream ports slow down; see "Later: module boundaries" in the [hard-fork plan](strimr-hard-fork-plan.md).
 
 ## Out Of Scope For This Pass
 
-- sweeping Strimr integration rewrites
 - renaming runtime modules

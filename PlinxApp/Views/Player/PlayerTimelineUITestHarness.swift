@@ -10,6 +10,9 @@ struct PlayerTimelineUITestHarness: View {
     @State private var commits = 0
     @State private var isScrubbing = false
     @State private var showsTimeline = true
+    #if os(tvOS)
+    @State private var sleepTimer = SleepTimer()
+    #endif
     private let duration: Double?
     private let fullOverlay: Bool
 
@@ -64,27 +67,131 @@ struct PlayerTimelineUITestHarness: View {
     @ViewBuilder
     private var controls: some View {
         #if os(tvOS)
-        PlayerControlsTVView(
-            media: nil, isPaused: true, videoResolution: "4K", videoFormatBadge: nil,
-            position: $position, duration: duration, bufferedAhead: 15,
-            bufferBasePosition: playbackPosition, isScrubbing: isScrubbing,
-            onShowAudioSettings: {}, onShowSubtitleSettings: {},
-            onSeekBackward: {}, onPlayPause: {}, onSeekForward: {},
-            seekBackwardSeconds: 10, seekForwardSeconds: 30,
-            onScrubbingChanged: editingChanged, skipMarkerTitle: "Skip Intro",
-            onSkipMarker: {}, onUserInteraction: {}, isSharePlay: false
+        PlayerControlsView(
+            state: PlayerControlsState(
+                media: nil,
+                isPaused: true,
+                badges: PlayerControlBadge.playback(resolution: "4K", format: nil),
+                duration: duration,
+                bufferedAhead: 15,
+                bufferBasePosition: playbackPosition,
+                playbackRate: 1,
+                showsEndsAtTime: false,
+                showsClock: false,
+                isScrubbing: isScrubbing,
+                sleepTimer: sleepTimer,
+                chapters: [],
+                showsChaptersOnTimeline: false,
+                skipSegments: [],
+                scrubPreview: nil,
+                seekBackwardSeconds: 10,
+                seekForwardSeconds: 30,
+                skipMarkerTitle: "Skip Intro",
+                isSharePlay: false,
+                hasInfoPanel: false,
+                live: nil,
+                settingsControl: nil,
+                showsSubtitleOffsetIndicator: false,
+                settingsFocusGeneration: 0,
+                isShowingPanel: false
+            ),
+            actions: PlayerControlsActions(
+                playPause: {},
+                seekBackward: {},
+                seekForward: {},
+                scrubbingChanged: editingChanged,
+                scrubbingCancelled: scrubbingCancelled,
+                skipMarker: {},
+                showInfoPanel: {},
+                userInteraction: {},
+                showAudioSettings: {},
+                showSubtitleSettings: {},
+                showSpeedSettings: {},
+                showSettings: {},
+                goLive: {},
+                showLiveChannels: {},
+                previousChannel: {},
+                nextChannel: {},
+                menuPresentationChanged: { _ in },
+                tabsPresentationChanged: { _ in },
+                selectChapter: { _ in },
+                restartFromBeginning: {},
+                selectQueueItem: { _ in }
+            ),
+            position: $position
         )
         #else
         PlayerControlsView(
-            media: nil, isPaused: true, isBuffering: false,
-            videoResolution: "4K", videoFormatBadge: nil,
-            position: $position, duration: duration, bufferedAhead: 15,
-            bufferBasePosition: playbackPosition, isScrubbing: isScrubbing,
-            onDismiss: {}, onShowSettings: {}, onSeekBackward: {},
-            onPlayPause: {}, onSeekForward: {}, seekBackwardSeconds: 10,
-            seekForwardSeconds: 30, onScrubbingChanged: editingChanged,
-            skipMarkerTitle: "Skip Intro", onSkipMarker: {}, isRotationLocked: false,
-            onToggleRotationLock: {}, isSharePlay: false
+            media: nil,
+            isPaused: true,
+            isBuffering: false,
+            videoResolution: "4K",
+            videoFormatBadge: nil,
+            position: $position,
+            duration: duration,
+            bufferedAhead: 15,
+            bufferBasePosition: playbackPosition,
+            playbackRate: 1,
+            showsEndsAtTime: false,
+            isScrubbing: isScrubbing,
+            onDismiss: {},
+            tracksMenu: PlayerTracksMenuModel(
+                audioTracks: [],
+                subtitleTracks: [],
+                selectedAudioTrackID: nil,
+                selectedSubtitleTrackID: nil,
+                nightMode: false,
+                dialogueBoost: .off,
+                isAudioShapingAvailable: false,
+                canSearchSubtitles: false,
+                canResetTrackSelections: false,
+                syncItems: [],
+                subtitleAppearance: .available
+            ),
+            tracksMenuActions: PlayerTracksMenuActions(
+                onPresentationChanged: { _ in },
+                onSelectAudio: { _ in },
+                onSelectSubtitle: { _ in },
+                onSetNightMode: { _ in },
+                onSelectDialogueBoost: { _ in },
+                onSearchSubtitles: {},
+                onResetTrackSelections: {},
+                onSelectSync: { _ in },
+                onShowSubtitleAppearance: {}
+            ),
+            onShowSettings: {},
+            chapters: [],
+            showsChaptersOnTimeline: false,
+            skipSegments: [],
+            scrubPreview: nil,
+            onSeekBackward: {},
+            onPlayPause: {},
+            onSeekForward: {},
+            seekBackwardSeconds: 10,
+            seekForwardSeconds: 30,
+            onScrubbingChanged: editingChanged,
+            skipMarkerTitle: "Skip Intro",
+            onSkipMarker: {},
+            isLocked: false,
+            onToggleLock: {},
+            isSharePlay: false,
+            showsPictureInPicture: false,
+            isPictureInPictureEnabled: false,
+            onStartPictureInPicture: {},
+            hasInfoPanel: false,
+            onShowInfoPanel: {},
+            isLive: false,
+            behindLiveSeconds: 0,
+            isAtLiveEdge: true,
+            lastLiveChannel: nil,
+            onGoLive: {},
+            onShowLiveChannels: {},
+            onLastLiveChannel: {},
+            canSwitchPreviousChannel: false,
+            canSwitchNextChannel: false,
+            onPreviousChannel: {},
+            onNextChannel: {},
+            sleepTimer: nil
         )
         #endif
     }
@@ -98,6 +205,12 @@ struct PlayerTimelineUITestHarness: View {
             commits += 1
             playbackPosition = position
         }
+    }
+
+    /// Back during a scrub: the playhead returns without a commit.
+    private func scrubbingCancelled() {
+        isScrubbing = false
+        position = playbackPosition
     }
 
     private func metric(_ name: String, value: String, id: String) -> some View {

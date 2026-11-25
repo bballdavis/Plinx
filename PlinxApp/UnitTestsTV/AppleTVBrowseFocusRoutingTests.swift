@@ -276,7 +276,8 @@ final class AppleTVBrowseFocusRoutingTests: XCTestCase {
                 thumbPath: nil,
                 childCount: nil,
                 minYear: nil,
-                maxYear: nil
+                maxYear: nil,
+                server: ServerIdentity(provider: .plex, id: "test-server")
             )
         )
     }

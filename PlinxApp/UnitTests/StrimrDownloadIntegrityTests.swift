@@ -1,7 +1,13 @@
 @testable import Plinx
 import XCTest
 
+/// Download integrity on the absorbed stack: the strict check of a finished transfer
+/// (`DownloadIntegrityValidator`), the 20 percent space-savings rule
+/// (`DownloadSpaceSavingsPolicy`), the mapping of pre-fork Plinx download-quality settings
+/// to `TranscodeQualityPreset`, and how a pre-fork download index entry is read back.
 final class StrimrDownloadIntegrityTests: XCTestCase {
+    // MARK: - Pre-fork ownership and index state
+
     func test_downloadAccessScopeRoundTripsWithBothIdentityDimensions() throws {
         let scope = DownloadAccessScope(
             serverIdentifier: "server-a",
@@ -12,12 +18,26 @@ final class StrimrDownloadIntegrityTests: XCTestCase {
         XCTAssertEqual(try JSONDecoder().decode(DownloadAccessScope.self, from: encoded), scope)
     }
 
+    func test_downloadAccessScopeMatchesThePlexOwnerItWasRecordedFor() {
+        let owner = MediaOwner(server: ServerIdentity(provider: .plex, id: "server-a"), userID: "profile-a")
+
+        XCTAssertEqual(
+            DownloadAccessScope(owner: owner),
+            DownloadAccessScope(serverIdentifier: "server-a", accessScopeIdentifier: "profile-a")
+        )
+    }
+
     func test_downloadIndexFailureStatesDoNotPermitPersistenceOrOwnershipMigration() {
         XCTAssertTrue(DownloadPersistedIndexState.missing.permitsPersistence)
         XCTAssertTrue(DownloadPersistedIndexState.loaded.permitsOwnershipMigration)
         XCTAssertFalse(DownloadPersistedIndexState.unreadable.permitsPersistence)
         XCTAssertFalse(DownloadPersistedIndexState.corrupt.permitsOwnershipMigration)
+        XCTAssertFalse(DownloadPersistedIndexState.missing.permitsOwnershipMigration)
+        XCTAssertFalse(DownloadPersistedIndexState.unreadable.permitsOwnershipMigration)
+        XCTAssertFalse(DownloadPersistedIndexState.corrupt.permitsPersistence)
     }
+
+    // MARK: - Finished-transfer validation
 
     func test_acceptsSuccessfulNonEmptyDownload() throws {
         try DownloadIntegrityValidator.validate(
@@ -122,72 +142,107 @@ final class StrimrDownloadIntegrityTests: XCTestCase {
         }
     }
 
-    func test_downloadQualityPresetsDecodeAndMapToQueueParameters() throws {
-        let encoded = Data(#""megabits20_1080p""#.utf8)
-        XCTAssertEqual(try JSONDecoder().decode(DownloadQuality.self, from: encoded), .megabits20_1080p)
-        XCTAssertEqual(DownloadQuality.allCases.count, 9)
-        let expectedProfiles: [DownloadQuality: DownloadTranscodeProfile] = [
-            .megabits20_1080p: .init(videoBitrateKbps: 20000, width: 1920, height: 1080),
-            .megabits12_1080p: .init(videoBitrateKbps: 12000, width: 1920, height: 1080),
-            .megabits10_720p: .init(videoBitrateKbps: 10000, width: 1280, height: 720),
-            .megabits4_720p: .init(videoBitrateKbps: 4000, width: 1280, height: 720),
-            .megabits3_720p: .init(videoBitrateKbps: 3000, width: 1280, height: 720),
-            .megabits2_720p: .init(videoBitrateKbps: 2000, width: 1280, height: 720),
-            .kilobits1500_480p: .init(videoBitrateKbps: 1500, width: 848, height: 480),
-            .kilobits720_328p: .init(videoBitrateKbps: 720, width: 640, height: 360),
+    // MARK: - Pre-fork download-quality setting
+
+    /// Pre-fork Plinx offered nine download qualities. Each maps to the closest preset that never
+    /// exceeds the bitrate or the height the parent chose.
+    func test_legacyDownloadQualitiesMapToPresetsThatNeverExceedTheChosenCaps() throws {
+        let legacyCaps: [String: (videoBitrateKbps: Int, height: Int)] = [
+            "megabits20_1080p": (20000, 1080),
+            "megabits12_1080p": (12000, 1080),
+            "megabits10_720p": (10000, 720),
+            "megabits4_720p": (4000, 720),
+            "megabits3_720p": (3000, 720),
+            "megabits2_720p": (2000, 720),
+            "kilobits1500_480p": (1500, 480),
+            "kilobits720_328p": (720, 360),
         ]
-        for (quality, profile) in expectedProfiles {
-            XCTAssertEqual(quality.transcodeProfile, profile)
-            let query = queryDictionary(for: quality)
-            XCTAssertEqual(query["videoBitrate"], String(profile.videoBitrateKbps))
-            XCTAssertEqual(query["peakBitrate"], String(profile.videoBitrateKbps))
-            XCTAssertEqual(query["videoResolution"], profile.resolution)
+        let expectedPresets: [String: TranscodeQualityPreset] = [
+            "original": .original,
+            "megabits20_1080p": .p1080_12mbps,
+            "megabits12_1080p": .p1080_12mbps,
+            "megabits10_720p": .p720_4mbps,
+            "megabits4_720p": .p720_4mbps,
+            "megabits3_720p": .p720_2mbps,
+            "megabits2_720p": .p720_2mbps,
+            "kilobits1500_480p": .p480_1_5mbps,
+            "kilobits720_328p": .p360_700,
+        ]
+        XCTAssertEqual(Set(expectedPresets.keys), Set(legacyCaps.keys).union(["original"]))
+        XCTAssertEqual(expectedPresets.count, 9)
+
+        for (rawValue, expected) in expectedPresets {
+            XCTAssertEqual(DownloadSettings.qualityPreset(legacyPlinxQuality: rawValue), expected, rawValue)
         }
 
-        let transcoded = queryDictionary(for: .kilobits1500_480p)
-        XCTAssertEqual(transcoded["keys"], "/library/metadata/123")
-        XCTAssertEqual(transcoded["videoBitrate"], "1500")
-        XCTAssertEqual(transcoded["peakBitrate"], "1500")
-        XCTAssertEqual(transcoded["videoResolution"], "848x480")
-        XCTAssertEqual(transcoded["autoAdjustQuality"], "0")
-        XCTAssertEqual(transcoded["directPlay"], "0")
-        XCTAssertEqual(transcoded["directStream"], "0")
-        XCTAssertEqual(transcoded["directStreamAudio"], "0")
-        XCTAssertEqual(transcoded["audioChannelCount"], "2")
+        for (rawValue, caps) in legacyCaps {
+            let preset = try XCTUnwrap(DownloadSettings.qualityPreset(legacyPlinxQuality: rawValue), rawValue)
+            XCTAssertFalse(preset.isOriginal, rawValue)
+            let bitrate = try XCTUnwrap(preset.maximumVideoBitrateKbps, rawValue)
+            let height = try XCTUnwrap(preset.maximumHeight, rawValue)
+            XCTAssertLessThanOrEqual(bitrate, caps.videoBitrateKbps, rawValue)
+            XCTAssertLessThanOrEqual(height, caps.height, rawValue)
+        }
 
-        let original = queryDictionary(for: .original)
-        XCTAssertNil(original["videoBitrate"])
-        XCTAssertNil(original["peakBitrate"])
-        XCTAssertNil(original["videoResolution"])
-        XCTAssertEqual(original["directPlay"], "1")
-        XCTAssertEqual(original["directStream"], "1")
+        XCTAssertNil(DownloadSettings.qualityPreset(legacyPlinxQuality: "megabits40_4k"))
+        XCTAssertNil(DownloadSettings.qualityPreset(legacyPlinxQuality: ""))
     }
 
-    func test_spaceSavingsPolicyKeepsReducedQualityWhenVideoEstimateIsSmaller() {
-        let resolution = DownloadSpaceSavingsPolicy.resolve(
-            requestedQuality: .megabits3_720p,
-            sourceFileSize: 1_000_000_000,
-            duration: 600
+    func test_downloadSettingsKeepThePreForkQualityChoice() throws {
+        let legacy = try decodeDownloadSettings(#"{"wifiOnly":false,"quality":"megabits3_720p"}"#)
+        XCTAssertEqual(legacy.qualityPreset, .p720_2mbps)
+        XCTAssertFalse(legacy.wifiOnly)
+
+        let original = try decodeDownloadSettings(#"{"quality":"original"}"#)
+        XCTAssertEqual(original.qualityPreset, .original)
+
+        let unknown = try decodeDownloadSettings(#"{"quality":"megabits40_4k"}"#)
+        XCTAssertEqual(unknown.qualityPreset, .original)
+
+        let empty = try decodeDownloadSettings("{}")
+        XCTAssertEqual(empty, DownloadSettings())
+    }
+
+    func test_downloadSettingsPreferTheCurrentPresetOverThePreForkQuality() throws {
+        let settings = try decodeDownloadSettings(
+            #"{"qualityPreset":"p480_1_5mbps","quality":"megabits20_1080p"}"#
         )
+        XCTAssertEqual(settings.qualityPreset, .p480_1_5mbps)
 
-        XCTAssertEqual(resolution.effectiveQuality, .megabits3_720p)
-        XCTAssertEqual(resolution.estimatedOutputBytes, 244_188_000)
-        XCTAssertEqual(resolution.reason, .requested)
+        var chosen = DownloadSettings()
+        chosen.qualityPreset = .p360_700
+        let roundTripped = try JSONDecoder().decode(DownloadSettings.self, from: JSONEncoder().encode(chosen))
+        XCTAssertEqual(roundTripped, chosen)
+    }
 
-        let query = queryDictionary(for: resolution.effectiveQuality)
-        XCTAssertEqual(query["videoBitrate"], "3000")
-        XCTAssertEqual(query["videoResolution"], "1280x720")
+    // MARK: - Space-savings rule
+
+    func test_spaceSavingsPolicyKeepsReducedQualityWhenVideoEstimateIsSmaller() {
+        XCTAssertEqual(
+            DownloadSpaceSavingsPolicy.estimatedOutputBytes(quality: .p720_2mbps, duration: 600),
+            167_688_000
+        )
+        XCTAssertTrue(
+            DownloadSpaceSavingsPolicy.shouldTranscode(
+                quality: .p720_2mbps,
+                sourceFileSize: 1_000_000_000,
+                duration: 600
+            )
+        )
     }
 
     func test_spaceSavingsPolicyUsesOriginalWhenVideoEstimateCannotSaveSpace() {
-        let resolution = DownloadSpaceSavingsPolicy.resolve(
-            requestedQuality: .megabits3_720p,
-            sourceFileSize: 1_000_000_000,
-            duration: 5400
+        XCTAssertEqual(
+            DownloadSpaceSavingsPolicy.estimatedOutputBytes(quality: .p720_2mbps, duration: 5400),
+            1_509_192_000
         )
-
-        XCTAssertEqual(resolution.effectiveQuality, .original)
-        XCTAssertEqual(resolution.reason, .originalIsSmaller)
+        XCTAssertFalse(
+            DownloadSpaceSavingsPolicy.shouldTranscode(
+                quality: .p720_2mbps,
+                sourceFileSize: 1_000_000_000,
+                duration: 5400
+            )
+        )
     }
 
     func test_spaceSavingsPolicyRequiresTwentyPercentEstimatedSavings() {
@@ -203,56 +258,63 @@ final class StrimrDownloadIntegrityTests: XCTestCase {
                 sourceFileSize: 1_000_000_000
             )
         )
-    }
-
-    func test_spaceSavingsPolicyExplainsInsufficientEstimatedSavings() {
-        let resolution = DownloadSpaceSavingsPolicy.resolve(
-            requestedQuality: .megabits3_720p,
-            sourceFileSize: 500_000_000,
-            duration: 1000
+        XCTAssertFalse(
+            DownloadSpaceSavingsPolicy.hasMinimumSavings(candidateSize: 1, sourceFileSize: 0)
         )
-
-        XCTAssertEqual(resolution.estimatedOutputBytes, 406_980_000)
-        XCTAssertEqual(resolution.effectiveQuality, .original)
-        XCTAssertEqual(resolution.reason, .insufficientSavings)
+        XCTAssertFalse(
+            DownloadSpaceSavingsPolicy.hasMinimumSavings(candidateSize: -1, sourceFileSize: 1_000_000_000)
+        )
     }
 
-    func test_spaceSavingsPolicyReplacesOversizedCompletedTranscode() {
+    func test_spaceSavingsPolicyDownloadsOriginalWhenEstimatedSavingsAreTooSmall() {
+        let sourceFileSize: Int64 = 500_000_000
+        let estimate = DownloadSpaceSavingsPolicy.estimatedOutputBytes(quality: .p720_4mbps, duration: 900)
+
+        // Smaller than the source, but by less than 20 percent.
+        XCTAssertEqual(estimate, 481_032_000)
+        XCTAssertLessThan(estimate ?? .max, sourceFileSize)
+        XCTAssertFalse(
+            DownloadSpaceSavingsPolicy.shouldTranscode(
+                quality: .p720_4mbps,
+                sourceFileSize: sourceFileSize,
+                duration: 900
+            )
+        )
+    }
+
+    func test_spaceSavingsPolicyNeverTranscodesOriginal() {
+        XCTAssertNil(DownloadSpaceSavingsPolicy.estimatedOutputBytes(quality: .original, duration: 600))
+        XCTAssertFalse(
+            DownloadSpaceSavingsPolicy.shouldTranscode(
+                quality: .original,
+                sourceFileSize: 1_000_000_000,
+                duration: 600
+            )
+        )
+    }
+
+    /// Without a source size or a duration the savings cannot be estimated, so the requested
+    /// preset's caps still apply (for example a 4K source on a phone).
+    func test_spaceSavingsPolicyKeepsRequestedTranscodeWhenSizeOrDurationIsUnknown() {
+        XCTAssertNil(DownloadSpaceSavingsPolicy.estimatedOutputBytes(quality: .p720_2mbps, duration: nil))
+        XCTAssertNil(DownloadSpaceSavingsPolicy.estimatedOutputBytes(quality: .p720_2mbps, duration: 0))
+
         XCTAssertTrue(
-            DownloadSpaceSavingsPolicy.shouldReplaceTranscode(
-                downloadedFileSize: 1_000_000_000,
-                sourceFileSize: 900_000_000,
-                effectiveQuality: .megabits3_720p
-            )
+            DownloadSpaceSavingsPolicy.shouldTranscode(quality: .p720_2mbps, sourceFileSize: nil, duration: 600)
         )
-        XCTAssertFalse(
-            DownloadSpaceSavingsPolicy.shouldReplaceTranscode(
-                downloadedFileSize: 700_000_000,
-                sourceFileSize: 1_000_000_000,
-                effectiveQuality: .original
-            )
+        XCTAssertTrue(
+            DownloadSpaceSavingsPolicy.shouldTranscode(quality: .p720_2mbps, sourceFileSize: 0, duration: 600)
         )
-        XCTAssertFalse(
-            DownloadSpaceSavingsPolicy.shouldReplaceTranscode(
-                downloadedFileSize: 799_000_000,
+        XCTAssertTrue(
+            DownloadSpaceSavingsPolicy.shouldTranscode(
+                quality: .p720_2mbps,
                 sourceFileSize: 1_000_000_000,
-                effectiveQuality: .megabits3_720p
+                duration: nil
             )
         )
     }
 
-    func test_reducedDownloadProfileUsesDocumentedTargetAndUniqueSession() {
-        XCTAssertTrue(PlexDownloadQueueRepository.clientProfileExtra.contains("add-transcode-target("))
-        XCTAssertTrue(PlexDownloadQueueRepository.clientProfileExtra.contains("container=mkv"))
-        XCTAssertTrue(PlexDownloadQueueRepository.clientProfileExtra.contains("videoCodec=h264"))
-        XCTAssertTrue(PlexDownloadQueueRepository.clientProfileExtra.contains("audioCodec=aac"))
-        XCTAssertTrue(PlexDownloadQueueRepository.clientProfileExtra.contains("audio.bitrate&value=192"))
-        XCTAssertFalse(PlexDownloadQueueRepository.clientProfileExtra.contains("append-transcode-target-codec"))
-        XCTAssertNotEqual(
-            PlexDownloadQueueRepository.plexSessionIdentifier(for: "one"),
-            PlexDownloadQueueRepository.plexSessionIdentifier(for: "two")
-        )
-    }
+    // MARK: - Source size
 
     func test_plexPartDecodesSourceFileSize() throws {
         let payload = Data(
@@ -263,197 +325,122 @@ final class StrimrDownloadIntegrityTests: XCTestCase {
         XCTAssertEqual(part.size, 987_654_321)
     }
 
-    func test_downloadQueueItemDecodesOfficialProcessingShape() throws {
-        let payload = Data(
-            """
-            {
-              "id": 1,
-              "queueId": 2,
-              "key": "/library/metadata/3",
-              "status": "processing",
-              "DecisionResult": {
-                "generalDecisionCode": 1001,
-                "generalDecisionText": "Conversion OK.",
-                "directPlayDecisionCode": 3001,
-                "directPlayDecisionText": "Not enough bandwidth.",
-                "transcodeDecisionCode": 1001,
-                "transcodeDecisionText": "Conversion OK."
-              },
-              "TranscodeSession": {
-                "progress": 42.5,
-                "size": 1000,
-                "speed": 2.0,
-                "error": false,
-                "duration": 300000000,
-                "protocol": "http",
-                "sourceVideoCodec": "hevc",
-                "sourceAudioCodec": "aac"
-              }
-            }
-            """.utf8
+    // MARK: - Pre-fork download index entries
+
+    func test_completedPreForkIndexEntryDecodesAndStaysPlayable() throws {
+        let item = try decodePreForkItem(
+            status: "completed",
+            remoteReference: #"{"queueID":2,"itemID":1}"#
         )
 
-        let item = try JSONDecoder().decode(PlexDownloadQueueItem.self, from: payload)
-        XCTAssertEqual(item.status, .processing)
-        XCTAssertEqual(item.queueId, 2)
-        XCTAssertEqual(item.decisionResult?.transcodeDecisionCode, 1001)
-        XCTAssertEqual(item.transcodeSession?.progress, 42.5)
-        XCTAssertEqual(item.transcodeSession?.protocolName, "http")
+        XCTAssertEqual(item.id, "legacy")
+        XCTAssertEqual(item.status, .completed)
+        XCTAssertTrue(item.isPlayable)
+        XCTAssertNil(item.errorMessage)
+        // The pre-fork Plex queue reference cannot be resumed and is dropped.
+        XCTAssertNil(item.remoteReference)
+        // Ownership comes only from the legacy migration (`accessScope`), never from the entry itself.
+        XCTAssertNil(item.ownerID)
+        XCTAssertEqual(item.itemID, "123")
+        XCTAssertNil(item.identity)
+        XCTAssertEqual(item.metadata.type, .movie)
+        XCTAssertEqual(item.metadata.contentRating, "G")
+        XCTAssertEqual(item.metadata.videoFileName, "video.mp4")
+        XCTAssertEqual(item.metadata.requestedQuality, .original)
+        XCTAssertEqual(item.metadata.effectiveQuality, .original)
     }
 
-    func test_downloadDecisionDecodesAndValidatesForcedProfile() throws {
-        let payload = Data(
-            """
-            {
-              "MediaContainer": {
-                "directPlayDecisionCode": 3000,
-                "transcodeDecisionCode": 1001,
-                "Metadata": [{
-                  "Media": [{
-                    "selected": true,
-                    "protocol": "http",
-                    "Part": [{
-                      "selected": true,
-                      "decision": "transcode",
-                      "protocol": "http",
-                      "Stream": [
-                        {"streamType": 1, "codec": "h264", "decision": "transcode", "bitrate": 3000, "width": 1280, "height": 720},
-                        {"streamType": 2, "codec": "aac", "decision": "transcode", "bitrate": 192, "channels": 2}
-                      ]
-                    }]
-                  }]
-                }]
-              }
-            }
-            """.utf8
-        )
+    func test_preForkTransferStillBeingPreparedBecomesFailedAndRetryable() throws {
+        for status in ["deciding", "preparing"] {
+            let item = try decodePreForkItem(status: status, taskIdentifier: 7)
 
-        let response = try JSONDecoder().decode(PlexDownloadDecisionResponse.self, from: payload)
-        XCTAssertNoThrow(
-            try PlexDownloadDecisionValidator.validate(
-                response.mediaContainer.decision,
-                profile: .init(videoBitrateKbps: 3000, width: 1280, height: 720)
-            )
-        )
-    }
-
-    func test_downloadDecisionRejectsDirectPlay() throws {
-        let part = PlexDownloadDecisionPart(
-            selected: true,
-            decision: "transcode",
-            protocolName: "http",
-            streams: [
-                .init(streamType: 1, codec: "h264", decision: "transcode", bitrate: 3001, channels: nil, width: 1280, height: 720),
-                .init(streamType: 2, codec: "aac", decision: "transcode", bitrate: 192, channels: 2, width: nil, height: nil),
-            ]
-        )
-        let media = PlexDownloadDecisionMedia(selected: true, protocolName: "http", parts: [part])
-        let decision = PlexDownloadDecision(
-            directPlayDecisionCode: 1000,
-            transcodeDecisionCode: 1001,
-            media: [media]
-        )
-
-        XCTAssertThrowsError(
-            try PlexDownloadDecisionValidator.validate(
-                decision,
-                profile: .init(videoBitrateKbps: 3000, width: 1280, height: 720)
-            )
-        ) { error in
-            XCTAssertEqual(error as? PlexDownloadProfileValidationFailure, .directPlaySelected)
+            XCTAssertEqual(item.status, .failed, status)
+            XCTAssertNil(item.taskIdentifier, status)
+            XCTAssertEqual(item.errorMessage, String(localized: "downloads.status.interrupted"), status)
+            XCTAssertFalse(item.isPlayable, status)
+            XCTAssertTrue(item.canRetry(among: [item]), status)
         }
     }
 
-    func test_downloadDecisionRejectsVideoAboveRequestedBitrate() throws {
-        let part = PlexDownloadDecisionPart(
-            selected: true,
-            decision: "transcode",
-            protocolName: "http",
-            streams: [
-                .init(streamType: 1, codec: "h264", decision: "transcode", bitrate: 3001, channels: nil, width: 1280, height: 720),
-                .init(streamType: 2, codec: "aac", decision: "transcode", bitrate: 192, channels: 2, width: nil, height: nil),
-            ]
-        )
-        let decision = PlexDownloadDecision(
-            directPlayDecisionCode: 3000,
-            transcodeDecisionCode: 1001,
-            media: [.init(selected: true, protocolName: "http", parts: [part])]
-        )
-
-        XCTAssertThrowsError(
-            try PlexDownloadDecisionValidator.validate(
-                decision,
-                profile: .init(videoBitrateKbps: 3000, width: 1280, height: 720)
+    func test_preForkTransferWithUnresumableQueueReferenceBecomesFailed() throws {
+        for status in ["queued", "downloading"] {
+            let item = try decodePreForkItem(
+                status: status,
+                taskIdentifier: 7,
+                remoteReference: #"{"queueID":2,"itemID":1}"#
             )
-        ) { error in
-            XCTAssertEqual(error as? PlexDownloadProfileValidationFailure, .videoBitrateExceeded)
+
+            XCTAssertEqual(item.status, .failed, status)
+            XCTAssertNil(item.taskIdentifier, status)
+            XCTAssertNil(item.remoteReference, status)
+            XCTAssertFalse(item.isPlayable, status)
         }
     }
 
-    func test_downloadItemDecodesIndexWrittenBeforeQueueFields() throws {
-        let original = DownloadItem(
-            id: "legacy",
-            status: .queued,
-            progress: 0,
-            bytesWritten: 0,
-            totalBytes: 0,
-            taskIdentifier: nil,
-            errorMessage: nil,
-            metadata: DownloadedMediaMetadata(
-                ratingKey: "123",
-                guid: "plex://movie/123",
-                type: .movie,
-                title: "Legacy",
-                summary: nil,
-                genres: [],
-                year: 2024,
-                duration: 100,
-                contentRating: "G",
-                studio: nil,
-                tagline: nil,
-                parentRatingKey: nil,
-                grandparentRatingKey: nil,
-                grandparentTitle: nil,
-                parentTitle: nil,
-                parentIndex: nil,
-                index: nil,
-                posterFileName: nil,
-                videoFileName: "video.mp4",
-                fileSize: nil,
-                createdAt: Date(timeIntervalSince1970: 1)
-            )
-        )
-        let encoded = try JSONEncoder().encode(original)
-        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
-        object.removeValue(forKey: "preparationProgress")
-        object.removeValue(forKey: "requestedQuality")
-        object.removeValue(forKey: "effectiveQuality")
-        object.removeValue(forKey: "sourceFileSize")
-        object.removeValue(forKey: "estimatedOutputBytes")
-        object.removeValue(forKey: "qualityResolutionReason")
-        object.removeValue(forKey: "deliveryDecision")
-        object.removeValue(forKey: "remoteReference")
+    func test_preForkDirectTransferKeepsItsStateForResume() throws {
+        let item = try decodePreForkItem(status: "downloading", taskIdentifier: 7)
 
-        let decoded = try JSONDecoder().decode(
-            DownloadItem.self,
-            from: JSONSerialization.data(withJSONObject: object)
-        )
-        XCTAssertEqual(decoded.id, "legacy")
-        XCTAssertNil(decoded.requestedQuality)
-        XCTAssertNil(decoded.effectiveQuality)
-        XCTAssertNil(decoded.sourceFileSize)
-        XCTAssertNil(decoded.estimatedOutputBytes)
-        XCTAssertNil(decoded.qualityResolutionReason)
-        XCTAssertNil(decoded.remoteReference)
-        XCTAssertNil(decoded.accessScope)
+        XCTAssertEqual(item.status, .downloading)
+        XCTAssertEqual(item.taskIdentifier, 7)
+        XCTAssertNil(item.errorMessage)
+        XCTAssertFalse(item.isPlayable)
     }
 
-    private func queryDictionary(for quality: DownloadQuality) -> [String: String] {
-        Dictionary(
-            uniqueKeysWithValues: PlexDownloadQueueRepository
-                .addQueryItems(ratingKey: "123", quality: quality)
-                .compactMap { item in item.value.map { (item.name, $0) } }
-        )
+    func test_unknownPreForkStatusFailsClosed() throws {
+        let item = try decodePreForkItem(status: "paused")
+
+        XCTAssertEqual(item.status, .failed)
+        XCTAssertFalse(item.isPlayable)
+    }
+
+    // MARK: - Helpers
+
+    private func decodeDownloadSettings(_ json: String) throws -> DownloadSettings {
+        try JSONDecoder().decode(DownloadSettings.self, from: Data(json.utf8))
+    }
+
+    /// A download as pre-fork Plinx wrote it to `index.json`: the metadata names the item by
+    /// `ratingKey` with no server identity, and the entry carries the pre-fork quality, queue and
+    /// enrollment fields this version no longer reads from the item itself.
+    private func decodePreForkItem(
+        status: String,
+        taskIdentifier: Int? = nil,
+        remoteReference: String? = nil
+    ) throws -> DownloadItem {
+        let taskIdentifierJSON = taskIdentifier.map(String.init) ?? "null"
+        let remoteReferenceJSON = remoteReference.map { #","remoteReference":\#($0)"# } ?? ""
+        let json = """
+        {
+          "id": "legacy",
+          "status": "\(status)",
+          "progress": 0.5,
+          "bytesWritten": 50,
+          "totalBytes": 100,
+          "taskIdentifier": \(taskIdentifierJSON),
+          "errorMessage": null,
+          "preparationProgress": 0.25,
+          "requestedQuality": "megabits3_720p",
+          "effectiveQuality": "megabits3_720p",
+          "sourceFileSize": 1000000000,
+          "estimatedOutputBytes": 244188000,
+          "qualityResolutionReason": "requested",
+          "deliveryDecision": "transcode",
+          "accessScope": {"serverIdentifier": "server-a", "accessScopeIdentifier": "profile-a"},
+          "metadata": {
+            "ratingKey": "123",
+            "guid": "plex://movie/123",
+            "type": "movie",
+            "title": "Legacy",
+            "genres": [],
+            "year": 2024,
+            "duration": 100,
+            "contentRating": "G",
+            "videoFileName": "video.mp4",
+            "createdAt": 1
+          }\(remoteReferenceJSON)
+        }
+        """
+        return try JSONDecoder().decode(DownloadItem.self, from: Data(json.utf8))
     }
 
     private func response(

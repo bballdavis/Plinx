@@ -1,127 +1,149 @@
 import Foundation
 
+/// UI-test-only sign-in from the launch environment (`--ui-testing`, `PLINX_UI_TEST_MODE=live`, `PLINX_PLEX_TOKEN`).
+/// Debug builds only: in Release both launch hooks do nothing, so no launch argument or environment value can sign a
+/// shipped app in.
+///
+/// - With `PLINX_PLEX_SERVER_URL`, the session is that server alone, reached directly (`PlexDirectSession`): no
+///   plex.tv round trip, so local fixture servers with a placeholder token work as well as a real server.
+/// - Without it, the token is primed where an upgrading install keeps it, so `MultiServerMigration` adopts it as the
+///   family's Plex account at hydration. On a simulator that already migrated, the token is added as a new Plex
+///   account and its owner's profile is activated, as a first-launch sign-in would.
 @MainActor
 enum LivePlexUITestBootstrap {
-    static let mode = "live"
-    private static let tokenKey = "strimr.plex.authToken"
+    /// Call before the `SessionManager` exists. Only a plex.tv sign-in is primed; a direct server session is created
+    /// in `bootstrapIfNeeded` and needs no stored credential.
+    static func primeCredentialsIfNeeded(environment: [String: String]) {
+        #if DEBUG
+            guard isActive(environment: environment),
+                  let token = token(in: environment),
+                  serverURL(in: environment) == nil,
+                  let bundleIdentifier = Bundle.main.bundleIdentifier
+            else { return }
 
-    static func isActive(
-        arguments: [String] = ProcessInfo.processInfo.arguments,
-        environment: [String: String] = ProcessInfo.processInfo.environment
-    ) -> Bool {
-        arguments.contains("--ui-testing") && environment["PLINX_UI_TEST_MODE"] == mode
+            do {
+                try Keychain(service: bundleIdentifier)
+                    .setString(token, forKey: MultiServerMigration.LegacyKeys.plexToken)
+            } catch {
+                print("LivePlexUITestBootstrap failed to seed token: \(error)")
+            }
+        #endif
     }
 
+    /// Call right after the `SessionManager` is created, before its hydration task runs.
     static func bootstrapIfNeeded(
         environment: [String: String],
-        sessionManager: SessionManager,
-        context: PlexAPIContext
+        sessionManager: SessionManager
     ) {
-        guard isActive(environment: environment) else { return }
-        guard let token = environment["PLINX_PLEX_TOKEN"], !token.isEmpty else { return }
+        #if DEBUG
+            guard isActive(environment: environment), let token = token(in: environment) else { return }
 
-        Task { @MainActor in
-            do {
-                try await prepareLiveSession(
+            let directSession = serverURL(in: environment).flatMap { url in
+                PlexDirectSession(
+                    userUUID: userUUID,
+                    displayName: profileName,
                     token: token,
-                    serverRaw: environment["PLINX_PLEX_SERVER_URL"],
-                    sessionManager: sessionManager,
-                    context: context
+                    serverName: serverName,
+                    serverIdentifier: serverIdentifier,
+                    serverURL: url
                 )
-            } catch {
-                print("LivePlexUITestBootstrap failed: \(error)")
             }
-        }
-    }
-
-    static func primeCredentialsIfNeeded(environment: [String: String]) {
-        guard isActive(environment: environment) else { return }
-        guard let token = environment["PLINX_PLEX_TOKEN"], !token.isEmpty else { return }
-        guard let bundleIdentifier = Bundle.main.bundleIdentifier else { return }
-
-        do {
-            try Keychain(service: bundleIdentifier).setString(token, forKey: tokenKey)
-        } catch {
-            print("LivePlexUITestBootstrap failed to seed token: \(error)")
-        }
-    }
-
-    private static func prepareLiveSession(
-        token: String,
-        serverRaw: String?,
-        sessionManager: SessionManager,
-        context: PlexAPIContext
-    ) async throws {
-        while sessionManager.status == .hydrating {
-            try? await Task.sleep(nanoseconds: 100_000_000)
-        }
-
-        if let resource = makeDirectResource(serverRaw: serverRaw, token: token) {
-            await sessionManager.bootstrapDirectServerSession(resource: resource, token: token)
-            return
-        }
-
-        if sessionManager.status != .ready {
-            await sessionManager.hydrate()
-        }
-
-        if sessionManager.status == .signedOut {
-            try await sessionManager.signIn(with: token)
-        }
-
-        guard sessionManager.status == .needsServerSelection else { return }
-        guard let resource = try await resolveResource(serverRaw: serverRaw, context: context) else { return }
-        await sessionManager.selectServer(resource, setAsDefault: true)
-    }
-
-    private static func makeDirectResource(serverRaw: String?, token: String) -> PlexCloudResource? {
-        guard let serverRaw,
-              let serverURL = URL(string: serverRaw),
-              let host = serverURL.host,
-              let scheme = serverURL.scheme else {
-            return nil
-        }
-
-        let connection = PlexCloudResource.Connection(
-            scheme: scheme,
-            address: host,
-            port: serverURL.port ?? (scheme.lowercased() == "https" ? 443 : 80),
-            uri: serverURL,
-            isLocal: true,
-            isRelay: false,
-            isIPv6: host.contains(":" )
-        )
-
-        return PlexCloudResource(
-            name: "Plinx Live UI Test",
-            clientIdentifier: "plinx-live-ui-test",
-            accessToken: token,
-            connections: [connection]
-        )
-    }
-
-    private static func resolveResource(
-        serverRaw: String?,
-        context: PlexAPIContext
-    ) async throws -> PlexCloudResource? {
-        let resources = try await ResourceRepository(context: context).getAvailableResources()
-
-        guard let serverRaw,
-              let serverURL = URL(string: serverRaw),
-              let host = serverURL.host,
-              let scheme = serverURL.scheme else {
-            return resources.count == 1 ? resources.first : nil
-        }
-
-        let expectedPort = serverURL.port ?? (scheme.lowercased() == "https" ? 443 : 80)
-        if let exact = resources.first(where: { resource in
-            (resource.connections ?? []).contains { connection in
-                connection.uri.host == host && connection.uri.port == expectedPort
+            if let directSession {
+                // Before hydration: the stored account then carries this launch's token and address, and its
+                // plex.tv requests are answered on the device from the start.
+                directSession.store(in: sessionManager)
             }
-        }) {
-            return exact
-        }
 
-        return resources.count == 1 ? resources.first : nil
+            Task { @MainActor in
+                await waitForHydration(of: sessionManager)
+                if let directSession {
+                    if !(await directSession.activate(on: sessionManager)) {
+                        print("LivePlexUITestBootstrap: \(directSession.resource.name) did not answer")
+                    }
+                } else {
+                    await signIn(token: token, sessionManager: sessionManager)
+                }
+            }
+        #endif
     }
 }
+
+#if DEBUG
+    extension LivePlexUITestBootstrap {
+        static let mode = "live"
+        static let serverIdentifier = "plinx-live-ui-test"
+        /// Plex user of the direct session's account.
+        static let userUUID = "plinx-live-ui-test-user"
+        private static let serverName = "Plinx Live UI Test"
+        private static let profileName = "Live UI Test"
+
+        static func isActive(
+            arguments: [String] = ProcessInfo.processInfo.arguments,
+            environment: [String: String] = ProcessInfo.processInfo.environment
+        ) -> Bool {
+            arguments.contains("--ui-testing") && environment["PLINX_UI_TEST_MODE"] == mode
+        }
+
+        // MARK: - plex.tv sign-in
+
+        private static func signIn(token: String, sessionManager: SessionManager) async {
+            switch sessionManager.status {
+            case .needsAccount, .migrationFailed:
+                do {
+                    let addition = try await sessionManager.addPlexAccount(token: token)
+                    sessionManager.profileStore.setActiveProfile(PlexHomeProfile.id(userUUID: addition.ownerUUID))
+                    await sessionManager.finishFirstLaunch()
+                } catch {
+                    print("LivePlexUITestBootstrap failed to sign in: \(error)")
+                }
+            case .needsProfileSelection:
+                if let profile = ownerProfile(of: token, in: sessionManager) {
+                    await sessionManager.activate(profile)
+                }
+            case .hydrating, .ready:
+                break
+            }
+        }
+
+        /// Profile of the Plex user owning `token`, when that account is already stored.
+        private static func ownerProfile(of token: String, in sessionManager: SessionManager) -> StrimrProfile? {
+            let accountStore = sessionManager.accountStore
+            guard let account = accountStore.plexAccounts.first(where: { account in
+                (try? accountStore.token(for: .plex(account))) == token
+            }) else { return nil }
+            let profileID = PlexHomeProfile.id(userUUID: account.id)
+            return sessionManager.profiles.first { $0.id == profileID }
+        }
+
+        private static func waitForHydration(of sessionManager: SessionManager) async {
+            let deadline = ContinuousClock.now.advanced(by: .seconds(60))
+            while sessionManager.status == .hydrating, ContinuousClock.now < deadline {
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+        }
+
+        // MARK: - Environment
+
+        private static func token(in environment: [String: String]) -> String? {
+            validated(environment["PLINX_PLEX_TOKEN"])
+        }
+
+        private static func serverURL(in environment: [String: String]) -> URL? {
+            guard let value = validated(environment["PLINX_PLEX_SERVER_URL"]),
+                  let url = URL(string: value),
+                  let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
+                  url.host?.isEmpty == false
+            else { return nil }
+            return url
+        }
+
+        /// Unresolved scheme macros such as `$(PLINX_PLEX_TOKEN)` count as missing.
+        private static func validated(_ rawValue: String?) -> String? {
+            guard let value = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !value.isEmpty,
+                  !value.contains("$(")
+            else { return nil }
+            return value
+        }
+    }
+#endif

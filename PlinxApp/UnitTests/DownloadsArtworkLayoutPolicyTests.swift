@@ -30,17 +30,19 @@ final class DownloadsArtworkLayoutPolicyTests: XCTestCase {
     }
 
     func test_movieCanOptIntoLandscapeLayout() {
-        let metadata = DownloadedMediaMetadata(
-            ratingKey: "movie-1",
+        var metadata = DownloadedMediaMetadata(
+            identity: MediaIdentity(
+                server: ServerIdentity(provider: .plex, id: "server-1"),
+                itemID: "movie-1"
+            ),
             guid: "guid://movie-1",
             type: .movie,
-            sourceLibrarySectionID: 7,
-            artworkLayoutStyle: .landscape,
             title: "Movie",
             summary: nil,
             genres: [],
             year: 2025,
             duration: nil,
+            viewCount: nil,
             contentRating: nil,
             studio: nil,
             tagline: nil,
@@ -53,8 +55,17 @@ final class DownloadsArtworkLayoutPolicyTests: XCTestCase {
             posterFileName: nil,
             videoFileName: "video",
             fileSize: nil,
+            requestedQuality: .original,
+            effectiveQuality: .original,
+            audioTitle: nil,
+            subtitleTitle: nil,
             createdAt: Date()
         )
+
+        XCTAssertTrue(metadata.prefersPortraitArtwork)
+        XCTAssertEqual(metadata.resolvedArtworkLayoutStyle, .portrait)
+
+        metadata.artworkLayoutStyle = .landscape
 
         XCTAssertFalse(metadata.prefersPortraitArtwork)
         XCTAssertEqual(metadata.resolvedArtworkLayoutStyle, .landscape)

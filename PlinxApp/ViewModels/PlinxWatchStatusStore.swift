@@ -1,21 +1,24 @@
 import Foundation
 import Observation
+import SwiftUI
 
 /// Shared optimistic watched state for every Plinx presentation surface.
 ///
 /// The store intentionally holds no media collection. Server-backed view models
 /// remain the source of truth; a successful override bridges their reload lag
 /// and a failed mutation restores the exact value that preceded the action.
+/// Overrides are keyed by `MediaIdentity`, so equal item IDs on different
+/// servers never share a state.
 @MainActor
 @Observable
 final class PlinxWatchStatusStore {
-    private(set) var overrides: [String: Bool] = [:]
-    private(set) var inFlightIDs: Set<String> = []
+    private(set) var overrides: [MediaIdentity: Bool] = [:]
+    private(set) var inFlightIDs: Set<MediaIdentity> = []
     private var generation = 0
 
-    /// Drops optimistic state when the active server or profile changes.
+    /// Drops optimistic state when the active profile or its servers change.
     /// Generation checks keep an older request from clearing or rolling back a
-    /// newer session's mutation for the same media identifier.
+    /// newer session's mutation for the same media identity.
     func reset() {
         generation &+= 1
         overrides.removeAll()
@@ -23,26 +26,13 @@ final class PlinxWatchStatusStore {
     }
 
     func isWatched(_ item: MediaItem) -> Bool {
-        if let override = overrides[item.id] {
+        if let override = overrides[item.identity] {
             return override
         }
-
-        guard let playableType = PlayableItemType(plexType: item.type) else {
+        guard PlayableItemType(mediaKind: item.type) != nil else {
             return false
         }
-
-        switch playableType {
-        case .movie, .episode, .clip:
-            return (item.viewCount ?? 0) > 0
-        case .show, .season:
-            guard let leafCount = item.leafCount,
-                  let viewedLeafCount = item.viewedLeafCount,
-                  leafCount > 0
-            else {
-                return false
-            }
-            return leafCount == viewedLeafCount
-        }
+        return item.isFullyWatched
     }
 
     func isWatched(_ item: MediaDisplayItem) -> Bool {
@@ -50,44 +40,48 @@ final class PlinxWatchStatusStore {
         return isWatched(item)
     }
 
-    /// Performs one optimistic mutation per media ID. Returns `false` when a
-    /// duplicate action is already in progress, so repeated remote activation
-    /// cannot reverse the state before the first request completes.
+    /// Performs one optimistic mutation per media identity. Returns `false`
+    /// when a duplicate action is already in progress, so repeated remote
+    /// activation cannot reverse the state before the first request completes.
+    /// `services` must be the services of the item's own server.
     @discardableResult
     func toggle(
         _ item: MediaItem,
-        context: PlexAPIContext,
+        services: MediaServices,
         isAllowed: Bool
     ) async throws -> Bool {
         guard isAllowed else { throw PlinxWatchStatusStoreError.notAllowed }
-        guard !inFlightIDs.contains(item.id) else { return false }
+        guard services.identity == item.identity.server else {
+            throw PlinxWatchStatusStoreError.serverUnavailable
+        }
+        let identity = item.identity
+        guard !inFlightIDs.contains(identity) else { return false }
 
         let requestGeneration = generation
-        let previousOverride = overrides[item.id]
+        let previousOverride = overrides[identity]
         let wasWatched = isWatched(item)
-        inFlightIDs.insert(item.id)
-        overrides[item.id] = !wasWatched
+        inFlightIDs.insert(identity)
+        overrides[identity] = !wasWatched
 
         defer {
             if generation == requestGeneration {
-                inFlightIDs.remove(item.id)
+                inFlightIDs.remove(identity)
             }
         }
 
         do {
-            let repository = try ScrobbleRepository(context: context)
-            if wasWatched {
-                try await repository.markUnwatched(key: item.id)
-            } else {
-                try await repository.markWatched(key: item.id)
-            }
+            try await services.detail.setPlayed(!wasWatched, itemID: item.id)
             guard generation == requestGeneration else { return false }
+            // Screens that list this server (home rows, Continue Watching)
+            // reload through the server's watch-state revision.
+            services.noteWatchStateChanged()
             return true
         } catch {
             guard generation == requestGeneration else { return false }
-            overrides[item.id] = previousOverride
-            if previousOverride == nil {
-                overrides.removeValue(forKey: item.id)
+            if let previousOverride {
+                overrides[identity] = previousOverride
+            } else {
+                overrides.removeValue(forKey: identity)
             }
             throw error
         }
@@ -96,8 +90,21 @@ final class PlinxWatchStatusStore {
 
 enum PlinxWatchStatusStoreError: LocalizedError {
     case notAllowed
+    case serverUnavailable
 
     var errorDescription: String? {
-        String(localized: "media.unavailable.title", table: "Plinx")
+        switch self {
+        case .notAllowed:
+            String(localized: "media.unavailable.title", table: "Plinx")
+        case .serverUnavailable:
+            String(localized: "server.unavailable.title")
+        }
     }
+}
+
+extension EnvironmentValues {
+    /// Optimistic watched-state overrides published by `PlinxWatchStatusStore`,
+    /// keyed by media identity. Watched badges read it so a successful toggle
+    /// shows before the owning view model reloads.
+    @Entry var watchedOverrides: [MediaIdentity: Bool] = [:]
 }

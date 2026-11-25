@@ -54,21 +54,8 @@ struct PlaybackSettingsView: View {
                     }
                 }
 
+                // Plinx offers no playback speed control: kids' videos always play at normal speed.
                 Section {
-                    Picker(
-                        "player.settings.speed",
-                        selection: Binding(
-                            get: { playbackRate },
-                            set: { onSelectPlaybackRate($0) },
-                        ),
-                    ) {
-                        ForEach(PlaybackSpeedOptions.all) { option in
-                            Text("player.settings.speed.value \(option.valueText)")
-                                .tag(option.rate)
-                        }
-                    }
-                    .pickerStyle(.menu)
-
                     Picker(
                         "player.settings.display",
                         selection: Binding(

@@ -7,6 +7,8 @@ struct MediaDetailView: View {
     @EnvironmentObject private var coordinator: MainCoordinator
     @Environment(SettingsManager.self) private var settingsManager
     @Environment(SharePlayCoordinator.self) private var sharePlayCoordinator
+    /// Starting SharePlay reaches people outside the app: offered only where a parent-facing surface enables it.
+    @Environment(\.sharePlayPresentationPolicy) private var sharePlayPresentationPolicy
     @Environment(\.scenePhase) private var scenePhase
     @Environment(MediaFocusModel.self) private var focusModel
     @State var viewModel: MediaDetailViewModel
@@ -345,20 +347,22 @@ struct MediaDetailView: View {
                 }
             }
 
-            Button {
-                Task { await activateSharePlay() }
-            } label: {
-                if sharePlayCoordinator.isActivating {
-                    Label {
-                        Text("sharePlay.action")
-                    } icon: {
-                        ProgressView()
+            if sharePlayPresentationPolicy == .enabled {
+                Button {
+                    Task { await activateSharePlay() }
+                } label: {
+                    if sharePlayCoordinator.isActivating {
+                        Label {
+                            Text("sharePlay.action")
+                        } icon: {
+                            ProgressView()
+                        }
+                    } else {
+                        Label("sharePlay.action", systemImage: "shareplay")
                     }
-                } else {
-                    Label("sharePlay.action", systemImage: "shareplay")
                 }
+                .disabled(sharePlayCoordinator.isActivating)
             }
-            .disabled(sharePlayCoordinator.isActivating)
 
             // The round button marks an in-progress item watched; clearing its progress only lives here.
             if viewModel.shouldShowBothWatchActions {
@@ -391,7 +395,8 @@ struct MediaDetailView: View {
                 )
             }
 
-            if AddToPlaylistViewModel.canAdd(viewModel.media.mediaItem) {
+            // Playlist edits are parent-only.
+            if ContentSafetyGate.shared.isParentUnlocked, AddToPlaylistViewModel.canAdd(viewModel.media.mediaItem) {
                 Button {
                     mediaToAddToPlaylist = viewModel.media.mediaItem
                 } label: {
@@ -627,6 +632,7 @@ struct MediaDetailView: View {
 
     private func activateSharePlay() async {
         guard
+            sharePlayPresentationPolicy == .enabled,
             let ratingKey = viewModel.primaryActionRatingKey,
             let playbackType = viewModel.primaryActionType,
             let item = viewModel.primaryActionItem
@@ -641,6 +647,7 @@ struct MediaDetailView: View {
     }
 
     private func activateSharePlay(for episode: MediaItem) async {
+        guard sharePlayPresentationPolicy == .enabled else { return }
         await sharePlayCoordinator.activate(
             ratingKey: episode.id,
             type: .episode,
@@ -675,6 +682,7 @@ private struct EpisodeArtworkCard: View {
     let onFileInfo: () -> Void
 
     @Environment(SettingsManager.self) private var settingsManager
+    @Environment(\.sharePlayPresentationPolicy) private var sharePlayPresentationPolicy
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var isFocused: Bool
 
@@ -753,10 +761,12 @@ private struct EpisodeArtworkCard: View {
                 }
             }
 
-            Button(action: onSharePlay) {
-                Label("sharePlay.action", systemImage: "shareplay")
+            if sharePlayPresentationPolicy == .enabled {
+                Button(action: onSharePlay) {
+                    Label("sharePlay.action", systemImage: "shareplay")
+                }
+                .disabled(isStartingSharePlay)
             }
-            .disabled(isStartingSharePlay)
 
             if shouldShowBothWatchActions {
                 Button(action: onMarkWatched) {

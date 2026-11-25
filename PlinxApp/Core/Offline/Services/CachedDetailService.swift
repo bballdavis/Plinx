@@ -220,6 +220,7 @@ final class CachedDetailService: MediaDetailService {
 }
 
 private extension MediaItem {
+    @MainActor
     func overlaid(by policy: OfflineCachePolicy) -> MediaItem {
         policy.overlayLocalProgress([self]).first ?? self
     }

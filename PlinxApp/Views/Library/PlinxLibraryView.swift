@@ -2,29 +2,39 @@ import SwiftUI
 import UIKit
 import PlinxUI
 
+/// The kid-facing library list: the active profile's visible libraries as
+/// banner tiles. Data comes from upstream's `LibraryViewModel`; the banner
+/// artwork is its library preview, which `SafeMediaServices` builds only from
+/// titles the parent's policy allows.
 struct PlinxLibraryView: View {
-    @State var viewModel: SafeLibraryViewModel
+    @State var viewModel: LibraryViewModel
     var topContent: AnyView? = nil
     var onSelectLibrary: (Library) -> Void
     var onRequestShellNavigationFocus: () -> Void = {}
     var contentFocusRequest: Int = 0
     @State private var artworkRefreshToken = UUID()
+    /// Hot-reload order of each library's backdrops, so every reload shows a new arrangement.
+    @State private var shuffledArtworks: [LibraryIdentity: [ArtworkResource]] = [:]
     @AppStorage(LibraryCardLayoutPolicy.hotReloadLibraryArtworkStorageKey)
     private var hotReloadLibraryArtwork = false
     @AppStorage(LibraryCardLayoutPolicy.bannerArtworkCountStorageKey)
     private var storedBannerArtworkCount = 0
 
-    @Environment(\.safetyPolicy) private var safetyPolicy
-    @Environment(SettingsManager.self) private var settingsManager
+    @Environment(ServerRegistry.self) private var registry
     #if os(tvOS)
     @EnvironmentObject private var tvFocusCoordinator: PlinxTVFocusCoordinator
-    @FocusState private var focusedLibraryID: String?
+    @FocusState private var focusedLibraryID: LibraryIdentity?
     @State private var contentFocusGeneration = 0
     #endif
 
+    /// Hidden libraries (the parent's "Visible Libraries" setting) never reach this list.
+    private var libraries: [Library] {
+        PlinxLibraryVisibility.browsableLibraries(viewModel.visibleLibraries)
+    }
+
     var body: some View {
         Group {
-            if viewModel.isLoading && viewModel.libraries.isEmpty {
+            if viewModel.isLoading && libraries.isEmpty {
                 PlinxLoadingStateView(
                     role: .content,
                     label: LocalizedStringResource(
@@ -35,7 +45,7 @@ struct PlinxLibraryView: View {
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .ignoresSafeArea(.container, edges: .horizontal)
-            } else if let error = viewModel.errorMessage, viewModel.libraries.isEmpty {
+            } else if let error = viewModel.errorMessage, libraries.isEmpty {
                 PlinxErrorView(message: error) {
                     Task { await viewModel.load() }
                 }
@@ -44,14 +54,24 @@ struct PlinxLibraryView: View {
                 libraryList
             }
         }
-        .task { await viewModel.load() }
+        .task(id: registry.readyServers) {
+            // Servers joining or leaving the profile update the list in place.
+            await viewModel.load()
+            await viewModel.syncServers()
+        }
         .onAppear {
             if hotReloadLibraryArtwork {
                 artworkRefreshToken = UUID()
             }
         }
+        .onChange(of: ContentSafetyGate.shared.revision) { _, _ in
+            // Previews were sampled under the old policy.
+            viewModel.previews = [:]
+            shuffledArtworks = [:]
+            artworkRefreshToken = UUID()
+        }
         #if os(tvOS)
-        .onChange(of: viewModel.libraries.map(\.id)) { oldIDs, ids in
+        .onChange(of: libraries.map(\.identity)) { oldIDs, ids in
             guard focusedLibraryID != nil else { return }
             focusedLibraryID = PlinxTVFocusCoordinator.resolvedContentID(
                 currentID: focusedLibraryID,
@@ -67,23 +87,18 @@ struct PlinxLibraryView: View {
             tvFocusCoordinator.rememberContentTarget(id, in: .library)
         }
         #endif
-        .onChange(of: safetyPolicy) { _, newPolicy in
-            viewModel.updatePolicy(newPolicy)
-        }
-        .onChange(of: settingsManager.interface.hiddenLibraryIds) { _, hiddenIDs in
-            viewModel.updateHiddenLibraryIDs(Set(hiddenIDs))
-        }
     }
 
     private var libraryList: some View {
-        ScrollView {
+        let libraries = libraries
+        return ScrollView {
             LazyVStack(spacing: libraryListSpacing) {
                 if let topContent {
                     topContent
                 }
 
-                ForEach(viewModel.libraries) { library in
-                    libraryTile(library, rowIndex: viewModel.libraries.firstIndex(where: { $0.id == library.id }) ?? 0)
+                ForEach(Array(libraries.enumerated()), id: \.element.identity) { rowIndex, library in
+                    libraryTile(library, rowIndex: rowIndex, libraries: libraries)
                         .padding(.horizontal, 20)
                 }
             }
@@ -93,25 +108,19 @@ struct PlinxLibraryView: View {
     }
 
     @ViewBuilder
-    private func libraryTile(_ library: Library, rowIndex: Int) -> some View {
+    private func libraryTile(_ library: Library, rowIndex: Int, libraries: [Library]) -> some View {
         let tileBody = LibraryTileBody(
             library: library,
-            bannerURLs: viewModel.bannerArtworkURLs(for: library),
+            bannerArtworks: bannerArtworks(for: library),
             tileHeight: libraryTileHeight,
             artworkRefreshToken: artworkRefreshToken,
-            hotReloadLibraryArtwork: hotReloadLibraryArtwork,
-            bannerArtworkDisplayCount: bannerArtworkDisplayCount,
-            ensureArtwork: { library, bannerCount in
-                if hotReloadLibraryArtwork {
-                    await viewModel.refreshArtwork(for: library, bannerCount: bannerCount)
-                } else {
-                    await viewModel.ensureArtwork(for: library, bannerCount: bannerCount)
-                }
+            ensureArtwork: { library in
+                await loadArtwork(for: library)
             },
             placeholder: { libraryPlaceholder(for: $0) },
-            adaptiveArtwork: { artworkURLs, size in
+            adaptiveArtwork: { artworks, size in
                 adaptiveLibraryArtwork(
-                    artworkURLs: artworkURLs,
+                    artworks: artworks,
                     size: size,
                     placeholder: libraryPlaceholder(for: library)
                 )
@@ -126,10 +135,10 @@ struct PlinxLibraryView: View {
         }
             .buttonStyle(PlinkButtonStyle())
             .focusEffectDisabled()
-            .focused($focusedLibraryID, equals: library.id)
+            .focused($focusedLibraryID, equals: library.identity)
             .plinxFocusSurface(
                 isSelected: false,
-                isFocused: focusedLibraryID == library.id,
+                isFocused: focusedLibraryID == library.identity,
                 style: PlinxFocusSurfaceStyle(
                     focusedScale: 1.05,
                     focusedShadowRadius: 30,
@@ -138,7 +147,7 @@ struct PlinxLibraryView: View {
             )
             .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             .onMoveCommand { direction in
-                handleMoveCommand(direction, fromRow: rowIndex)
+                handleMoveCommand(direction, fromRow: rowIndex, libraries: libraries)
             }
         #else
         Button { onSelectLibrary(library) } label: {
@@ -148,9 +157,23 @@ struct PlinxLibraryView: View {
         #endif
     }
 
+    private func bannerArtworks(for library: Library) -> [ArtworkResource] {
+        shuffledArtworks[library.identity] ?? viewModel.artworks(for: library)
+    }
+
+    private func loadArtwork(for library: Library) async {
+        if hotReloadLibraryArtwork {
+            viewModel.previews[library.identity] = nil
+        }
+        await viewModel.ensurePreview(for: library)
+        if hotReloadLibraryArtwork {
+            shuffledArtworks[library.identity] = viewModel.artworks(for: library).shuffled()
+        }
+    }
+
     #if os(tvOS)
     private func requestContentFocus() {
-        let ids = viewModel.libraries.map(\.id)
+        let ids = libraries.map(\.identity)
         let target = PlinxTVFocusCoordinator.resolvedContentID(
             currentID: focusedLibraryID,
             availableIDs: ids,
@@ -172,18 +195,18 @@ struct PlinxLibraryView: View {
         }
     }
 
-    private func handleMoveCommand(_ direction: MoveCommandDirection, fromRow rowIndex: Int) {
+    private func handleMoveCommand(_ direction: MoveCommandDirection, fromRow rowIndex: Int, libraries: [Library]) {
         switch direction {
         case .up:
             if rowIndex == 0 {
                 contentFocusGeneration &+= 1
                 onRequestShellNavigationFocus()
-            } else {
-                focusedLibraryID = viewModel.libraries[rowIndex - 1].id
+            } else if libraries.indices.contains(rowIndex - 1) {
+                focusedLibraryID = libraries[rowIndex - 1].identity
             }
         case .down:
-            guard rowIndex + 1 < viewModel.libraries.count else { return }
-            focusedLibraryID = viewModel.libraries[rowIndex + 1].id
+            guard libraries.indices.contains(rowIndex + 1) else { return }
+            focusedLibraryID = libraries[rowIndex + 1].identity
         default:
             break
         }
@@ -231,13 +254,13 @@ struct PlinxLibraryView: View {
     }
 
     private func adaptiveLibraryArtwork(
-        artworkURLs: [URL],
+        artworks: [ArtworkResource],
         size: CGSize,
         placeholder: some View,
     ) -> some View {
         let aspect = size.width / max(size.height, 1)
         let isUltraWide = aspect > 2.1
-        let artwork = artworkURLs.prefix(bannerArtworkDisplayCount)
+        let artwork = Array(artworks.prefix(bannerArtworkDisplayCount))
 
         guard let first = artwork.first else {
             return AnyView(placeholder)
@@ -246,20 +269,18 @@ struct PlinxLibraryView: View {
         return AnyView(ZStack {
             if isUltraWide {
                 ultraWidePanelArtwork(
-                    artworkURLs: Array(artwork),
+                    artworks: artwork,
                     size: size,
                     placeholder: placeholder
                 )
             } else {
-                AsyncImage(url: first) { phase in
-                    if case .success(let image) = phase {
-                        image
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: size.width, height: size.height)
-                    } else {
-                        placeholder
-                    }
+                LibraryBannerImage(resource: first) { image in
+                    image
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: size.width, height: size.height)
+                } fallback: {
+                    placeholder
                 }
             }
         }
@@ -267,14 +288,13 @@ struct PlinxLibraryView: View {
     }
 
     private func ultraWidePanelArtwork(
-        artworkURLs: [URL],
+        artworks: [ArtworkResource],
         size: CGSize,
         placeholder: some View,
     ) -> some View {
-        let sources: [URL] = Array(artworkURLs)
-        guard !sources.isEmpty else { return AnyView(placeholder) }
+        guard let first = artworks.first else { return AnyView(placeholder) }
 
-        let displayCount = min(sources.count, bannerArtworkDisplayCount)
+        let displayCount = min(artworks.count, bannerArtworkDisplayCount)
         let panelBaseWidth = size.width / CGFloat(max(displayCount, 1))
         let overlap: CGFloat = panelBaseWidth * 0.12
         let panelWidth = panelBaseWidth + overlap
@@ -287,48 +307,44 @@ struct PlinxLibraryView: View {
             return .center
         }
         let edgeBlurRadius: CGFloat = 5
-        let displaySources = Array(sources.prefix(displayCount))
+        let displaySources = Array(artworks.prefix(displayCount))
 
         return AnyView(ZStack {
-            AsyncImage(url: displaySources.first) { phase in
-                if case .success(let image) = phase {
-                    image
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: size.width, height: size.height)
-                        .blur(radius: 18)
-                        .overlay(Color.black.opacity(0.28))
-                } else {
-                    placeholder
-                }
+            LibraryBannerImage(resource: first) { image in
+                image
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: size.width, height: size.height)
+                    .blur(radius: 18)
+                    .overlay(Color.black.opacity(0.28))
+            } fallback: {
+                placeholder
             }
 
             HStack(spacing: -overlap) {
-                ForEach(displaySources.indices, id: \ .self) { index in
-                    AsyncImage(url: displaySources[index]) { phase in
-                        if case .success(let image) = phase {
-                            ZStack {
-                                image
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: panelWidth, height: size.height, alignment: panelAlignments[index])
-                                    .clipped()
-                                    .blur(radius: edgeBlurRadius)
-                                    .overlay(Color.black.opacity(0.16))
-                                    .mask(edgeBlurMask(for: index, total: displaySources.count))
+                ForEach(displaySources.indices, id: \.self) { index in
+                    LibraryBannerImage(resource: displaySources[index]) { image in
+                        ZStack {
+                            image
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: panelWidth, height: size.height, alignment: panelAlignments[index])
+                                .clipped()
+                                .blur(radius: edgeBlurRadius)
+                                .overlay(Color.black.opacity(0.16))
+                                .mask(edgeBlurMask(for: index, total: displaySources.count))
 
-                                image
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: panelWidth, height: size.height, alignment: panelAlignments[index])
-                                    .clipped()
-                            }
-                            .frame(width: panelWidth, height: size.height)
-                            .clipped()
-                            .mask(panelEdgeMask(for: index, total: displaySources.count))
-                        } else {
-                            Color.clear.frame(width: panelWidth, height: size.height)
+                            image
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: panelWidth, height: size.height, alignment: panelAlignments[index])
+                                .clipped()
                         }
+                        .frame(width: panelWidth, height: size.height)
+                        .clipped()
+                        .mask(panelEdgeMask(for: index, total: displaySources.count))
+                    } fallback: {
+                        Color.clear.frame(width: panelWidth, height: size.height)
                     }
                 }
             }
@@ -377,23 +393,53 @@ struct PlinxLibraryView: View {
     }
 }
 
+/// One library backdrop, decoded through the absorbed artwork caches. Works for
+/// remote artwork and for the offline store's cached image data alike.
+private struct LibraryBannerImage<Content: View, Fallback: View>: View {
+    let resource: ArtworkResource
+    @ViewBuilder let content: (Image) -> Content
+    @ViewBuilder let fallback: () -> Fallback
+
+    @State private var image: Image?
+
+    var body: some View {
+        Group {
+            if let image {
+                content(image)
+            } else {
+                fallback()
+            }
+        }
+        .task(id: Self.key(for: resource)) {
+            image = await ArtworkResourceView.image(for: resource)
+        }
+    }
+
+    private static func key(for resource: ArtworkResource) -> String {
+        switch resource {
+        case let .url(url):
+            url.absoluteString
+        case let .data(data):
+            "data:\(data.count):\(data.hashValue)"
+        }
+    }
+}
+
 private struct LibraryTileBody<Placeholder: View, Artwork: View>: View {
     let library: Library
-    let bannerURLs: [URL]
+    let bannerArtworks: [ArtworkResource]
     let tileHeight: CGFloat
     let artworkRefreshToken: UUID
-    let hotReloadLibraryArtwork: Bool
-    let bannerArtworkDisplayCount: Int
-    let ensureArtwork: (Library, Int) async -> Void
+    let ensureArtwork: (Library) async -> Void
     let placeholder: (Library) -> Placeholder
-    let adaptiveArtwork: ([URL], CGSize) -> Artwork
+    let adaptiveArtwork: ([ArtworkResource], CGSize) -> Artwork
 
     var body: some View {
         ZStack(alignment: .bottom) {
             GeometryReader { proxy in
                 Group {
-                    if !bannerURLs.isEmpty {
-                        adaptiveArtwork(bannerURLs, proxy.size)
+                    if !bannerArtworks.isEmpty {
+                        adaptiveArtwork(bannerArtworks, proxy.size)
                     } else {
                         placeholder(library)
                     }
@@ -428,7 +474,7 @@ private struct LibraryTileBody<Placeholder: View, Artwork: View>: View {
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .task(id: artworkRefreshToken) {
-            await ensureArtwork(library, bannerArtworkDisplayCount)
+            await ensureArtwork(library)
         }
     }
 
@@ -462,15 +508,5 @@ private struct LibraryTileBody<Placeholder: View, Artwork: View>: View {
         #else
         16
         #endif
-    }
-}
-
-// MARK: - Springy Button
-
-private struct SpringyButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
-            .animation(.spring(response: 0.2, dampingFraction: 0.6), value: configuration.isPressed)
     }
 }

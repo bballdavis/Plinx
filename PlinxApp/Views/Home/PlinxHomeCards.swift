@@ -73,7 +73,8 @@ struct HomeMediaCardBody: View {
     let ratio: CGFloat
     let isContinueWatching: Bool
     let watched: Bool
-    let imageViewModel: MediaImageViewModel
+    /// `nil` when the item's server left the profile; the card keeps its place with a placeholder.
+    let imageViewModel: MediaImageViewModel?
 
     @Environment(\.isFocused) private var isFocused
     private var thumbHeight: CGFloat { cardWidth / ratio }
@@ -110,14 +111,21 @@ struct HomeMediaCardBody: View {
         #endif
     }
 
+    @ViewBuilder
+    private var artwork: some View {
+        if let imageViewModel {
+            MediaImageView(viewModel: imageViewModel)
+        } else {
+            MediaArtworkPlaceholder(mediaKind: item.type)
+        }
+    }
+
     var body: some View {
         let artworkToLabelOffset = focusHaloInset + 6
 
         VStack(alignment: .leading, spacing: 6) {
             ZStack(alignment: .bottom) {
-                    MediaImageView(
-                        viewModel: imageViewModel
-                    )
+                    artwork
                     .frame(width: cardWidth, height: thumbHeight)
                     .clipped()
                     .clipShape(RoundedRectangle(cornerRadius: artworkCornerRadius, style: .continuous))

@@ -1,128 +1,456 @@
 import Foundation
+import Observation
 import UIKit
 
-/// Starts the credential-free review experience against a deterministic,
-/// loopback-only Plex-shaped service. Bundled media is served through the
-/// same HTTP playback and download clients used for a real server.
+/// The App Review sample library: a credential-free session against a deterministic, loopback-only Plex-shaped
+/// service (`DemoMediaServer`). Bundled media reaches the production HTTP playback and download clients, and the
+/// session runs through the production `SessionManager`, `ServerRegistry` and `SafeMediaServices` boundary.
+///
+/// The sample library is a first-launch experience. It starts only while no account exists, so it never joins or
+/// replaces a family's session, and it lives as a temporary Plex account (`PlexDirectSession`) that `stop()` removes
+/// again. Its preferences and parental PIN stay in `DemoPreferences`.
 enum DemoFixtureBootstrap {
-    static let serverHost = "demo.plinx.invalid"
     static let serverIdentifier = "plinx-demo-library"
     static let serverToken = "plinx-synthetic-review-token"
+    /// Plex user of the sample account; its Home profile is the only demo profile.
+    static let userUUID = "plinx-demo-family"
+    #if DEBUG
+        static let uiTestMode = "demo"
+    #endif
+    private static let serverName = "Plinx Demo Library"
 
-    static var isActive: Bool {
-        DemoFixtureURLProtocol.isActive
+    static var server: ServerIdentity {
+        ServerIdentity(provider: .plex, id: serverIdentifier)
     }
 
-    @MainActor
-    static func start(
-        sessionManager: SessionManager,
-        context: PlexAPIContext,
-    ) async {
-        // tvOS: SessionManager mirrors the token into Top Shelf storage only
-        // when the bundle declares TopShelfKeychainAccessGroup; Plinx ships no
-        // Top Shelf extension, so the demo is safe to activate there too.
-        guard sessionManager.status == .signedOut else { return }
-        guard DemoSampleMedia.isAvailable,
-              let serverURL = try? await DemoMediaServer.shared.start() else { return }
-
-        DemoPreferences.reset()
-        DemoFixtureCatalog.resetPlaybackState()
-        DemoYoutarrCatalog.reset()
-        DemoPreferences.configureYoutarr(baseURL: serverURL)
-        DemoFixtureURLProtocol.activate()
-
-        let connection = PlexCloudResource.Connection(
-            scheme: "http",
-            address: "127.0.0.1",
-            port: serverURL.port ?? 80,
-            uri: serverURL,
-            isLocal: true,
-            isRelay: false,
-            isIPv6: false,
-        )
-        let resource = PlexCloudResource(
-            name: "Plinx Demo Library",
-            clientIdentifier: serverIdentifier,
-            accessToken: serverToken,
-            connections: [connection],
-        )
-
-        // This existing Strimr seam establishes a normal ready session and
-        // reloads LibraryStore, but does not persist the synthetic token.
-        await sessionManager.bootstrapDirectServerSession(
-            resource: resource,
-            token: serverToken,
-            setAsDefault: false,
-        )
-
-        if case .ready = sessionManager.status {
-            return
-        }
-
-        stop()
-        context.reset()
+    static var accountID: String {
+        MediaAccount.plexID(userUUID)
     }
 
-    static let uiTestMode = "demo"
-
-    /// Starts the demo library when UI tests request it, so tvOS remote
-    /// walkthroughs and screenshots start from a known library.
-    @MainActor
-    static func bootstrapForUITestIfNeeded(
-        arguments: [String] = ProcessInfo.processInfo.arguments,
-        environment: [String: String],
-        sessionManager: SessionManager,
-        context: PlexAPIContext,
-    ) {
-        guard arguments.contains("--ui-testing"),
-              environment["PLINX_UI_TEST_MODE"] == uiTestMode
-        else { return }
-
-        Task { @MainActor in
-            while sessionManager.status == .hydrating {
-                try? await Task.sleep(nanoseconds: 100_000_000)
-            }
-            await start(sessionManager: sessionManager, context: context)
-        }
+    static var profileID: String {
+        PlexHomeProfile.id(userUUID: userUUID)
     }
 
-    static func stop() {
-        DemoMediaServer.shared.stop()
-        DemoFixtureURLProtocol.deactivate()
-    }
-}
-
-/// URLSession.shared is used by the vendored Plex repositories, so a scoped
-/// URLProtocol lets the demo reuse the production SessionManager, LibraryStore,
-/// browse, metadata, search, artwork, and playback-authorization paths without
-/// changing Strimr sources or starting a host process.
-final class DemoFixtureURLProtocol: URLProtocol {
     private static let stateLock = NSLock()
     private static var active = false
+    @MainActor private static var isStarting = false
+    @MainActor private static weak var activeSessionManager: SessionManager?
 
+    /// True from the moment the sample library starts connecting until `stop()`. Readable from any thread.
     static var isActive: Bool {
         stateLock.lock()
         defer { stateLock.unlock() }
         return active
     }
 
-    static func activate() {
+    private static func setActive(_ value: Bool) {
         stateLock.lock()
-        active = true
+        active = value
         stateLock.unlock()
-        URLProtocol.registerClass(self)
     }
 
-    static func deactivate() {
-        stateLock.lock()
-        active = false
-        stateLock.unlock()
-        URLProtocol.unregisterClass(self)
+    /// The app is showing the sample library: the demo is running and its profile is the active one. This is the
+    /// predicate for the demo's separate preferences, rating policy and PIN; it is observable through
+    /// `SessionManager.activeProfile`.
+    @MainActor
+    static func isDemoSession(_ sessionManager: SessionManager) -> Bool {
+        isActive && sessionManager.activeProfile?.id == profileID
+    }
+
+    // MARK: - Lifecycle
+
+    /// Starts the sample library when no account exists yet. Success leaves `sessionManager.status == .ready` with
+    /// the demo profile active and a registry session for `server`; on failure nothing of the demo remains.
+    @MainActor
+    static func start(sessionManager: SessionManager) async {
+        guard !isStarting else { return }
+        if isActive {
+            // Already showing the sample library.
+            if sessionManager.accountStore.account(id: accountID) != nil {
+                return
+            }
+            // A parent removed the sample account from Settings: finish tearing the old demo down first.
+            stop()
+        }
+        guard canStart(on: sessionManager) else { return }
+        isStarting = true
+        defer { isStarting = false }
+
+        guard DemoSampleMedia.isAvailable,
+              let serverURL = try? await DemoMediaServer.shared.start(),
+              canStart(on: sessionManager),
+              let session = PlexDirectSession(
+                  userUUID: userUUID,
+                  displayName: profileName,
+                  token: serverToken,
+                  serverName: serverName,
+                  serverIdentifier: serverIdentifier,
+                  serverURL: serverURL,
+              )
+        else {
+            DemoMediaServer.shared.stop()
+            return
+        }
+
+        DemoPreferences.reset()
+        DemoFixtureCatalog.resetPlaybackState()
+        DemoYoutarrCatalog.reset()
+        DemoPreferences.configureYoutarr(baseURL: serverURL)
+
+        activeSessionManager = sessionManager
+        setActive(true)
+        if await session.activate(on: sessionManager) {
+            stopWhenAccountRemoved(from: sessionManager)
+            return
+        }
+        stop()
+    }
+
+    /// A parent can also remove the sample account from the account settings; the demo then ends with it, so its
+    /// listener and preferences never outlive the account into a family session.
+    @MainActor
+    private static func stopWhenAccountRemoved(from sessionManager: SessionManager) {
+        withObservationTracking {
+            _ = sessionManager.accountStore.accounts
+        } onChange: {
+            Task { @MainActor in
+                guard isActive, activeSessionManager === sessionManager else { return }
+                if sessionManager.accountStore.account(id: accountID) == nil {
+                    stop()
+                } else {
+                    stopWhenAccountRemoved(from: sessionManager)
+                }
+            }
+        }
+    }
+
+    /// Ends the sample library: removes its account (which leaves the session on account setup), its browsing
+    /// cache, its plex.tv stand-in and the loopback listener. Sample downloads stay, owned by the demo profile.
+    @MainActor
+    static func stop() {
+        if let sessionManager = activeSessionManager {
+            #if !os(tvOS)
+                let owner = sessionManager.registry.services(for: server)?.owner
+                    ?? MediaOwner(server: server, userID: userUUID)
+            #endif
+            PlexDirectSession.removeAccount(userUUID: userUUID, from: sessionManager)
+            #if !os(tvOS)
+                OfflineCoordinator.shared.store?.clearCache(owner: owner)
+            #endif
+        }
+        activeSessionManager = nil
+        PlexCloudStandIn.unregister(token: serverToken)
+        DemoMediaServer.shared.stop()
+        DemoPreferences.parentalAccess.lock()
+        setActive(false)
+    }
+
+    /// Removes a sample account that an interrupted launch (the app was quit or killed during the demo) left in the
+    /// account stores, so hydration never activates a demo profile whose server is gone. Call it synchronously right
+    /// after creating the `SessionManager`, before its hydration task runs.
+    @MainActor
+    static func discardInterruptedSession(from sessionManager: SessionManager) {
+        guard !isActive, !isStarting,
+              PlexDirectSession.hasAccount(userUUID: userUUID, in: sessionManager)
+        else { return }
+        PlexDirectSession.removeAccount(userUUID: userUUID, from: sessionManager)
+    }
+
+    /// Launch hook, called once right after the `SessionManager` is created: discards a sample account an
+    /// interrupted launch left behind, then, in Debug builds only, starts the sample library when UI tests ask for it
+    /// (`--ui-testing`, `PLINX_UI_TEST_MODE=demo`), so tvOS remote walkthroughs and screenshots start from a known
+    /// library.
+    @MainActor
+    static func bootstrapForUITestIfNeeded(
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        environment: [String: String],
+        sessionManager: SessionManager,
+    ) {
+        discardInterruptedSession(from: sessionManager)
+        #if DEBUG
+            guard arguments.contains("--ui-testing"),
+                  environment["PLINX_UI_TEST_MODE"] == uiTestMode
+            else { return }
+
+            Task { @MainActor in
+                while sessionManager.status == .hydrating {
+                    try? await Task.sleep(for: .milliseconds(100))
+                }
+                await start(sessionManager: sessionManager)
+            }
+        #endif
+    }
+
+    /// The demo never shares the session with a family account.
+    @MainActor
+    private static func canStart(on sessionManager: SessionManager) -> Bool {
+        sessionManager.status == .needsAccount && sessionManager.accounts.isEmpty
+    }
+
+    private static var profileName: String {
+        String(localized: "demo.profile.name", defaultValue: "Sample Family", table: "Plinx")
+    }
+}
+
+// MARK: - Direct server session
+
+/// A Plex server reached at a known address with no plex.tv account behind it: the App Review sample library and the
+/// live UI-test server. `SessionManager` reaches Plex servers only through plex.tv accounts, so the session is a
+/// temporary Plex account whose single Home user owns `resource`. Its token, cached resources and Home user are
+/// written to the session's stores, and every plex.tv request carrying the token is answered on the device by
+/// `PlexCloudStandIn`, so the token never leaves the device and the session needs no host but the server itself.
+@MainActor
+struct PlexDirectSession {
+    let userUUID: String
+    let displayName: String
+    let token: String
+    let resource: PlexCloudResource
+
+    init?(
+        userUUID: String,
+        displayName: String,
+        token: String,
+        serverName: String,
+        serverIdentifier: String,
+        serverURL: URL,
+    ) {
+        guard let scheme = serverURL.scheme?.lowercased(), scheme == "http" || scheme == "https",
+              let host = serverURL.host, !host.isEmpty, !token.isEmpty
+        else { return nil }
+        let connection = PlexCloudResource.Connection(
+            scheme: scheme,
+            address: host,
+            port: serverURL.port ?? (scheme == "https" ? 443 : 80),
+            uri: serverURL,
+            isLocal: true,
+            isRelay: false,
+            isIPv6: host.contains(":"),
+        )
+        self.userUUID = userUUID
+        self.displayName = displayName
+        self.token = token
+        // Not owned: the account administers nothing, so server management never shows for these sessions.
+        resource = PlexCloudResource(
+            name: serverName,
+            clientIdentifier: serverIdentifier,
+            accessToken: token,
+            connections: [connection],
+            owned: false,
+            provides: "server",
+        )
+    }
+
+    var accountID: String {
+        MediaAccount.plexID(userUUID)
+    }
+
+    var profileID: String {
+        PlexHomeProfile.id(userUUID: userUUID)
+    }
+
+    var server: ServerIdentity {
+        ServerIdentity(provider: .plex, id: resource.clientIdentifier)
+    }
+
+    var homeUser: PlexHomeUser {
+        PlexHomeUser(
+            id: 1,
+            uuid: userUUID,
+            title: displayName,
+            username: nil,
+            email: nil,
+            friendlyName: displayName,
+            thumb: nil,
+            protected: false,
+            pin: nil,
+            admin: true,
+            guest: false,
+            restricted: false,
+        )
+    }
+
+    var cloudUser: PlexCloudUser {
+        PlexCloudUser(
+            id: 1,
+            uuid: userUUID,
+            username: nil,
+            title: displayName,
+            friendlyName: displayName,
+            authToken: token,
+            thumb: nil,
+        )
+    }
+
+    /// Starts answering for the token, then writes (or refreshes) the account, its server and its Home user in the
+    /// session's stores. Done before hydration, it lets hydration resume the profile like any other.
+    @discardableResult
+    func store(in sessionManager: SessionManager) -> Bool {
+        PlexCloudStandIn.register(self)
+        do {
+            try sessionManager.accountStore.save(
+                .plex(PlexAccount(id: userUUID, displayName: displayName)),
+                token: token,
+            )
+        } catch {
+            return false
+        }
+        sessionManager.accountStore.setCachedResources([resource], userUUID: userUUID)
+        sessionManager.profileStore.updatePlexHomeUsers([homeUser], accountID: accountID)
+        sessionManager.profileStore.setDefaultServerSelection(.only([resource.clientIdentifier]), accountID: accountID)
+        return true
+    }
+
+    /// Stores the account, activates its profile unless it is already the active one, and waits for the server.
+    /// Returns `true` once the server's services exist.
+    func activate(on sessionManager: SessionManager, timeout: Duration = .seconds(10)) async -> Bool {
+        guard store(in: sessionManager),
+              let profile = sessionManager.profiles.first(where: { $0.id == profileID })
+        else { return false }
+        if sessionManager.activeProfile?.id != profileID {
+            await sessionManager.activate(profile)
+        }
+        return await waitForServices(on: sessionManager, timeout: timeout)
+    }
+
+    /// Services exist once the server answered; readiness is read from them rather than from reachability, which
+    /// reports a loopback server as unreachable while the device has no network path.
+    private func waitForServices(on sessionManager: SessionManager, timeout: Duration) async -> Bool {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
+        while sessionManager.activeProfile?.id == profileID, !Task.isCancelled {
+            if sessionManager.registry.services(for: server) != nil {
+                return true
+            }
+            guard clock.now < deadline else { return false }
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        return false
+    }
+
+    static func hasAccount(userUUID: String, in sessionManager: SessionManager) -> Bool {
+        let accountID = MediaAccount.plexID(userUUID)
+        return sessionManager.accountStore.account(id: accountID) != nil
+            || !sessionManager.profileStore.plexHomeUsers(accountID: accountID).isEmpty
+    }
+
+    /// Removing the account deactivates its profile when it is the active one: the session then lands on account
+    /// setup, or on the profile picker when other accounts exist.
+    static func removeAccount(userUUID: String, from sessionManager: SessionManager) {
+        let accountID = MediaAccount.plexID(userUUID)
+        if sessionManager.accountStore.account(id: accountID) != nil {
+            sessionManager.removeAccount(accountID)
+        } else if !sessionManager.profileStore.plexHomeUsers(accountID: accountID).isEmpty {
+            sessionManager.profileStore.removeAccount(accountID)
+        }
+        sessionManager.accountStore.removeHomeToken(accountID: accountID, userUUID: userUUID)
+        sessionManager.accountStore.removeCachedResources(userUUID: userUUID)
+    }
+}
+
+// MARK: - plex.tv stand-in
+
+/// Answers on the device every plex.tv request made with the token of a `PlexDirectSession`: the resources (its one
+/// server), the account, its Home users and account preferences. Anything else, such as the watchlist, is refused
+/// here rather than sent: these sessions have no plex.tv account, and their token must not leave the device.
+/// Requests carrying any other token, and sign-in requests carrying none, are never touched.
+final class PlexCloudStandIn: URLProtocol {
+    private struct Registration {
+        let userUUID: String
+        let user: Data
+        let home: Data
+        let resources: Data
+    }
+
+    private static let lock = NSLock()
+    private static var registrations: [String: Registration] = [:]
+    private static var isRegisteredWithURLLoading = false
+
+    @MainActor
+    static func register(_ session: PlexDirectSession) {
+        let encoder = JSONEncoder()
+        let registration = Registration(
+            userUUID: session.userUUID,
+            user: (try? encoder.encode(session.cloudUser)) ?? Data("{}".utf8),
+            home: (try? encoder.encode(PlexHome(users: [session.homeUser]))) ?? Data(#"{"users":[]}"#.utf8),
+            resources: (try? encoder.encode([session.resource])) ?? Data("[]".utf8),
+        )
+        lock.lock()
+        registrations[session.token] = registration
+        let needsRegistration = !isRegisteredWithURLLoading
+        isRegisteredWithURLLoading = true
+        lock.unlock()
+        if needsRegistration {
+            URLProtocol.registerClass(self)
+        }
+    }
+
+    static func unregister(token: String) {
+        lock.lock()
+        registrations[token] = nil
+        let isEmpty = registrations.isEmpty
+        let needsUnregistration = isEmpty && isRegisteredWithURLLoading
+        if needsUnregistration {
+            isRegisteredWithURLLoading = false
+        }
+        lock.unlock()
+        if needsUnregistration {
+            URLProtocol.unregisterClass(self)
+        }
+    }
+
+    private static func registration(for request: URLRequest) -> Registration? {
+        guard isPlexCloudHost(request.url?.host), let token = token(of: request) else { return nil }
+        lock.lock()
+        defer { lock.unlock() }
+        return registrations[token]
+    }
+
+    static func isPlexCloudHost(_ host: String?) -> Bool {
+        guard let host = host?.lowercased() else { return false }
+        return host == "plex.tv" || host.hasSuffix(".plex.tv")
+    }
+
+    private static func token(of request: URLRequest) -> String? {
+        if let header = request.value(forHTTPHeaderField: "X-Plex-Token"), !header.isEmpty {
+            return header
+        }
+        guard let url = request.url else { return nil }
+        return URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?
+            .first { $0.name == "X-Plex-Token" }?
+            .value
+    }
+
+    /// Status and body for a request; `nil` when the request is not one this stand-in answers.
+    static func response(for request: URLRequest) -> (statusCode: Int, body: Data)? {
+        guard let registration = registration(for: request), let url = request.url else { return nil }
+        var path = url.path
+        if path.hasPrefix("/api/v2/") {
+            path.removeFirst("/api/v2".count)
+        }
+        let method = (request.httpMethod ?? "GET").uppercased()
+        switch (method, path) {
+        case ("GET", "/resources"):
+            return (200, registration.resources)
+        case ("GET", "/user"):
+            return (200, registration.user)
+        case ("GET", "/home/users"):
+            return (200, registration.home)
+        case let ("POST", value) where value == "/home/users/\(registration.userUUID)/switch":
+            return (200, registration.user)
+        case ("GET", "/user/profile"):
+            return (200, Data("{}".utf8))
+        case ("PUT", "/user/profile"):
+            return (200, Data("{}".utf8))
+        case let ("GET", value) where value.hasPrefix("/library/metadata/") && value.hasSuffix("/userState"):
+            return (200, Data(#"{"MediaContainer":{"size":0,"UserState":[]}}"#.utf8))
+        default:
+            return (404, Data(#"{"error":"Not available without a plex.tv account"}"#.utf8))
+        }
     }
 
     override class func canInit(with request: URLRequest) -> Bool {
-        guard isActive else { return false }
-        return request.url?.host?.caseInsensitiveCompare(DemoFixtureBootstrap.serverHost) == .orderedSame
+        registration(for: request) != nil
     }
 
     override class func canonicalRequest(for request: URLRequest) -> URLRequest {
@@ -130,31 +458,35 @@ final class DemoFixtureURLProtocol: URLProtocol {
     }
 
     override func startLoading() {
-        guard let requestURL = request.url else {
-            client?.urlProtocol(self, didFailWithError: URLError(.badURL))
+        // A token unregistered since `canInit` is refused here too: it must not reach plex.tv either way.
+        guard let url = request.url,
+              let result = Self.response(for: request),
+              let response = HTTPURLResponse(
+                  url: url,
+                  statusCode: result.statusCode,
+                  httpVersion: "HTTP/1.1",
+                  headerFields: [
+                      "Content-Type": "application/json",
+                      "Content-Length": String(result.body.count),
+                      "Cache-Control": "no-store",
+                  ],
+              )
+        else {
+            client?.urlProtocol(self, didFailWithError: URLError(.userAuthenticationRequired))
             return
         }
-
-        let response = DemoFixtureCatalog.response(for: request)
-        let httpResponse = HTTPURLResponse(
-            url: requestURL,
-            statusCode: response.statusCode,
-            httpVersion: "HTTP/1.1",
-            headerFields: [
-                "Content-Type": response.mimeType,
-                "Content-Length": String(response.data.count),
-                "Cache-Control": "no-store",
-            ],
-        )!
-
-        client?.urlProtocol(self, didReceive: httpResponse, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: response.data)
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: result.body)
         client?.urlProtocolDidFinishLoading(self)
     }
 
     override func stopLoading() {}
 }
 
+// MARK: - Sample catalog
+
+/// Plex Media Server responses of the sample library, served by `DemoMediaServer`. Only the path and query of a
+/// request matter, never its host.
 enum DemoFixtureCatalog {
     private struct Record {
         let id: String
@@ -327,6 +659,10 @@ enum DemoFixtureCatalog {
                 .prefix(6)
                 .map(itemJSON)
             return hubResponse(title: "More Like This", identifier: "related-\(id)", items: related)
+        case (_, let value) where value.hasPrefix("/library/metadata/") && value.hasSuffix("/extras"):
+            return itemContainer([])
+        case (_, let value) where value.hasPrefix("/library/people/"):
+            return personResponse(for: String(value.dropFirst("/library/people/".count)))
         case (_, let value) where value.hasPrefix("/library/metadata/"):
             return metadataResponse(for: String(value.dropFirst("/library/metadata/".count)))
         case (_, let value) where value.hasPrefix("/library/collections/") || value.hasPrefix("/playlists"):
@@ -387,6 +723,24 @@ enum DemoFixtureCatalog {
         default:
             return DemoFixtureResponse(statusCode: 404, mimeType: "application/json", data: jsonData(["error": "demo fixture endpoint not found", "path": path]))
         }
+    }
+
+    /// The two fictional cast members every sample title credits, and the titles they appear in.
+    private static let cast = [1: "Avery North", 2: "Jordan Vale"]
+
+    private static func personResponse(for rawID: String) -> DemoFixtureResponse {
+        let parts = rawID.split(separator: "/")
+        guard let id = parts.first.flatMap({ Int($0) }), let name = cast[id] else {
+            return DemoFixtureResponse(statusCode: 404, mimeType: "application/json", data: jsonData(["error": "unknown demo person"]))
+        }
+        if parts.count == 2, parts[1] == "media" {
+            let titles = id == 1 ? Array(movies.prefix(4)) + Array(shows.prefix(2)) : Array(movies.suffix(4)) + Array(shows.suffix(2))
+            return itemContainer(titles.map(itemJSON))
+        }
+        guard parts.count == 1 else {
+            return DemoFixtureResponse(statusCode: 404, mimeType: "application/json", data: jsonData(["error": "unknown demo person"]))
+        }
+        return json(["MediaContainer": ["size": 1, "Directory": [["id": id, "tag": name, "tagType": 6]]]])
     }
 
     private static func recordsForSection(_ sectionID: Int) -> [Record] {

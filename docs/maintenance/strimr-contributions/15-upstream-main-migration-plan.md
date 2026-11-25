@@ -2,7 +2,7 @@
 
 Audit date: 2026-11-23. This is a plan only. It does not change the Strimr pin,
 the paired branch, or any remote. Follow
-[branch pairing](../../development/branch-pairing.md) and the
+[upstream Strimr provenance](../upstream-strimr.md) and the
 [upstream audit](../strimr-upstream-audit-2026-07-25.md) when you carry it out.
 
 > **Decision update, 2026-11-23:** Plinx will hard fork Strimr instead of

@@ -42,7 +42,8 @@ other protected settings through the parental gate.
 
 In landscape on iPhone and iPad, use **Fit** to show the whole video or **Fill**
 to cover the screen while cropping the edges. The choice stays in effect when
-playback controls hide. Audio and subtitle choices live in player Settings.
+playback controls hide. Audio and subtitle choices live under the player's
+**Tracks** button.
 
 ![iPhone media detail with sample metadata and the production Play action](../assets/screenshots/iphone-detail.png)
 

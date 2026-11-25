@@ -12,13 +12,24 @@ source of truth.
 
 <DependencyStatus />
 
-## Updating Strimr
+## What these values mean
 
-The exact commit is intentional. Plinx compiles selected Strimr source directly
-and relies on verified seams, so an upstream update is a manual compatibility
-operation rather than an automatic branch-head update.
+- **Absorbed Strimr base** is the upstream `wunax/strimr` commit whose source
+  Plinx absorbed into `PlinxApp/Core` and `PlinxApp/Platform`. It is the start
+  of every upstream review range. It is not a build input: the app compiles
+  only what is in this repository.
+- **Swift packages** are fetched as source by Swift Package Manager at the
+  exact revision or version recorded in `PlinxApp/project.yml`. CI and release
+  builds never follow a branch head.
+- **Xcode** is the toolchain the project, CI and Xcode Cloud are set up for.
 
-Follow the [branch pairing guide](../development/branch-pairing.md) when you
-prepare, test, promote, or roll back a Strimr candidate. Update the dependency
-configuration only after the candidate's seam checks, relevant tests, and
-paired builds have passed.
+## Changing a dependency
+
+Change a Swift package pin or the Xcode version in `PlinxApp/project.yml`,
+regenerate the Xcode project, and run the builds and tests in the
+[testing guide](../development/testing.md). Check the package's license against
+the [open-source compliance checklist](../release/open-source-compliance.md)
+before the change ships.
+
+Upstream Strimr changes arrive by hand-porting, not by moving a pin. Follow
+[upstream Strimr provenance](upstream-strimr.md) to review and port them.

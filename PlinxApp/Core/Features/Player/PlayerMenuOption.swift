@@ -251,8 +251,8 @@ enum PlayerMenus {
 
     static func more(_ input: More) -> [PlayerMenuSection] {
         var playback: [PlayerMenuOption] = []
+        // Plinx offers no playback speed control: kids' videos always play at normal speed.
         if !input.isLive {
-            playback.append(speedOption(input))
             playback.append(qualityOption(input))
         }
         if !input.versions.isEmpty {

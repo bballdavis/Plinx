@@ -56,25 +56,72 @@ for runner in run_iphone_sim.sh run_ipad_sim.sh; do
     || fail "$runner generic preflight failed"
 done
 
-# Release source verification ignores local graph metadata while still
-# rejecting edits to the pinned engine's source.
-pairing_root="$TEMP_ROOT/pairing"
-mkdir -p "$pairing_root/Plinx/scripts" "$pairing_root/Plinx/config" "$pairing_root/strimr"
-cp "$PROJECT_ROOT/scripts/verify_release_dependency_state.sh" "$pairing_root/Plinx/scripts/"
-git -C "$pairing_root/strimr" init --quiet
-printf '%s\n' 'pinned source' >"$pairing_root/strimr/Engine.swift"
-git -C "$pairing_root/strimr" add Engine.swift
-git -C "$pairing_root/strimr" -c user.name=Fixture -c user.email=fixture@example.invalid \
-  commit --quiet -m 'Pinned fixture'
-printf 'STRIMR_COMMIT=%s\n' "$(git -C "$pairing_root/strimr" rev-parse HEAD)" \
-  >"$pairing_root/Plinx/config/release-dependencies.env"
-mkdir -p "$pairing_root/strimr/.code-review-graph"
-printf '%s\n' 'local graph cache' >"$pairing_root/strimr/.code-review-graph/graph.db"
-bash "$pairing_root/Plinx/scripts/verify_release_dependency_state.sh" >"$TEMP_ROOT/pairing.log" 2>&1 \
-  || fail "release verification rejected local graph metadata"
-printf '%s\n' 'changed source' >"$pairing_root/strimr/Engine.swift"
-if bash "$pairing_root/Plinx/scripts/verify_release_dependency_state.sh" >"$TEMP_ROOT/pairing.log" 2>&1; then
-  fail "release verification accepted modified engine source"
+# The corresponding-source bundle is the clean Plinx commit plus a manifest of
+# the absorbed Strimr base and the exact Swift package pins. It needs no
+# sibling checkout and refuses a dirty tree or a loosely pinned package.
+bundle_repo="$TEMP_ROOT/compliance/Plinx"
+bundle_output="$TEMP_ROOT/compliance/output"
+mkdir -p "$bundle_repo/scripts" "$bundle_repo/config" "$bundle_repo/PlinxApp" \
+  "$bundle_repo/docs/release" "$bundle_output"
+cp "$PROJECT_ROOT/scripts/build_compliance_bundle.sh" "$bundle_repo/scripts/"
+printf 'STRIMR_FORK_BASE=%s\n' "$(printf 'a%.0s' {1..40})" \
+  >"$bundle_repo/config/release-dependencies.env"
+printf '%s\n' '# Compliance fixture' >"$bundle_repo/docs/release/open-source-compliance.md"
+printf '%s\n' 'Absorbed source' >"$bundle_repo/PlinxApp/Engine.swift"
+cat >"$bundle_repo/PlinxApp/project.yml" <<'YAML'
+name: Plinx
+
+packages:
+  PlinxCore:
+    path: ../Packages/PlinxCore
+  AetherEngine:
+    url: https://example.invalid/AetherEngine
+    revision: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  GRDB:
+    url: https://example.invalid/GRDB.swift
+    exactVersion: 7.12.0
+
+settings:
+  base:
+    PRODUCT_NAME: Plinx
+YAML
+git -C "$bundle_repo" init --quiet
+git -C "$bundle_repo" add .
+git -C "$bundle_repo" -c user.name=Fixture -c user.email=fixture@example.invalid \
+  commit --quiet -m 'Release fixture'
+bash "$bundle_repo/scripts/build_compliance_bundle.sh" "$bundle_output" \
+  >"$TEMP_ROOT/compliance.log" 2>&1 \
+  || fail "compliance bundle rejected a clean release checkout"
+bundle_dir="$bundle_output/Plinx-$(git -C "$bundle_repo" rev-parse --short=12 HEAD)-corresponding-source"
+[[ -f "$bundle_dir.tar.gz" ]] || fail "compliance bundle archive was not written"
+[[ -f "$bundle_dir/PlinxApp/Engine.swift" ]] || fail "compliance bundle omitted the Plinx source tree"
+[[ -f "$bundle_dir/open-source-compliance.md" ]] || fail "compliance bundle omitted the compliance guide"
+[[ ! -e "$bundle_dir/Dependencies" ]] || fail "compliance bundle still packages a sibling dependency"
+manifest="$bundle_dir/SOURCE-MANIFEST.txt"
+grep -q "Plinx commit: $(git -C "$bundle_repo" rev-parse HEAD)" "$manifest" \
+  || fail "manifest does not name the Plinx commit"
+grep -q "Absorbed Strimr base (wunax/strimr): $(printf 'a%.0s' {1..40})" "$manifest" \
+  || fail "manifest does not name the absorbed Strimr base"
+grep -q "AetherEngine https://example.invalid/AetherEngine revision $(printf 'b%.0s' {1..40})" "$manifest" \
+  || fail "manifest does not pin AetherEngine"
+grep -q "GRDB https://example.invalid/GRDB.swift exactVersion 7.12.0" "$manifest" \
+  || fail "manifest does not pin GRDB"
+if grep -q "PlinxCore" "$manifest"; then
+  fail "manifest lists a local package that is already in the source tree"
+fi
+
+printf '%s\n' 'uncommitted edit' >>"$bundle_repo/PlinxApp/Engine.swift"
+if bash "$bundle_repo/scripts/build_compliance_bundle.sh" "$bundle_output" >"$TEMP_ROOT/compliance.log" 2>&1; then
+  fail "compliance bundle accepted a dirty release checkout"
+fi
+git -C "$bundle_repo" checkout --quiet -- PlinxApp/Engine.swift
+
+sed -i.bak 's/exactVersion: 7.12.0/from: 7.0.0/' "$bundle_repo/PlinxApp/project.yml"
+rm "$bundle_repo/PlinxApp/project.yml.bak"
+git -C "$bundle_repo" -c user.name=Fixture -c user.email=fixture@example.invalid \
+  commit --quiet -am 'Loosen a package pin'
+if bash "$bundle_repo/scripts/build_compliance_bundle.sh" "$bundle_output" >"$TEMP_ROOT/compliance.log" 2>&1; then
+  fail "compliance bundle accepted a package without an exact pin"
 fi
 
 echo "Tooling contracts passed"

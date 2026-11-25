@@ -1,21 +1,75 @@
-import SwiftUI
 import PlinxCore
 import PlinxUI
+import SwiftUI
 
+/// Picks what Play and Shuffle start in a playlist: only playable titles the
+/// policy allows, so an entry the boundary let through under an older policy
+/// can never start playback. `PlinxPlaybackLauncher` checks it again.
+enum PlinxPlaylistPlaybackSelection {
+    static func authorizedItems(
+        from items: [MediaDisplayItem],
+        policy: SafetyPolicy
+    ) -> [MediaItem] {
+        PlinxContentRules.filteredItems(items, policy: policy).compactMap(\.playableItem)
+    }
+
+    static func item(
+        from items: [MediaDisplayItem],
+        policy: SafetyPolicy,
+        shuffled: Bool
+    ) -> MediaItem? {
+        let playable = authorizedItems(from: items, policy: policy)
+        return shuffled ? playable.randomElement() : playable.first
+    }
+}
+
+/// Kept so existing tests keep compiling; new code uses `PlinxPlaylistPlaybackSelection`.
+typealias SafePlaylistPlaybackSelection = PlinxPlaylistPlaybackSelection
+
+/// Plinx playlist page on the upstream `PlaylistDetailViewModel`.
+///
+/// Entries come through `SafeMediaServices`, which drops blocked titles.
+/// Renaming, reordering, removing and deleting stay hidden for kids:
+/// `canEdit` is false unless a parent has the gate unlocked, and every edit
+/// is refused by the boundary while it is locked.
 struct PlinxPlaylistDetailView: View {
-    @State var viewModel: SafePlaylistDetailViewModel
-    let onSelectMedia: (MediaDisplayItem) -> Void
-    let onPlay: (MediaItem) -> Void
-    var onLongPressMedia: (MediaDisplayItem) -> Void = { _ in }
-    var onRequestShellNavigationFocus: () -> Void = {}
-    var contentFocusRequest: Int = 0
+    @State private var viewModel: PlaylistDetailViewModel
+    private let onSelectMedia: (MediaDisplayItem) -> Void
+    private let onPlay: (MediaItem) -> Void
+    private let onLongPressMedia: (MediaDisplayItem) -> Void
+    private let onRequestShellNavigationFocus: () -> Void
+    private let contentFocusRequest: Int
 
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.safetyPolicy) private var safetyPolicy
+    @Environment(\.scenePhase) private var scenePhase
     #if os(tvOS)
     @FocusState private var isBackFocused: Bool
     @State private var contentFocusGeneration = 0
     #endif
+
+    init(
+        viewModel: PlaylistDetailViewModel,
+        onSelectMedia: @escaping (MediaDisplayItem) -> Void,
+        onPlay: @escaping (MediaItem) -> Void,
+        onLongPressMedia: @escaping (MediaDisplayItem) -> Void = { _ in },
+        onRequestShellNavigationFocus: @escaping () -> Void = {},
+        contentFocusRequest: Int = 0
+    ) {
+        _viewModel = State(initialValue: viewModel)
+        self.onSelectMedia = onSelectMedia
+        self.onPlay = onPlay
+        self.onLongPressMedia = onLongPressMedia
+        self.onRequestShellNavigationFocus = onRequestShellNavigationFocus
+        self.contentFocusRequest = contentFocusRequest
+    }
+
+    /// Entries the current policy allows, re-checked here in case the policy
+    /// changed after the list was loaded.
+    private var items: [MediaDisplayItem] {
+        let gate = ContentSafetyGate.shared
+        _ = gate.revision
+        return gate.filter(viewModel.entries.map(\.media))
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -24,16 +78,16 @@ struct PlinxPlaylistDetailView: View {
             #endif
 
             Group {
-                if viewModel.isLoading && viewModel.items.isEmpty {
+                if viewModel.isLoading && viewModel.entries.isEmpty {
                     PlinxBrandedLoadingView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if let errorMessage = viewModel.errorMessage, viewModel.items.isEmpty {
+                } else if let errorMessage = viewModel.errorMessage, viewModel.entries.isEmpty {
                     ContentUnavailableView(
                         errorMessage,
                         systemImage: "exclamationmark.triangle.fill",
                         description: Text("common.errors.tryAgainLater")
                     )
-                } else if viewModel.items.isEmpty {
+                } else if items.isEmpty {
                     ContentUnavailableView(
                         "library.browse.empty.title",
                         systemImage: "lock.shield.fill",
@@ -47,12 +101,17 @@ struct PlinxPlaylistDetailView: View {
         .task {
             await viewModel.load()
         }
-        .onChange(of: safetyPolicy) { _, newPolicy in
-            viewModel.updatePolicy(newPolicy)
+        .onChange(of: ContentSafetyGate.shared.revision) { _, _ in
+            Task { await viewModel.reload() }
+        }
+        .onChange(of: scenePhase) { _, newValue in
+            guard newValue == .active else { return }
+            Task { await viewModel.refreshIfNeeded() }
         }
         #if os(tvOS)
         .onAppear {
             isBackFocused = true
+            Task { await viewModel.refreshIfNeeded() }
         }
         .onChange(of: contentFocusRequest) { _, _ in
             contentFocusGeneration &+= 1
@@ -73,20 +132,39 @@ struct PlinxPlaylistDetailView: View {
         tvPlaylistContent
         #else
         PlaylistDetailView(
-            viewModel: viewModel.rawViewModel,
+            viewModel: viewModel,
             onSelectMedia: onSelectMedia,
             onPlay: { _ in play(shuffled: false) },
-            onShuffle: { _ in play(shuffled: true) }
+            onShuffle: { _ in play(shuffled: true) },
+            onPlayEntry: playEntry
         )
         #endif
     }
 
     private func play(shuffled: Bool) {
-        guard let item = viewModel.playbackItem(shuffled: shuffled) else { return }
+        guard let item = PlinxPlaylistPlaybackSelection.item(
+            from: items,
+            policy: ContentSafetyGate.shared.policy,
+            shuffled: shuffled
+        ) else { return }
+        onPlay(item)
+    }
+
+    private func playEntry(_ entry: PlaylistEntry) {
+        guard let item = entry.media.playableItem,
+              ContentSafetyGate.shared.isAllowed(item)
+        else { return }
         onPlay(item)
     }
 
     #if os(tvOS)
+    /// Entries keep their own IDs, so a title listed twice gets two cards.
+    private var allowedEntries: [PlaylistEntry] {
+        let gate = ContentSafetyGate.shared
+        _ = gate.revision
+        return viewModel.entries.filter { gate.isAllowed($0.media) }
+    }
+
     private var tvPlaylistContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 34) {
@@ -113,18 +191,18 @@ struct PlinxPlaylistDetailView: View {
                     alignment: .leading,
                     spacing: 38
                 ) {
-                    ForEach(viewModel.items, id: \.id) { media in
+                    ForEach(allowedEntries) { entry in
                         PlinxLibraryPortraitMediaCard(
-                            media: media,
+                            media: entry.media,
                             width: 220,
                             showsLabels: true
                         ) {
-                            onSelectMedia(media)
+                            onSelectMedia(entry.media)
                         }
                         .plinxQuickActionLongPress {
-                            onLongPressMedia(media)
+                            onLongPressMedia(entry.media)
                         }
-                        .accessibilityIdentifier("playlist.item.\(media.id)")
+                        .accessibilityIdentifier("playlist.item.\(entry.media.id)")
                     }
                 }
             }

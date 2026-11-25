@@ -4,8 +4,9 @@
 
 | Path | Category | Guidance |
 |---|---|---|
-| `PlinxApp/` | Canonical app source | Main app target, resources, app unit tests, UI tests |
-| `Packages/` | Canonical package source | Plinx-owned packages plus the Strimr wrapper/migration package |
+| `PlinxApp/` | Canonical app source | App targets (Plinx layer plus the absorbed media stack), resources, app unit tests, UI tests |
+| `Packages/` | Canonical package source | `PlinxCore` and `PlinxUI` |
+| `config/` | Canonical configuration | `release-dependencies.env` records the absorbed Strimr base (`STRIMR_FORK_BASE`); also the Youtarr contract pin and the Xcode Cloud monitor example |
 | `scripts/` | Canonical tooling | Build, test, simulator, validation, and CI-support scripts |
 | `.github/workflows/` | Canonical automation | CI policy and build/test orchestration |
 | `docs/` | Canonical documentation | Source of truth for user and engineering Markdown content |
@@ -19,14 +20,20 @@
 
 ### `PlinxApp/`
 
-Use this for:
+Plinx is one codebase, organized by layer:
 
-- app entry points and composition root
-- app-facing views and navigation
-- adapters between Plinx and Strimr
-- decorators that wrap upstream behavior
-- app resources and localized strings
-- app-specific unit/UI tests
+| Folder | Holds |
+|---|---|
+| `App/` | Composition root, lifecycle, parental access, settings sanitizing, the App Review sample library, UI-test bootstraps, the Youtarr client |
+| `Views/`, `ViewModels/`, `Adapters/` | Plinx presentation: tabs, onboarding, Home, Library, Search, detail screens, player chrome, settings, downloads grid, playback launch |
+| `Core/` | The absorbed shared media stack: sessions, providers, the content-safety boundary (`Core/Safety`), feature view models, player controller, models, networking, offline store, settings store |
+| `Platform/iOS/`, `Platform/tvOS/` | Platform screens kept from upstream |
+| `Resources/` | Assets, launch screen, privacy manifest, `Plinx.strings`, `Localizable.xcstrings`, the sample library's bundled media |
+| `UnitTests/`, `UnitTestsTV/`, `UITests/`, `UITestsTV/` | App unit, live parity, and UI tests |
+| `CoreTests/` | Upstream's tests for the absorbed code. Not yet part of any `project.yml` target, so they do not run |
+
+There is no `Decorators/` folder: content filtering happens once, in
+`Core/Safety`.
 
 `PlinxApp/project.yml` remains canonical for project structure. The checked-in
 `PlinxApp/Plinx.xcodeproj/` is its generated deployment mirror so Xcode Cloud
@@ -40,8 +47,8 @@ Use:
 - `Packages/PlinxUI/` for shared UI/theme components
 
 Test-only helpers stay next to the app or package test targets that execute
-them. Strimr-owned runtime code remains in the paired `../strimr` checkout;
-there is no local shadow package.
+them. The media stack absorbed from Strimr lives in `PlinxApp/Core` and
+`PlinxApp/Platform`, not in a package.
 
 Ignore local package artifacts such as `.build/`, `build/`, and `.swiftpm/`.
 
@@ -64,8 +71,8 @@ Canonical for developer workflows. If a command is expected to be repeated, docu
 
 Keep supported developer and release entry points at the top level. Place
 specialized implementation helpers under `scripts/support/` or
-`scripts/release/`; keep test harnesses, branding generation, and paired Strimr
-tooling in their existing `tests/`, `branding/`, and `strimr/` directories.
+`scripts/release/`; keep test harnesses and branding generation in their
+existing `tests/` and `branding/` directories.
 
 ### `.github/workflows/`
 

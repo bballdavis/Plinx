@@ -2,14 +2,15 @@ import XCTest
 @testable import Plinx
 
 final class LibraryCardLayoutPolicyTests: XCTestCase {
+    private let server = ServerIdentity(provider: .plex, id: "layout-server")
 
     func test_movieLibrary_prefersPortrait() {
-        let library = Library(id: "1", title: "Movies", type: .movie, sectionId: 1)
+        let library = Library(id: "1", title: "Movies", type: .movie, sectionId: 1, server: server)
         XCTAssertFalse(LibraryCardLayoutPolicy.prefersLandscape(for: library))
     }
 
     func test_clipLibrary_prefersLandscape() {
-        let library = Library(id: "3", title: "Other Videos", type: .clip, sectionId: 3)
+        let library = Library(id: "3", title: "Other Videos", type: .clip, sectionId: 3, server: server)
         XCTAssertTrue(LibraryCardLayoutPolicy.prefersLandscape(for: library))
     }
 
@@ -19,13 +20,14 @@ final class LibraryCardLayoutPolicyTests: XCTestCase {
             title: "Youtube Videos",
             type: .movie,
             sectionId: 6,
-            agent: "tv.plex.agents.none"
+            agent: "tv.plex.agents.none",
+            server: server
         )
         XCTAssertTrue(LibraryCardLayoutPolicy.prefersLandscape(for: library))
     }
 
     func test_clipLibrary_usesLandscapeAcrossAllDetailSurfaces() {
-        let library = Library(id: "3", title: "Other Videos", type: .clip, sectionId: 3)
+        let library = Library(id: "3", title: "Other Videos", type: .clip, sectionId: 3, server: server)
 
         assertDetailSurfaces(for: library, useLandscape: true)
     }
@@ -36,15 +38,16 @@ final class LibraryCardLayoutPolicyTests: XCTestCase {
             title: "Youtube Videos",
             type: .movie,
             sectionId: 6,
-            agent: "tv.plex.agents.none"
+            agent: "tv.plex.agents.none",
+            server: server
         )
 
         assertDetailSurfaces(for: library, useLandscape: true)
     }
 
     func test_movieAndShowLibraries_usePortraitAcrossAllDetailSurfaces() {
-        let movieLibrary = Library(id: "1", title: "Movies", type: .movie, sectionId: 1)
-        let showLibrary = Library(id: "2", title: "Shows", type: .show, sectionId: 2)
+        let movieLibrary = Library(id: "1", title: "Movies", type: .movie, sectionId: 1, server: server)
+        let showLibrary = Library(id: "2", title: "Shows", type: .series, sectionId: 2, server: server)
 
         assertDetailSurfaces(for: movieLibrary, useLandscape: false)
         assertDetailSurfaces(for: showLibrary, useLandscape: false)

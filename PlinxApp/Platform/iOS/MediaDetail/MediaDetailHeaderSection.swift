@@ -9,6 +9,8 @@ struct MediaDetailHeaderSection: View {
     @Environment(MediaServices.self) private var mediaServices
     @Environment(SettingsManager.self) private var settingsManager
     @Environment(SharePlayCoordinator.self) private var sharePlayCoordinator
+    /// Starting SharePlay reaches people outside the app: offered only where a parent-facing surface enables it.
+    @Environment(\.sharePlayPresentationPolicy) private var sharePlayPresentationPolicy
     @Bindable var viewModel: MediaDetailViewModel
     @Binding var isSummaryExpanded: Bool
     let heroHeight: CGFloat
@@ -92,6 +94,7 @@ struct MediaDetailHeaderSection: View {
             NavigationStack {
                 ShowDownloadSelectionSheet(
                     viewModel: viewModel,
+                    scope: viewModel.media.mediaKind == .season ? .season(viewModel.media.id) : .show,
                     services: mediaServices,
                     defaultQuality: settingsManager.downloads.qualityPreset,
                     onSubmitSelection: { episodeIDs, quality, tracks, version in
@@ -117,24 +120,14 @@ struct MediaDetailHeaderSection: View {
                 services: mediaServices,
                 defaultQuality: settingsManager.downloads.qualityPreset,
             ) { quality, tracks, version in
-                if viewModel.media.mediaKind == .season {
-                    await downloadManager.enqueueItems(
-                        itemID: viewModel.media.id,
-                        kind: .season,
-                        quality: quality,
-                        tracks: tracks,
-                        version: version,
-                        services: mediaServices,
-                    )
-                } else {
-                    await downloadManager.enqueueItem(
-                        itemID: viewModel.media.id,
-                        quality: quality,
-                        tracks: tracks,
-                        version: version,
-                        services: mediaServices,
-                    )
-                }
+                // Movies and episodes only: series and seasons pick their episodes in the selection sheet.
+                await downloadManager.enqueueItem(
+                    itemID: viewModel.media.id,
+                    quality: quality,
+                    tracks: tracks,
+                    version: version,
+                    services: mediaServices,
+                )
                 queuedDownloadCount += 1
             }
         }
@@ -218,6 +211,7 @@ struct MediaDetailHeaderSection: View {
 
     private func startSharePlay() {
         guard
+            sharePlayPresentationPolicy == .enabled,
             let ratingKey = viewModel.primaryActionRatingKey,
             let playbackType = viewModel.primaryActionType,
             let item = viewModel.primaryActionItem, let activity = sharePlayCoordinator.makeActivity(

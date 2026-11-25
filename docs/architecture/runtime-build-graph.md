@@ -9,37 +9,33 @@ Xcode Cloud can discover the project plus the shared `Plinx-iOS` and
 
 ## Build Composition
 
-The `Plinx-iOS` target compiles:
+Each app target compiles one module. `Plinx-iOS` compiles:
 
-- Plinx app code from `App`, `Views`, `Decorators`, `Adapters`, and `ViewModels`
-- sibling Strimr shared source from `../../strimr/Shared`
-- sibling Strimr iOS feature source from `../../strimr/Strimr-iOS/Features`
-- Swift packages `PlinxCore`, `PlinxUI`, and `AetherEngine`
+- the Plinx layer from `App`, `Views`, `Adapters`, and `ViewModels`
+- the absorbed media stack from `Core` and `Platform/iOS`
+- the local packages `PlinxCore` and `PlinxUI`
+- the Swift packages AetherEngine, GRDB, and SwiftAssRenderer
 
-This is a same-module integration strategy, not a clean framework boundary. Plinx can therefore reach Strimr `internal` symbols without broadening upstream access control.
+`Plinx-tvOS` compiles the same Plinx layer and `Core` with `Platform/tvOS`.
 
-## Why Selected Strimr Files Are Replaced
+Every remote Swift package is pinned to an exact `revision` or `exactVersion`
+in `project.yml`; the
+[current dependencies](../maintenance/current-dependencies.mdx) page renders
+the pins. `Packages/PlinxCore` deliberately has no player-engine dependency,
+avoiding duplicate FFmpeg product graphs. AetherEngine is consumed only by the
+app targets.
 
-`project.yml` excludes a small set of Strimr files and swaps in Plinx-owned replacements when Plinx needs different behavior or a safer implementation. Current replacement categories include:
+## Target Exclusions
 
-- a fail-closed playback launcher that re-authorizes fresh metadata immediately
-  before queue presentation
-- Plinx-owned settings surfaces whose upstream equivalents would otherwise
-  collide by filename in the shared app module
-- media backdrop rendering adjustments for current SDK behavior
-- a rating-label adapter for Plinx-owned rating artwork
-- no-op error reporting to preserve zero-collection requirements
-- branded auth/root views so no Strimr assets leak into the Plinx binary
+The tvOS target excludes some files, for two reasons only:
 
-The AetherEngine dependency is pinned to an exact revision in `project.yml`.
-`Packages/PlinxCore` deliberately has no player-engine dependency, avoiding
-duplicate FFmpeg product graphs.
+- they are iOS-only: downloads, the offline store and its cached services,
+  Picture in Picture, and the iOS-only Plinx download and player-control views
+- Plinx or upstream has a separate tvOS screen for the same concept
 
-When adding another exclusion, document:
-
-1. why Plinx could not solve the problem in a thinner layer
-2. whether the change should become an upstream Strimr patch later
-3. which tests prove the replacement is safe
+Do not exclude a file to replace one of its types with a same-named Plinx
+type. Change the original instead, so each concept has one implementation.
+Delete a file that neither target reaches.
 
 ## Generated Project Expectations
 
@@ -55,8 +51,8 @@ When adding another exclusion, document:
 - Use `scripts/generate_xcodeproj.sh --check-portable` for the same generated
   project drift gate without Xcode normalization; GitHub runs this mode on
   Ubuntu whenever project inputs change.
-- Xcode Cloud runs `PlinxApp/ci_scripts/ci_post_clone.sh` to fetch the exact
-  pinned sibling Strimr revision before Xcode resolves the project sources.
+- Xcode Cloud needs no post-clone step: everything the project compiles is in
+  the repository, and Swift packages resolve from `project.yml`.
 
 ## Resource Patching
 
@@ -66,14 +62,22 @@ When adding another exclusion, document:
 - iOS `LaunchScreen.storyboard`
 - `PrivacyInfo.xcprivacy`
 - `Plinx.strings`
-- sibling `../../strimr/Localizable.xcstrings`
+- `Resources/Localizable.xcstrings`, which holds the string catalog that came
+  with the absorbed code
 
 That script should reflect the current runtime layout only. It is not a place to preserve obsolete path migrations.
-The generated app targets must each own a distinct resource build phase and
-distinct build-file entries. Sharing a resource phase or build-file object
-between `Plinx-iOS` and `Plinx-tvOS` can make Xcode copy resources into only one
-bundle. Generated target ordering is not stable enough to patch the first
-`PBXNativeTarget` build-phase list.
+XcodeGen does not read the `resources:` lists in `PlinxApp/project.yml`, so the
+script adds those files after generation. Each generated app target must have
+exactly one resource build phase and its own build-file entries. XcodeGen
+already generates a resource phase per app target for the license texts in
+`Core/Resources/Licenses`; the script adds the app resources to that phase and
+creates a target-owned phase only when XcodeGen generated none. A second
+resource phase makes Xcode warn that the target has multiple Copy Bundle
+Resources build phases and mis-route the generated asset symbol source.
+Sharing a resource phase or build-file object between `Plinx-iOS` and
+`Plinx-tvOS` can make Xcode copy resources into only one bundle. Generated
+target ordering is not stable enough to patch the first `PBXNativeTarget`
+build-phase list.
 
 ## Related Docs
 

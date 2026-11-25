@@ -134,10 +134,12 @@ final class HomeViewModel {
         return [server?.provider.rawValue, server?.id, row.libraryName].compactMap(\.self).joined(separator: ":")
     }
 
+    /// Rows loaded under an older policy, or shown from the cache, are checked again against the current one.
     var rows: [HomeRow] {
         let preferences = settingsManager.homeRowPreferences(profileID: profileID)
-        return pinningOfflineDownloads(preferences.visibleRows(from: availableRows), preferences: preferences)
+        let rows = pinningOfflineDownloads(preferences.visibleRows(from: availableRows), preferences: preferences)
             .map(preferences.styled)
+        return ContentSafetyGate.shared.filter(rows)
     }
 
     var showsServerNames: Bool {
@@ -568,7 +570,7 @@ final class HomeViewModel {
     }
 
     private func rebuildHero() {
-        let slides: [HomeHeroSlide] = switch heroSource {
+        let candidates: [HomeHeroSlide] = switch heroSource {
         case .off:
             []
         case .continueWatching:
@@ -576,6 +578,9 @@ final class HomeViewModel {
         case .discover:
             HomeHeroSlides.featured(featuredSelection())
         }
+        // Rows and candidates loaded under an older policy are checked again against the current one.
+        let gate = ContentSafetyGate.shared
+        let slides = candidates.filter { gate.isAllowed($0.media) }
         if slides != heroSlides {
             heroSlides = slides
         }
@@ -584,7 +589,10 @@ final class HomeViewModel {
     /// Today's titles: the saved selection keeps its places, and shows alone until the servers answer.
     private func featuredSelection() -> [FeaturedCandidate] {
         let seed = FeaturedSeed.make(profileID: profileID, date: now())
-        let stored = settingsManager.featuredSelection(profileID: profileID).flatMap { $0.day == seed.day ? $0 : nil }
+        // The saved selection was made under the policy of its day: it is checked again before it shows.
+        let stored = settingsManager.featuredSelection(profileID: profileID)
+            .flatMap { $0.day == seed.day ? $0 : nil }
+            .map { FeaturedSelection(day: $0.day, candidates: ContentSafetyGate.shared.filter($0.candidates)) }
         let watching = HomeHeroSlides.watchingItems(in: availableRows)
         let order = registry.sessions.map(\.identity)
         guard !featuredByServer.isEmpty else {
@@ -649,7 +657,7 @@ final class HomeViewModel {
         /// The cached home of every server, shown immediately while the servers answer.
         private func showCachedHome() {
             for services in registry.connectedServices where rowsByServer[services.identity] == nil {
-                guard let cached = (services.home as? CachedHomeService)?.cachedHome() else { continue }
+                guard let cached = (services.home as? any OfflineHomeCacheReading)?.cachedHome() else { continue }
                 rowsByServer[services.identity] = cached.rows
                 cachedOnlyServers.insert(services.identity)
             }

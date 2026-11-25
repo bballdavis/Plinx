@@ -1,5 +1,10 @@
 import SwiftUI
 
+// iOS player buttons with Plinx chrome. Core's `PlayerIconButton` and
+// `PlayPauseButton` (the round glass upstream buttons) stay available for the
+// tabletop layout; the Plinx controls use the larger rounded-square
+// `PlinxPlayerSeekButton` and `PlinxPlayPauseButton` below.
+
 private struct PlinxPlayerControlMetrics {
     let scale: CGFloat
 
@@ -12,7 +17,8 @@ private struct PlinxPlayerControlMetrics {
     var borderWidth: CGFloat { max(2, scale) }
 }
 
-struct PlayerIconButton: View {
+/// Seek and channel buttons beside play.
+struct PlinxPlayerSeekButton: View {
     let systemName: String
     var accessibilityLabel: String?
     let action: () -> Void
@@ -20,6 +26,7 @@ struct PlayerIconButton: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.isEnabled) private var isEnabled
 
     private var metrics: PlinxPlayerControlMetrics {
         PlinxPlayerControlMetrics(
@@ -38,14 +45,14 @@ struct PlayerIconButton: View {
             )
             Image(systemName: systemName)
                 .font(.system(size: metrics.seekIconSize, weight: .bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(.white.opacity(isEnabled ? 1 : 0.4))
                 .frame(width: metrics.seekButtonSize, height: metrics.seekButtonSize)
                 .background(
                     chrome.fill(Color.black.opacity(reduceTransparency ? 1 : 0.84))
                 )
                 .overlay(
                     chrome.stroke(
-                        Color.white.opacity(0.78),
+                        Color.white.opacity(isEnabled ? 0.78 : 0.3),
                         lineWidth: metrics.borderWidth
                     )
                 )
@@ -61,7 +68,7 @@ struct PlayerIconButton: View {
     }
 }
 
-struct PlayPauseButton: View {
+struct PlinxPlayPauseButton: View {
     var isPaused: Bool
     let action: () -> Void
 
@@ -182,7 +189,11 @@ extension View {
     }
 }
 
-struct PlayerSettingsButton: View {
+/// A header icon button with the shared chrome.
+private struct PlayerHeaderIconButton: View {
+    let systemName: String
+    let accessibilityLabel: String
+    var isActive = false
     let action: () -> Void
 
     @ScaledMetric(relativeTo: .headline) private var iconSize =
@@ -190,34 +201,84 @@ struct PlayerSettingsButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: "gearshape")
+            Image(systemName: systemName)
                 .font(.system(size: iconSize, weight: .semibold))
-                .playerHeaderButtonChrome()
+                .playerHeaderButtonChrome(isActive: isActive)
         }
-        .accessibilityLabel(String(localized: "settings.title"))
+        .accessibilityLabel(accessibilityLabel)
         .buttonStyle(.plain)
+    }
+}
+
+struct PlayerSettingsButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        PlayerHeaderIconButton(
+            systemName: "gearshape",
+            accessibilityLabel: String(localized: "settings.title"),
+            action: action
+        )
+        .accessibilityIdentifier("player.settings")
     }
 }
 
 struct PlayerMoreActionsButton: View {
     let action: () -> Void
 
+    var body: some View {
+        PlayerHeaderIconButton(
+            systemName: "ellipsis",
+            accessibilityLabel: String(localized: "quickActions.moreActions", table: "Plinx"),
+            action: action
+        )
+        .accessibilityIdentifier("player.moreActions")
+    }
+}
+
+struct PlayerPictureInPictureButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        PlayerHeaderIconButton(
+            systemName: "pip.enter",
+            accessibilityLabel: String(localized: "player.controls.pictureInPicture"),
+            action: action
+        )
+        .accessibilityIdentifier("player.pictureInPicture")
+    }
+}
+
+/// Audio, subtitles and their sync, in the upstream tracks menu behind a Plinx header button.
+struct PlayerTracksMenuButton: View {
+    let model: PlayerTracksMenuModel
+    let actions: PlayerTracksMenuActions
+
     @ScaledMetric(relativeTo: .headline) private var iconSize =
         PlinxPlayerControlLayout.headerIconSize
 
     var body: some View {
-        Button(action: action) {
-            Image(systemName: "ellipsis")
+        PlayerTracksMenu(model: model, actions: actions) {
+            Image(systemName: "captions.bubble")
                 .font(.system(size: iconSize, weight: .semibold))
                 .playerHeaderButtonChrome()
         }
-        .accessibilityLabel(String(localized: "quickActions.moreActions", table: "Plinx"))
-        .accessibilityIdentifier("player.moreActions")
+        .equatable()
         .buttonStyle(.plain)
+        .accessibilityLabel(Text("player.tracks.title"))
+        .accessibilityIdentifier("player.tracks")
+        .overlay(alignment: .topTrailing) {
+            if model.showsIndicator {
+                PlaybackOffsetIndicator()
+                    .offset(x: 2, y: -2)
+                    .allowsHitTesting(false)
+            }
+        }
     }
 }
 
-struct RotationLockButton: View {
+/// Touch lock: while locked, every other control hides and stops responding, and the screen keeps its orientation.
+struct ControlsLockButton: View {
     var isLocked: Bool
     let action: () -> Void
 
@@ -232,7 +293,7 @@ struct RotationLockButton: View {
                     chrome.fill(Color.brandPrimary.opacity(isLocked ? 0.24 : 0.14))
                 )
                 .overlay(
-                    chrome.stroke(Color.brandPrimary.opacity(0.42), lineWidth: 1)
+                    chrome.stroke(Color.brandPrimary.opacity(isLocked ? 0.7 : 0.42), lineWidth: 1)
                 )
                 .shadow(
                     color: Color.brandPrimary.opacity(0.1),
@@ -242,12 +303,12 @@ struct RotationLockButton: View {
                 )
         }
         .accessibilityLabel(
-            String(
-                localized: isLocked
-                    ? "player.controls.rotation.unlock"
-                    : "player.controls.rotation.lock"
-            )
+            isLocked
+                ? String(localized: "player.controls.touchLock.unlock")
+                : String(localized: "player.controls.touchLock.lock")
         )
+        .accessibilityIdentifier("player.controlsLock")
+        .accessibilityAddTraits(isLocked ? .isSelected : [])
         .buttonStyle(.plain)
     }
 }

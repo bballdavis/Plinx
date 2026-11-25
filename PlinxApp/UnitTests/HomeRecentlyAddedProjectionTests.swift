@@ -1,10 +1,33 @@
 import XCTest
 @testable import Plinx
 
+private let projectionServer = ServerIdentity(provider: .plex, id: "projection-server")
+
 final class HomeRecentlyAddedProjectionTests: XCTestCase {
-    private let movies = Library(id: "1", title: "Movies", type: .movie, sectionId: 1, agent: "movie")
-    private let shows = Library(id: "2", title: "Shows", type: .show, sectionId: 2, agent: "shows")
-    private let youtube = Library(id: "6", title: "YouTube", type: .movie, sectionId: 6, agent: "tv.plex.agents.none")
+    private let movies = Library(
+        id: "1",
+        title: "Movies",
+        type: .movie,
+        sectionId: 1,
+        agent: "movie",
+        server: projectionServer
+    )
+    private let shows = Library(
+        id: "2",
+        title: "Shows",
+        type: .series,
+        sectionId: 2,
+        agent: "shows",
+        server: projectionServer
+    )
+    private let youtube = Library(
+        id: "6",
+        title: "YouTube",
+        type: .movie,
+        sectionId: 6,
+        agent: "tv.plex.agents.none",
+        server: projectionServer
+    )
 
     func test_combinedProjection_keepsYouTubeSeparateAndLandscape() {
         let rows = HomeRecentlyAddedProjection.rows(
@@ -66,40 +89,8 @@ final class HomeRecentlyAddedProjectionTests: XCTestCase {
         LibraryCatalogResult(library: library, items: items)
     }
 
-    private func item(_ id: String, _ type: PlexItemType) -> MediaDisplayItem {
-        .playable(MediaItem(
-            id: id,
-            guid: "plex://\(id)",
-            summary: nil,
-            title: id,
-            type: type,
-            parentRatingKey: nil,
-            grandparentRatingKey: nil,
-            genres: [],
-            year: nil,
-            duration: nil,
-            videoResolution: nil,
-            rating: nil,
-            ratings: [],
-            contentRating: type == .episode ? "TV-Y" : "G",
-            studio: nil,
-            tagline: nil,
-            thumbPath: nil,
-            artPath: nil,
-            ultraBlurColors: nil,
-            viewOffset: nil,
-            viewCount: nil,
-            childCount: nil,
-            leafCount: nil,
-            viewedLeafCount: nil,
-            grandparentTitle: nil,
-            parentTitle: nil,
-            parentIndex: nil,
-            index: nil,
-            grandparentThumbPath: nil,
-            grandparentArtPath: nil,
-            parentThumbPath: nil
-        ))
+    private func item(_ id: String, _ type: MediaKind) -> MediaDisplayItem {
+        makeProjectionItem(id, type: type, contentRating: type == .episode ? "TV-Y" : "G")
     }
 }
 
@@ -173,38 +164,43 @@ final class LibraryRecommendationFallbackPolicyTests: XCTestCase {
     }
 
     private func item(_ id: String) -> MediaDisplayItem {
-        .playable(MediaItem(
-            id: id,
-            guid: "plex://\(id)",
-            summary: nil,
-            title: id,
-            type: .movie,
-            parentRatingKey: nil,
-            grandparentRatingKey: nil,
-            genres: [],
-            year: nil,
-            duration: nil,
-            videoResolution: nil,
-            rating: nil,
-            ratings: [],
-            contentRating: "G",
-            studio: nil,
-            tagline: nil,
-            thumbPath: nil,
-            artPath: nil,
-            ultraBlurColors: nil,
-            viewOffset: nil,
-            viewCount: nil,
-            childCount: nil,
-            leafCount: nil,
-            viewedLeafCount: nil,
-            grandparentTitle: nil,
-            parentTitle: nil,
-            parentIndex: nil,
-            index: nil,
-            grandparentThumbPath: nil,
-            grandparentArtPath: nil,
-            parentThumbPath: nil
-        ))
+        makeProjectionItem(id, type: .movie, contentRating: "G")
     }
+}
+
+private func makeProjectionItem(_ id: String, type: MediaKind, contentRating: String) -> MediaDisplayItem {
+    .playable(MediaItem(
+        id: id,
+        identity: MediaIdentity(server: projectionServer, itemID: id),
+        guid: "plex://\(id)",
+        summary: nil,
+        title: id,
+        type: type,
+        parentRatingKey: nil,
+        grandparentRatingKey: nil,
+        genres: [],
+        year: nil,
+        duration: nil,
+        videoResolution: nil,
+        rating: nil,
+        ratings: [],
+        contentRating: contentRating,
+        studio: nil,
+        tagline: nil,
+        thumbPath: nil,
+        artPath: nil,
+        artworkCornerColors: nil,
+        viewOffset: nil,
+        viewCount: nil,
+        childCount: nil,
+        leafCount: nil,
+        viewedLeafCount: nil,
+        grandparentTitle: nil,
+        parentTitle: nil,
+        parentIndex: nil,
+        index: nil,
+        grandparentThumbPath: nil,
+        grandparentArtPath: nil,
+        parentThumbPath: nil
+    ))
 }

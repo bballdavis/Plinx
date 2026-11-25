@@ -6,24 +6,24 @@ import CoreImage.CIFilterBuiltins
 import UIKit
 #endif
 
-#if os(tvOS)
-typealias PlinxSignInViewModel = SignInTVViewModel
-#else
-typealias PlinxSignInViewModel = SignInViewModel
-#endif
-
 // ─────────────────────────────────────────────────────────────────────────────
-// Plinx-branded sign-in view (replaces Strimr's SignInView)
+// Plinx Plex sign-in (iPhone, iPad and Apple TV)
 //
-// Strimr's original references Asset Catalog images we don't ship.
-// This replacement uses the Plinx Liquid Glass theme and Plinx brand assets.
+// The one `SignInView`: the Plex step of account setup (`AccountSetupView`).
+// It drives the platform `SignInViewModel` (PIN sign-in on plex.tv; the token
+// goes to the setup flow) with the Plinx quiet shell on iOS and the QR portal
+// on tvOS. The sample library entry stays inside the sign-in information
+// sheet on iOS.
 // ─────────────────────────────────────────────────────────────────────────────
 
 struct SignInView: View {
-    @State private var viewModel: PlinxSignInViewModel
+    @State private var viewModel: SignInViewModel
     @Environment(\.plinxTheme) private var theme
     @Environment(SessionManager.self) private var sessionManager
-    @Environment(PlexAPIContext.self) private var plexApiContext
+    #if !os(tvOS)
+    /// True when pushed by account setup; shows the onboarding back control.
+    @Environment(\.isPresented) private var isPresented
+    #endif
     @State private var isShowingSignInInfo = false
     @State private var launchDemoAfterInfo = false
     @State private var isLaunchingDemo = false
@@ -35,8 +35,14 @@ struct SignInView: View {
     @FocusState private var focusedDemoAction: Bool
     #endif
 
-    init(viewModel: PlinxSignInViewModel) {
+    init(viewModel: SignInViewModel) {
         _viewModel = State(initialValue: viewModel)
+    }
+
+    /// The sample library is offered only while no family account exists
+    /// (first launch), never when reconnecting or adding an account later.
+    private var offersSampleLibrary: Bool {
+        sessionManager.status == .needsAccount
     }
 
     var body: some View {
@@ -70,6 +76,7 @@ struct SignInView: View {
                 }
             }
         }
+        .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $isShowingSignInInfo, onDismiss: {
             guard launchDemoAfterInfo else { return }
             launchDemoAfterInfo = false
@@ -91,7 +98,10 @@ struct SignInView: View {
     /// layouts add a "What happens next" card beside the copy.
     private func quietShell(layout: PlinxOnboardingLayout) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .center) {
+            HStack(alignment: .center, spacing: 12) {
+                if isPresented {
+                    PlinxOnboardingBackButton()
+                }
                 PlinxBrandLogoView(
                     asset: .lockupOnDark,
                     accessibilityIdentifier: "signIn.logo.fullColor",
@@ -252,6 +262,42 @@ struct SignInView: View {
     }
 
     private var signInInformation: some View {
+        PlinxSignInInformationSheet(
+            isDemoDisabled: viewModel.isAuthenticating || isLaunchingDemo || !offersSampleLibrary,
+            onExploreDemo: {
+                launchDemoAfterInfo = true
+                isShowingSignInInfo = false
+            },
+            onDone: { isShowingSignInInfo = false }
+        )
+    }
+
+    #endif
+
+    private func launchDemo() {
+        guard !isLaunchingDemo else { return }
+        isLaunchingDemo = true
+        demoLaunchFailed = false
+        // Stop any pending Plex PIN poll so a late sign-in cannot race the demo.
+        viewModel.cancelSignIn()
+        Task { @MainActor in
+            await DemoFixtureBootstrap.start(sessionManager: sessionManager)
+            demoLaunchFailed = sessionManager.status != .ready
+            isLaunchingDemo = false
+        }
+    }
+}
+
+#if !os(tvOS)
+/// Login help and the clearly labeled sample-library entry, shared by the
+/// provider choice and the Plex sign-in step. Dismissing it never starts a
+/// session; choosing the sample library first dismisses the sheet.
+struct PlinxSignInInformationSheet: View {
+    let isDemoDisabled: Bool
+    let onExploreDemo: () -> Void
+    let onDone: () -> Void
+
+    var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
@@ -272,10 +318,7 @@ struct SignInView: View {
                             .fixedSize(horizontal: false, vertical: true)
                         Text("signIn.info.demo.pin", tableName: "Plinx")
                             .foregroundStyle(Color.brandSecondary)
-                        Button {
-                            launchDemoAfterInfo = true
-                            isShowingSignInInfo = false
-                        } label: {
+                        Button(action: onExploreDemo) {
                             Label {
                                 Text("signIn.button.demo", tableName: "Plinx")
                             } icon: {
@@ -285,7 +328,7 @@ struct SignInView: View {
                             .frame(minHeight: 44, alignment: .leading)
                         }
                         .buttonStyle(.plain)
-                        .disabled(viewModel.isAuthenticating || isLaunchingDemo)
+                        .disabled(isDemoDisabled)
                         .accessibilityIdentifier("signIn.demoButton")
                     }
                 }
@@ -298,9 +341,7 @@ struct SignInView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button {
-                        isShowingSignInInfo = false
-                    } label: {
+                    Button(action: onDone) {
                         Text("common.actions.done", tableName: "Plinx")
                     }
                     .accessibilityIdentifier("signIn.infoDone")
@@ -310,22 +351,8 @@ struct SignInView: View {
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
     }
-
-    #endif
-
-    private func launchDemo() {
-        guard !isLaunchingDemo else { return }
-        isLaunchingDemo = true
-        demoLaunchFailed = false
-        // Stop any pending Plex PIN poll so a late sign-in cannot race the demo.
-        viewModel.cancelSignIn()
-        Task { @MainActor in
-            await DemoFixtureBootstrap.start(sessionManager: sessionManager, context: plexApiContext)
-            demoLaunchFailed = sessionManager.status != .ready
-            isLaunchingDemo = false
-        }
-    }
 }
+#endif
 
 #if os(tvOS)
 extension SignInView {
@@ -489,7 +516,9 @@ extension SignInView {
                 .frame(minHeight: 30)
 
                 refreshCodeButton
-                demoLibraryButton
+                if offersSampleLibrary {
+                    demoLibraryButton
+                }
             }
             .padding(.top, 32)
         }

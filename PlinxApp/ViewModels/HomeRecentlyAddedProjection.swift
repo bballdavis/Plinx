@@ -1,6 +1,10 @@
 import Foundation
 
 /// Pure projection from library-keyed catalog results into Home rows.
+///
+/// Libraries can come from several servers. The Home settings store plain
+/// library ids (written before multi-server) or `LibraryIdentity.stableKey`
+/// values; both forms are honored for hiding and ordering.
 enum HomeRecentlyAddedProjection {
     enum Layout: Equatable {
         case portrait
@@ -12,8 +16,12 @@ enum HomeRecentlyAddedProjection {
         let title: String
         let sectionKey: String
         let layout: Layout
-        let libraryIDs: [String]
+        let libraries: [LibraryIdentity]
         let items: [MediaDisplayItem]
+
+        var libraryIDs: [String] {
+            libraries.map(\.libraryID)
+        }
     }
 
     static func rows(
@@ -22,14 +30,15 @@ enum HomeRecentlyAddedProjection {
         libraryOrder: [String] = [],
         combineMoviesTV: Bool
     ) -> [Row] {
-        let visible = catalogs.filter {
-            !hiddenLibraryIDs.contains($0.library.id) && !$0.items.isEmpty
+        let visible = catalogs.filter { catalog in
+            !settingKeys(for: catalog.library).contains(where: hiddenLibraryIDs.contains)
+                && !catalog.items.isEmpty
         }
         let movies = visible.filter {
             HomeLibraryGrouping.isMoviesOrTV($0.library) && $0.library.type == .movie
         }
         let television = visible.filter {
-            HomeLibraryGrouping.isMoviesOrTV($0.library) && $0.library.type == .show
+            HomeLibraryGrouping.isMoviesOrTV($0.library) && $0.library.type == .series
         }
         let other = visible.filter { HomeLibraryGrouping.isOtherVideo($0.library) }
 
@@ -53,7 +62,7 @@ enum HomeRecentlyAddedProjection {
                     title: title,
                     sectionKey: "moviesAndTV",
                     layout: .portrait,
-                    libraryIDs: (movies + television).map(\.library.id),
+                    libraries: (movies + television).map(\.library.identity),
                     items: combined
                 ))
             }
@@ -65,7 +74,7 @@ enum HomeRecentlyAddedProjection {
                     title: NSLocalizedString("home.recentlyAdded.movies", tableName: "Plinx", comment: ""),
                     sectionKey: "recentMovies",
                     layout: .portrait,
-                    libraryIDs: movies.map(\.library.id),
+                    libraries: movies.map(\.library.identity),
                     items: movieItems
                 ))
             }
@@ -77,7 +86,7 @@ enum HomeRecentlyAddedProjection {
                     title: NSLocalizedString("home.recentlyAdded.tv", tableName: "Plinx", comment: ""),
                     sectionKey: "recentTV",
                     layout: .portrait,
-                    libraryIDs: television.map(\.library.id),
+                    libraries: television.map(\.library.identity),
                     items: televisionItems
                 ))
             }
@@ -85,11 +94,11 @@ enum HomeRecentlyAddedProjection {
 
         rows.append(contentsOf: other.map { catalog in
             Row(
-                id: "recentlyadded.library.\(catalog.library.id)",
+                id: "recentlyadded.library.\(catalog.library.identity.stableKey)",
                 title: catalog.library.title,
                 sectionKey: "otherVideos",
                 layout: .landscape,
-                libraryIDs: [catalog.library.id],
+                libraries: [catalog.library.identity],
                 items: deduplicated(catalog.items)
             )
         })
@@ -102,9 +111,15 @@ enum HomeRecentlyAddedProjection {
         }.map(\.element)
     }
 
+    /// Keys a Home setting can use for `library`: the server-scoped key first,
+    /// then the plain library id stored by single-server builds.
+    static func settingKeys(for library: Library) -> [String] {
+        [library.identity.stableKey, library.id]
+    }
+
     private static func deduplicated(_ items: [MediaDisplayItem]) -> [MediaDisplayItem] {
         var seen: Set<String> = []
-        return items.filter { seen.insert($0.id).inserted }
+        return items.filter { seen.insert(HomeLibraryGrouping.itemKey($0)).inserted }
     }
 
     private static func interleave(
@@ -120,6 +135,9 @@ enum HomeRecentlyAddedProjection {
     }
 
     private static func orderIndex(for row: Row, order: [String]) -> Int {
-        row.libraryIDs.compactMap { order.firstIndex(of: $0) }.min() ?? .max
+        row.libraries
+            .flatMap { [$0.stableKey, $0.libraryID] }
+            .compactMap { order.firstIndex(of: $0) }
+            .min() ?? .max
     }
 }

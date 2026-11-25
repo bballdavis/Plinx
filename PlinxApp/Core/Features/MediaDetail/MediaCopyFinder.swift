@@ -144,6 +144,7 @@ struct MediaCopyDetails: Hashable {
     }
 
     /// The copy's library, otherwise its quality, otherwise its title.
+    @MainActor
     func title(for media: MediaItem, libraryStore: LibraryStore) -> String {
         libraryTitle(for: media, libraryStore: libraryStore)
             ?? qualityLabel
@@ -152,12 +153,14 @@ struct MediaCopyDetails: Hashable {
     }
 
     /// Quality and bitrate under a library title; nothing more when the title already is the quality.
+    @MainActor
     func subtitle(for media: MediaItem, libraryStore: LibraryStore) -> String? {
         guard libraryTitle(for: media, libraryStore: libraryStore) != nil else { return bitrateText }
         let parts = [qualityLabel ?? media.playbackResolutionLabel, bitrateText].compactMap(\.self)
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
+    @MainActor
     func libraryTitle(for media: MediaItem, libraryStore: LibraryStore) -> String? {
         if let title = media.librarySectionTitle {
             return title

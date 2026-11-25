@@ -49,28 +49,11 @@ public enum PlinxRating: String, CaseIterable, Comparable, Sendable {
         allCases.filter(\.isMovieRating)
     }
 
-    /// Parses Plex/content-rating text into a known `PlinxRating`.
-    /// Normalizes casing/spacing and accepts common TV aliases.
+    /// Parses Plex `contentRating` / Jellyfin `OfficialRating` text into a known `PlinxRating`.
+    /// Returns `nil` for anything `ContentRatingNormalizer` does not classify as a recognized US
+    /// rating, including adult-only ratings; use `ContentRatingNormalizer.classify` to tell those apart.
     public static func from(contentRating raw: String?) -> PlinxRating? {
-        guard let raw else { return nil }
-        let normalized = raw
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .uppercased()
-            .replacingOccurrences(of: "_", with: "-")
-            .replacingOccurrences(of: " ", with: "")
-
-        switch normalized {
-        case "TVY", "TV-Y":   return .tvY
-        case "TVY7", "TV-Y7": return .tvY7
-        case "TVG", "TV-G":   return .tvG
-        case "TVPG", "TV-PG": return .tvPg
-        case "TV14", "TV-14": return .tv14
-        case "TVMA", "TV-MA": return .tvMa
-        case "G":             return .g
-        case "PG":            return .pg
-        case "PG13", "PG-13": return .pg13
-        case "R":             return .r
-        default: return nil
-        }
+        guard case let .rated(rating) = ContentRatingNormalizer.classify(raw) else { return nil }
+        return rating
     }
 }

@@ -82,13 +82,13 @@ enum PlinxTVShellLeadingIdentity: Equatable {
         }
 
         switch activeTab {
-        case .home:
+        case .home, .favorites, .liveTV:
             return .brand
         case .library, .libraryDetail:
             return .title(libraryTitle ?? "tabs.library".plinxLocalized)
         case .search:
             return .title("tabs.search".plinxLocalized)
-        case .more:
+        case .more, .downloads:
             return .title("tabs.downloads".plinxLocalized)
         case .seerrDiscover:
             return .title("youtarr.explore.title".plinxLocalized)

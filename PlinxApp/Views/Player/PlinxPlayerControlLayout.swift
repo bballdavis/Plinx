@@ -20,7 +20,7 @@ enum PlinxPlayerControlLayout {
     struct ChromeInsets: Equatable {
         let horizontal: CGFloat
         let vertical: CGFloat
-        /// Clear space between the auxiliary row (rotation lock, badges, skip
+        /// Clear space between the auxiliary row (touch lock, badges, skip
         /// button) and the top of the timeline hump at its highest point.
         let bottomSpacing: CGFloat
 

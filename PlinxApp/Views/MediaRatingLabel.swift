@@ -1,19 +1,16 @@
 import SwiftUI
 
-/// Renders Strimr's rating model with Plinx-owned artwork.
+/// Renders the absorbed rating model with Plinx-owned artwork.
 ///
-/// Keeping this adapter in the app target avoids importing Strimr's full asset
-/// catalogs, which would leak upstream branding into the Plinx bundle.
+/// The rating logos live in the Plinx asset catalog under `rating.*` names, so
+/// no upstream branding assets are bundled.
 struct MediaRatingLabel: View {
     let rating: MediaRating
     var iconHeight: CGFloat = 18
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(assetName)
-                .resizable()
-                .scaledToFit()
-                .frame(height: iconHeight)
+            icon
 
             Text(verbatim: rating.formattedValue)
                 .fontWeight(.medium)
@@ -22,16 +19,28 @@ struct MediaRatingLabel: View {
         .accessibilityLabel(Text(verbatim: rating.accessibilityLabel))
     }
 
-    private var assetName: String {
+    @ViewBuilder
+    private var icon: some View {
         switch rating.source {
         case .imdb:
-            "rating.imdb"
-        case .rottenTomatoesCritic:
-            "rating.rt"
+            asset("rating.imdb")
+        case .rottenTomatoesCritic, .jellyfinCritics:
+            asset("rating.rt")
         case .rottenTomatoesAudience:
-            "rating.rt.audience"
+            asset("rating.rt.audience")
         case .tmdb:
-            "rating.tmdb"
+            asset("rating.tmdb")
+        case .jellyfinCommunity:
+            Image(systemName: "star.fill")
+                .foregroundStyle(.yellow)
+                .font(.system(size: iconHeight))
         }
+    }
+
+    private func asset(_ name: String) -> some View {
+        Image(name)
+            .resizable()
+            .scaledToFit()
+            .frame(height: iconHeight)
     }
 }

@@ -28,7 +28,13 @@ When screenshots, old notes, or memory conflict with code, the code-backed sourc
 - `PlinxApp/App/AppearanceSetup.swift`
 - `PlinxApp/Views/Common/PlinxBrandLogoView.swift`
 - `PlinxApp/Views/Common/PlinxBrandedLoadingView.swift`
+- `PlinxApp/Core/Features/Auth/ProviderSelection/ProviderSelectionView.swift`
 - `PlinxApp/Views/Auth/SignInView.swift`
+- `PlinxApp/Views/Auth/PlinxOnboardingChrome.swift`
+- `PlinxApp/Views/Auth/ProfileSwitcherView.swift` and
+  `ProfileSwitcherView+tvOS.swift`
+- `PlinxApp/Views/Player/PlinxPlayerControlsView.swift`
+- `PlinxApp/Views/Player/PlinxPlayerTimelineView.swift`
 - `PlinxApp/Views/ParentalGateView.swift`
 - `PlinxApp/Views/RootTabView.swift`
 - `PlinxApp/Views/KidsMainTabPicker.swift`
@@ -589,14 +595,16 @@ Current canonical springs:
 
 ## Media-detail actions
 
-Play, Watch, and Download use `PlinxMediaDetailActionStyle`: a continuous
-rounded rectangle with a translucent material base, light accent fill, and
-solid accent border. Play is the wide, 70-point primary action; Restart uses a
-matching 70-by-70-point rounded square. On iPhone and iPad, Watch and Download
-use 64-by-64-point secondary controls so they are easier for children to
-target. The treatment uses Plinx's user-selected accent. Secondary controls
-use large, plain SF Symbols rather than circle-contained glyphs: a checkmark
-for Watch and a downward arrow for Download.
+On iPhone and iPad, media details use the absorbed detail screen
+(`Platform/iOS/MediaDetail`) inside the Plinx back control. Play is the wide
+primary action. The secondary row offers Watched, Favorite when the server
+supports favorites, and Download. Its More menu holds Play from Start,
+Watchlist when supported, Mark Unwatched, Shuffle, file information, and the
+choice between copies of a title on several servers. SharePlay appears there
+only when the SharePlay presentation policy is enabled. Add to Playlist and the
+Manage menu appear only while the parental gate is unlocked. The earlier
+Plinx-only action style (`PlinxMediaDetailActionStyle`) was retired with the
+absorption.
 
 On Apple TV, More Info is a scrollable detail page rather than a compact Home
 hero. Supportive trailing backdrop artwork fades into a readable leading detail
@@ -607,14 +615,18 @@ local Back control sits below the persistent shell chrome; Back is the first
 focus target and Up returns to shell navigation. Resume/Play flexes beside
 icon-only Restart, when available, and watched-state actions in one consistent-
 height row; SharePlay, when enabled, follows as a full-width secondary action.
-Season,
-episode, cast, and related rows continue below the detail column in the same
-scrolling page, with one useful season empty state when no seasons are present.
+Season, episode, cast, extras, and related rows continue below the detail
+column in the same scrolling page, with one useful season empty state when no
+seasons are present.
 
-Watchlist and Shuffle are intentionally hidden from Plinx media details on iOS,
-iPadOS, and tvOS. The rows are not exposed through Strimr's public view API, so
-this is a deliberately narrow paired-source exception rather than a generic
-upstream behavior change. Ratings and metadata remain upstream-owned.
+The tvOS action row offers Play, Restart when available, Watched, and
+**Favorite** when the server supports favorites. Kids can favorite titles; it
+is a harmless account write. Below the detail column, an **Extras** row shows
+the server's trailers and clips, which play in the Plinx player and pass the
+same content checks as any other title. The tvOS detail page has no Manage
+menu, file information, playlist editing, or track pickers.
+
+Watchlist and Shuffle are not offered on the tvOS detail page.
 
 ## Playful animation settings
 
@@ -801,28 +813,43 @@ policy does not allow, omit it.
 
 ## Sign-in
 
-On iPhone and iPad, sign-in, profile selection, and server selection use the
-quiet onboarding shell: dark ambient background, compact on-dark lockup,
-left-aligned headline, step indicator, and shared glass actions. This ports the
-onboarding design from the visual-refresh branch while keeping dev's current
-session-access revocation behavior. Broader page/Downloads chrome and iCloud
-changes from that branch remain separate integration work.
+On iPhone and iPad, provider choice, sign-in, profile selection, and server
+selection use the quiet onboarding shell: dark ambient background, compact
+on-dark lockup, left-aligned headline, step indicator, and shared glass
+actions.
+
+The flow starts with **provider choice** (`ProviderSelectionView`): a
+"grown-up" eyebrow, the headline "Connect your family's videos", **Continue
+with Plex** as the one primary action, and a secondary Jellyfin action. At
+first launch it also carries the Sign-in information control that offers the
+sample library. Choosing Plex opens the Plex sign-in screen; choosing Jellyfin
+opens the Jellyfin server and user form. When a parent adds a connection from
+Settings or the profile picker, the same screen shows a cancel control and no
+sample library. On Apple TV, provider choice shows two large focusable cards,
+Plex first, with the shared focus treatment.
 
 - Use a 132-point lockup and 40-point headline on compact layouts; use a
   176-point lockup and 58-point headline on expanded layouts.
-- Keep Continue with Plex as the one primary action. Larger iPad layouts may
-  place the existing What happens next summary beside or below the copy.
+- Keep Continue with Plex as the one primary action on the Plex sign-in
+  screen. Larger iPad layouts may place the existing What happens next summary
+  beside or below the copy. When sign-in is pushed from provider choice, it
+  hides the navigation bar and shows the onboarding back control.
+- Offer the sample library only while no account exists (first launch), never
+  when reconnecting or adding an account later.
 - Place the 44-point minimum **Sign-in information** control at the top right
   of the What happens next card on expanded layouts. Compact layouts keep it
   beside the plex.tv sign-in footnote, using a smaller icon with the same
-  44-point tap target. Its native, scrollable sheet
+  44-point tap target. On provider choice it sits beside the help footnote
+  under the provider actions. Its native, scrollable sheet
   explains Plex login and offers the
   clearly labeled **Explore the Demo Library** text action. Keep sample access
   inside this sheet rather than adding a competing large button to sign-in.
 - Give the help sheet a Done action and support ordinary swipe dismissal.
   Dismissing it must not start a session. Selecting the demo first dismisses
   the sheet, then starts the sample session.
-- Preserve the existing QR-based tvOS sign-in composition.
+- Preserve the existing QR-based tvOS sign-in composition. At first launch
+  the tvOS Plex sign-in screen adds a quiet, focusable Explore the Demo Library
+  action below the code.
 
 ## Parental gate
 
@@ -934,7 +961,21 @@ insets and vertical safe areas remain protected.
 Chrome spacing follows the live container dimensions when opening, closing,
 or rotating the device, with tighter vertical spacing in short landscape windows.
 
-In landscape, a Fit/Fill icon button sits immediately before Settings in the
+The iPhone and iPad player header holds, in order: Back, the title, the sleep
+timer badge while a timer runs, then Picture in Picture, Tracks, Fit/Fill,
+More Actions, and Settings.
+
+- **Tracks** opens the audio and subtitle menu; it is the only route to track
+  choices. Subtitle search appears in it only while the parental gate is
+  unlocked.
+- **Sleep timer:** the badge shows the time left and opens Settings.
+- **Picture in Picture** appears only when a parent has enabled it, and only
+  in landscape or on wider screens: a phone's portrait width holds Back plus
+  four header buttons.
+- **More Actions** acts on the item currently on screen, including after
+  autoplay advances.
+
+In landscape, a Fit/Fill icon button sits between Tracks and More Actions in the
 player header and uses the same 63-point glass control size. Fit is the default;
 Fill preserves the video's proportions while cropping its edges to cover the
 display. The choice lasts for the current player session, including queue and
@@ -943,15 +984,19 @@ Fit and hides the button; returning to landscape restores the session's choice.
 Only the video render layer changes: controls and separately rendered subtitles
 retain their normal layout. Downloaded playback uses the same control.
 
-Every iPhone and iPad player header button (Back, Fit/Fill, More Actions, and
-Settings) uses the Back button's thin-material glass, accent stroke, and
-shadow, so all of them read at the same opacity over video. An active Fit/Fill
-state strengthens only the stroke.
+Every iPhone and iPad player header button (Back, Picture in Picture, Tracks,
+Fit/Fill, More Actions, and Settings) uses the Back button's thin-material
+glass, accent stroke, and shadow, so all of them read at the same opacity over
+video. An active Fit/Fill state strengthens only the stroke.
 
 The touch timeline keeps its 64-point touch target, but its track sits near the
 bottom of that target, directly above the elapsed and remaining time labels.
-The rotation lock row sits in the empty space above the timeline hump, a few
-points above the hump's highest point. The hump is centered on the playback
+The auxiliary row sits in the empty space above the timeline hump, a few
+points above the hump's highest point. It holds the touch lock on the leading
+side and the skip-intro or skip-credits action and status badges on the
+trailing side. The touch lock replaces the earlier rotation lock: while locked,
+every control except the lock itself is hidden in place, so a child cannot
+pause, seek, or leave by accident. The hump is centered on the playback
 position: its peak is the current time, the played color stops at the peak, and
 at the start or end of a video the hump extends past the track's end instead of
 being cut in half.
@@ -1032,6 +1077,16 @@ Rules:
   Retry all retain dark Plinx surfaces with readable white content and the
   shared focus ring.
 
+Gating (`PlinxProfileSwitchRules`):
+
+- Continuing as the last active profile opens without the parental gate.
+- Choosing a different profile, Manage profiles, adding a connection, and
+  Log Out ask for the parental gate first, unless Settings already unlocked
+  it. The gate relocks after the action.
+- Log Out removes every account (Plex and Jellyfin) and asks for confirmation.
+- The profile choice inside first-time account setup is a grown-up step and is
+  not gated again.
+
 ## Player controls
 
 The iPhone, iPad, and Apple TV timeline uses a raised white circular crown with
@@ -1061,6 +1116,24 @@ the interaction finishes. The buffer remains anchored to actual playback,
 not the preview. Unknown or invalid duration disables seeking. The timeline
 is one accessible adjustable playback-position control; decorative shapes
 and duplicate labels stay out of accessibility navigation.
+
+The timeline also carries the media's structure, each part controlled by a
+player setting:
+
+- **Chapters** are cut as small gaps in the track. No gap is cut under the
+  hump, too close to either end, or too close to another gap.
+- **Skip segments** (intro, credits) are drawn as brand-tinted spans along the
+  track.
+- **Scrub preview:** while scrubbing, a preview frame and the chapter title
+  float above the timeline when the server provides thumbnails.
+- **End time:** the clock time the video will finish can replace the
+  remaining-time label.
+
+On Apple TV, directional presses still commit 0.4 seconds after the last move.
+Swipes on the Siri Remote touch surface scrub as well; a swipe that does not
+scrub is passed on to the controls. Back during a scrub cancels it and returns
+to the playing position, and leaving the timeline cancels an uncommitted
+scrub.
 
 On tvOS, transport, jump, Skip Intro/Ending, audio, subtitle, and track-choice
 controls use app-owned dark rounded surfaces. Live focus adds the shared

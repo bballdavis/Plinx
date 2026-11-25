@@ -84,6 +84,11 @@ struct PlayerView: View {
     @State private var doubleTapSeek = DoubleTapSeek()
     @State private var tapAreaWidth = 0.0
     @State private var showsPlaybackStatistics = false
+    /// Plinx draws its own branded buffering indicator above the player and turns this one off.
+    private let showsBufferingOverlay: Bool
+    /// Final playback check (kid safety): every item is checked right before it loads, including next
+    /// episodes, queue picks and SharePlay hand-offs. A refusal stops playback and closes the player.
+    private let isPlaybackAuthorized: @MainActor (MediaItem) -> Bool
 
     private let controlsHideDelay: TimeInterval = 3.0
     private var seekBackwardInterval: Double {
@@ -98,8 +103,14 @@ struct PlayerView: View {
         Double(settingsManager.playback.seekForwardSeconds)
     }
 
-    init(viewModel: PlayerViewModel) {
+    init(
+        viewModel: PlayerViewModel,
+        showsBufferingOverlay: Bool = true,
+        isPlaybackAuthorized: @escaping @MainActor (MediaItem) -> Bool = { ContentSafetyGate.shared.isAllowed($0) },
+    ) {
         _viewModel = State(initialValue: viewModel)
+        self.showsBufferingOverlay = showsBufferingOverlay
+        self.isPlaybackAuthorized = isPlaybackAuthorized
     }
 
     var body: some View {
@@ -149,6 +160,7 @@ struct PlayerView: View {
                         preparePlaybackForBackground()
                     }
                     playerController.setPictureInPictureEnabled(settingsManager.playback.pictureInPicture)
+                    applyMaximumVolume()
                     didConsiderAutomaticRotation = false
                     rotateAutomaticallyIfNeeded()
                     configureSleepTimer()
@@ -268,6 +280,9 @@ struct PlayerView: View {
                 .onChange(of: isStreamingServerUnreachable) { _, isUnreachable in
                     guard isUnreachable else { return }
                     handleStreamingServerLost()
+                }
+                .onChange(of: settingsManager.playback.maxVolumePercent) { _, _ in
+                    applyMaximumVolume()
                 },
         )
 
@@ -546,7 +561,7 @@ struct PlayerView: View {
                     }
                 }
 
-            if viewModel.isBuffering || isRecoveringServerAccess {
+            if showsBufferingOverlay, viewModel.isBuffering || isRecoveringServerAccess {
                 bufferingOverlay
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }
@@ -676,6 +691,7 @@ struct PlayerView: View {
             onPreviousChannel: { switchLiveChannel(by: -1) },
             onNextChannel: { switchLiveChannel(by: 1) },
             sleepTimer: sleepTimer,
+            onTitleInteractionChanged: handleTitleInteractionChanged,
         )
     }
 
@@ -790,7 +806,7 @@ struct PlayerView: View {
                     }
                 }
 
-            if viewModel.isBuffering || isRecoveringServerAccess {
+            if showsBufferingOverlay, viewModel.isBuffering || isRecoveringServerAccess {
                 bufferingOverlay
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }
@@ -1656,6 +1672,11 @@ struct PlayerView: View {
         shouldResumeAfterLoad: Bool = false,
         shouldPauseAfterLoad: Bool = false,
     ) {
+        // Every load passes here, so this is the player's last word on what may play. No media means no playback.
+        guard let media = viewModel.media, isPlaybackAuthorized(media) else {
+            refuseUnauthorizedPlayback()
+            return
+        }
         activePlaybackURL = url
         if resetTrackSelection {
             appliedPreferredAudio = false
@@ -1957,7 +1978,8 @@ struct PlayerView: View {
         }
 
         switch media.type {
-        case .movie:
+        // Plinx plays clips (Other Videos libraries, playlists of clips) like movies, continuing their queue.
+        case .movie, .clip:
             Task {
                 await handleMovieCompletion(stopsForSleepTimer: stopsForSleepTimer)
             }
@@ -2017,11 +2039,42 @@ struct PlayerView: View {
     }
 
     private func startPlayback(using nextViewModel: PlayerViewModel) async {
+        // Queue items carry their media up front: refuse before the server prepares a stream for it.
+        let isAuthorized = await MainActor.run {
+            guard let media = nextViewModel.media else { return false }
+            return isPlaybackAuthorized(media)
+        }
+        guard isAuthorized else {
+            await MainActor.run { refuseUnauthorizedPlayback() }
+            return
+        }
         await MainActor.run {
             activePlaybackURL = nil
             viewModel = nextViewModel
         }
         await viewModel.load()
+    }
+
+    private func refuseUnauthorizedPlayback() {
+        nextEpisodePresentation.cancel()
+        playerController.stop()
+        if sharePlayCoordinator.isInSession {
+            sharePlayCoordinator.leave()
+        }
+        dismissPlayer(force: true)
+    }
+
+    private func applyMaximumVolume() {
+        playerController.setMaximumVolume(settingsManager.playback.maximumVolume)
+    }
+
+    /// The title stays interactive (marquee, long press) while touched, so the controls must not hide under it.
+    private func handleTitleInteractionChanged(_ isInteracting: Bool) {
+        if isInteracting {
+            hideControlsWorkItem?.cancel()
+        } else if controlsVisible, !isScrubbing {
+            scheduleControlsHide()
+        }
     }
 
     private func startPlayback(for activity: StrimrWatchActivity) async {

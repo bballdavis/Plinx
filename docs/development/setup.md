@@ -1,12 +1,14 @@
 # Development Setup
 
-This guide covers local development, project generation, and the sibling dependency layout that Plinx expects.
+This guide covers local development and project generation. A single clone of
+this repository is the whole source tree.
 
 ## Prerequisites
 
 - macOS 14 or later
-- The release Xcode version recorded in `.xcode-version` (newer local Xcode
-  versions require their own compatibility check)
+- The Xcode version in `PlinxApp/project.yml` (`options.xcodeVersion`; the
+  [current dependencies](../maintenance/current-dependencies.mdx) page shows
+  it). Newer local Xcode versions need their own compatibility check.
 - Homebrew
 
 ## Initial Setup
@@ -18,33 +20,23 @@ This guide covers local development, project generation, and the sibling depende
    cd Plinx
    ```
 
-2. Clone sibling dependencies:
+   The media, provider, session, and player code Plinx absorbed from Strimr is
+   in `PlinxApp/Core` and `PlinxApp/Platform`. No sibling checkout is needed.
+   Swift Package Manager resolves AetherEngine, GRDB, and SwiftAssRenderer at
+   the exact pins in `PlinxApp/project.yml` the first time Xcode opens the
+   project.
+
+2. Optional, for upstream feature reviews only: add the original Strimr project
+   as a fetch-only remote. Nothing in the build reads it.
 
    ```bash
-   cd ..
-   git clone https://github.com/bballdavis/strimr.git
-   git -C strimr remote add upstream https://github.com/wunax/strimr.git
-   git -C strimr config remote.pushDefault origin
-   git -C strimr fetch origin
-   git -C strimr fetch upstream
-   cd Plinx
-   source config/release-dependencies.env
-   git -C ../strimr switch --track "origin/$STRIMR_BRANCH"
-   ./scripts/verify_strimr_integration_contract.sh --full
+   git remote add upstream https://github.com/wunax/strimr.git
+   git remote set-url --push upstream DISABLED
+   git fetch upstream
    ```
 
-   `origin` is your writable fork; `upstream` is the original Strimr project.
-   Fetching upstream makes comparison possible without updating the paired pin.
-   If the local branch already exists, use `git -C ../strimr switch
-   "$STRIMR_BRANCH"` instead. A branch head that differs from the exact pin
-   needs deliberate pairing work; do not pull a newer engine into a build.
-
-   Create the other local tracking branch when needed with
-   `git -C ../strimr branch --track dev-plinx origin/dev-plinx` or
-   `git -C ../strimr branch --track plinx-patches origin/plinx-patches`.
-   The canonical development/stable branch roles are described in
-   [branch pairing](branch-pairing.md), but the checked-out Plinx configuration
-   always decides the branch and commit for verification.
+   See [upstream Strimr provenance](../maintenance/upstream-strimr.md) for how
+   to review and port upstream changes.
 
 3. Install XcodeGen:
 
@@ -114,7 +106,7 @@ xcodebuild build \
 
 The pinned LibDovi simulator binary supplies arm64. An unrestricted generic
 build can also request x86_64 and fail at link time; that is not a reason to
-change the Strimr or AetherEngine pins. A runtime is still needed for Apple TV
+change the AetherEngine pin. A runtime is still needed for Apple TV
 interaction tests, and simulator builds do not verify distribution signing.
 
 ## Project Generation Rules
@@ -159,10 +151,11 @@ links, theme, generated dependency status, or deployment configuration.
 
 ### Missing package or source errors
 
-- Verify the sibling `../strimr` directory exists and is on the expected paired branch.
-- Resolve packages after changing the pinned AetherEngine revision.
-- Verify the Strimr checkout is on the expected paired branch.
-- Regenerate the Xcode project after dependency or target changes.
+- Resolve packages (File > Packages > Resolve Package Versions) after a Swift
+  package pin changes in `PlinxApp/project.yml`.
+- Regenerate the Xcode project after dependency, target, or source-folder
+  changes. A file added under `PlinxApp/Core` or `PlinxApp/Platform` is not
+  compiled until the project is regenerated.
 
 ### XcodeGen not found
 
@@ -177,4 +170,6 @@ brew install xcodegen
 
 ### Behavior mismatch after a build change
 
-Remember that the app target compiles sibling `../strimr` sources directly. A runtime change may live in Strimr even if the local wrapper package looks correct.
+Shared behavior usually lives in `PlinxApp/Core`, and platform screens in
+`PlinxApp/Platform`. Check there before assuming a Plinx view is at fault. The
+[codebase architecture](../architecture/strimr-integration.md) maps each layer.

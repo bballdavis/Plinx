@@ -1,5 +1,4 @@
 import Foundation
-import PlinxCore
 
 struct LibraryCatalogResult: Equatable {
     let library: Library
@@ -8,90 +7,90 @@ struct LibraryCatalogResult: Equatable {
 
 @MainActor
 protocol LibraryCatalogLoading {
-    func recentItems(
-        for library: Library,
-        limit: Int,
-        policy: SafetyPolicy
-    ) async throws -> LibraryCatalogResult
+    func recentItems(for library: Library, limit: Int) async throws -> LibraryCatalogResult
 }
 
+/// The most recently added titles of one library, newest first.
+///
+/// Reads through the library's `MediaServices`, so `SafeMediaServices` has
+/// already dropped every title the parent's policy blocks. The gate is asked
+/// again here because these titles are shown to children as they are.
 @MainActor
 final class LibraryCatalogLoader: LibraryCatalogLoading {
-    private let context: PlexAPIContext
+    private let services: MediaServices
+    private let gate: ContentSafetyGate
 
-    init(context: PlexAPIContext) {
-        self.context = context
+    init(services: MediaServices, gate: ContentSafetyGate = .shared) {
+        self.services = services
+        self.gate = gate
     }
 
-    func recentItems(
-        for library: Library,
-        limit: Int,
-        policy: SafetyPolicy
-    ) async throws -> LibraryCatalogResult {
-        guard let sectionID = library.sectionId else {
-            return LibraryCatalogResult(library: library, items: [])
+    func recentItems(for library: Library, limit: Int) async throws -> LibraryCatalogResult {
+        let candidates = try await newestItems(in: library, limit: max(limit, 1))
+        var seen: Set<String> = []
+        let items = candidates.filter { item in
+            guard item.playableItem != nil else { return false }
+            guard seen.insert(item.id).inserted else { return false }
+            return gate.isAllowed(item)
+        }
+        return LibraryCatalogResult(library: library, items: Array(items.prefix(limit)))
+    }
+
+    private func newestItems(in library: Library, limit: Int) async throws -> [MediaDisplayItem] {
+        if let advanced = services.library as? any PlexAdvancedLibraryService,
+           let browsePath = library.plexBrowsePath
+        {
+            // Titles only: collections are not recently added media.
+            var queryItems = [
+                URLQueryItem(name: "sort", value: "addedAt:desc"),
+                URLQueryItem(name: "includeCollections", value: "0"),
+            ]
+            if let type = plexTypeQuery(for: library) {
+                queryItems.append(URLQueryItem(name: "type", value: type))
+            }
+            let page = try await advanced.advancedBrowse(
+                path: browsePath,
+                queryItems: queryItems,
+                startIndex: 0,
+                limit: limit,
+            )
+            return page.items.compactMap { item -> MediaDisplayItem? in
+                guard case let .media(media) = item else { return nil }
+                return media
+            }
         }
 
-        let repository = try SectionRepository(context: context)
-        let response = try await repository.getSectionsItems(
-            sectionId: sectionID,
-            params: SectionRepository.SectionItemsParams(
-                sort: "addedAt:desc",
+        if let browse = services.library as? any AdvancedLibraryBrowseService {
+            var query = LibraryBrowseQuery()
+            query.sort = .dateAdded
+            query.sortDirection = .descending
+            return try await browse.browseItems(
+                in: library,
+                parentID: nil,
+                query: query,
+                startIndex: 0,
                 limit: limit,
-                includeMeta: false,
-                includeCollections: false,
-                type: itemTypeQuery(for: library)
-            ),
-            pagination: PlexPagination(start: 0, size: limit)
-        )
+            ).items
+        }
 
-        var seen: Set<String> = []
-        let items = (response.mediaContainer.metadata ?? [])
-            .compactMap(MediaDisplayItem.init(plexItem:))
-            .filter { item in
-                guard item.type != .collection else { return false }
-                guard seen.insert(item.id).inserted else { return false }
-                return PlinxContentAuthorization.isAllowed(item, policy: policy)
-            }
-
-        return LibraryCatalogResult(library: library, items: items)
+        // Providers without a sortable listing: their own order.
+        return try await services.library.items(in: library, parentID: nil, startIndex: 0, limit: limit).items
     }
 
-    private func itemTypeQuery(for library: Library) -> String? {
+    /// None-agent libraries (YouTube, Home Videos) mix item types, so they are not narrowed.
+    private func plexTypeQuery(for library: Library) -> String? {
         if library.isNoneAgentLibrary { return nil }
+        if library.isShared { return PlexSharedLibrary.videoTypes }
         switch library.type {
         case .movie: return "1"
-        case .show: return "2"
+        case .series: return "2"
         default: return nil
         }
     }
 }
 
-enum PlinxContentAuthorization {
-    static func isAllowed(_ item: MediaItem, policy: SafetyPolicy) -> Bool {
-        StrimrAdapter.isAllowed(item, policy: policy)
-    }
-
-    static func isAllowed(_ item: MediaDisplayItem, policy: SafetyPolicy) -> Bool {
-        StrimrAdapter.isAllowed(item, policy: policy)
-    }
-
-    static func isAllowed(_ item: PlayableMediaItem, policy: SafetyPolicy) -> Bool {
-        StrimrAdapter.isAllowed(item, policy: policy)
-    }
-
-    static func isAllowed(_ item: PlexItem, policy: SafetyPolicy) -> Bool {
-        StrimrAdapter.isAllowed(item, policy: policy)
-    }
-
-    static func filtered(_ hub: Hub, policy: SafetyPolicy) -> Hub? {
-        StrimrAdapter.filtered(hub, policy: policy)
-    }
-
-    static func filteredItems(
-        _ items: [MediaDisplayItem],
-        policy: SafetyPolicy
-    ) -> [MediaDisplayItem] {
-        StrimrAdapter.filteredItems(items, policy: policy)
-    }
-}
+/// Former name of `PlinxContentRules`, kept only so callers outside the
+/// library screens keep compiling while they move to `ContentSafetyGate.shared`
+/// (provider data) or `PlinxContentRules` (an explicit, captured policy).
+/// Delete it once nothing refers to it.
+typealias PlinxContentAuthorization = PlinxContentRules

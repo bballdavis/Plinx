@@ -1,8 +1,81 @@
 # Strimr Hard-Fork Plan
 
-Decision date: 2026-11-23. This is a plan. Nothing described here has landed
-yet. The paired sibling checkout, `config/release-dependencies.env`, and the
-rules in `AGENTS.md` stay in force until the fork-day change replaces them.
+Decision date: 2026-11-23. Phases P0 to P3 are done on the
+`feat/strimr-hard-fork` branch; see [Status](#status). The pairing machinery is
+gone, `AGENTS.md` carries the fork rules, and the
+[upstream provenance page](upstream-strimr.md) records the absorbed base and
+how each downstream patch was settled. The rest of this page is the plan as
+decided, kept for its reasoning; where the branch differs, the status notes
+say so.
+
+## Status
+
+Status as of 2026-11-24, on `feat/strimr-hard-fork`.
+
+**Done:**
+
+- **P0, decisions.** D1 to D9 as recommended. D10 changed: the absorbed code
+  lives in `PlinxApp/Core` and `PlinxApp/Platform/<platform>` instead of a
+  `Strimr/` subtree, and upstream changes are ported by hand rather than
+  cherry-picked with `-X subtree`. `config/release-dependencies.env` keeps
+  only `STRIMR_FORK_BASE`; the package pins live in `PlinxApp/project.yml`.
+- **P1, fork day.** Strimr upstream `0235d27` imported and absorbed. macOS,
+  the Top Shelf extension, Trakt and Simkl, Sentry and the Strimr app shells
+  are deleted. External players are disabled, and Live TV is replaced by a
+  service that is never available. The sibling checkout, pin, seam verifier,
+  Strimr runners and CI clone steps are removed, and `branch-pairing.md` is
+  deleted.
+- **P2, safety boundary.** `ContentSafetyGate` and `SafeMediaServices` in
+  `PlinxApp/Core/Safety`, wrapped in `MediaServices.init`, with
+  `reviewedRequirements` and the `SafeMediaServicesTests` conformance test.
+  `ContentRatingNormalizer` in `PlinxCore` (adult-only ratings always
+  rejected). The six `Safe*ViewModel` decorators and `StrimrAdapter` are
+  deleted; `PlinxContentRules` keeps the same rules for callers with an
+  explicit policy. Launcher and player-load authorization cover every queue
+  member.
+- **P3, one implementation per concept.** The Plinx timeline (with chapters,
+  skip segments, scrub preview, end time and tvOS swipe scrub), iOS player
+  controls, tvOS player buttons and track selection, the launcher, sign-in,
+  server and profile selection, root tabs, backdrop gradient, rating label
+  and downloads settings each have one implementation. The Plinx screens run
+  on the upstream view models, and the downstream patches are rebuilt in
+  place (see [upstream provenance](upstream-strimr.md)).
+- **Also landed early:** Jellyfin provider choice at onboarding (P4),
+  account and server management in parent settings (P6), and from the shrink
+  review: the offline-session coordinator and `DownloadOwnershipStore`
+  retired in favor of upstream's offline system and `ownerID`, the Top Shelf
+  session export removed, the sample library running through the real
+  session stores and boundary, and `TvHeroIdentityView` deleted.
+
+**What remains:**
+
+- **Verification of P1 to P3.** Both app targets must build, and the unit,
+  UI and focus tests must pass, including `SafeMediaServicesTests`. Archive
+  validation must show no Sentry, Trakt or Simkl strings. Live parity tests
+  must pass on Plex.
+- **Tests.** Delete the pairing-era `StrimrUpgradeSeamTests` and
+  `OfflineSessionAccessTests`, rewrite the tests listed for the test stage
+  (offline playback, demo fixtures, quick actions, download integrity, parity
+  tests), add
+  `DownloadOwnershipMigrationTests`, and give `PlinxApp/CoreTests` a test
+  target; it is not wired into any target yet.
+- **Seerr protocol (P2) and kid flow (P5).** There is no `SeerrCatalogService`
+  yet, so Seerr stays off for kids. Seerr and Youtarr Explore share one
+  navigation path today; give them separate paths before Seerr is enabled.
+- **Jellyfin (P4).** End-to-end kid flow and live parity on a Jellyfin server.
+  Decide whether seasons and episodes without their own rating may inherit an
+  allowed series' rating; today they stay hidden unless unrated content is
+  allowed, which is common on Jellyfin. Read Jellyfin's parental policy.
+- **Parent tools (P6).** A fresh PIN and confirmation for each destructive
+  management action, a UI test that no Manage entry appears in kid mode, and
+  a parent Manage menu on tvOS.
+- **Shrink (P7).** Move UI-test harnesses and fixtures behind `#if DEBUG`,
+  delete the now-unreachable upstream settings screens, remove the
+  `StrimrAdapter`, `PlinxContentAuthorization` and
+  `SafePlaylistPlaybackSelection` aliases once callers move, share one media
+  card, and close the remaining dead-code items below.
+- **P8** is unchanged: Live TV allowlist, a filtered Top Shelf, and in-app
+  approvals.
 
 ## Decision
 
@@ -334,19 +407,23 @@ paying off, because it changes every path.
 
 The durations are estimates, not commitments.
 
-| Phase | Scope | Exit criteria | Estimate |
-|---|---|---|---|
-| P0 | Decisions D1–D10 | Recorded in this document | days |
-| P1 | Fork day | Builds and tests pass on both platforms; no collection strings in the archive | 2–4 days |
-| P2 | Safety boundary, rating normalization, Seerr protocol, launcher coverage | Conformance test passes; live parity tests pass on Plex | 1–2 weeks |
-| P3 | Merge shadows into originals: timeline, player chrome, detail actions, tvOS focus | No same-name overrides left; UI and focus tests pass | 1–2 weeks |
-| P4 | Jellyfin onboarding and accounts | Kid flow works end to end on a Jellyfin server; live parity tests on Jellyfin | ~1 week |
-| P5 | Seerr kid flow | Requests attributed to the kid's Seerr user; uncertified titles never shown | 1–2 weeks |
-| P6 | Parent tools: Manage, settings consolidation | No Manage entry in kid mode (UI test); destructive actions need a PIN | ~1 week |
-| P7 | Shrink pass | Items above closed or ticketed | ~1 week, then ongoing |
-| P8 | Live TV allowlist, filtered Top Shelf, in-app approvals | Separate privacy and safety review | Later |
+| Phase | Scope | Exit criteria | Estimate | Status (2026-11-24) |
+|---|---|---|---|---|
+| P0 | Decisions D1–D10 | Recorded in this document | days | Done; D10 changed (see Status) |
+| P1 | Fork day | Builds and tests pass on both platforms; no collection strings in the archive | 2–4 days | Done on the branch; build, test and archive checks pending |
+| P2 | Safety boundary, rating normalization, Seerr protocol, launcher coverage | Conformance test passes; live parity tests pass on Plex | 1–2 weeks | Done except the Seerr protocol; conformance and parity runs pending |
+| P3 | Merge shadows into originals: timeline, player chrome, detail actions, tvOS focus | No same-name overrides left; UI and focus tests pass | 1–2 weeks | Done on the branch; UI and focus test runs pending |
+| P4 | Jellyfin onboarding and accounts | Kid flow works end to end on a Jellyfin server; live parity tests on Jellyfin | ~1 week | Onboarding and accounts in place; Jellyfin verification open |
+| P5 | Seerr kid flow | Requests attributed to the kid's Seerr user; uncertified titles never shown | 1–2 weeks | Not started; Seerr is off for kids |
+| P6 | Parent tools: Manage, settings consolidation | No Manage entry in kid mode (UI test); destructive actions need a PIN | ~1 week | Partly: Manage is parent-only at the boundary and settings use one Plinx tree; per-action PIN and UI test open |
+| P7 | Shrink pass | Items above closed or ticketed | ~1 week, then ongoing | Partly; see Status |
+| P8 | Live TV allowlist, filtered Top Shelf, in-app approvals | Separate privacy and safety review | Later | Later |
 
 ## Maintaining The Fork
+
+As built, the remote is named `upstream`, changes are ported by hand, and each
+review is recorded in [upstream Strimr provenance](upstream-strimr.md) rather
+than `Strimr/UPSTREAM.md`.
 
 - **Monthly feature review.** Run `git fetch strimr-upstream` and triage new
   commits into adopt, port, gate or reject, as in the

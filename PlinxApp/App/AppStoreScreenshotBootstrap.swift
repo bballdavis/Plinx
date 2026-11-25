@@ -3,7 +3,7 @@ import UIKit
 
 /// UI-test-only entry points for capturing production views against the local
 /// fixture service. This type supplies initial data but does not own a visual
-/// implementation.
+/// implementation. The landscape launch arguments work in Debug builds only.
 enum AppStoreScreenshotBootstrap {
     static let mediaDetailScreen = "appStoreMediaDetail"
     private static let landscapeArgument = "--app-store-landscape"
@@ -12,17 +12,21 @@ enum AppStoreScreenshotBootstrap {
     static func requestsLandscape(
         arguments: [String] = ProcessInfo.processInfo.arguments
     ) -> Bool {
-        arguments.contains(landscapeArgument) || arguments.contains(releaseLandscapeArgument)
+        #if DEBUG
+        return arguments.contains(landscapeArgument) || arguments.contains(releaseLandscapeArgument)
+        #else
+        return false
+        #endif
     }
 
     @MainActor
     static func applyRequestedOrientation(
         arguments: [String] = ProcessInfo.processInfo.arguments
     ) {
+        #if DEBUG && os(iOS)
         guard requestsLandscape(arguments: arguments) else {
             return
         }
-        #if os(iOS)
         AppDelegate.orientationLock = .landscapeLeft
         // Simulator launch arguments do not emit a physical rotation event.
         // Nudge UIKit once so the production scene renders landscape before
@@ -37,10 +41,12 @@ enum AppStoreScreenshotBootstrap {
         #endif
     }
 
-    static var media: PlayableMediaItem {
+    /// The "Moonbound" sample title on `server`. The detail screen loads the rest of its metadata from the server.
+    static func media(server: ServerIdentity) -> PlayableMediaItem? {
         PlayableMediaItem(
             mediaItem: MediaItem(
                 id: "moonbound",
+                identity: MediaIdentity(server: server, itemID: "moonbound"),
                 guid: "plex://fixture/moonbound",
                 summary: "A family science adventure.",
                 title: "Moonbound",
@@ -58,7 +64,7 @@ enum AppStoreScreenshotBootstrap {
                 tagline: "Curiosity starts close to home.",
                 thumbPath: "/artwork/poster/moonbound.png",
                 artPath: "/artwork/backdrop/moonbound.png",
-                ultraBlurColors: nil,
+                artworkCornerColors: nil,
                 viewOffset: nil,
                 viewCount: nil,
                 childCount: nil,
@@ -72,31 +78,35 @@ enum AppStoreScreenshotBootstrap {
                 grandparentArtPath: nil,
                 parentThumbPath: nil
             )
-        )!
+        )
     }
 }
 
+/// The production media detail screen for "Moonbound", shown with the services of the session's server (the
+/// fixture server of the screenshot scripts) once it is connected.
 struct AppStoreMediaDetailScreenshotHarness: View {
     @Environment(SessionManager.self) private var sessionManager
-    @Environment(PlexAPIContext.self) private var plexApiContext
-    @Environment(\.safetyPolicy) private var safetyPolicy
+    @Environment(ServerRegistry.self) private var registry
 
     var body: some View {
-        if sessionManager.status == .ready {
+        if sessionManager.status == .ready,
+           let server = registry.connectedServices.first?.identity,
+           let media = AppStoreScreenshotBootstrap.media(server: server) {
             NavigationStack {
-                PlinxMediaDetailView(
-                    viewModel: SafeMediaDetailViewModel(
-                        inner: MediaDetailViewModel(
-                            media: AppStoreScreenshotBootstrap.media,
-                            context: plexApiContext
+                ServerScopedView(server: server) { services in
+                    PlinxMediaDetailView(
+                        viewModel: MediaDetailViewModel(
+                            media: media,
+                            services: services,
+                            resolutionMode: .selectedMedia
                         ),
-                        policy: safetyPolicy
-                    ),
-                    onPlay: { _, _ in },
-                    onShuffle: { _, _ in },
-                    onSelectRelated: { _ in }
-                )
+                        onPlay: { _, _ in },
+                        onShuffle: { _, _ in },
+                        onSelectRelated: { _ in }
+                    )
+                }
             }
+            .id(server)
         } else {
             PlinxBrandedLoadingView(context: .appTransition)
         }

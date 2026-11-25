@@ -431,8 +431,9 @@ struct PlaybackSettings: Codable, Equatable {
     var defaultSleepTimer: SleepTimerMode?
     var videoScaleMode = PlayerVideoScaleMode.fit
     var autoRotateVideo = true
-    var pictureInPicture = true
-    var backgroundAudio = true
+    /// Parent settings, off by default: both keep playback going outside the app.
+    var pictureInPicture = false
+    var backgroundAudio = false
     var autoSkipIntros = false
     var autoSkipCredits = false
     var autoSkipCommercials = false
@@ -473,8 +474,11 @@ struct PlaybackSettings: Codable, Equatable {
     /// Forces the server-side transcode for Live TV, the route used before the engine played broadcast streams.
     var transcodeLiveTV = false
     var readAhead = PlaybackReadAhead.standard
-    var playerControlsStyle = PlayerControlsStyle.system
+    /// Plinx plays only in its own player chrome on tvOS; the system style (#413) is not offered.
+    var playerControlsStyle = PlayerControlsStyle.classic
     var centerClickAction = PlayerCenterClickAction.playPause
+    /// Parent-set ceiling of the player's output volume, in percent (kid safety).
+    var maxVolumePercent = PlaybackSettings.defaultMaxVolumePercent
 
     init() {}
 
@@ -491,8 +495,8 @@ struct PlaybackSettings: Codable, Equatable {
         defaultSleepTimer = try? container.decodeIfPresent(SleepTimerMode.self, forKey: .defaultSleepTimer)
         videoScaleMode = (try? container.decodeIfPresent(PlayerVideoScaleMode.self, forKey: .videoScaleMode)) ?? .fit
         autoRotateVideo = try container.decodeIfPresent(Bool.self, forKey: .autoRotateVideo) ?? true
-        pictureInPicture = (try? container.decodeIfPresent(Bool.self, forKey: .pictureInPicture)) ?? true
-        backgroundAudio = (try? container.decodeIfPresent(Bool.self, forKey: .backgroundAudio)) ?? true
+        pictureInPicture = (try? container.decodeIfPresent(Bool.self, forKey: .pictureInPicture)) ?? false
+        backgroundAudio = (try? container.decodeIfPresent(Bool.self, forKey: .backgroundAudio)) ?? false
         autoSkipIntros = try container.decodeIfPresent(Bool.self, forKey: .autoSkipIntros) ?? false
         autoSkipCredits = try container.decodeIfPresent(Bool.self, forKey: .autoSkipCredits) ?? false
         autoSkipCommercials = try container.decodeIfPresent(Bool.self, forKey: .autoSkipCommercials) ?? false
@@ -579,10 +583,29 @@ struct PlaybackSettings: Codable, Equatable {
         readAhead = (try? container.decodeIfPresent(PlaybackReadAhead.self, forKey: .readAhead)) ?? .standard
         playerControlsStyle = (
             try? container.decodeIfPresent(PlayerControlsStyle.self, forKey: .playerControlsStyle),
-        ) ?? .system
+        ) ?? .classic
         centerClickAction = (
             try? container.decodeIfPresent(PlayerCenterClickAction.self, forKey: .centerClickAction),
         ) ?? .playPause
+        // Kept under the key Plinx has always used, so a parent's limit survives the upgrade.
+        maxVolumePercent = Self.clampVolumePercent(
+            (try? container.decodeIfPresent(Int.self, forKey: .maxVolumePercent)) ?? Self.defaultMaxVolumePercent,
+        )
+    }
+
+    static let defaultMaxVolumePercent = 70
+
+    static var defaultMaximumVolume: Float {
+        Float(defaultMaxVolumePercent) / 100
+    }
+
+    static func clampVolumePercent(_ percent: Int) -> Int {
+        max(0, min(100, percent))
+    }
+
+    /// The volume ceiling as the player's 0...1 scale.
+    var maximumVolume: Float {
+        Float(Self.clampVolumePercent(maxVolumePercent)) / 100
     }
 
     var audioShaping: AudioShaping {
@@ -750,10 +773,31 @@ struct DownloadSettings: Codable, Equatable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         wifiOnly = try container.decodeIfPresent(Bool.self, forKey: .wifiOnly) ?? true
         offlineCacheLimitMB = try container.decodeIfPresent(Int.self, forKey: .offlineCacheLimitMB) ?? 500
-        qualityPreset = try container.decodeIfPresent(
-            TranscodeQualityPreset.self,
-            forKey: .qualityPreset,
-        ) ?? .original
+        if let preset = try? container.decodeIfPresent(TranscodeQualityPreset.self, forKey: .qualityPreset) {
+            qualityPreset = preset
+        } else {
+            // Plinx stored its download quality under `quality` before the fork; keep the parent's choice.
+            let legacyContainer = try decoder.container(keyedBy: LegacyCodingKeys.self)
+            let legacyQuality = try? legacyContainer.decodeIfPresent(String.self, forKey: .quality)
+            qualityPreset = legacyQuality.flatMap(Self.qualityPreset(legacyPlinxQuality:)) ?? .original
+        }
+    }
+
+    private enum LegacyCodingKeys: String, CodingKey {
+        case quality
+    }
+
+    /// Maps a pre-fork Plinx download quality to the closest preset that does not exceed its bitrate or height.
+    static func qualityPreset(legacyPlinxQuality rawValue: String) -> TranscodeQualityPreset? {
+        switch rawValue {
+        case "original": .original
+        case "megabits20_1080p", "megabits12_1080p": .p1080_12mbps
+        case "megabits10_720p", "megabits4_720p": .p720_4mbps
+        case "megabits3_720p", "megabits2_720p": .p720_2mbps
+        case "kilobits1500_480p": .p480_1_5mbps
+        case "kilobits720_328p": .p360_700
+        default: nil
+        }
     }
 }
 

@@ -449,7 +449,7 @@ final class JellyfinAPIContext {
         return try Self.makeURL(baseURL: baseURL, path: path, query: query)
     }
 
-    /// For URLs opened outside Strimr, which cannot carry the authorization headers.
+    /// For URLs opened outside the app, which cannot carry the authorization headers.
     func externalMediaAccess() throws -> (baseURL: URL, token: String) {
         guard let baseURL = connection?.baseURL, let accessToken else {
             throw JellyfinAPIError.authenticationRequired
@@ -575,7 +575,7 @@ final class JellyfinAPIContext {
             device = "iPhone or iPad"
         #endif
 
-        var authorization = "MediaBrowser Client=\"Strimr\", Device=\"\(device)\", DeviceId=\"\(deviceID)\", Version=\"\(clientVersion)\""
+        var authorization = "MediaBrowser Client=\"\(PlexProductIdentity.name)\", Device=\"\(device)\", DeviceId=\"\(deviceID)\", Version=\"\(clientVersion)\""
         let effectiveToken = token ?? accessToken
         if let effectiveToken {
             authorization += ", Token=\"\(effectiveToken)\""

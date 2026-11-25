@@ -210,14 +210,19 @@ final class ClipThumbnailParityLiveTests: XCTestCase {
         return context
     }
 
+    /// Lists the server's sections the way the Plex provider maps them (`Library(plexSection:server:)`), straight
+    /// from the section repository: this test compares raw Plex fields, so it reads below the services layer.
     private func pickOtherVideoLibraries(context: PlexAPIContext) async throws -> [Library] {
-        let libraryStore = LibraryStore(context: context)
-        try await libraryStore.loadLibraries()
-        let candidates = libraryStore.libraries.filter {
-            $0.sectionId != nil && (
-                $0.isNoneAgentLibrary || ($0.type != .movie && $0.type != .show)
-            )
-        }
+        let server = ServerIdentity(provider: .plex, id: context.serverIdentifier ?? "plinx-live-tests")
+        let sections = try await SectionRepository(context: context).getSections().mediaContainer.directory ?? []
+        let candidates = sections
+            .filter(\.type.isSupported)
+            .map { Library(plexSection: $0, server: server) }
+            .filter {
+                $0.sectionId != nil && (
+                    $0.isNoneAgentLibrary || ($0.type != .movie && $0.type != .series)
+                )
+            }
         guard !candidates.isEmpty else {
             throw XCTSkip("No Other Videos-style library found on this Plex server.")
         }

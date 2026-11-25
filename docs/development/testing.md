@@ -46,10 +46,11 @@ xcodebuild test \
   CODE_SIGNING_ALLOWED=NO
 ```
 
-The home-screen regression gate is deterministic and does not require live
-Plex credentials. It covers the full safety-filter-to-row-projection path,
-including rated YouTube content, parental rating ceilings, the global unrated
-toggle, and the Other Videos landscape row:
+The home-screen and content-safety regression gate is deterministic and does
+not require live Plex credentials. It covers the safety boundary every provider
+goes through and the row projection on top of it, including rated YouTube
+content, parental rating ceilings, the global unrated toggle, and the Other
+Videos landscape row:
 
 ```bash
 source scripts/build_environment.sh
@@ -60,7 +61,7 @@ xcodebuild test \
   -destination "platform=iOS Simulator,name=iPhone 17,OS=26.5" \
   -derivedDataPath "$PLINX_XCODE_DERIVED_DATA_PATH" \
   -only-testing:Plinx-iOS-UnitTests/HomeRecentlyAddedProjectionTests \
-  -only-testing:Plinx-iOS-UnitTests/SafeHomeViewModelTests \
+  -only-testing:Plinx-iOS-UnitTests/SafeMediaServicesTests \
   CODE_SIGNING_ALLOWED=NO
 ```
 
@@ -95,27 +96,47 @@ Also verify iPhone landscape, iPad, VoiceOver, Reduce Motion, bright/dark
 video backgrounds, and real streamed/downloaded playback before release.
 Seek to zero and duration while playing and paused and confirm normal
 completion/next-item behavior. The fixture validates UI callbacks, not an
-engine's asynchronous seek or completion behavior. Changing timeline source
-exclusions requires the full integration contract below.
+engine's asynchronous seek or completion behavior.
 
-### Strimr integration contract
+### Content-safety boundary
+
+`SafeMediaServicesTests` is the conformance test for the boundary in
+`PlinxApp/Core/Safety`. A fake provider returns an allowed title and a blocked
+one from every content call; the test fails if the blocked title ever leaves
+`SafeMediaServices`. It also parses the provider protocols in
+`PlinxApp/Core/Services/Protocols` and fails when a requirement is missing from
+`SafeMediaServices.reviewedRequirements`. Run it, plus `PlinxCore` tests,
+whenever you change a provider protocol, a provider, `ContentSafetyGate`, or
+rating normalization.
+
+`ContentRatingNormalizerTests` (in `PlinxCore`) covers how ratings are parsed:
+US movie and TV ratings in any case, prefixes such as `US-` and `Rated `, TV
+content descriptors, trailing notes, adult-only ratings, and the fallback to
+unrated for anything else. `StrimrAdapterSafetyTests` checks the same rules
+through `PlinxContentRules` and the playlist play and shuffle selection.
+
+`DownloadOwnershipMigrationTests` covers the one-time move of the per-profile
+records that earlier versions kept in `plinx.downloadOwnership.v1` onto each
+download's owner, and checks that a download with no record stays unowned.
+
+Changes to `PlinxApp/Core` or `PlinxApp/Platform` are ordinary Plinx changes:
+build both app targets and run the unit tests for the touched area. There is
+no separate integration contract. The live parity tests below cover real
+server content.
+
+`PlinxApp/CoreTests` holds upstream's tests for the absorbed code. They are
+not part of any `project.yml` target yet, so they do not run in CI or from the
+commands above. Do not rely on them until a target is added.
+
+### Tooling contracts
 
 ```bash
-# Fast source-seam check
-./scripts/verify_strimr_integration_contract.sh --quick
-
-# CI-equivalent sibling checkout and history check
-./scripts/verify_strimr_integration_contract.sh --full
+bash scripts/tests/test_tooling_contracts.sh
 ```
 
-Use `--full` when changing the Strimr pin, branch pairing, XcodeGen source
-roots, or a Plinx↔Strimr seam. The focused `StrimrUpgradeSeamTests` remain the
-behavioral coverage for testable upstream seams.
-
-`scripts/verify_release_dependency_state.sh` separately compares the sibling
-source with the exact Git archive. It excludes local build/tool metadata,
-including `.code-review-graph/`, while still rejecting source differences.
-`scripts/tests/test_tooling_contracts.sh` checks both cases in isolated fixtures.
+It checks the test runners, credential loading, simulator runner preflight,
+and the corresponding-source bundle (`scripts/build_compliance_bundle.sh`) in
+throwaway fixtures. Run it after changing any of those scripts.
 
 ### Snapshot tests
 
@@ -151,16 +172,17 @@ matches the pinned producer revision:
 
 The focused tests also cover the 40-video initial catalog request, independent
 catalog/channel failures, tail-triggered pagination, and long-press actions.
-Offline-download policy tests cover both profile-owned downloads and
-rating-gated shared legacy downloads created before ownership tracking.
-`StrimrDownloadIntegrityTests` also locks the complete download-quality preset
-mapping, original-quality request behavior, and rejection of structured error
-payloads returned with a successful HTTP status.
+`OfflinePlaybackTests` covers download access: only the active profile's
+owned downloads that the content policy allows are playable, and downloads
+with no owner are refused. `StrimrDownloadIntegrityTests` covers
+`DownloadIntegrityValidator`, the 20 percent space-savings rule
+(`DownloadSpaceSavingsPolicy`), and the mapping of the old Plinx
+download-quality setting to a quality preset.
 
 Download-queue changes require a live Plex pass before release because CI does
 not provision Plex Media Server. Run one direct-play-compatible title and one
 forced-transcode title at a reduced preset. For each, verify the
-deciding/preparing/downloading transitions, final offline playback, relaunch
+preparing/downloading transitions, final offline playback, relaunch
 recovery during preparation, profile-switch isolation, explicit deletion, and
 server queue cleanup. Repeat the original preset to confirm no bitrate or
 resolution cap is sent.
@@ -203,6 +225,7 @@ Pure logic tests for safety-critical and domain behavior:
 - `SafetyPolicy`
 - `MathGate`
 - `PlinxRating`
+- `ContentRatingNormalizer`
 
 ### `Packages/PlinxUI/Tests/`
 
@@ -222,10 +245,16 @@ App integration logic such as:
 - home/library grouping
 - canonical library-catalog loading and complete movie/TV/Other Videos row projection
 - layout policies
-- safety adapters
+- the content-safety boundary (`SafeMediaServicesTests`) and content rules
 - navigation coordination
 - offline playback decisions
-- parental authorization, download ownership, safe playlists, and playback-volume application
+- parental authorization, download ownership and its migration, safe
+  playlists, and playback-volume application
+
+### `PlinxApp/CoreTests/`
+
+Upstream's tests for the absorbed code. Not wired into any target yet, so they
+do not run.
 
 ### `PlinxApp/UITests/`
 
@@ -249,7 +278,8 @@ Apple TV-specific policy and live parity coverage.
 | Shared UI components, theme, asset-driven layout | `PlinxUI` tests plus snapshot tests |
 | App navigation, adapters, view models, library/download logic | App unit tests plus any impacted package tests |
 | Kid-facing flows, major UI behavior, or visible layout changes | Targeted UI tests and snapshot tests |
-| Real-data browse/render behavior or Strimr integration changes | Live UI smoke and/or live parity checks where applicable |
+| Real-data browse/render behavior, providers, or session code in `PlinxApp/Core` | Live UI smoke and/or live parity checks where applicable |
+| Provider protocols, providers, or the content-safety boundary | `SafeMediaServicesTests` plus `PlinxCore` tests |
 | Release/archive/build pipeline changes | Archive validation and any touched script/workflow validation |
 
 ## Live Credentials
@@ -276,18 +306,20 @@ number pad offscreen. The fixture never reads or changes the family's PIN.
 
 ## App Review Demo Fixtures
 
-The connection screen on iPhone, iPad, and Apple TV includes **Explore the
-Demo Library**. On iPhone/iPad the **Sign-in information** button opens login
-guidance and the same action. It runs the production SessionManager,
-LibraryStore, browse/detail/search views, safety decorators, playback
+On iPhone and iPad, the **Sign-in information** button on the first
+connection screen opens login guidance and **Explore the Demo Library**. On
+Apple TV the Plex sign-in screen offers the same action. Both appear only
+while no account exists. The sample library is a temporary Plex account added
+to the real `SessionManager`, so it runs the production server registry,
+content-safety boundary, LibraryStore, browse/detail/search views, playback
 authorization, player, and download flows against fictional
 `DemoFixtureCatalog` responses. `DemoMediaServer`, a Plinx-owned service bound
 only to `127.0.0.1`, serves the original bundled MP4s in
-`PlinxApp/Resources/DemoMedia` with byte-range support. There is no Plex account
-or external media dependency, and the demo session is never persisted. tvOS
-SessionManager mirrors tokens into Top Shelf storage only when the bundle
-declares `TopShelfKeychainAccessGroup`; Plinx ships no Top Shelf extension, so
-the demo is enabled on Apple TV too.
+`PlinxApp/Resources/DemoMedia` with byte-range support. `PlexCloudStandIn`
+answers plex.tv requests that carry the sample token on the device. There is
+no Plex account or external media dependency. Leaving the sample library
+removes the account; an account left behind by a killed app is removed at the
+next launch.
 
 The sample movie/episode are 90 seconds with visible motion/time, two quiet
 audio tracks, and captions. Regenerate them on macOS using
@@ -302,11 +334,11 @@ Fixture ratings deliberately span the parental controls (see the reviewer
 table in `docs/release/app-store.md`); keep that table and these tests in sync.
 `DemoFixtureTests` checks real media tracks, HTTP byte ranges, episode queue
 identity, mixed-rating filtering, every movie/TV ceiling pair and both unrated modes
-through the production catalog loader, TV season/episode rating propagation,
-sample request lifecycle over HTTP, preference
-isolation, and a production download followed by file playback after stopping
-the sample server. The production download test uses the host app's manager
-and deletes its sample file afterward.
+through the production catalog loader, TV season/episode ratings,
+the on-device plex.tv stand-in, sample request lifecycle over HTTP, preference
+isolation, and a production download owned by the sample profile followed by
+file playback after stopping the sample server. The production download test
+uses the host app's manager and deletes its sample file afterward.
 
 Run `LaunchSmokeUITests/test_demoModeRendersProductionHomeAndRealPlayback` on
 both iPhone and iPad. It verifies help can be dismissed without starting a session, enters via
@@ -356,7 +388,7 @@ captures both modes for visual inspection. Player layout unit tests
 exercise native and sample-buffer video layers, late layer attachment, a
 renderer replacement, source gravity resets, and observer teardown. The Plinx
 adapter identifies Aether's public render view and updates AVFoundation video
-gravity; it does not resize the player hierarchy or change the paired Strimr pin.
+gravity; it does not resize the player hierarchy or change the AetherEngine pin.
 The focused player UI check also verifies that the landscape timeline centers
 on the display and that Settings remains tappable in the reclaimed status area.
 Inset policy tests cover both sidebar sides, portrait, and ordinary phone notches.

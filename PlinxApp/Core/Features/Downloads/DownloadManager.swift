@@ -16,6 +16,8 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
     private(set) var activeOwnerIDs: Set<String> = []
 
     @ObservationIgnored private let settingsManager: SettingsManager
+    /// How the persisted download list loaded; see `DownloadPersistedIndexState`.
+    @ObservationIgnored private var persistedIndexState: DownloadPersistedIndexState = .missing
     @ObservationIgnored private let monitor = NWPathMonitor()
     @ObservationIgnored private let monitorQueue = DispatchQueue(label: "strimr.downloads.network-monitor")
     @ObservationIgnored private var backgroundEventsCompletionHandler: (() -> Void)?
@@ -69,6 +71,7 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
         Self.shared = self
         configureStorage()
         loadPersistedState()
+        importLegacyOwnershipIfNeeded()
         startNetworkMonitoring()
         Task {
             await restoreRunningTasks()
@@ -89,9 +92,19 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
         items.filter { !isOwnedByActiveUser($0) }
     }
 
+    /// Per-profile scoping (fail closed): a download without an owner belongs to nobody.
     func isOwnedByActiveUser(_ item: DownloadItem) -> Bool {
         guard let ownerID = item.ownerID else { return false }
         return activeOwnerIDs.contains(ownerID)
+    }
+
+    /// Sets the owners whose downloads the app shows, without services, for example the active profile while its
+    /// servers are offline. `activateSession(services:)` replaces this set when services connect.
+    func activateOwners(_ owners: [MediaOwner]) {
+        activeOwnerIDs = Set(owners.map(\.id))
+        for owner in owners {
+            offlineStore?.register(owner: owner)
+        }
     }
 
     var sortedItems: [DownloadItem] {
@@ -209,54 +222,22 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
     }
 
     func localMediaItem(for item: DownloadItem) -> MediaItem {
-        let identity = item.identity ?? MediaIdentity(
-            server: ServerIdentity(provider: .plex, id: "legacy-download:\(item.id)"),
-            itemID: item.itemID,
-        )
-        return MediaItem(
-            id: item.itemID,
-            identity: identity,
-            guid: item.metadata.guid,
-            summary: item.metadata.summary,
-            title: item.metadata.title,
-            type: item.metadata.type,
-            parentRatingKey: item.metadata.parentRatingKey,
-            grandparentRatingKey: item.metadata.grandparentRatingKey,
-            genres: item.metadata.genres,
-            year: item.metadata.year,
-            duration: item.metadata.duration,
-            videoResolution: nil,
-            rating: nil,
-            ratings: [],
-            contentRating: item.metadata.contentRating,
-            studio: item.metadata.studio,
-            tagline: item.metadata.tagline,
+        item.metadata.localMediaItem(
+            downloadID: item.id,
             thumbPath: localPosterURL(for: item) == nil ? nil : OfflineArtworkPath.downloadPoster(item.id),
-            artPath: nil,
-            artworkCornerColors: nil,
-            viewOffset: nil,
-            viewCount: item.metadata.viewCount,
-            childCount: nil,
-            leafCount: nil,
-            viewedLeafCount: nil,
-            grandparentTitle: item.metadata.grandparentTitle,
-            parentTitle: item.metadata.parentTitle,
-            parentIndex: item.metadata.parentIndex,
-            index: item.metadata.index,
-            grandparentThumbPath: nil,
-            grandparentArtPath: nil,
-            parentThumbPath: nil,
         )
     }
 
-    /// Called whenever the session's services change: legacy downloads without owner on this server are attributed
-    /// to the active user, and only this user's downloads are shown in the rich app.
+    /// Called whenever the session's services change: only this user's downloads are shown in the rich app.
+    ///
+    /// A download without an owner is never handed to whichever profile connects first: it stays parent-only
+    /// (`DownloadAccessPolicy`). Pre-fork downloads get their owner once, at launch, from what pre-fork Plinx
+    /// recorded (`migrateLegacyIndexIfNeeded`, `importLegacyOwnershipIfNeeded`).
     func activateSession(services: [MediaServices]) {
         activeOwnerIDs = Set(services.map(\.owner.id))
         for services in services {
             let owner = services.owner
             offlineStore?.register(owner: owner)
-            adoptUnownedDownloads(for: owner)
             register(services: services)
             enrichDownloads(on: services.identity, refreshingEnriched: false)
         }
@@ -312,19 +293,31 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
         }
     }
 
-    private func adoptUnownedDownloads(for owner: MediaOwner) {
-        guard let offlineStore else { return }
-        let adopted = items.indices.filter { items[$0].ownerID == nil && items[$0].identity?.server == owner.server }
-        guard !adopted.isEmpty else { return }
-        _ = offlineStore.assignOwner(owner, toUnownedDownloadsOn: owner.server)
-        for index in adopted {
-            items[index].ownerID = owner.id
-            // A minimal pinned media row lets the rich app show the download before it is enriched.
-            let media = localMediaItem(for: items[index])
-            offlineStore.store(media: [media], owner: owner)
-            offlineStore.pin(itemIDs: [media.id], downloadID: items[index].id, owner: owner)
+    /// Gives pre-fork downloads back to the profiles pre-fork Plinx recorded for them (`LegacyDownloadOwnership`).
+    /// Runs at launch, before any profile is activated, and only on a download list that loaded completely, so the
+    /// record is never consumed while some of its downloads still wait for recovery. The record is removed only once
+    /// the new owners are saved; unreadable or unsaved, it stays and everything it names stays unowned.
+    private func importLegacyOwnershipIfNeeded(defaults: UserDefaults = .standard) {
+        guard let offlineStore, persistedIndexState.permitsOwnershipMigration else { return }
+        let outcome = LegacyDownloadOwnership.migrate(items, defaults: defaults) { migrated in
+            let previous = items
+            items = migrated
+            do {
+                try persistStateOrThrow()
+            } catch {
+                items = previous
+                throw error
+            }
         }
-        persistState()
+        guard case let .migrated(assignments) = outcome else { return }
+        for (downloadID, owner) in assignments {
+            guard let item = items.first(where: { $0.id == downloadID }), item.ownerID == owner.id else { continue }
+            offlineStore.register(owner: owner)
+            // A minimal pinned media row lets the rich app show the download before it is enriched.
+            let media = localMediaItem(for: item)
+            offlineStore.store(media: [media], owner: owner)
+            offlineStore.pin(itemIDs: [media.id], downloadID: item.id, owner: owner)
+        }
     }
 
     func owner(of item: DownloadItem) -> MediaOwner? {
@@ -359,13 +352,15 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
         startNextQueuedTransfer(on: services.identity)
     }
 
+    /// Returns the ids of the downloads it created (none when the item is refused, fails or is already scheduled).
+    @discardableResult
     func enqueueItem(
         itemID: String,
         quality: TranscodeQualityPreset? = nil,
         tracks: MediaTrackPreference = .serverDefault,
         version: MediaVersionRequest = .automatic,
         services: MediaServices,
-    ) async {
+    ) async -> [String] {
         register(services: services)
         do {
             let effectiveQuality = quality ?? settingsManager.downloads.qualityPreset
@@ -375,12 +370,16 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
                 tracks: tracks,
                 version: version,
             )
-            try await enqueue(preparation, tracks: tracks, services: services)
+            let id = try await enqueue(preparation, tracks: tracks, services: services)
+            return id.map { [$0] } ?? []
         } catch {
             handleDownloadError(error)
+            return []
         }
     }
 
+    /// Enqueues every downloadable item of a season or series, all owned by the owner of `services`.
+    @discardableResult
     func enqueueItems(
         itemID: String,
         kind: MediaKind,
@@ -388,33 +387,44 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
         tracks: MediaTrackPreference = .serverDefault,
         version: MediaVersionRequest = .automatic,
         services: MediaServices,
-    ) async {
+    ) async -> [String] {
+        var downloadIDs: [String] = []
         do {
             let media = try await services.downloads.downloadableItems(itemID: itemID, kind: kind)
             for item in media {
-                guard !Task.isCancelled else { return }
-                await enqueueItem(
+                guard !Task.isCancelled else { break }
+                // Listing children is not authorization: each item is checked again when it is prepared.
+                guard ContentSafetyGate.shared.isAllowed(item) else { continue }
+                let created = await enqueueItem(
                     itemID: item.id,
                     quality: quality,
                     tracks: tracks,
                     version: version,
                     services: services,
                 )
+                downloadIDs.append(contentsOf: created)
             }
         } catch {
             handleDownloadError(error)
         }
+        return downloadIDs
     }
 
+    /// Creates the download, or returns nil when it is already scheduled or not a movie or episode.
     private func enqueue(
         _ preparation: MediaDownloadPreparation,
         tracks: MediaTrackPreference,
         services: MediaServices,
-    ) async throws {
+    ) async throws -> String? {
         let mediaItem = preparation.media
         let owner = services.owner
+        // Fail closed: the prepared media is checked against the active safety policy before anything is kept.
+        guard ContentSafetyGate.shared.isAllowed(mediaItem) else {
+            await releaseUnusedPreparation(preparation, services: services)
+            throw ContentSafetyError.blocked
+        }
         guard !isAlreadyScheduled(for: mediaItem.identity, ownerID: owner.id),
-              mediaItem.kind == .movie || mediaItem.kind == .episode else { return }
+              mediaItem.kind == .movie || mediaItem.kind == .episode else { return nil }
 
         let id = UUID().uuidString
         let folderURL = downloadsDirectory.appendingPathComponent(id, isDirectory: true)
@@ -479,19 +489,36 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
             enrichmentState: .pending,
         ))
         offlineStore?.register(owner: owner)
+        do {
+            try persistStateOrThrow()
+        } catch {
+            // A download that cannot be recorded must not exist half-created.
+            items.removeAll { $0.id == id }
+            try? FileManager.default.removeItem(at: folderURL)
+            await releaseUnusedPreparation(preparation, services: services)
+            throw error
+        }
         sidecarsByItemID[id] = preparation.sidecars
         if shouldQueue, let request = preparation.request {
             pendingRequestsByItemID[id] = request
         }
-        persistState()
         enrichNewDownload(id: id, services: services)
         if shouldQueue {
-            return
+            return id
         } else if let request = preparation.request {
             startTransfer(itemID: id, request: request)
         } else {
             startPreparationPolling(for: id, services: services)
         }
+        return id
+    }
+
+    /// Removes a server-side transcode queued for a download that is not kept, unless another download uses it.
+    private func releaseUnusedPreparation(_ preparation: MediaDownloadPreparation, services: MediaServices) async {
+        guard let reference = preparation.remoteReference,
+              !items.contains(where: { $0.remoteReference == reference })
+        else { return }
+        await services.downloads.cancelDownloadPreparation(reference)
     }
 
     func delete(_ item: DownloadItem) async {
@@ -713,14 +740,40 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
     private func persistState() {
         guard !isLoadingPersistedState else { return }
         do {
-            if let offlineStore {
-                try offlineStore.save(downloads: items)
-            } else {
-                // The offline database could not be opened: keep the legacy index so downloads are not lost.
-                try JSONEncoder().encode(items).write(to: indexFileURL, options: .atomic)
-            }
+            try persistStateOrThrow()
         } catch {
             ErrorReporter.capture(error)
+        }
+    }
+
+    private func persistStateOrThrow() throws {
+        guard !isLoadingPersistedState else { return }
+        if let offlineStore {
+            // Rows are upserted, so a failed earlier read never overwrites downloads it could not load.
+            do {
+                try offlineStore.save(downloads: items)
+            } catch {
+                throw DownloadPersistenceFailure.indexWrite
+            }
+            return
+        }
+
+        // The offline database could not be opened: keep the legacy index so downloads are not lost. An index that
+        // failed to read or decode is left untouched for recovery instead of being replaced by this partial list.
+        guard persistedIndexState.permitsPersistence else {
+            throw DownloadPersistenceFailure.indexWrite
+        }
+        let data: Data
+        do {
+            data = try JSONEncoder().encode(items)
+        } catch {
+            throw DownloadPersistenceFailure.indexEncode
+        }
+        do {
+            try data.write(to: indexFileURL, options: .atomic)
+            persistedIndexState = .loaded
+        } catch {
+            throw DownloadPersistenceFailure.indexWrite
         }
     }
 
@@ -728,39 +781,78 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
         isLoadingPersistedState = true
         defer { isLoadingPersistedState = false }
         guard let offlineStore else {
-            if let data = try? Data(contentsOf: indexFileURL) {
-                items = (try? JSONDecoder().decode([DownloadItem].self, from: data)) ?? []
+            guard FileManager.default.fileExists(atPath: indexFileURL.path) else {
+                persistedIndexState = .missing
+                return
             }
+            guard let data = try? Data(contentsOf: indexFileURL) else {
+                persistedIndexState = .unreadable
+                ErrorReporter.capture(DownloadPersistenceFailure.indexRead)
+                return
+            }
+            guard let decoded = try? JSONDecoder().decode([DownloadItem].self, from: data) else {
+                persistedIndexState = .corrupt
+                ErrorReporter.capture(DownloadPersistenceFailure.indexDecode)
+                return
+            }
+            items = decoded
+            persistedIndexState = .loaded
             return
         }
 
-        migrateLegacyIndexIfNeeded(into: offlineStore)
+        let legacyState = migrateLegacyIndexIfNeeded(into: offlineStore)
         do {
             items = try offlineStore.allDownloads()
+            persistedIndexState = legacyState
         } catch {
-            ErrorReporter.capture(error)
+            ErrorReporter.capture(DownloadPersistenceFailure.indexRead)
             items = []
+            persistedIndexState = .unreadable
         }
     }
 
     /// One-time structural migration of `index.json` into the offline database. The transfer state is kept as is so
     /// `restoreRunningTasks` can resume running transfers; enrichment happens later once the server is reachable.
-    private func migrateLegacyIndexIfNeeded(into store: OfflineStore) {
-        guard FileManager.default.fileExists(atPath: indexFileURL.path) else { return }
+    ///
+    /// Plinx's pre-fork index recorded the server and profile each download was enrolled for (`accessScope`). Those
+    /// downloads keep exactly that owner, so they never get adopted by whichever profile signs in first. Entries
+    /// without one get the owner pre-fork Plinx recorded in its ownership store, if any
+    /// (`importLegacyOwnershipIfNeeded`); the rest stay unowned: hidden from every profile and listed only to a
+    /// parent (fail closed).
+    private func migrateLegacyIndexIfNeeded(into store: OfflineStore) -> DownloadPersistedIndexState {
+        guard FileManager.default.fileExists(atPath: indexFileURL.path) else { return .loaded }
+        let data: Data
         do {
-            let data = try Data(contentsOf: indexFileURL)
-            var legacyItems = try JSONDecoder().decode([DownloadItem].self, from: data)
-            for index in legacyItems.indices {
-                legacyItems[index].ownerID = nil
-                legacyItems[index].enrichmentState = .pending
-            }
+            data = try Data(contentsOf: indexFileURL)
+        } catch {
+            ErrorReporter.capture(DownloadPersistenceFailure.indexRead)
+            return .unreadable
+        }
+        let entries: [LegacyDownloadIndexEntry?]
+        do {
+            entries = try JSONDecoder().decode([LossyLegacyDownloadIndexEntry].self, from: data).map(\.entry)
+        } catch {
+            // Not even a list: keep the file where it is for recovery.
+            ErrorReporter.capture(DownloadPersistenceFailure.indexDecode)
+            return .corrupt
+        }
+        var legacyItems = entries.compactMap { $0?.migratedItem }
+        if legacyItems.count != entries.count {
+            ErrorReporter.capture(DownloadPersistenceFailure.legacyIndexEntriesDropped)
+        }
+        for index in legacyItems.indices {
+            legacyItems[index].enrichmentState = .pending
+        }
+        do {
             try store.save(downloads: legacyItems)
             let migratedURL = indexFileURL.appendingPathExtension("migrated")
             try? FileManager.default.removeItem(at: migratedURL)
             try FileManager.default.moveItem(at: indexFileURL, to: migratedURL)
         } catch {
-            ErrorReporter.capture(error)
+            ErrorReporter.capture(DownloadPersistenceFailure.indexWrite)
+            return .unreadable
         }
+        return legacyItems.count == entries.count ? .loaded : .corrupt
     }
 
     private static let insufficientStorageCode = 1001
@@ -1016,15 +1108,23 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
             try? FileManager.default.removeItem(at: stagedLocation)
             return
         }
-        // URLSession hands over the body of an error response as a finished file.
+        // URLSession hands over the body of an error response as a finished file: only a complete video is kept.
         let stagedSize = (try? FileManager.default.attributesOfItem(atPath: stagedLocation.path)[.size] as? NSNumber)?
             .int64Value ?? 0
-        if let message = DownloadedFileValidation.failureMessage(response: task.response, fileSize: stagedSize) {
+        do {
+            try DownloadIntegrityValidator.validate(response: task.response, stagedFileSize: stagedSize)
+        } catch {
             try? FileManager.default.removeItem(at: stagedLocation)
+            let failure = error as? DownloadIntegrityFailure ?? .invalidResponse
             failDownload(task: task, error: NSError(
-                domain: "Strimr.DownloadManager",
+                domain: "Plinx.DownloadManager",
                 code: (task.response as? HTTPURLResponse)?.statusCode ?? 0,
-                userInfo: [NSLocalizedDescriptionKey: message],
+                userInfo: [
+                    NSLocalizedDescriptionKey: DownloadIntegrityValidator.failureMessage(
+                        for: failure,
+                        response: task.response,
+                    ),
+                ],
             ))
             return
         }
@@ -1280,5 +1380,52 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
             backgroundEventsCompletionHandler?()
             backgroundEventsCompletionHandler = nil
         }
+    }
+}
+
+/// One entry of a pre-fork Plinx index: the download plus the enrollment scope Plinx stored beside it.
+private struct LegacyDownloadIndexEntry: Decodable {
+    let item: DownloadItem
+    let accessScope: DownloadAccessScope?
+
+    private enum CodingKeys: String, CodingKey {
+        case accessScope
+    }
+
+    init(from decoder: Decoder) throws {
+        item = try DownloadItem(from: decoder)
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        accessScope = try? container.decodeIfPresent(DownloadAccessScope.self, forKey: .accessScope)
+    }
+
+    /// The download as the offline database stores it: owned by its enrolled profile, or by nobody.
+    ///
+    /// An entry without `accessScope` keeps an `ownerID` it carries. Pre-fork Plinx never wrote one; only this app
+    /// does, in the fallback index it keeps while the offline database cannot be opened, and dropping it would turn
+    /// that profile's downloads parent-only.
+    var migratedItem: DownloadItem {
+        var migrated = item
+        guard let accessScope else { return migrated }
+        migrated.ownerID = nil
+        guard !accessScope.serverIdentifier.isEmpty,
+              !accessScope.accessScopeIdentifier.isEmpty
+        else { return migrated }
+        // Pre-fork Plinx only ever enrolled Plex downloads.
+        let server = migrated.identity?.server ?? ServerIdentity(provider: .plex, id: accessScope.serverIdentifier)
+        guard server.id == accessScope.serverIdentifier else { return migrated }
+        if migrated.metadata.identity == nil {
+            migrated.metadata.identity = MediaIdentity(server: server, itemID: migrated.itemID)
+        }
+        migrated.ownerID = MediaOwner(server: server, userID: accessScope.accessScopeIdentifier).id
+        return migrated
+    }
+}
+
+/// Decodes what it can, so one damaged entry does not cost the family every other download.
+private struct LossyLegacyDownloadIndexEntry: Decodable {
+    let entry: LegacyDownloadIndexEntry?
+
+    init(from decoder: Decoder) throws {
+        entry = try? LegacyDownloadIndexEntry(from: decoder)
     }
 }

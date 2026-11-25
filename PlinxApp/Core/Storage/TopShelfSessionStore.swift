@@ -1,13 +1,14 @@
 import Foundation
 
 #if os(tvOS)
-    struct TopShelfServerCredentials {
-        let session: TopShelfStoredSession
-        let token: String
-    }
-
-    /// Shares the servers of the active profile with the Top Shelf extension: the list in the app group, one token per
-    /// server in the shared Keychain.
+    /// Removes what an earlier build may have shared with a Top Shelf extension: the server list in the app group and
+    /// the server tokens in the shared Keychain, in every format upstream used (v2 list, v1 single session, and the
+    /// Plex-only keys before that).
+    ///
+    /// Plinx ships no Top Shelf extension and never writes these entries: server addresses and tokens stay inside the
+    /// app. Only clearing remains, run by `PlinxSignOut` so a family that signs out leaves nothing behind. Earlier
+    /// Plinx builds wrote only when the bundle declared `TopShelfKeychainAccessGroup`, which Plinx never did; the
+    /// clear still covers that case.
     struct TopShelfSessionStore {
         private let defaults = UserDefaults(suiteName: TopShelfSessions.appGroup)
 
@@ -18,28 +19,17 @@ import Foundation
             return Keychain(service: TopShelfSessions.keychainService, accessGroup: accessGroup)
         }
 
-        func save(_ credentials: [TopShelfServerCredentials]) throws {
-            guard let keychain else { return }
-            let previous = storedSessions()
-            for credential in credentials {
-                try keychain.setString(credential.token, forKey: credential.session.tokenKey)
-            }
-            let kept = Set(credentials.map(\.session.tokenKey))
-            for session in previous where !kept.contains(session.tokenKey) {
-                try? keychain.deleteValue(forKey: session.tokenKey)
-            }
-            try defaults?.set(JSONEncoder().encode(credentials.map(\.session)), forKey: TopShelfSessions.sessionsKey)
-            removeLegacyEntries(keychain: keychain)
-        }
-
         func clear() {
             if let keychain {
                 for session in storedSessions() {
                     try? keychain.deleteValue(forKey: session.tokenKey)
                 }
-                removeLegacyEntries(keychain: keychain)
+                try? keychain.deleteValue(forKey: TopShelfSessions.legacyTokenKey)
+                try? keychain.deleteValue(forKey: TopShelfSessions.legacyPlexTokenKey)
             }
             defaults?.removeObject(forKey: TopShelfSessions.sessionsKey)
+            defaults?.removeObject(forKey: TopShelfSessions.legacySessionKey)
+            defaults?.removeObject(forKey: TopShelfSessions.legacyPlexURLKey)
         }
 
         private func storedSessions() -> [TopShelfStoredSession] {
@@ -47,13 +37,6 @@ import Foundation
                 v2: defaults?.data(forKey: TopShelfSessions.sessionsKey),
                 v1: defaults?.data(forKey: TopShelfSessions.legacySessionKey),
             ).sessions
-        }
-
-        private func removeLegacyEntries(keychain: Keychain) {
-            try? keychain.deleteValue(forKey: TopShelfSessions.legacyTokenKey)
-            try? keychain.deleteValue(forKey: TopShelfSessions.legacyPlexTokenKey)
-            defaults?.removeObject(forKey: TopShelfSessions.legacySessionKey)
-            defaults?.removeObject(forKey: TopShelfSessions.legacyPlexURLKey)
         }
     }
 #endif

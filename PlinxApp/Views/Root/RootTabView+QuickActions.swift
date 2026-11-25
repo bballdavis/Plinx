@@ -12,7 +12,7 @@ extension RootTabView {
     }
 
     func presentQuickActions(for item: MediaDisplayItem, showsPrimary: Bool = true) {
-        guard PlinxContentAuthorization.isAllowed(item, policy: safetyPolicy) else {
+        guard ContentSafetyGate.shared.isAllowed(item) else {
             quickActionErrorMessage = String(localized: "media.unavailable.title", table: "Plinx")
             return
         }
@@ -50,16 +50,17 @@ extension RootTabView {
             )
 
             #if !os(tvOS)
-            switch QuickActionDownloadActionPolicy.action(for: media, downloadItems: downloadManager.items) {
+            // Only this profile's downloads count: another profile's copy of
+            // the same title never turns Download into "Go to downloads".
+            switch QuickActionDownloadActionPolicy.action(for: media, downloadItems: downloadManager.ownedItems) {
             case .download:
-                let downloadTitle: String
-                switch media.type {
-                case .show:
-                    downloadTitle = "Download All Episodes"
+                let downloadTitle = switch media.type {
+                case .series:
+                    "Download All Episodes"
                 case .season:
-                    downloadTitle = "Download Season"
+                    "Download Season"
                 default:
-                    downloadTitle = "Download Video"
+                    "Download Video"
                 }
 
                 actions.append(
@@ -69,41 +70,7 @@ extension RootTabView {
                         systemImage: "arrow.down.circle",
                         role: nil,
                         action: {
-                            guard PlinxContentAuthorization.isAllowed(media, policy: safetyPolicy) else {
-                                quickActionErrorMessage = NSLocalizedString(
-                                    "downloads.blockedByContentControls",
-                                    tableName: "Plinx",
-                                    comment: ""
-                                )
-                                return
-                            }
-                            Task {
-                                guard sessionManager.plinxDownloadOwnerIdentity != nil else {
-                                    quickActionErrorMessage = NSLocalizedString(
-                                        "downloads.ownerUnavailable",
-                                        tableName: "Plinx",
-                                        comment: ""
-                                    )
-                                    return
-                                }
-                                switch media.type {
-                                case .show:
-                                    _ = await downloadManager.enqueueShow(
-                                        ratingKey: media.id,
-                                        context: plexApiContext
-                                    )
-                                case .season:
-                                    _ = await downloadManager.enqueueSeason(
-                                        ratingKey: media.id,
-                                        context: plexApiContext
-                                    )
-                                default:
-                                    _ = await downloadManager.enqueueItem(
-                                        ratingKey: media.id,
-                                        context: plexApiContext
-                                    )
-                                }
-                            }
+                            enqueueDownload(of: media)
                         }
                     )
                 )
@@ -174,22 +141,50 @@ extension RootTabView {
         }
     }
 
+    #if !os(tvOS)
+    /// Downloads use the item's own server; the item is re-checked against
+    /// the content policy here, and the download services of the safety
+    /// boundary filter every episode of a series or season.
+    func enqueueDownload(of media: MediaItem) {
+        guard ContentSafetyGate.shared.isAllowed(media) else {
+            quickActionErrorMessage = String(localized: "downloads.blockedByContentControls", table: "Plinx")
+            return
+        }
+        guard let services = registry.services(for: media.identity.server) else {
+            quickActionErrorMessage = String(localized: "downloads.ownerUnavailable", table: "Plinx")
+            return
+        }
+        Task {
+            switch media.type {
+            case .series, .season:
+                await downloadManager.enqueueItems(itemID: media.id, kind: media.type, services: services)
+            default:
+                await downloadManager.enqueueItem(itemID: media.id, services: services)
+            }
+        }
+    }
+    #endif
+
     func toggleWatched(_ item: MediaItem) async {
         guard !ReleaseScreenshotCaptureMode.isActive() else {
             selectedQuickActionMedia = nil
+            return
+        }
+        guard let services = registry.services(for: item.identity.server) else {
+            quickActionErrorMessage = String(localized: "server.unavailable.title")
             return
         }
 
         do {
             let didMutate = try await watchStatusStore.toggle(
                 item,
-                context: plexApiContext,
-                isAllowed: PlinxContentAuthorization.isAllowed(item, policy: safetyPolicy)
+                services: services,
+                isAllowed: ContentSafetyGate.shared.isAllowed(item)
             )
             if didMutate {
-                // Preserve the successful shared override while independently
-                // owned source models reload from the server.
-                await homeViewModel?.reload()
+                // Preserve the successful shared override while the home
+                // reloads this server from the server's own state.
+                await homeViewModel.refresh(server: services.identity)
             }
         } catch {
             quickActionErrorMessage = error.localizedDescription

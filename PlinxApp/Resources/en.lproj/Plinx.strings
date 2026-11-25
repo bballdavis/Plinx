@@ -1,6 +1,7 @@
 /* ─────────────────────────────────────────────────────────────────────
    Plinx.strings  (English)
-   Generated from Plinx.xcstrings — source of truth is this file going forward.
+   The Plinx string table (`table: "Plinx"`); the absorbed screens use
+   Localizable.xcstrings.
    ───────────────────────────────────────────────────────────────────── */
 
 /* App */
@@ -102,6 +103,7 @@
 "search.placeholder.prompt" = "What would you like to watch?";
 "search.loading" = "Searching your library…";
 "search.no_results %@" = "No results for \"%@\"";
+"search.clear" = "Clear search";
 
 /* Settings — Content */
 "settings.content.section" = "Content";
@@ -112,12 +114,6 @@
 "settings.libraryViews.collectionButton" = "Collection Button";
 "settings.libraryViews.empty" = "No recommend sections available.";
 "settings.libraryViews.description" = "Toggle sections on or off and drag to reorder.";
-"settings.server.default.title" = "Default Server";
-"settings.server.loading" = "Loading Servers…";
-"settings.server.empty.title" = "No Servers Available";
-"settings.server.empty.description" = "Make sure your Plex servers are online, then try again.";
-"settings.server.choose" = "Choose Default Server";
-"settings.server.currentlyActive" = "Currently Active";
 "settings.navigation.showSearchInMainNavigation" = "Show \"Search\" in main navigation";
 
 /* Settings — Youtarr (parent-only) */
@@ -293,6 +289,14 @@
 /* Settings — Playback */
 "settings.playback.section" = "Playback";
 "settings.playback.pauseWhenScreenTurnsOff.title" = "Pause playback when screen turns off";
+"settings.playback.plinx.bedtime.section" = "Bedtime and Autoplay";
+"settings.playback.plinx.bedtime.footer" = "The sleep timer starts with every video and pauses playback when it runs out. Set Play next episode to Off to stop after each episode.";
+"settings.player.plinx.section" = "Player";
+"settings.player.plinx.footer" = "Videos always play in Plinx, at normal speed.";
+
+/* Content safety boundary */
+"safety.content.unavailable" = "This isn't available.";
+"safety.parentApprovalRequired" = "Ask a grown-up to unlock this.";
 
 /* Settings — Safety */
 "settings.safety.title" = "Content Safety";
@@ -345,6 +349,8 @@
 /* Settings — Account */
 "settings.profile.section" = "Account";
 "settings.profile.switch" = "Switch Profile";
+"settings.accounts.plinx.section" = "Accounts and Profiles";
+"settings.accounts.plinx.footer" = "Add a Plex account or a Jellyfin server and choose which servers this profile uses. Every server follows the same content ratings.";
 
 /* Settings — About */
 "settings.about.title" = "Legal & Open Source";
@@ -382,6 +388,7 @@
 
 "signIn.demo.failed" = "The sample library couldn’t start. Please try again.";
 "settings.demo.profile" = "The demo uses one sample profile. Sign out and connect your account to switch Plex profiles.";
+"demo.profile.name" = "Sample Family";
 
 "signIn.footnote" = "You’ll sign in on plex.tv. Plinx never sees your password.";
 "onboarding.step %lld %lld" = "Step %1$lld of %2$lld";

@@ -13,7 +13,8 @@ for streaming playback and does not show download controls.
 ## What you need
 
 Plinx works with an existing Plex account and a Plex Media Server you are
-authorized to use. It does not provide media, Plex access, or a hosted server.
+authorized to use, or with a Jellyfin server and a user account on it. Plinx
+does not provide media, Plex access, or a hosted server.
 
 Until the App Store listing is available, people who want to try Plinx need to
 [build it from source](../development/setup.md).

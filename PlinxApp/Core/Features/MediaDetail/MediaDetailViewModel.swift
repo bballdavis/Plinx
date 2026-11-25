@@ -199,7 +199,9 @@ final class MediaDetailViewModel {
     }
 
     func selectSeason(id: String) async {
-        guard selectedSeasonId != id else { return }
+        // Re-selecting the current season reloads it when its episodes are missing, so a failed or
+        // interrupted load (or a download picker opened before episodes arrived) can recover.
+        guard selectedSeasonId != id || (episodes.isEmpty && !isLoadingEpisodes) else { return }
         prefersOnDeckSeason = false
         selectedSeasonId = id
         episodes = []
@@ -516,7 +518,7 @@ final class MediaDetailViewModel {
         #if os(tvOS)
             true
         #else
-            (services.detail as? CachedDetailService)?.canOpenPerson(id: person.id) ?? true
+            (services.detail as? any OfflineDetailCacheReading)?.canOpenPerson(id: person.id) ?? true
         #endif
     }
 
@@ -1324,7 +1326,7 @@ final class MediaDetailViewModel {
 
         #if !os(tvOS)
             if !preservingExistingContent, detailTargetID == media.id,
-               let cached = (services.detail as? CachedDetailService)?.cachedDetails(for: media.mediaItem)
+               let cached = (services.detail as? any OfflineDetailCacheReading)?.cachedDetails(for: media.mediaItem)
             {
                 parentSeries = cached.parentSeries.flatMap(PlayableMediaItem.init)
                 seasons = cached.seasons

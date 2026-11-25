@@ -58,14 +58,13 @@ final class SignInViewModel {
         authSession = nil
     }
 
+    /// The product name matches the `X-Plex-Product` header, so plex.tv names the device after the host app.
     private func plexAuthURL(pin: PlexCloudPin) -> URL {
-        let base = "https://app.plex.tv/auth#?"
-        let fragment =
-            "clientID=\(pin.clientIdentifier)" +
-            "&context[device][product]=Strimr" +
-            "&code=\(pin.code)"
-
-        return URL(string: base + fragment)!
+        PlexAuthURLBuilder.url(
+            clientIdentifier: pin.clientIdentifier,
+            code: pin.code,
+            productName: PlexProductIdentity.name,
+        )
     }
 
     private func openAuthSession(_ url: URL) async -> Bool {

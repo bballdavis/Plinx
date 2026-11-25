@@ -2,6 +2,8 @@ import XCTest
 @testable import Plinx
 
 final class QuickActionDownloadActionPolicyTests: XCTestCase {
+    private let server = ServerIdentity(provider: .plex, id: "server-1")
+
     func test_movieWithoutDownloadShowsDownloadAction() {
         let media = makeMediaItem(id: "movie-1", type: .movie)
 
@@ -12,7 +14,7 @@ final class QuickActionDownloadActionPolicyTests: XCTestCase {
 
     func test_completedMovieShowsGoToDownloadsAction() {
         let media = makeMediaItem(id: "movie-1", type: .movie)
-        let downloads = [makeDownloadItem(ratingKey: "movie-1", type: .movie, status: .completed)]
+        let downloads = [makeDownloadItem(itemID: "movie-1", type: .movie, status: .completed)]
 
         let action = QuickActionDownloadActionPolicy.action(for: media, downloadItems: downloads)
 
@@ -21,18 +23,34 @@ final class QuickActionDownloadActionPolicyTests: XCTestCase {
 
     func test_failedMovieStillShowsDownloadAction() {
         let media = makeMediaItem(id: "movie-1", type: .movie)
-        let downloads = [makeDownloadItem(ratingKey: "movie-1", type: .movie, status: .failed)]
+        let downloads = [makeDownloadItem(itemID: "movie-1", type: .movie, status: .failed)]
 
         let action = QuickActionDownloadActionPolicy.action(for: media, downloadItems: downloads)
 
         XCTAssertEqual(action, .download)
     }
 
-    func test_showUsesEpisodeDownloadsToRouteToDownloads() {
-        let media = makeMediaItem(id: "show-1", type: .show)
+    func test_downloadFromAnotherServerDoesNotHideDownloadAction() {
+        let media = makeMediaItem(id: "movie-1", type: .movie)
         let downloads = [
             makeDownloadItem(
-                ratingKey: "episode-1",
+                itemID: "movie-1",
+                type: .movie,
+                status: .completed,
+                server: ServerIdentity(provider: .plex, id: "server-2")
+            )
+        ]
+
+        let action = QuickActionDownloadActionPolicy.action(for: media, downloadItems: downloads)
+
+        XCTAssertEqual(action, .download)
+    }
+
+    func test_seriesUsesEpisodeDownloadsToRouteToDownloads() {
+        let media = makeMediaItem(id: "show-1", type: .series)
+        let downloads = [
+            makeDownloadItem(
+                itemID: "episode-1",
                 type: .episode,
                 status: .downloading,
                 parentRatingKey: "season-1",
@@ -49,7 +67,7 @@ final class QuickActionDownloadActionPolicyTests: XCTestCase {
         let media = makeMediaItem(id: "season-1", type: .season)
         let downloads = [
             makeDownloadItem(
-                ratingKey: "episode-1",
+                itemID: "episode-1",
                 type: .episode,
                 status: .queued,
                 parentRatingKey: "season-1",
@@ -62,9 +80,10 @@ final class QuickActionDownloadActionPolicyTests: XCTestCase {
         XCTAssertEqual(action, .goToDownloads)
     }
 
-    private func makeMediaItem(id: String, type: PlexItemType) -> MediaItem {
+    private func makeMediaItem(id: String, type: MediaKind) -> MediaItem {
         MediaItem(
             id: id,
+            identity: MediaIdentity(server: server, itemID: id),
             guid: "guid://\(id)",
             summary: nil,
             title: id,
@@ -82,7 +101,7 @@ final class QuickActionDownloadActionPolicyTests: XCTestCase {
             tagline: nil,
             thumbPath: nil,
             artPath: nil,
-            ultraBlurColors: nil,
+            artworkCornerColors: nil,
             viewOffset: nil,
             viewCount: nil,
             childCount: nil,
@@ -99,14 +118,15 @@ final class QuickActionDownloadActionPolicyTests: XCTestCase {
     }
 
     private func makeDownloadItem(
-        ratingKey: String,
-        type: PlexItemType,
+        itemID: String,
+        type: MediaKind,
         status: DownloadStatus,
         parentRatingKey: String? = nil,
-        grandparentRatingKey: String? = nil
+        grandparentRatingKey: String? = nil,
+        server: ServerIdentity? = nil
     ) -> DownloadItem {
         DownloadItem(
-            id: "download-\(ratingKey)",
+            id: "download-\(itemID)",
             status: status,
             progress: 0,
             bytesWritten: 0,
@@ -114,14 +134,15 @@ final class QuickActionDownloadActionPolicyTests: XCTestCase {
             taskIdentifier: nil,
             errorMessage: nil,
             metadata: DownloadedMediaMetadata(
-                ratingKey: ratingKey,
-                guid: "guid://\(ratingKey)",
+                identity: MediaIdentity(server: server ?? self.server, itemID: itemID),
+                guid: "guid://\(itemID)",
                 type: type,
-                title: ratingKey,
+                title: itemID,
                 summary: nil,
                 genres: [],
                 year: nil,
                 duration: nil,
+                viewCount: nil,
                 contentRating: nil,
                 studio: nil,
                 tagline: nil,
@@ -134,6 +155,10 @@ final class QuickActionDownloadActionPolicyTests: XCTestCase {
                 posterFileName: nil,
                 videoFileName: "video",
                 fileSize: nil,
+                requestedQuality: .original,
+                effectiveQuality: .original,
+                audioTitle: nil,
+                subtitleTitle: nil,
                 createdAt: Date()
             )
         )

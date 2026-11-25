@@ -157,14 +157,7 @@ struct PlayerControlsView: View {
                         )
                     }
 
-                    if state.live == nil {
-                        PlayerSettingButton(
-                            systemImage: "speedometer",
-                            accessibilityLabel: String(localized: "player.settings.speed"),
-                            action: actions.showSpeedSettings,
-                        )
-                        .focused($focusedControl, equals: .speed)
-                    }
+                    // Plinx offers no playback speed control: kids' videos always play at normal speed.
 
                     PlayerSettingButton(
                         systemImage: "slider.horizontal.3",

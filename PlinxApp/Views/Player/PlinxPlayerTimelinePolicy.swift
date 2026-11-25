@@ -150,6 +150,59 @@ struct PlayerTimelineGeometry: Equatable {
         let origin = min(max(centerX - (targetWidth / 2), 0), maximumOrigin)
         return CGRect(x: origin, y: 0, width: targetWidth, height: max(controlHeight, 0))
     }
+
+    /// Where a time sits on the track; `nil` without a usable duration.
+    func x(forTime time: Double) -> CGFloat? {
+        guard let duration, time.isFinite else { return nil }
+        let progress = min(max(time / duration, 0), 1)
+        return trackStart + trackWidth * CGFloat(progress)
+    }
+
+    /// Track spans of the skip segments (intro, credits), clamped to the track. Empty or inverted ranges are dropped.
+    func segmentSpans(_ marks: PlayerTimelineMarks) -> [ClosedRange<CGFloat>] {
+        marks.segments.compactMap { segment in
+            guard let start = x(forTime: segment.lowerBound),
+                  let end = x(forTime: segment.upperBound),
+                  end > start
+            else { return nil }
+            return start...end
+        }
+    }
+
+    /// Gaps cut into the track where chapters begin, like the segmented upstream rail. A boundary too close to the
+    /// track ends or to another boundary, or under the hump, gets no gap so the curve never breaks into slivers.
+    func chapterGaps(
+        _ marks: PlayerTimelineMarks,
+        gapWidth: CGFloat,
+        minimumSpacing: CGFloat,
+        avoiding excluded: ClosedRange<CGFloat>?
+    ) -> [ClosedRange<CGFloat>] {
+        guard let duration, trackWidth > 0, gapWidth > 0 else { return [] }
+        let starts = marks.chapterStarts
+            .filter { $0.isFinite && $0 > 0 && $0 < duration }
+            .sorted()
+        var gaps: [ClosedRange<CGFloat>] = []
+        var previousX = trackStart
+        for start in starts {
+            guard let x = x(forTime: start) else { continue }
+            guard x - previousX >= minimumSpacing, trackEnd - x >= minimumSpacing else { continue }
+            previousX = x
+            if let excluded, excluded.contains(x) { continue }
+            gaps.append((x - gapWidth / 2)...(x + gapWidth / 2))
+        }
+        return gaps
+    }
+}
+
+/// Chapter starts and skip segments the timeline draws along its curve, in seconds.
+struct PlayerTimelineMarks: Equatable {
+    var chapterStarts: [Double]
+    var segments: [ClosedRange<Double>]
+
+    init(chapterStarts: [Double], segments: [ClosedRange<Double>]) {
+        self.chapterStarts = chapterStarts
+        self.segments = segments
+    }
 }
 
 struct PlayerTimelineDragSession: Equatable {

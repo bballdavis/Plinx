@@ -2,52 +2,48 @@
 
 ## Goal
 
-Keep Plinx code in Plinx and Strimr engine code in Strimr. Do not let wrappers, copied files, or convenience shims become a shadow third codebase.
+Plinx is one codebase. The code absorbed from Strimr in `PlinxApp/Core` and
+`PlinxApp/Platform` is Plinx code. Keep one implementation per concept, and do
+not let wrappers, copied files, or convenience shims grow a shadow layer
+beside the code they wrap.
 
-## What Belongs In Plinx
+## Where A Change Belongs
 
-- kid-safe UX and product rules
-- parental gate flows and settings protection
-- Plinx branding, assets, copy, and loading states
-- Plinx-specific navigation and screen composition
-- adapters and decorators that reshape upstream behavior for the Plinx product
-- `Packages/PlinxCore` and `Packages/PlinxUI`
-- build, release, validation, and local development scripts
-
-## What Belongs In Strimr
-
-- generic Plex integration logic
-- shared models and repositories
-- playback engine behavior
-- download engine behavior
-- session/store infrastructure
-- fixes that still make sense without the Plinx product
+| Concept | Location |
+|---|---|
+| Sessions, accounts, server registry, providers (Plex, Jellyfin), models, networking, player controller, offline store, downloads, settings store | `PlinxApp/Core` |
+| The content-safety boundary (`ContentSafetyGate`, `SafeMediaServices`) | `PlinxApp/Core/Safety` |
+| A platform screen kept from upstream | `PlinxApp/Platform/iOS` or `PlinxApp/Platform/tvOS` |
+| Plinx presentation: tabs, onboarding, Home, Library, Search, detail, player chrome, settings, downloads grid | `PlinxApp/Views`, `ViewModels`, `Adapters` |
+| App wiring, lifecycle, parental access, the sample library, Youtarr client | `PlinxApp/App` |
+| Safety policy, rating normalization, parental gate logic | `Packages/PlinxCore` |
+| Theme and brand components | `Packages/PlinxUI` |
+| Build, release, validation, and local development scripts | `scripts/` |
 
 ## Decision Checklist
 
 Ask these in order:
 
-1. Would this change exist if Plinx did not exist?
-2. Is the behavior generic enough that Strimr should own it?
-3. Can Plinx solve this with an adapter, decorator, or app-level wrapper?
-4. If Strimr must change, can the patch stay minimal and upstreamable?
-
-If the answer to 1 or 2 is yes, the work probably belongs in the Strimr fork. If the answer to 3 is yes, keep it in Plinx.
-
-## Current Runtime Reality
-
-Plinx still compiles parts of the sibling `../strimr` checkout directly into the app target.
-
-That means:
-
-- the sibling Strimr repo is part of the effective runtime source tree
-- there is no local shadow `StrimrEngine` package
-- Strimr-owned changes must be made and accounted for in the paired checkout
+1. Which concept does the change belong to, and where does that concept live
+   today? Change it there.
+2. Does the change affect what titles a family can see or play? Then it
+   belongs in `Core/Safety` and `SafeMediaServicesTests`, not in a screen.
+3. Is there already an implementation of this concept? Change or delete it
+   instead of adding a second one.
+4. Does the change rename a persisted key or file? Keep the old name, or add a
+   migration that preserves families' sign-in and data.
 
 ## Working Policy
 
-Use this policy until the architecture is simplified further:
-
-1. Treat `../strimr` as the canonical home for Strimr-owned logic.
-2. Keep Plinx-specific changes out of the Strimr repo unless they are the smallest safe patch needed to unblock Plinx.
-3. When a Strimr-side change is necessary for Plinx, document why it could not live in Plinx-owned layers.
+1. Do not override a type by excluding its file in `project.yml` and declaring
+   a same-named replacement. Target exclusions are only for platform
+   membership (iOS-only downloads and offline store, or a screen with its own
+   tvOS version).
+2. Delete code neither target reaches instead of stubbing it.
+3. Upstream Strimr is a source of ideas and fixes, not a dependency. Port
+   changes by hand following
+   [upstream Strimr provenance](../maintenance/upstream-strimr.md), and judge
+   each one against kid safety, zero collection, and the no-external-links
+   rule.
+4. Generic bug fixes can still be offered upstream as pull requests, but
+   nothing in Plinx waits on upstream accepting them.
