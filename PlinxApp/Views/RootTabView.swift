@@ -82,11 +82,7 @@ struct RootTabView: View {
 
     /// The final playback check for an item of `services`' server.
     func launcher(for services: MediaServices) -> PlaybackLauncher {
-        PlaybackLauncher(
-            services: services,
-            coordinator: mainCoordinator,
-            safetyPolicy: safetyPolicy
-        )
+        PlaybackLauncher(services: services, coordinator: mainCoordinator)
     }
 
     /// Plinx shows Home, Search, Library, Downloads (`more`) and Explore

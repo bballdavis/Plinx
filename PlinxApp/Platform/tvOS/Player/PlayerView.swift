@@ -8,8 +8,6 @@ struct PlayerView: View {
     @Environment(SharePlayCoordinator.self) private var sharePlayCoordinator
     @Environment(\.accessibilityVoiceOverEnabled) private var isVoiceOverEnabled
     @State var viewModel: PlayerViewModel
-    /// Read once when the player opens: switching styles mid-playback is not supported.
-    @State private var controlsStyle: PlayerControlsStyle
     let onExit: () -> Void
     @State private var playerController = PlayerController()
     @State private var controlsVisible = true
@@ -33,7 +31,6 @@ struct PlayerView: View {
     @State private var pendingRecoveryAudioTrackID: Int?
     @State private var pendingRecoverySubtitleTrackID: Int?
     @State private var shouldRestoreTracksAfterLoad = false
-    @State private var playbackRate: Float = 1.0
     @State private var appliedPreferredAudio = false
     @State private var appliedPreferredSubtitle = false
     @State private var appliedResumeOffset = false
@@ -70,8 +67,6 @@ struct PlayerView: View {
     @State private var qualityNoticeMessage: String?
     @State private var activeAdjustmentBar: PlayerAdjustmentBar?
     @State private var showsPlaybackStatistics = false
-    @State private var isSystemMenuPresented = false
-    @State private var isShowingSystemTabs = false
     @FocusState private var focusedPlayerSurface: PlayerFocusTarget?
     /// Plinx draws its own branded buffering indicator above the player and turns this one off.
     private let showsBufferingOverlay: Bool
@@ -99,14 +94,12 @@ struct PlayerView: View {
 
     init(
         viewModel: PlayerViewModel,
-        controlsStyle: PlayerControlsStyle,
         onExit: @escaping () -> Void,
         showsBufferingOverlay: Bool = true,
         isPlaybackAuthorized: @escaping @MainActor (MediaItem) -> Bool = { ContentSafetyGate.shared.isAllowed($0) },
         onViewModelChange: @escaping @MainActor (PlayerViewModel) -> Void = { _ in },
     ) {
         _viewModel = State(initialValue: viewModel)
-        _controlsStyle = State(initialValue: controlsStyle)
         self.onExit = onExit
         self.showsBufferingOverlay = showsBufferingOverlay
         self.isPlaybackAuthorized = isPlaybackAuthorized
@@ -141,11 +134,6 @@ struct PlayerView: View {
                     applyMaximumVolume()
                     configureSleepTimer()
                     showControls(temporarily: true)
-                    playbackRate = viewModel.initialPlaybackRate(
-                        settings: settingsManager.playback,
-                        isSharePlay: sharePlayCoordinator.isInSession,
-                    )
-                    playerController.setPlaybackRate(playbackRate)
                     if sharePlayCoordinator.isInSession {
                         sharePlayCoordinator.attachPlayer(
                             playerController,
@@ -239,7 +227,6 @@ struct PlayerView: View {
                         focusedPlayerSurface = nil
                         return
                     }
-                    isShowingSystemTabs = false
 
                     focusHiddenControlsTarget(hasSkipOverlay: viewModel.activeSkipMarker != nil)
                 }
@@ -361,13 +348,7 @@ struct PlayerView: View {
                     EmptyView()
                 }
             }
-            .taskPresentation(isPresented: $isSearchingSubtitles, onDismiss: {
-                refreshTracks()
-                // The system style opens the search straight from its menu: the focus goes back to its button.
-                if controlsStyle == .system {
-                    settingsFocusGeneration += 1
-                }
-            }) {
+            .taskPresentation(isPresented: $isSearchingSubtitles, onDismiss: { refreshTracks() }) {
                 playbackSettingsSheet(.subtitleSearch)
             }
             .alert("player.termination.title", isPresented: $showingTerminationAlert) {
@@ -485,9 +466,9 @@ struct PlayerView: View {
     private var subtitleControlsInset: CGFloat {
         // The controls are hidden behind the settings panel, and would misrepresent the subtitle position.
         guard controlsVisible, !isShowingSubtitleAppearance else { return 0 }
-        return isShowingInfoPanel || isShowingSystemTabs
-            ? controlsStyle.metrics.expandedSubtitleInset
-            : controlsStyle.metrics.subtitleInset
+        return isShowingInfoPanel
+            ? PlayerControlsMetrics.expandedSubtitleInset
+            : PlayerControlsMetrics.subtitleInset
     }
 
     private var controlsState: PlayerControlsState {
@@ -501,7 +482,6 @@ struct PlayerView: View {
             duration: viewModel.duration,
             bufferedAhead: viewModel.bufferedAhead,
             bufferBasePosition: viewModel.position,
-            playbackRate: playbackRate,
             showsEndsAtTime: settingsManager.playback.showEndsAtTime,
             showsClock: settingsManager.playback.showClock,
             isScrubbing: isScrubbing,
@@ -527,94 +507,7 @@ struct PlayerView: View {
             showsSubtitleOffsetIndicator: playerController.subtitleDelayMilliseconds != 0,
             settingsFocusGeneration: settingsFocusGeneration,
             isShowingPanel: sheetPresentation.item != nil || activeAdjustmentBar != nil,
-            menus: controlsStyle == .system ? systemMenus : nil,
-            tabs: controlsStyle == .system && canShowInfoPanel
-                ? PlayerTabsContent(
-                    services: viewModel.artworkServices,
-                    queueItems: viewModel.queueItems,
-                    queueCurrentIndex: viewModel.queueCurrentIndex ?? 0,
-                    showsQueue: showsQueueTab,
-                )
-                : nil,
-            isShowingTabs: isShowingSystemTabs,
         )
-    }
-
-    private var systemMenus: PlayerSystemMenus {
-        PlayerSystemMenus { menu in
-            switch menu {
-            case .subtitles: systemSubtitlesMenu
-            case .audio: systemAudioMenu
-            case .more: systemMoreMenu
-            }
-        }
-    }
-
-    private var systemSubtitlesMenu: [PlayerMenuSection] {
-        PlayerMenus.subtitles(PlayerMenus.Subtitles(
-            tracks: settingsSubtitleTracks,
-            selectedTrackID: selectedSubtitleTrackID,
-            canSearch: viewModel.canSearchSubtitles,
-            canResetTrackSelections: viewModel.canResetRememberedTrackSelections,
-            sync: playerController.offsetMenuItem(.subtitles, burnsSubtitles: viewModel.burnsSubtitles),
-            appearance: subtitleAppearanceAvailability,
-            onSelect: selectSubtitleTrack(_:),
-            onSearch: { isSearchingSubtitles = true },
-            onResetTrackSelections: { viewModel.resetRememberedTrackSelections() },
-            onSync: openOffsetBar(_:),
-            onAppearance: {
-                settingsControl = .subtitle
-                sheetPresentation.item = .subtitleAppearance
-            },
-        ))
-    }
-
-    private var systemAudioMenu: [PlayerMenuSection] {
-        let playback = settingsManager.playback
-        return PlayerMenus.audio(PlayerMenus.Audio(
-            tracks: settingsAudioTracks,
-            selectedTrackID: selectedAudioTrackID,
-            nightMode: playback.nightMode,
-            dialogueBoost: playback.dialogueBoost,
-            isAudioShapingAvailable: playerController.isAudioShapingAvailable,
-            sync: playerController.offsetMenuItem(.audio, burnsSubtitles: viewModel.burnsSubtitles),
-            onSelect: selectAudioTrack(_:),
-            onToggleNightMode: { setNightMode(!settingsManager.playback.nightMode) },
-            onSelectDialogueBoost: selectDialogueBoost(_:),
-            onSync: openOffsetBar(_:),
-        ))
-    }
-
-    private var systemMoreMenu: [PlayerMenuSection] {
-        PlayerMenus.more(PlayerMenus.More(
-            isLive: viewModel.isLivePlayback,
-            playbackRate: playbackRate,
-            quality: viewModel.selectedQuality,
-            versions: viewModel.showsVersionSelection ? viewModel.versionOptions : [],
-            zoom: playerController.videoZoom,
-            fillScale: videoFillScale,
-            sleepTimerMode: sleepTimer.mode,
-            sleepTimerDeadline: sleepTimer.deadline,
-            sleepTimerModes: SleepTimerMode.available(
-                isLive: viewModel.isLivePlayback,
-                hasChapters: viewModel.hasNavigableChapters,
-            ),
-            mediaKind: viewModel.media?.type,
-            isSharePlay: sharePlayCoordinator.isInSession,
-            showsStatistics: showsPlaybackStatistics,
-            canSwitchPreviousChannel: viewModel.canSwitchToPreviousLiveChannel,
-            canSwitchNextChannel: viewModel.canSwitchToNextLiveChannel,
-            onSelectRate: selectPlaybackRate(_:),
-            onSelectQuality: { selectQuality($0) },
-            onSelectVersion: selectVersion(_:),
-            onSelectZoom: selectVideoZoom(_:),
-            onCustomZoom: openZoomBar,
-            onSelectSleepTimer: selectSleepTimer(_:),
-            onExtendSleepTimer: { sleepTimer.extend() },
-            onToggleStatistics: { showsPlaybackStatistics.toggle() },
-            onPreviousChannel: { switchLiveChannel(by: -1) },
-            onNextChannel: { switchLiveChannel(by: 1) },
-        ))
     }
 
     private var controlsActions: PlayerControlsActions {
@@ -631,7 +524,6 @@ struct PlayerView: View {
             userInteraction: { showControls(temporarily: true) },
             showAudioSettings: showAudioSettings,
             showSubtitleSettings: showSubtitleSettings,
-            showSpeedSettings: showSpeedSettings,
             showSettings: showSettings,
             goLive: playerController.seekToLiveEdge,
             showLiveChannels: {
@@ -640,22 +532,11 @@ struct PlayerView: View {
             },
             previousChannel: { switchLiveChannel(by: -1) },
             nextChannel: { switchLiveChannel(by: 1) },
-            menuPresentationChanged: handleSystemMenuPresentation(_:),
-            tabsPresentationChanged: handleSystemTabsPresentation(_:),
-            selectChapter: selectChapter(_:),
-            restartFromBeginning: restartFromBeginning,
-            selectQueueItem: selectQueueItem(at:),
         )
     }
 
-    @ViewBuilder
     private var controlsLayer: some View {
-        switch controlsStyle {
-        case .classic:
-            PlayerControlsView(state: controlsState, actions: controlsActions, position: timelineBinding)
-        case .system:
-            SystemPlayerControlsView(state: controlsState, actions: controlsActions, position: timelineBinding)
-        }
+        PlayerControlsView(state: controlsState, actions: controlsActions, position: timelineBinding)
     }
 
     private var playerOverlay: some View {
@@ -683,7 +564,7 @@ struct PlayerView: View {
 
             if showsPlaybackStatistics, !isShowingInfoPanel {
                 PlaybackStatisticsOverlay(controller: playerController, viewModel: viewModel)
-                    .padding(.top, controlsVisible ? controlsStyle.metrics.statisticsTopInset : 0)
+                    .padding(.top, controlsVisible ? PlayerControlsMetrics.statisticsTopInset : 0)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .animation(Motion.animation(Motion.controls, reduceMotion: reduceMotion), value: controlsVisible)
                     .transition(.opacity)
@@ -708,7 +589,7 @@ struct PlayerView: View {
             if let feedbackMessage {
                 PlayerFeedbackView(message: feedbackMessage, systemImage: feedbackSystemImage)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                    .padding(.bottom, controlsVisible ? controlsStyle.metrics.feedbackBottomInset : 48)
+                    .padding(.bottom, controlsVisible ? PlayerControlsMetrics.feedbackBottomInset : 48)
                     .transition(.opacity.combined(with: .scale(scale: 0.96)))
                     .allowsHitTesting(false)
             }
@@ -718,7 +599,6 @@ struct PlayerView: View {
                     media: media,
                     position: viewModel.position,
                     duration: viewModel.duration,
-                    playbackRate: playbackRate,
                     showsEndsAtTime: settingsManager.playback.showEndsAtTime,
                     isLive: viewModel.isLivePlayback,
                 )
@@ -841,11 +721,6 @@ struct PlayerView: View {
             )
         case .subtitleAppearance:
             PlayerSubtitleAppearanceView(availability: subtitleAppearanceAvailability)
-        case .speed:
-            PlayerSpeedSelectionView(
-                selectedRate: playbackRate,
-                onSelect: selectPlaybackRate(_:),
-            )
         case .settings:
             PlayerSettingsMenuView(
                 qualityTitle: viewModel.isLivePlayback ? nil : viewModel.selectedQuality.title,
@@ -913,7 +788,7 @@ struct PlayerView: View {
         let edge: Edge.Set = alignment == .top ? .top : .bottom
         let inset: CGFloat = alignment == .top || !controlsVisible
             ? 40
-            : controlsStyle.metrics.adjustmentBarBottomInset
+            : PlayerControlsMetrics.adjustmentBarBottomInset
         return PlayerOffsetBar(
             controller: playerController,
             kind: kind,
@@ -981,12 +856,6 @@ struct PlayerView: View {
         showControls(temporarily: true)
     }
 
-    private func showSpeedSettings() {
-        settingsControl = .speed
-        sheetPresentation.item = .speed
-        showControls(temporarily: true)
-    }
-
     private func showSettings() {
         settingsControl = .settings
         settingsMenuFocusID = nil
@@ -1001,9 +870,9 @@ struct PlayerView: View {
         return .move(edge: edge).combined(with: .opacity)
     }
 
-    /// The system style opens panels straight from its menus, so Back closes them instead of showing a parent page.
+    /// Back shows the parent page of a submenu, and closes a top-level panel.
     private func navigateBackInSettingsPanel() {
-        guard let sheet = sheetPresentation.item, let parent = sheet.parent, controlsStyle == .classic else {
+        guard let sheet = sheetPresentation.item, let parent = sheet.parent else {
             closeSettingsPanel()
             return
         }
@@ -1190,12 +1059,6 @@ struct PlayerView: View {
 
     private func showInfoPanel() {
         guard canShowInfoPanel else { return }
-        if controlsStyle == .system {
-            isShowingSystemTabs = true
-            showControls(temporarily: false)
-            return
-        }
-
         hideControlsWorkItem?.cancel()
         focusedPlayerSurface = nil
         infoPanelTab = .info
@@ -1205,11 +1068,6 @@ struct PlayerView: View {
     }
 
     private func hideInfoPanel() {
-        if isShowingSystemTabs {
-            isShowingSystemTabs = false
-            showControls(temporarily: true)
-            return
-        }
         guard isShowingInfoPanel else { return }
         withAnimation(Motion.animation(Motion.panel, reduceMotion: reduceMotion)) {
             isShowingInfoPanel = false
@@ -1358,12 +1216,6 @@ struct PlayerView: View {
                 )
             }
         }
-    }
-
-    private func selectPlaybackRate(_ rate: Float) {
-        playbackRate = rate
-        playerController.setPlaybackRate(rate)
-        showControls(temporarily: true)
     }
 
     private func activateExternalSubtitle(_ subtitle: PlayerExternalSubtitle) throws {
@@ -1548,7 +1400,6 @@ struct PlayerView: View {
             autoplay: !sharePlayCoordinator.isInSession,
             nowPlaying: viewModel.nowPlayingItem(settings: settingsManager.playback),
         )
-        playerController.setPlaybackRate(playbackRate)
         shouldResumeAfterMediaLoad = shouldResumeAfterLoad
         shouldPauseAfterMediaLoad = shouldPauseAfterLoad
         showControls(temporarily: true)
@@ -1682,8 +1533,6 @@ struct PlayerView: View {
             && !isSearchingSubtitles
             && sheetPresentation.item == nil
             && !isShowingInfoPanel
-            && !isShowingSystemTabs
-            && !isSystemMenuPresented
             && activeAdjustmentBar == nil
             && viewModel.activeSkipMarker == nil
             && !nextEpisodePresentation.isPresented
@@ -1735,30 +1584,10 @@ struct PlayerView: View {
         return true
     }
 
-    private func handleSystemTabsPresentation(_ isPresented: Bool) {
-        guard isShowingSystemTabs != isPresented else { return }
-        isShowingSystemTabs = isPresented
-        if isPresented {
-            hideControlsWorkItem?.cancel()
-        } else {
-            scheduleControlsHide()
-        }
-    }
-
-    private func handleSystemMenuPresentation(_ isPresented: Bool) {
-        isSystemMenuPresented = isPresented
-        if isPresented {
-            hideControlsWorkItem?.cancel()
-        } else {
-            scheduleControlsHide()
-        }
-    }
-
     private func scheduleControlsHide() {
         hideControlsWorkItem?.cancel()
         // The controls stay up for the whole pause, until the pause screen takes their place.
-        guard sheetPresentation.item == nil, activeAdjustmentBar == nil, !playerController.isPaused,
-              !isScrubbing, !isSystemMenuPresented, !isShowingSystemTabs
+        guard sheetPresentation.item == nil, activeAdjustmentBar == nil, !playerController.isPaused, !isScrubbing
         else { return }
 
         let workItem = DispatchWorkItem {
@@ -1840,27 +1669,18 @@ struct PlayerView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + duration, execute: workItem)
     }
 
-    @ViewBuilder
     private func skipOverlay(marker: SkipSegment, title: String) -> some View {
-        switch controlsStyle {
-        case .classic:
-            VStack {
+        VStack {
+            Spacer()
+            HStack {
                 Spacer()
-                HStack {
-                    Spacer()
-                    SkipMarkerButton(title: title) {
-                        skipMarker(to: marker)
-                    }
-                    .focused($focusedPlayerSurface, equals: .skipOverlay)
+                SkipMarkerButton(title: title) {
+                    skipMarker(to: marker)
                 }
-                .padding(.horizontal, 40)
-                .padding(.bottom, 40)
+                .focused($focusedPlayerSurface, equals: .skipOverlay)
             }
-        case .system:
-            SystemPlayerContextualAction(title: title) {
-                skipMarker(to: marker)
-            }
-            .focused($focusedPlayerSurface, equals: .skipOverlay)
+            .padding(.horizontal, 40)
+            .padding(.bottom, 40)
         }
     }
 
@@ -2167,7 +1987,6 @@ private enum PlayerAdjustmentBar: Hashable {
 private enum PlayerSettingsSheet: String, Identifiable {
     case audio
     case subtitle
-    case speed
     case settings
     case quality
     case version
@@ -2189,7 +2008,7 @@ private enum PlayerSettingsSheet: String, Identifiable {
             .audio
         case .subtitleAppearance:
             .subtitle
-        case .audio, .subtitle, .speed, .settings, .subtitleSearch:
+        case .audio, .subtitle, .settings, .subtitleSearch:
             nil
         }
     }
@@ -2200,8 +2019,6 @@ private enum PlayerSettingsSheet: String, Identifiable {
             "player.settings.audio"
         case .subtitle:
             "player.settings.subtitles"
-        case .speed:
-            "player.settings.speed"
         case .settings:
             "settings.title"
         case .quality:

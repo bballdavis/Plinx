@@ -37,8 +37,10 @@ choices.
 ## Sign in to Jellyfin
 
 1. Choose **Use a Jellyfin server** (on Apple TV, **Jellyfin**).
-2. Enter your server's address, or choose **Search local servers** to find
-   Jellyfin servers on your network and pick one.
+2. Enter your server's address, for example `http://192.168.1.20:8096`. On
+   Apple TV you can instead choose **Search local servers** to find Jellyfin
+   servers on your network and pick one. iPhone and iPad do not offer the
+   search yet, so enter the address there.
 3. Sign in with your Jellyfin username and password. If the server has Quick
    Connect turned on, you can instead choose **Use Quick Connect** and enter
    the code Plinx shows in a Jellyfin app where you are already signed in.
@@ -50,7 +52,11 @@ can add more Jellyfin servers or a Plex account later under **Accounts and
 servers** in protected settings.
 
 Plinx applies its own rating limits and library visibility to every Jellyfin
-title, in addition to any parental controls set on the Jellyfin user.
+title, in addition to any parental controls set on the Jellyfin user. If you
+give a title a custom rating in Jellyfin's metadata editor, Plinx uses
+whichever of that and the title's parental rating is stricter. A custom
+rating can hide a title from your child, but it cannot unhide a title whose
+parental rating is above your limit.
 
 ## Try Plinx without an account
 

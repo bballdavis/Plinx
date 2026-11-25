@@ -67,6 +67,47 @@ final class SettingsManagerPlaybackTests: XCTestCase {
         XCTAssertEqual(reloaded.downloads.qualityPreset, .p720_2mbps)
     }
 
+    // MARK: - Leaving the app
+
+    /// Kid safety: until a parent allows playback outside the app, leaving the app closes the player.
+    func test_leavingTheAppClosesThePlayerUntilAParentAllowsPlaybackOutsideIt() {
+        let settings = SettingsManager(userDefaults: defaults)
+        PlinxSettingsSanitizer.applyPlinxDefaults(settings, userDefaults: defaults)
+        PlinxSettingsSanitizer.disableUnsupportedFeatures(settings)
+
+        XCTAssertFalse(settings.playback.pictureInPicture)
+        XCTAssertFalse(settings.playback.backgroundAudio)
+        XCTAssertTrue(PlayerBackgroundPolicy.closesPlayerOnBackground(settings.playback))
+    }
+
+    /// Closing the player ends Picture in Picture and background audio, so the player stays open when a parent
+    /// allows either one, and closes again once both are off.
+    func test_parentAllowingPictureInPictureOrBackgroundAudioKeepsThePlayerOpen() {
+        let settings = SettingsManager(userDefaults: defaults)
+
+        settings.setPictureInPicture(true)
+        XCTAssertFalse(PlayerBackgroundPolicy.closesPlayerOnBackground(settings.playback))
+
+        settings.setPictureInPicture(false)
+        settings.setBackgroundAudio(true)
+        XCTAssertFalse(PlayerBackgroundPolicy.closesPlayerOnBackground(settings.playback))
+
+        settings.setPictureInPicture(true)
+        XCTAssertFalse(PlayerBackgroundPolicy.closesPlayerOnBackground(settings.playback))
+
+        settings.setPictureInPicture(false)
+        settings.setBackgroundAudio(false)
+        XCTAssertTrue(PlayerBackgroundPolicy.closesPlayerOnBackground(settings.playback))
+    }
+
+    /// Picture in Picture and background audio need the audio background mode; without it iOS suspends the app
+    /// and both stop, whatever the parent chose.
+    func test_appDeclaresTheAudioBackgroundModeForParentAllowedPlayback() {
+        let modes = Bundle.main.object(forInfoDictionaryKey: "UIBackgroundModes") as? [String]
+
+        XCTAssertEqual(modes, ["audio"])
+    }
+
     /// A parent's pre-fork download quality (stored as `downloads.quality`) survives the upgrade
     /// through the real settings store, and the next save writes it under the new key.
     func test_preForkDownloadQualitySurvivesLoadAndNextSave() {
@@ -114,6 +155,34 @@ final class SettingsManagerPlaybackTests: XCTestCase {
         defaults.set(Data(stored.utf8), forKey: "strimr.settings")
 
         XCTAssertEqual(SettingsManager(userDefaults: defaults).playback.maxVolumePercent, 0)
+    }
+
+    /// Plinx plays only in its own tvOS player chrome; the upstream system player style no longer exists. A style
+    /// saved by an earlier build must not cost a parent their volume ceiling, and the next save drops it.
+    func test_savedSystemPlayerStyleKeepsTheParentVolumeCeilingAndIsDroppedOnSave() throws {
+        let stored = """
+        {
+          "playback": {
+            "autoPlayNextEpisode": true,
+            "seekBackwardSeconds": 10,
+            "seekForwardSeconds": 10,
+            "playerControlsStyle": "system",
+            "maxVolumePercent": 35
+          },
+          "interface": {},
+          "downloads": {}
+        }
+        """
+        defaults.set(Data(stored.utf8), forKey: "strimr.settings")
+
+        let settings = SettingsManager(userDefaults: defaults)
+        XCTAssertEqual(settings.playback.maxVolumePercent, 35)
+
+        settings.setDownloadWiFiOnly(false)
+
+        let saved = try XCTUnwrap(defaults.data(forKey: "strimr.settings"))
+        XCTAssertFalse(String(decoding: saved, as: UTF8.self).contains("playerControlsStyle"))
+        XCTAssertEqual(SettingsManager(userDefaults: defaults).playback.maxVolumePercent, 35)
     }
 
     func test_disableUnsupportedExternalDiscovery_turnsOffPersistedSeerrTab() {
@@ -192,6 +261,89 @@ final class SettingsManagerPlaybackTests: XCTestCase {
 
         let reloaded = SettingsManager(userDefaults: defaults)
         XCTAssertEqual(PlinxLibraryVisibility.hiddenLibraries(settingsManager: reloaded, profileID: "kid"), hidden)
+    }
+
+    /// Earlier versions hid libraries for the whole device. After the update every profile, including a
+    /// Plex Home user that appears later, keeps them hidden until a parent changes that profile.
+    func test_librariesHiddenBeforeProfiles_stayHiddenForEveryProfile() {
+        let settings = SettingsManager(userDefaults: defaults)
+        settings.updateInterface { $0.hiddenLibraryIds = ["2"] }
+        let hiddenShows = LibraryIdentity(server: plexServer, libraryID: "2")
+
+        settings.adoptLegacyLibraries(on: [plexServer])
+
+        for profileID in ["plex.parent", "plex.kid", "plex.sibling-added-later"] {
+            XCTAssertEqual(
+                PlinxLibraryVisibility.hiddenLibraries(settingsManager: settings, profileID: profileID),
+                [hiddenShows],
+            )
+        }
+        let reloaded = SettingsManager(userDefaults: defaults)
+        XCTAssertEqual(
+            PlinxLibraryVisibility.hiddenLibraries(settingsManager: reloaded, profileID: "plex.kid"),
+            [hiddenShows],
+        )
+
+        // A parent showing the library for one profile changes only that profile.
+        reloaded.updateLibraryPreferences(profileID: "plex.parent") { $0.setHidden(hiddenShows, hidden: false) }
+        XCTAssertTrue(
+            PlinxLibraryVisibility.hiddenLibraries(settingsManager: reloaded, profileID: "plex.parent").isEmpty,
+        )
+        XCTAssertEqual(
+            PlinxLibraryVisibility.hiddenLibraries(settingsManager: reloaded, profileID: "plex.kid"),
+            [hiddenShows],
+        )
+    }
+
+    /// Each profile lists a server's libraries with its own sign-in, and a restricted Plex Home user sees only
+    /// the libraries shared with them. Loading that user's libraries must not unhide a library for an older
+    /// sibling who can see it.
+    func test_libraryLoadForOneProfile_keepsTheLibrariesOtherProfilesHid() {
+        let settings = SettingsManager(userDefaults: defaults)
+        let movies = LibraryIdentity(server: plexServer, libraryID: "1")
+        let teen = LibraryIdentity(server: plexServer, libraryID: "5")
+        let deleted = LibraryIdentity(server: plexServer, libraryID: "9")
+        let otherServerLibrary = LibraryIdentity(server: otherServer, libraryID: "9")
+        settings.updateLibraryPreferences(profileID: "plex.older-kid") { $0.hiddenLibraries = [teen] }
+        settings.updateLibraryPreferences(profileID: "plex.younger-kid") {
+            $0.hiddenLibraries = [movies, deleted, otherServerLibrary]
+        }
+
+        // The younger kid's token lists only library 1: library 5 is not shared with them and 9 was deleted.
+        settings.pruneLibraries(of: plexServer, keeping: ["1"], profileID: "plex.younger-kid")
+
+        XCTAssertEqual(
+            PlinxLibraryVisibility.hiddenLibraries(settingsManager: settings, profileID: "plex.older-kid"),
+            [teen],
+        )
+        XCTAssertEqual(
+            PlinxLibraryVisibility.hiddenLibraries(settingsManager: settings, profileID: "plex.younger-kid"),
+            [movies, otherServerLibrary],
+        )
+        let reloaded = SettingsManager(userDefaults: defaults)
+        XCTAssertEqual(
+            PlinxLibraryVisibility.hiddenLibraries(settingsManager: reloaded, profileID: "plex.older-kid"),
+            [teen],
+        )
+    }
+
+    /// Libraries hidden before the update stay hidden for every profile that still uses the family's settings,
+    /// whatever a restricted profile's load lists.
+    func test_libraryLoadForOneProfile_keepsTheFamilyLibraries() {
+        let settings = SettingsManager(userDefaults: defaults)
+        settings.updateInterface { $0.hiddenLibraryIds = ["5"] }
+        settings.adoptLegacyLibraries(on: [plexServer])
+        let teen = LibraryIdentity(server: plexServer, libraryID: "5")
+
+        settings.pruneLibraries(of: plexServer, keeping: ["1"], profileID: "plex.younger-kid")
+
+        for profileID in ["plex.younger-kid", "plex.older-kid"] {
+            XCTAssertEqual(
+                PlinxLibraryVisibility.hiddenLibraries(settingsManager: settings, profileID: profileID),
+                [teen],
+            )
+        }
+        XCTAssertTrue(settings.interface.librariesByProfile.isEmpty)
     }
 
     func test_searchResultFiltering_respectsHiddenLibraries() {

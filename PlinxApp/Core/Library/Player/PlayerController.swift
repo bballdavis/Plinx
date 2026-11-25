@@ -54,7 +54,8 @@ final class PlayerController {
     private(set) var audioShapingState: AudioShapingState = .off
     private(set) var videoRoute: VideoRoute = .none
     private(set) var selectedSubtitleTrackID: Int?
-    /// The player's own volume, never above `maximumVolume`.
+    /// The player's own volume, never above `maximumVolume`. Until something sets it, it follows the cap,
+    /// so the player plays at the parent's limit (there is no in-app volume control).
     private(set) var volume: Float = PlaybackSettings.defaultMaximumVolume
     /// Parent-set output ceiling (kid safety). Starts at the Plinx default so a player
     /// that never receives the setting still plays capped, not at full volume.
@@ -114,7 +115,8 @@ final class PlayerController {
     @ObservationIgnored private var coordinatedPlaybackIdentifier: String?
     @ObservationIgnored private var hasStartedPlayback = false
     @ObservationIgnored private var isStopping = false
-    @ObservationIgnored private var playbackRate: Float = 1.0
+    /// Plinx has no speed control: playback always runs at normal speed, also after a SharePlay session ends.
+    private let playbackRate: Float = 1.0
     @ObservationIgnored private var styledASSSubtitles = true
     @ObservationIgnored private var mediaIdentifier = "media"
     @ObservationIgnored private var hasLiveDVRWindow = false
@@ -132,6 +134,10 @@ final class PlayerController {
         @ObservationIgnored private var backgroundRestoreResumesPlayback = false
     #endif
     @ObservationIgnored private var lastAudibleVolume: Float = PlaybackSettings.defaultMaximumVolume
+    /// True until `setVolume` picks a volume of its own; meanwhile `volume` tracks `maximumVolume` up and down.
+    @ObservationIgnored private var volumeFollowsMaximum = true
+    /// A mute made while the volume followed the cap goes back to following it on unmute.
+    @ObservationIgnored private var unmuteFollowsMaximum = false
     @ObservationIgnored private var volumeAttenuation: Float = 1.0
     @ObservationIgnored private var pendingSeekTarget: Double?
     @ObservationIgnored private var scrubThumbnailTask: Task<Void, Never>?
@@ -168,6 +174,8 @@ final class PlayerController {
         } catch {
             fatalError("Failed to initialize player engine: \(error)")
         }
+        // The engine starts at full volume; hand it the default cap before anything can play.
+        applyEngineVolume()
         nowPlayingController = NowPlayingController(
             engine: engine,
             commands: NowPlayingController.Commands(
@@ -533,34 +541,37 @@ final class PlayerController {
         scrubPreview = nil
     }
 
-    func setPlaybackRate(_ rate: Float) {
-        playbackRate = rate
-        nowPlayingController?.setPlaybackRate(rate)
-        if isCoordinatedPlayback {
-            engine.playbackCoordinator.coordinateRateChange(to: rate, options: [])
+    /// Sets the player's own volume, clamped to `maximumVolume`. From then on a cap change no longer raises it.
+    func setVolume(_ newVolume: Float) {
+        volumeFollowsMaximum = false
+        unmuteFollowsMaximum = false
+        applyVolume(newVolume)
+    }
+
+    /// Caps the output volume (kid safety). Lowering the cap lowers a louder current volume with it; until
+    /// something sets the player's own volume, the volume follows the cap so the player plays at the limit.
+    func setMaximumVolume(_ newMaximumVolume: Float) {
+        maximumVolume = min(max(newMaximumVolume, 0), 1)
+        lastAudibleVolume = min(lastAudibleVolume, maximumVolume)
+        if volumeFollowsMaximum || volume > maximumVolume {
+            applyVolume(maximumVolume)
         } else {
-            engine.setRate(rate)
+            applyEngineVolume()
         }
     }
 
-    func setVolume(_ newVolume: Float) {
+    /// The engine's output volume: the capped volume scaled by any fade.
+    var outputVolume: Float {
+        engine.volume
+    }
+
+    private func applyVolume(_ newVolume: Float) {
         let clampedVolume = min(max(newVolume, 0), maximumVolume)
         volume = clampedVolume
         if clampedVolume > 0 {
             lastAudibleVolume = clampedVolume
         }
         applyEngineVolume()
-    }
-
-    /// Caps the output volume (kid safety). Lowering the cap lowers a louder current volume with it.
-    func setMaximumVolume(_ newMaximumVolume: Float) {
-        maximumVolume = min(max(newMaximumVolume, 0), 1)
-        lastAudibleVolume = min(lastAudibleVolume, maximumVolume)
-        if volume > maximumVolume {
-            setVolume(maximumVolume)
-        } else {
-            applyEngineVolume()
-        }
     }
 
     private func applyEngineVolume() {
@@ -575,10 +586,20 @@ final class PlayerController {
 
     func toggleMute() {
         if isMuted {
-            setVolume(lastAudibleVolume)
+            // Silent only because the cap is zero while following it: there is nothing louder to restore.
+            guard !volumeFollowsMaximum else { return }
+            if unmuteFollowsMaximum {
+                volumeFollowsMaximum = true
+                unmuteFollowsMaximum = false
+                applyVolume(maximumVolume)
+            } else {
+                setVolume(lastAudibleVolume)
+            }
         } else {
+            let wasFollowingMaximum = volumeFollowsMaximum
             lastAudibleVolume = volume
             setVolume(0)
+            unmuteFollowsMaximum = wasFollowingMaximum
         }
     }
 
@@ -643,8 +664,7 @@ final class PlayerController {
         coordinatedPlaybackIdentifier = nil
         guard continueLocally else { return }
         if intendedRate > 0 {
-            playbackRate = intendedRate
-            engine.setRate(intendedRate)
+            engine.setRate(playbackRate)
             engine.play()
         } else {
             engine.pause()

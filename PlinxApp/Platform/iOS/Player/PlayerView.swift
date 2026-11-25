@@ -34,7 +34,6 @@ struct PlayerView: View {
     @State private var pendingRecoveryAudioTrackID: Int?
     @State private var pendingRecoverySubtitleTrackID: Int?
     @State private var shouldRestoreTracksAfterLoad = false
-    @State private var playbackRate: Float = 1.0
     @State private var appliedPreferredAudio = false
     @State private var appliedPreferredSubtitle = false
     @State private var appliedResumeOffset = false
@@ -170,13 +169,6 @@ struct PlayerView: View {
                     rotateAutomaticallyIfNeeded()
                     configureSleepTimer()
                     showControls(temporarily: true)
-                    if activePlaybackURL == nil {
-                        playbackRate = viewModel.initialPlaybackRate(
-                            settings: settingsManager.playback,
-                            isSharePlay: sharePlayCoordinator.isInSession,
-                        )
-                    }
-                    playerController.setPlaybackRate(playbackRate)
                     if sharePlayCoordinator.isInSession {
                         sharePlayCoordinator.attachPlayer(
                             playerController,
@@ -327,10 +319,7 @@ struct PlayerView: View {
             .overlay {
                 IsolatedSheetPresentationHost(
                     presentation: sheetPresentation,
-                    refreshID: PlayerSheetRefreshID(
-                        playbackRate: playbackRate,
-                        videoZoom: playerController.videoZoom,
-                    ),
+                    refreshID: playerController.videoZoom,
                     onDismiss: { showControls(temporarily: true) },
                 ) { sheet in
                     switch sheet {
@@ -613,7 +602,6 @@ struct PlayerView: View {
                     media: media,
                     position: viewModel.position,
                     duration: viewModel.duration,
-                    playbackRate: playbackRate,
                     showsEndsAtTime: settingsManager.playback.showEndsAtTime,
                     isLive: viewModel.isLivePlayback,
                 )
@@ -653,7 +641,6 @@ struct PlayerView: View {
             duration: viewModel.duration,
             bufferedAhead: viewModel.bufferedAhead,
             bufferBasePosition: viewModel.position,
-            playbackRate: playbackRate,
             showsEndsAtTime: settingsManager.playback.showEndsAtTime,
             isScrubbing: isScrubbing,
             onDismiss: { dismissPlayer() },
@@ -881,7 +868,6 @@ struct PlayerView: View {
             duration: viewModel.duration,
             bufferedAhead: viewModel.bufferedAhead,
             bufferBasePosition: viewModel.position,
-            playbackRate: playbackRate,
             showsEndsAtTime: settingsManager.playback.showEndsAtTime,
             chapters: viewModel.chapters,
             showsChaptersOnTimeline: settingsManager.playback.showChaptersOnTimeline,
@@ -1043,12 +1029,10 @@ struct PlayerView: View {
 
     private var playbackSettingsSheet: some View {
         PlaybackSettingsView(
-            playbackRate: playbackRate,
             quality: viewModel.selectedQuality,
             showsQualitySelection: !viewModel.isLocalPlayback,
             versions: viewModel.versionOptions,
             onSelectVersion: { selectVersion($0) },
-            onSelectPlaybackRate: selectPlaybackRate(_:),
             onSelectQuality: { selectQuality($0) },
             videoZoom: playerController.videoZoom,
             videoFillScale: videoFillScale,
@@ -1444,12 +1428,6 @@ struct PlayerView: View {
         }
     }
 
-    private func selectPlaybackRate(_ rate: Float) {
-        playbackRate = rate
-        playerController.setPlaybackRate(rate)
-        showControls(temporarily: true)
-    }
-
     private func configureSleepTimer() {
         sleepTimer.pausePlayback = {
             nextEpisodePresentation.cancelCountdown()
@@ -1727,7 +1705,6 @@ struct PlayerView: View {
             autoplay: !sharePlayCoordinator.isInSession,
             nowPlaying: viewModel.nowPlayingItem(settings: settingsManager.playback),
         )
-        playerController.setPlaybackRate(playbackRate)
         shouldResumeAfterMediaLoad = shouldResumeAfterLoad
         shouldPauseAfterMediaLoad = shouldPauseAfterLoad
         showControls(temporarily: true)
@@ -2235,11 +2212,6 @@ struct PlayerView: View {
         showingTerminationAlert = true
         playerController.pause()
     }
-}
-
-private struct PlayerSheetRefreshID: Hashable {
-    let playbackRate: Float
-    let videoZoom: VideoZoom
 }
 
 private enum PlayerSheet: String, Identifiable {

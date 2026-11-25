@@ -69,7 +69,6 @@ struct PlayerControlsView: View {
                     duration: state.duration,
                     bufferedAhead: state.bufferedAhead,
                     playbackPosition: state.bufferBasePosition,
-                    playbackRate: state.playbackRate,
                     showsEndsAtTime: state.showsEndsAtTime,
                     chapters: state.chapters,
                     showsChaptersOnTimeline: state.showsChaptersOnTimeline,
@@ -216,7 +215,6 @@ struct PlayerControlsView: View {
         switch state.settingsControl {
         case .audio: .audio
         case .subtitle: .subtitle
-        case .speed: .speed
         case .settings: .settings
         case nil: nil
         }
@@ -260,6 +258,6 @@ private struct PlayerAuxiliaryControlsRow: View {
 }
 
 private enum FocusTarget: Hashable {
-    case audio, subtitle, speed, settings
+    case audio, subtitle, settings
     case playPause
 }

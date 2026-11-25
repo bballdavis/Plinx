@@ -13,6 +13,12 @@ import SwiftUI
 //   • automatic subtitle download (subtitle search is a parent-only server
 //     write that the safety boundary refuses during a child's playback).
 // The maximum volume stays on the Settings root as a safety control.
+//
+// Picture in Picture and background audio (iPhone and iPad only) are off by
+// default. They work only because the iOS target declares the `audio`
+// background mode (`UIBackgroundModes` in project.yml); without it iOS
+// suspends Plinx and both toggles do nothing. While both are off, leaving the
+// app closes the player (`PlayerBackgroundPolicy` in LifecycleManager.swift).
 // ─────────────────────────────────────────────────────────────────────────────
 
 @MainActor
@@ -113,6 +119,8 @@ struct PlinxPlaybackSettingsView: View {
                     isOn: viewModel.backgroundAudioBinding,
                     description: Text("settings.playback.backgroundAudio.description")
                 )
+            } footer: {
+                Text(verbatim: PlinxSettingsCopy.playbackOutsideAppFooter)
             }
             #endif
 
@@ -166,6 +174,17 @@ struct PlinxPlaybackSettingsView: View {
         }
         .plinxSettingsListPage(title: Text("settings.playback.title"))
         .accessibilityIdentifier("settings.playback.screen")
+    }
+}
+
+extension PlinxSettingsCopy {
+    /// Footer under the Picture in Picture and background audio toggles.
+    static var playbackOutsideAppFooter: String {
+        String(
+            localized: "settings.playback.plinx.outsideApp.footer",
+            defaultValue: "Picture in Picture and background audio are off until you turn them on. While both are off, leaving Plinx closes the player, and the video picks up where it left off when you come back.",
+            table: "Plinx"
+        )
     }
 }
 

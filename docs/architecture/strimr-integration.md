@@ -77,7 +77,7 @@ computed `SafetyPolicy`. All of them go into the SwiftUI environment.
 | `hydrating` | Plinx loading screen, never an offline warning |
 | `needsAccount` | Provider choice and sign-in (Plex or Jellyfin) |
 | `needsProfileSelection` | Plinx profile picker |
-| `migrationFailed` | Plinx connection recovery |
+| `migrationFailed` | Plinx connection recovery; offline on iPhone and iPad, over the Downloads of the profile pre-fork Plinx last signed in (`PlinxLegacyOfflineSession`) |
 | `ready` | Root tabs |
 
 The environment does not hold a Plex request context. Screens get a server's
@@ -92,8 +92,11 @@ Every title a family sees passes one boundary in `Core/Safety`.
 
 - **`ContentSafetyGate`** holds the active `SafetyPolicy` and whether the
   parental gate is unlocked. `PlinxApp` keeps both in sync with the parent's
-  settings and `ParentalAccessCoordinator`. The gate judges a title on its own
-  content rating against the ceiling for that rating's scale. A missing or
+  settings and `ParentalAccessCoordinator` through `ContentSafetyBoundary`.
+  The boundary observes the effective coordinator (the family's, or the
+  sample library's) directly and clears the unlock flag the moment it starts
+  to lock; `ContentSafetyBoundaryTests` covers it. The gate judges a title on
+  its own content rating against the ceiling for that rating's scale. A missing or
   unrecognized rating is rejected unless the parent allows unrated content.
   Adult-only ratings are always rejected. Each policy change bumps
   `revision`, which reloads Home and rebuilds the tab shell.
@@ -106,41 +109,79 @@ Every title a family sees passes one boundary in `Core/Safety`.
   - throws when a blocked title is looked up directly
   - denies server rights, management, playlist edits and subtitle downloads
     unless the parental gate is unlocked
-  - replaces Live TV with a service that is never available, and refuses
-    external playback
+  - replaces Live TV with a service that is never available
+  - has no external playback to refuse: no provider protocol builds a URL
+    for another app's player
 - **The conformance test, `SafeMediaServicesTests`,** checks that a blocked
-  item never leaves the wrapper. It also fails when a provider protocol gains
-  a requirement that `SafeMediaServices.reviewedRequirements` does not
-  classify.
+  item never leaves the wrapper, including through the offline caches, and
+  that every parent-only requirement is refused while the gate is locked. It
+  also fails when a provider protocol, an offline cache protocol, or a
+  service `MediaServices` stores gains a requirement that
+  `SafeMediaServices.reviewedRequirements` does not classify.
 
-Two details of the rules matter when you work near them. Seasons and episodes
-are judged on their own rating and do not inherit the show's. Adult-only means
-NC-17, X, XXX and any 18 certificate, and those are rejected even when
-unrated content is allowed. Collections, playlists and folders are
-containers: they are listed, and their entries are filtered when opened.
+A few details of the rules matter when you work near them. Seasons and
+episodes are judged against their series as well: both their own rating and
+the series' rating must pass, and one without a rating of its own takes the
+series' rating instead of counting as unrated. Servers rarely rate seasons
+and episodes (Jellyfin almost never), so judging them alone would let every
+unrated episode of an R or TV-MA series through once a parent allows unrated
+content. Each wrapper calls `ContentSafetyGate.learnSeries` with what the
+provider returned before filtering it; the gate keeps the rating of every
+series it sees and looks up, through the provider's own unfiltered
+`mediaItem(id:)`, each series it has not confirmed since launch. An unrated
+season or episode whose series cannot be looked up is rejected under every
+policy; a rated one is then judged on its own rating. On iOS the gate keeps
+the learned ratings in the app's caches (`SeriesRatingStore`: series IDs and
+rating text, no titles), so downloaded episodes are judged against their
+series offline too. Adult-only means
+NC-17, X, XXX and any age certificate of 18 or older (18, KR-19, R21, 21+,
+18A), and those are rejected even when unrated content is allowed.
+Collections, playlists and folders are containers: they are listed, and their
+entries are filtered when opened. Collections and playlists are listed
+without the artwork and counts their server builds from every entry
+(`ContentSafetyGate.shown(_:)`): a Plex composite or Jellyfin collage draws
+the posters of blocked entries too, so their tiles are plain. A container
+whose entries are all blocked is still listed by name and opens empty. A
+Jellyfin item's rating is the stricter of
+its `OfficialRating` and the admin's `CustomRating`, resolved by
+`JellyfinContentRating` in the Jellyfin mapping. Jellyfin returns
+`CustomRating` only when `Fields` asks for it, so every item request in
+`JellyfinCatalogService` carries it through `cardFields` or `queueFields`; a
+new item request must too.
 
 ### Reviewed requirements
 
 `SafeMediaServices.reviewedRequirements` lists every requirement of every
-protocol `MediaServices` is built from, by protocol and selector, with one of
-these treatments:
+protocol `MediaServices` is built from or stores (`accountPreferences`), and
+of the iOS offline caches the home and detail wrappers expose
+(`OfflineHomeCacheReading`, `OfflineDetailCacheReading`), by protocol and
+selector, with one of these treatments:
 
 | Treatment | Meaning | Examples |
 |---|---|---|
 | `filtered` | Returns titles. Every one passes the gate, and a blocked subject throws `ContentSafetyError.blocked` | Home rows, library items and previews, search, detail and seasons, favorites, playlist entries, queues, `prepare`, `prepareDownload` |
-| `container` | Returns collections or playlists as they are; their entries are filtered when opened | `collections(in:)`, `playlists(in:)` |
+| `container` | Returns collections or playlists without their server artwork and counts; their entries are filtered when opened | `collections(in:)`, `playlists(in:)` |
 | `gated` | Parent-only: refused, empty or false unless the parental gate is unlocked | Server rights (`authorization`), every management action, playlist edits, subtitle search and install, watchlist writes |
-| `passthrough` | Returns no titles: writes, reports, settings, or artwork of titles the caller already has | Played state, favorites writes, progress reports, artwork |
-| `disabled` | Never reaches the provider | Live TV and DVR, external playback, Plex letter indexes |
+| `passthrough` | Returns no titles: writes, reports, settings, or artwork of paths the caller already has | Played state, favorites writes, progress reports, artwork |
+| `disabled` | Never reaches the provider | Live TV and DVR, Plex letter indexes |
 
 When you add a protocol requirement, classify it here. A `filtered`
 requirement also needs a probe in `SafeMediaServicesTests` that returns an
-allowed and a blocked title.
+allowed and a blocked title, and a `gated` one a probe that the locked gate
+must refuse. A service stored on `MediaServices` must be declared as a
+reviewed protocol.
+
+Plex and Jellyfin titles are judged only by `ContentSafetyGate`. Code that
+must judge them against a policy other than the parent's current one builds a
+`ContentSafetyGate(policy:)` rather than applying PlinxCore's rating rules
+itself. Such a gate knows no series ratings until it learns them, so it
+rejects every unrated season or episode.
 
 Later checks catch anything that reaches playback or storage some other way:
 
 - `PlinxPlaybackLauncher` fetches the title again through the boundary and
-  requires every queue member to be allowed before it presents anything.
+  requires every queue member to be allowed by its gate (the shared gate)
+  before it presents anything.
 - The player presentation checks the queue and any local file again, and
   closes a Live TV presentation.
 - The iOS and tvOS player wrappers check every item at the single load site,
@@ -165,7 +206,7 @@ control:
 | Youtarr Explore | `YoutarrExploreSafetyPolicy`: a video must pass both the Youtarr key's server policy and the local policy. Unknown and adult-only labels are rejected, unrated videos need both policies to allow them, and the kid UI has no external links |
 | Downloaded files and the offline store | `DownloadAccessPolicy` checks stored and pinned metadata with the gate. The downloads screens list only the active profile's allowed downloads; other downloads appear only while the parental gate is unlocked and never play from that list. The "downloaded only" library listing checks every item it reads |
 | Seerr discovery and requests | Off for kids until the Seerr kid model ships (a Seerr user per kid, certification filtering). `PlinxSettingsSanitizer` disables the discover tab and the Home hero. Trending candidates are only library titles fetched through the boundary, and are checked again |
-| Artwork | Passed through: it only draws titles the caller already has |
+| Artwork | Passed through: it only draws paths the caller already has, and the boundary hands out no path that draws a blocked title. Collections and playlists lose their server composite, which shows every entry (blocked ones too), and draw a plain tile |
 | Plex account, Home user and server lists | Carry no titles |
 
 A new content source must either go through `MediaServices` or appear in this
@@ -175,12 +216,27 @@ player, download, profile and sign-out controls in full.
 
 ## Home Catalog Loading
 
-Plinx Home draws two sources:
+Plinx Home draws three sources:
 
 - **Continue Watching** comes from the absorbed `HomeViewModel`, merged across
   every connected server. Next Up items join the end of the same row without
   duplicates. Plinx adopts upstream's load, periodic refresh and
   refresh-after-content-change lifecycle.
+- **My Favorites** comes from `HomeFavoritesStore`
+  (`Core/Features/Favorites`). It asks every ready server that supports
+  favorites through its `MediaServices`, so `SafeFavoritesService` filters the
+  list first. Plex favorites are kept on the device for each profile
+  (`FavoritesStore`, with the rating the title had when it was added); Jellyfin
+  favorites belong to the Jellyfin user. The row reloads when a server becomes
+  ready, when a server's watch state changes (adding or removing a favorite
+  bumps it), and on pull to refresh, never during playback. A policy change
+  discards everything loaded under the old policy, even when the reload fails.
+  When drawn, the row keeps only movies, shows, seasons and episodes from the
+  profile's enabled servers that the gate allows and that come from a library
+  the profile shows. A favorite that names no library (Jellyfin) is left out
+  while the profile hides any library of its server, as in search. Titles are
+  listed by title, with a show's seasons and episodes after it; the row is
+  hidden when empty. Upstream's Favorites tab screen was not kept.
 - **Recently added** rows come from `HomeRecentlyAddedStore`. It loads each
   visible movie, series and clip library with
   `LibraryCatalogLoader(services:).recentItems(for:limit:)` over that
@@ -226,12 +282,25 @@ hidden library is left out of Home whatever these keys say.
 
 - **Removed:** Trakt and Simkl sync (no viewing history leaves the device),
   Sentry, the macOS app, and the Top Shelf extension.
-- **Off in the kid app:** Live TV and external players
-  (`ExternalPlayerApps` always fails).
+- **Removed:** external players. Playback never leaves the Plinx player:
+  `PlaybackLauncher` has no external-player option, no provider protocol
+  builds a direct, token-carrying URL for another app, and an external player
+  saved by an earlier build is not read. `SafeMediaServicesTests` fails if a
+  provider requirement for external playback comes back.
+- **Off in the kid app:** Live TV.
 - **Hidden by default:** SharePlay; `\.sharePlayPresentationPolicy` defaults
   to `.hidden`.
 - **Not carried over:** the tvOS system player style and playback-speed
-  control. Plinx keeps its own player chrome.
+  control. The system style's controls, menus and timeline, and the
+  `playerControlsStyle` setting, are deleted: the tvOS player has one chrome
+  (`PlayerControlsView`) and one timeline (`PlinxPlayerTimelineView`). A
+  style saved by an earlier build is ignored when settings load and dropped
+  on the next save. Speed control is deleted the same way: there is no speed
+  picker, speed settings sheet, rate state in the player views, or
+  `defaultPlaybackRate` setting. `PlayerController` plays at a fixed normal
+  rate, including when it continues locally after a SharePlay session ends,
+  and the "ends at" time assumes normal speed. A default speed saved by an
+  earlier build is ignored when settings load and dropped on the next save.
 
 The [hard-fork plan](../maintenance/strimr-hard-fork-plan.md) records the
 reasoning and the later phases for Seerr, Live TV and Top Shelf.

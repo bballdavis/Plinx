@@ -303,7 +303,11 @@ nonisolated struct JellyfinItem: Decodable, Identifiable, Hashable, Sendable {
     let dateLastMediaAdded: String?
     let communityRating: Double?
     let criticRating: Double?
+    /// The rating from the title's metadata. Jellyfin always returns it.
     let officialRating: String?
+    /// The rating an admin set to override `officialRating`. Jellyfin returns it only when `Fields` asks for
+    /// `CustomRating`, so every item request does; see `JellyfinCatalogService.cardFields`.
+    let customRating: String?
     let genres: [String]?
     let studios: [JellyfinStudio]?
     let providerIDs: [String: String]?
@@ -354,6 +358,7 @@ nonisolated struct JellyfinItem: Decodable, Identifiable, Hashable, Sendable {
         case communityRating = "CommunityRating"
         case criticRating = "CriticRating"
         case officialRating = "OfficialRating"
+        case customRating = "CustomRating"
         case genres = "Genres"
         case studios = "Studios"
         case providerIDs = "ProviderIds"

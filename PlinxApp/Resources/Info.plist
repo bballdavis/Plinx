@@ -31,6 +31,10 @@
 	<string>Plinx connects to your Plex and Jellyfin media servers and an optional parent-configured Youtarr service on your local network.</string>
 	<key>PlinxBuildConfiguration</key>
 	<string>$(CONFIGURATION)</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UISupportedInterfaceOrientations</key>

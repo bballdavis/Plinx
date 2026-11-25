@@ -138,6 +138,9 @@ struct PlexFavoriteSnapshot: Codable, Hashable, Identifiable, Sendable {
             grandparentThumbPath: grandparentThumbPath,
             grandparentArtPath: grandparentArtPath,
             parentThumbPath: parentThumbPath,
+            // Lets Home match the favorite to a library the profile hides (`PlinxLibraryVisibility`).
+            librarySectionID: libraryID,
+            librarySectionTitle: libraryTitle,
         )
     }
 }

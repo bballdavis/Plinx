@@ -160,6 +160,28 @@ if rg -a -i -l 'sentry[_-]?dsn|dsn\\.sentry|api[_-]?secret' "$APP_PATH" >/dev/nu
   fail "Potential telemetry or secret marker found in final app bundle"
 fi
 
+# Trakt and Simkl were removed when Plinx absorbed Strimr, so neither their
+# code nor their copy may ship. The raw scan covers code and ASCII text. Compiled
+# string tables are binary property lists that store non-ASCII values as UTF-16,
+# so each property list is also decoded before it is scanned. grep exits 1 when
+# nothing matches; any scan or decode error fails closed.
+tracker_pattern='trakt|simkl'
+tracker_status=0
+tracker_matches=$(grep -r -a -i -l -E "$tracker_pattern" "$APP_PATH") || tracker_status=$?
+if [[ $tracker_status -eq 0 ]]; then
+  fail "Trakt or Simkl code or strings found in final app bundle: ${tracker_matches//$'\n'/, }"
+elif [[ $tracker_status -ne 1 ]]; then
+  fail "Could not scan the final app bundle for Trakt or Simkl strings"
+fi
+
+while IFS= read -r -d '' property_list; do
+  decoded_property_list=$(plutil -p "$property_list" 2>/dev/null) \
+    || fail "Could not decode ${property_list#"$APP_PATH/"} to scan for Trakt or Simkl strings"
+  if grep -q -i -E "$tracker_pattern" <<<"$decoded_property_list"; then
+    fail "Trakt or Simkl strings found in ${property_list#"$APP_PATH/"}"
+  fi
+done < <(find "$APP_PATH" -type f \( -name '*.strings' -o -name '*.stringsdict' -o -name '*.plist' \) -print0)
+
 echo "Archive validation passed"
 echo "  Archive: $ARCHIVE_PATH"
 echo "  App: $APP_PATH"

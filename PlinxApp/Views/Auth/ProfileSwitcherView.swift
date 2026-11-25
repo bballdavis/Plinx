@@ -12,12 +12,16 @@ import SwiftUI
 // `ProfileSwitcherView+tvOS.swift`.
 //
 // Parental rules (picker reachable by a child at launch):
-//   • Continuing as the profile that was last active needs no gate.
+//   • Continuing as the profile that was last active needs no gate. When no
+//     profile is remembered as last active, every choice needs the gate.
 //   • Switching to any other profile, managing profiles, adding a connection
 //     and logging out are grown-up actions: they run behind the parental gate
 //     unless a parent already unlocked protected UI (opened from Settings),
 //     and the gate relocks once the action has run. The gate, not whether the
 //     active Plex profile is restricted, decides who may manage profiles.
+//   • The profile-management sheet shows the parental gate in place of its
+//     content whenever the gate is locked, as Settings does, so it never
+//     outlives the relock when the app leaves the foreground.
 //   • Log Out is `PlinxSignOut.signOut`, the same full sign-out as Settings.
 //   • Choosing the Plex Home user while adding an account is part of account
 //     setup, which is already a grown-up flow.
@@ -144,12 +148,20 @@ struct ProfileSwitcherView: View {
                 .presentationBackground(theme.palette.background)
         }
         .sheet(item: $managementSheet, onDismiss: managementDidClose) { sheet in
-            NavigationStack {
-                switch sheet {
-                case .profiles:
-                    ProfilesSettingsView()
-                case let .connection(profile):
-                    ProfileDetailView(profileID: profile.id, startsWithNewConnection: true)
+            // Re-gated like Settings: the gate relocks when the app leaves the
+            // foreground, and profile management must not outlive it.
+            Group {
+                if parentalAccess.isUnlocked {
+                    NavigationStack {
+                        switch sheet {
+                        case .profiles:
+                            ProfilesSettingsView()
+                        case let .connection(profile):
+                            ProfileDetailView(profileID: profile.id, startsWithNewConnection: true)
+                        }
+                    }
+                } else {
+                    ParentalGateView(onAllowed: {})
                 }
             }
         }
@@ -536,11 +548,26 @@ enum PlinxProfileSwitchRules {
         mode: ProfileSwitcherViewModel.Mode,
         sessionManager: SessionManager
     ) -> Bool {
+        requiresParentalApproval(
+            choosingProfileID: choice.id,
+            mode: mode,
+            lastActiveProfileID: sessionManager.activeProfile?.id ?? sessionManager.profileStore.activeProfileID
+        )
+    }
+
+    /// Fails closed: when no profile is remembered as last active (a removed
+    /// Plex Home user, a deleted profile or account), no choice counts as
+    /// continuing, so every choice needs the gate. Choosing the Plex Home user
+    /// during account setup is the only exemption; the first launch remembers
+    /// its profile before the picker can appear.
+    static func requiresParentalApproval(
+        choosingProfileID: String,
+        mode: ProfileSwitcherViewModel.Mode,
+        lastActiveProfileID: String?
+    ) -> Bool {
         guard case .activateProfile = mode else { return false }
-        guard let current = sessionManager.activeProfile?.id ?? sessionManager.profileStore.activeProfileID else {
-            return false
-        }
-        return choice.id != current
+        guard let lastActiveProfileID else { return true }
+        return choosingProfileID != lastActiveProfileID
     }
 
     /// "Manage profiles" is offered whenever the picker lists the family's

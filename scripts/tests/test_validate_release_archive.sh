@@ -90,6 +90,9 @@ PLIST
   chmod +x "$app/Plinx"
   touch "$app/Assets.car"
   make_privacy_manifest "$app/PrivacyInfo.xcprivacy"
+  mkdir -p "$app/fr.lproj"
+  printf '"settings.server.connection" = "Connexion à un serveur";\n' >"$app/fr.lproj/Localizable.strings"
+  plutil -convert binary1 "$app/fr.lproj/Localizable.strings"
   if [[ "$platform" == "ios" ]]; then
     mkdir "$app/LaunchScreen.storyboardc"
   fi
@@ -101,6 +104,30 @@ TVOS_ARCHIVE="$(make_archive tvos)"
 
 PATH="$SHIM_DIR:$PATH" "$VALIDATOR" "$IOS_ARCHIVE" --platform ios --expected-build 123 --expected-version 2026.08.00
 PATH="$SHIM_DIR:$PATH" "$VALIDATOR" "$TVOS_ARCHIVE" --platform tvos --expected-build 123 --expected-version 2026.08.00
+
+# Removed tracker copy must fail validation, both as plain text and as a compiled
+# binary string table whose non-ASCII value is stored as UTF-16.
+IOS_APP="$IOS_ARCHIVE/Products/Applications/Plinx.app"
+mkdir -p "$IOS_APP/en.lproj"
+printf '"settings.privacy.trackers" = "When you connect Trakt to a profile";\n' >"$IOS_APP/en.lproj/Localizable.strings"
+if PATH="$SHIM_DIR:$PATH" "$VALIDATOR" "$IOS_ARCHIVE" --platform ios >/dev/null 2>&1; then
+  echo "Archive validator test failed: archive with Trakt copy passed" >&2
+  exit 1
+fi
+rm "$IOS_APP/en.lproj/Localizable.strings"
+
+printf '"settings.privacy.trackers" = "Lorsque vous connectez Simkl à un profil";\n' >"$IOS_APP/fr.lproj/Tracker.strings"
+plutil -convert binary1 "$IOS_APP/fr.lproj/Tracker.strings"
+if grep -a -i -q simkl "$IOS_APP/fr.lproj/Tracker.strings"; then
+  echo "Archive validator test setup failed: binary string table is not UTF-16 encoded" >&2
+  exit 1
+fi
+if PATH="$SHIM_DIR:$PATH" "$VALIDATOR" "$IOS_ARCHIVE" --platform ios >/dev/null 2>&1; then
+  echo "Archive validator test failed: archive with UTF-16 Simkl copy passed" >&2
+  exit 1
+fi
+rm "$IOS_APP/fr.lproj/Tracker.strings"
+PATH="$SHIM_DIR:$PATH" "$VALIDATOR" "$IOS_ARCHIVE" --platform ios >/dev/null
 
 /usr/libexec/PlistBuddy -c 'Delete :TVTopShelfImage:TVTopShelfPrimaryImageWide' "$TVOS_ARCHIVE/Products/Applications/Plinx.app/Info.plist"
 if PATH="$SHIM_DIR:$PATH" "$VALIDATOR" "$TVOS_ARCHIVE" --platform tvos >/dev/null 2>&1; then

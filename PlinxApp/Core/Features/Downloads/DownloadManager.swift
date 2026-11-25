@@ -72,6 +72,7 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
         configureStorage()
         loadPersistedState()
         importLegacyOwnershipIfNeeded()
+        restoreLegacyResumePoints()
         startNetworkMonitoring()
         Task {
             await restoreRunningTasks()
@@ -232,7 +233,7 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
     ///
     /// A download without an owner is never handed to whichever profile connects first: it stays parent-only
     /// (`DownloadAccessPolicy`). Pre-fork downloads get their owner once, at launch, from what pre-fork Plinx
-    /// recorded (`migrateLegacyIndexIfNeeded`, `importLegacyOwnershipIfNeeded`).
+    /// recorded (`LegacyDownloadIndex.migrate`, `importLegacyOwnershipIfNeeded`).
     func activateSession(services: [MediaServices]) {
         activeOwnerIDs = Set(services.map(\.owner.id))
         for services in services {
@@ -298,8 +299,12 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
     /// record is never consumed while some of its downloads still wait for recovery. The record is removed only once
     /// the new owners are saved; unreadable or unsaved, it stays and everything it names stays unowned.
     private func importLegacyOwnershipIfNeeded(defaults: UserDefaults = .standard) {
-        guard let offlineStore, persistedIndexState.permitsOwnershipMigration else { return }
-        let outcome = LegacyDownloadOwnership.migrate(items, defaults: defaults) { migrated in
+        guard let offlineStore else { return }
+        let outcome = LegacyDownloadOwnership.migrate(
+            items,
+            indexState: persistedIndexState,
+            defaults: defaults,
+        ) { migrated in
             let previous = items
             items = migrated
             do {
@@ -317,6 +322,16 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
             let media = localMediaItem(for: item)
             offlineStore.store(media: [media], owner: owner)
             offlineStore.pin(itemIDs: [media.id], downloadID: item.id, owner: owner)
+        }
+    }
+
+    /// Moves the offline resume points pre-fork Plinx saved into their owners' offline progress
+    /// (`LegacyDownloadIndex.restoreResumePoints`). Runs at every launch, after the ownership imports, so a point
+    /// whose save failed is retried; a download without an owner keeps its point.
+    private func restoreLegacyResumePoints() {
+        guard let offlineStore else { return }
+        if LegacyDownloadIndex.restoreResumePoints(in: &items, store: offlineStore) {
+            persistState()
         }
     }
 
@@ -800,7 +815,7 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
             return
         }
 
-        let legacyState = migrateLegacyIndexIfNeeded(into: offlineStore)
+        let legacyState = LegacyDownloadIndex.migrate(indexFileURL: indexFileURL, into: offlineStore)
         do {
             items = try offlineStore.allDownloads()
             persistedIndexState = legacyState
@@ -809,50 +824,6 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
             items = []
             persistedIndexState = .unreadable
         }
-    }
-
-    /// One-time structural migration of `index.json` into the offline database. The transfer state is kept as is so
-    /// `restoreRunningTasks` can resume running transfers; enrichment happens later once the server is reachable.
-    ///
-    /// Plinx's pre-fork index recorded the server and profile each download was enrolled for (`accessScope`). Those
-    /// downloads keep exactly that owner, so they never get adopted by whichever profile signs in first. Entries
-    /// without one get the owner pre-fork Plinx recorded in its ownership store, if any
-    /// (`importLegacyOwnershipIfNeeded`); the rest stay unowned: hidden from every profile and listed only to a
-    /// parent (fail closed).
-    private func migrateLegacyIndexIfNeeded(into store: OfflineStore) -> DownloadPersistedIndexState {
-        guard FileManager.default.fileExists(atPath: indexFileURL.path) else { return .loaded }
-        let data: Data
-        do {
-            data = try Data(contentsOf: indexFileURL)
-        } catch {
-            ErrorReporter.capture(DownloadPersistenceFailure.indexRead)
-            return .unreadable
-        }
-        let entries: [LegacyDownloadIndexEntry?]
-        do {
-            entries = try JSONDecoder().decode([LossyLegacyDownloadIndexEntry].self, from: data).map(\.entry)
-        } catch {
-            // Not even a list: keep the file where it is for recovery.
-            ErrorReporter.capture(DownloadPersistenceFailure.indexDecode)
-            return .corrupt
-        }
-        var legacyItems = entries.compactMap { $0?.migratedItem }
-        if legacyItems.count != entries.count {
-            ErrorReporter.capture(DownloadPersistenceFailure.legacyIndexEntriesDropped)
-        }
-        for index in legacyItems.indices {
-            legacyItems[index].enrichmentState = .pending
-        }
-        do {
-            try store.save(downloads: legacyItems)
-            let migratedURL = indexFileURL.appendingPathExtension("migrated")
-            try? FileManager.default.removeItem(at: migratedURL)
-            try FileManager.default.moveItem(at: indexFileURL, to: migratedURL)
-        } catch {
-            ErrorReporter.capture(DownloadPersistenceFailure.indexWrite)
-            return .unreadable
-        }
-        return legacyItems.count == entries.count ? .loaded : .corrupt
     }
 
     private static let errorDomain = "com.bballdavis.plinx.DownloadManager"
@@ -1384,8 +1355,107 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
     }
 }
 
+/// Pre-fork Plinx's download index (`index.json`): its one-time move into the offline database, and the offline
+/// resume points it kept with each download.
+@MainActor
+enum LegacyDownloadIndex {
+    /// One-time structural migration of `index.json` into the offline database. The transfer state is kept as is
+    /// so `restoreRunningTasks` can resume running transfers; enrichment happens later once the server is reachable.
+    ///
+    /// Plinx's pre-fork index recorded the server and profile each download was enrolled for (`accessScope`). Those
+    /// downloads keep exactly that owner, so they never get adopted by whichever profile signs in first. Entries
+    /// without one get the owner pre-fork Plinx recorded in its ownership store, if any (`LegacyDownloadOwnership`);
+    /// the rest stay unowned: hidden from every profile and listed only to a parent (fail closed).
+    ///
+    /// A damaged entry is dropped on its own and the result is `.corrupt`, which defers the ownership import. The
+    /// file is moved aside (`index.json.migrated`), never deleted; a file that cannot be read or is not a list stays
+    /// where it is.
+    static func migrate(indexFileURL: URL, into store: OfflineStore) -> DownloadPersistedIndexState {
+        guard FileManager.default.fileExists(atPath: indexFileURL.path) else { return .loaded }
+        let data: Data
+        do {
+            data = try Data(contentsOf: indexFileURL)
+        } catch {
+            ErrorReporter.capture(DownloadPersistenceFailure.indexRead)
+            return .unreadable
+        }
+        let entries: [LegacyDownloadIndexEntry?]
+        do {
+            entries = try JSONDecoder().decode([LossyLegacyDownloadIndexEntry].self, from: data).map(\.entry)
+        } catch {
+            // Not even a list: keep the file where it is for recovery.
+            ErrorReporter.capture(DownloadPersistenceFailure.indexDecode)
+            return .corrupt
+        }
+        let decoded = entries.compactMap { $0 }
+        if decoded.count != entries.count {
+            ErrorReporter.capture(DownloadPersistenceFailure.legacyIndexEntriesDropped)
+        }
+        let legacyItems = decoded.map { entry in
+            var item = entry.migratedItem
+            item.enrichmentState = .pending
+            return item
+        }
+        do {
+            try store.save(downloads: legacyItems)
+            let migratedURL = indexFileURL.appendingPathExtension("migrated")
+            try? FileManager.default.removeItem(at: migratedURL)
+            try FileManager.default.moveItem(at: indexFileURL, to: migratedURL)
+        } catch {
+            ErrorReporter.capture(DownloadPersistenceFailure.indexWrite)
+            return .unreadable
+        }
+        // Registered so the enrolled downloads resolve to their owner (`restoreResumePoints`). Registering grants
+        // nothing: a profile only sees its downloads once it is the active owner.
+        for owner in Set(decoded.compactMap(\.enrolledOwner)) {
+            store.register(owner: owner)
+        }
+        return decoded.count == entries.count ? .loaded : .corrupt
+    }
+
+    /// Moves each owned download's pre-fork resume point into its owner's offline progress and clears it from the
+    /// download. Returns whether any download changed, so the caller persists them.
+    ///
+    /// A download without an owner, or whose owner is not registered, keeps its point: nobody plays it.
+    static func restoreResumePoints(in items: inout [DownloadItem], store: OfflineStore) -> Bool {
+        var changed = false
+        for index in items.indices where items[index].metadata.legacyResumePoint != nil {
+            guard let owner = items[index].ownerID.flatMap(store.owner(id:)) else { continue }
+            restoreResumePoint(of: &items[index], owner: owner, store: store)
+            changed = true
+        }
+        return changed
+    }
+
+    /// Records the download's pre-fork resume point as the owner's local offline progress, the way
+    /// `PlaybackProgressRecorder` keeps an interrupted stream: the download resumes there, and `ProgressSynchronizer`
+    /// later reconciles it with the owner's server, most recent wins. A point without a play date counts as played
+    /// when the download was made, so newer server progress wins over it. Progress the owner already has that is at
+    /// least as recent is kept. The point is cleared either way.
+    static func restoreResumePoint(of item: inout DownloadItem, owner: MediaOwner, store: OfflineStore) {
+        guard let point = item.metadata.legacyResumePoint else { return }
+        item.metadata.legacyResumePoint = nil
+        let playedAt = point.lastPlayedAt ?? item.metadata.createdAt
+        // The offline database keeps dates to the millisecond, so a point already restored reads back up to a
+        // millisecond earlier than the pre-fork index's date.
+        if let lastViewedAt = store.watchState(itemID: item.itemID, owner: owner)?.lastViewedAt,
+           lastViewedAt > playedAt.addingTimeInterval(-0.001)
+        {
+            return
+        }
+        PlaybackProgressRecorder.recordInterruptedStream(
+            owner: owner,
+            itemID: item.itemID,
+            position: point.position,
+            duration: item.metadata.duration,
+            store: store,
+            occurredAt: playedAt,
+        )
+    }
+}
+
 /// One entry of a pre-fork Plinx index: the download plus the enrollment scope Plinx stored beside it.
-private struct LegacyDownloadIndexEntry: Decodable {
+struct LegacyDownloadIndexEntry: Decodable {
     let item: DownloadItem
     let accessScope: DownloadAccessScope?
 
@@ -1399,25 +1469,36 @@ private struct LegacyDownloadIndexEntry: Decodable {
         accessScope = try? container.decodeIfPresent(DownloadAccessScope.self, forKey: .accessScope)
     }
 
+    /// The Plex profile the entry was enrolled for, or nil when `accessScope` is missing, names an empty server or
+    /// profile, or names a server other than the one the download stores.
+    var enrolledOwner: MediaOwner? {
+        guard let accessScope,
+              !accessScope.serverIdentifier.isEmpty,
+              !accessScope.accessScopeIdentifier.isEmpty
+        else { return nil }
+        // Pre-fork Plinx only ever enrolled Plex downloads.
+        let server = ServerIdentity(provider: .plex, id: accessScope.serverIdentifier)
+        if let stored = item.identity?.server, stored != server {
+            return nil
+        }
+        return MediaOwner(server: server, userID: accessScope.accessScopeIdentifier)
+    }
+
     /// The download as the offline database stores it: owned by its enrolled profile, or by nobody.
     ///
-    /// An entry without `accessScope` keeps an `ownerID` it carries. Pre-fork Plinx never wrote one; only this app
-    /// does, in the fallback index it keeps while the offline database cannot be opened, and dropping it would turn
-    /// that profile's downloads parent-only.
+    /// With `accessScope`, any `ownerID` the entry carries is ignored: the download gets `enrolledOwner`, or no
+    /// owner. An entry without `accessScope` keeps an `ownerID` it carries. Pre-fork Plinx never wrote one; only this
+    /// app does, in the fallback index it keeps while the offline database cannot be opened, and dropping it would
+    /// turn that profile's downloads parent-only.
     var migratedItem: DownloadItem {
         var migrated = item
-        guard let accessScope else { return migrated }
+        guard accessScope != nil else { return migrated }
         migrated.ownerID = nil
-        guard !accessScope.serverIdentifier.isEmpty,
-              !accessScope.accessScopeIdentifier.isEmpty
-        else { return migrated }
-        // Pre-fork Plinx only ever enrolled Plex downloads.
-        let server = migrated.identity?.server ?? ServerIdentity(provider: .plex, id: accessScope.serverIdentifier)
-        guard server.id == accessScope.serverIdentifier else { return migrated }
+        guard let owner = enrolledOwner else { return migrated }
         if migrated.metadata.identity == nil {
-            migrated.metadata.identity = MediaIdentity(server: server, itemID: migrated.itemID)
+            migrated.metadata.identity = MediaIdentity(server: owner.server, itemID: migrated.itemID)
         }
-        migrated.ownerID = MediaOwner(server: server, userID: accessScope.accessScopeIdentifier).id
+        migrated.ownerID = owner.id
         return migrated
     }
 }

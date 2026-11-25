@@ -135,6 +135,56 @@ In a clean checkout, verify the committed mirror with:
 ./scripts/generate_xcodeproj.sh --check
 ```
 
+## Entitlements
+
+Neither app target is signed with an entitlements file. Add one only for a
+capability Apple has granted to the team's App ID. Automatic signing fails for
+device and archive builds when an entitlement is missing from the provisioning
+profile, and simulator builds never show that failure.
+
+### Multicast networking (Jellyfin server search)
+
+The Jellyfin sign-in form can search the local network for servers.
+`JellyfinServerDiscoveryService` sends a UDP broadcast to port 7359 from a BSD
+socket. On iPhone and iPad, iOS 14 and later block that broadcast unless the app
+is signed with `com.apple.developer.networking.multicast`. Apple grants this
+managed entitlement only on request. Apple TV needs no entitlement.
+
+Plinx does not have the grant yet. `JellyfinServerDiscoveryService.isSupported`
+is therefore false on iOS, and the iPhone and iPad sign-in form hides **Search
+local servers**. Manual server address entry is the only way to connect there.
+Apple TV keeps the search. `JellyfinServerDiscoveryAvailabilityTests` covers
+the iOS behavior.
+
+To enable the search on iPhone and iPad:
+
+1. The Apple Developer account holder requests the multicast networking
+   entitlement for `com.bballdavis.plinx` from Apple.
+2. After Apple grants it, enable the capability on the App ID under
+   Certificates, Identifiers & Profiles (Additional Capabilities).
+3. In `PlinxApp/project.yml`, give the `Plinx-iOS` target the entitlement, and
+   add the compile condition that turns the search on to its existing
+   `settings.base`:
+
+   ```yaml
+   entitlements:
+     path: Resources/Plinx-iOS.entitlements
+     properties:
+       com.apple.developer.networking.multicast: true
+   settings:
+     base:
+       SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) PLINX_MULTICAST_ENTITLEMENT"
+   ```
+
+   XcodeGen writes the entitlements file and sets `CODE_SIGN_ENTITLEMENTS`.
+   Regenerate the project, then commit the entitlements file with it.
+4. Flip the expectations in `JellyfinServerDiscoveryAvailabilityTests`, and
+   update the Jellyfin steps in `docs/user/getting-started.md`.
+5. Check a device or archive build. Run
+   `codesign -d --entitlements - Plinx.app` and confirm it lists the key. Then
+   confirm the search finds a server on a physical iPhone, because the
+   simulator does not enforce the entitlement.
+
 ## Testing
 
 Use `docs/development/testing.md` as the canonical test index and `docs/development/ui-testing.md` for snapshot/UI strategy details.

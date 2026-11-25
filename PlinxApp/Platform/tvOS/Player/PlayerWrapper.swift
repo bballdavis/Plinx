@@ -24,10 +24,8 @@ struct PlayerWrapper: View {
     }
 
     var body: some View {
-        // Plinx always uses its own player chrome and timeline: the system controls style (#413) bypasses both.
         PlayerView(
             viewModel: viewModel,
-            controlsStyle: .classic,
             onExit: onExit,
             showsBufferingOverlay: showsBufferingOverlay,
             isPlaybackAuthorized: isPlaybackAuthorized,

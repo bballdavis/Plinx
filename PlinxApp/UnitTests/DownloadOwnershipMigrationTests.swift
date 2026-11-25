@@ -1,14 +1,20 @@
 @testable import Plinx
 import XCTest
 
-/// Pre-fork Plinx kept download ownership in UserDefaults (`plinx.downloadOwnership.v1`). These tests pin the
-/// one-time import that turns it into `ownerID`, so an update never costs a family its kids' downloads, and never
-/// hands a download to a profile the record does not name.
+/// Pre-fork Plinx kept download ownership in UserDefaults (`plinx.downloadOwnership.v1`) and in its download index
+/// (`index.json`, `accessScope`). These tests pin the one-time imports that turn both into `ownerID`, so an update
+/// never costs a family its kids' downloads or their offline resume points, and never hands a download to a profile
+/// the records do not name.
 @MainActor
 final class DownloadOwnershipMigrationTests: XCTestCase {
     private let server = ServerIdentity(provider: .plex, id: "server-machine-1")
+    /// The server the pre-fork download index entries below were enrolled on.
+    private let indexServer = ServerIdentity(provider: .plex, id: "server-a")
+    private let kidScope = DownloadAccessScope(serverIdentifier: "server-a", accessScopeIdentifier: "kid-uuid")
     private var suiteName = ""
     private var defaults: UserDefaults!
+    private var offlineDatabase: TestOfflineDatabase?
+    private var indexDirectory: URL?
 
     override func setUp() {
         super.setUp()
@@ -19,6 +25,11 @@ final class DownloadOwnershipMigrationTests: XCTestCase {
     override func tearDown() {
         defaults.removePersistentDomain(forName: suiteName)
         defaults = nil
+        offlineDatabase = nil
+        if let indexDirectory {
+            try? FileManager.default.removeItem(at: indexDirectory)
+        }
+        indexDirectory = nil
         super.tearDown()
     }
 
@@ -45,7 +56,9 @@ final class DownloadOwnershipMigrationTests: XCTestCase {
         ]
         var saved: [[DownloadItem]] = []
 
-        let outcome = LegacyDownloadOwnership.migrate(items, defaults: defaults) { saved.append($0) }
+        let outcome = LegacyDownloadOwnership.migrate(items, indexState: .loaded, defaults: defaults) {
+            saved.append($0)
+        }
 
         let kid = MediaOwner(server: server, userID: "kid-uuid")
         let parent = MediaOwner(server: server, userID: "parent-uuid")
@@ -86,7 +99,7 @@ final class DownloadOwnershipMigrationTests: XCTestCase {
         let items = [legacyItem(id: "kid-movie", itemID: "101"), legacyItem(id: "old-movie", itemID: "303")]
         var saved: [DownloadItem] = []
 
-        let outcome = LegacyDownloadOwnership.migrate(items, defaults: defaults) { saved = $0 }
+        let outcome = LegacyDownloadOwnership.migrate(items, indexState: .loaded, defaults: defaults) { saved = $0 }
 
         XCTAssertEqual(outcome, .migrated(["kid-movie": MediaOwner(server: server, userID: "kid-uuid")]))
         XCTAssertEqual(owner(of: "kid-movie", in: saved), "plex|server-machine-1|kid-uuid")
@@ -104,7 +117,9 @@ final class DownloadOwnershipMigrationTests: XCTestCase {
         let items = [legacyItem(id: "no-server", itemID: "1"), legacyItem(id: "no-profile", itemID: "2")]
         var saveCount = 0
 
-        let outcome = LegacyDownloadOwnership.migrate(items, defaults: defaults) { _ in saveCount += 1 }
+        let outcome = LegacyDownloadOwnership.migrate(items, indexState: .loaded, defaults: defaults) { _ in
+            saveCount += 1
+        }
 
         XCTAssertEqual(outcome, .migrated([:]))
         XCTAssertEqual(saveCount, 0)
@@ -118,6 +133,7 @@ final class DownloadOwnershipMigrationTests: XCTestCase {
 
         let outcome = LegacyDownloadOwnership.migrate(
             [legacyItem(id: "kid-movie", itemID: "101")],
+            indexState: .loaded,
             defaults: defaults,
         ) { _ in saveCount += 1 }
 
@@ -130,10 +146,16 @@ final class DownloadOwnershipMigrationTests: XCTestCase {
         store("""
         {"version": 3, "owned": {}, "grandfatheredLegacy": [], "unprovenanced": []}
         """)
-        XCTAssertEqual(LegacyDownloadOwnership.migrate([], defaults: defaults) { _ in }, .unreadable)
+        XCTAssertEqual(
+            LegacyDownloadOwnership.migrate([], indexState: .loaded, defaults: defaults) { _ in },
+            .unreadable,
+        )
 
         defaults.set("not data", forKey: LegacyDownloadOwnership.defaultsKey)
-        XCTAssertEqual(LegacyDownloadOwnership.migrate([], defaults: defaults) { _ in }, .unreadable)
+        XCTAssertEqual(
+            LegacyDownloadOwnership.migrate([], indexState: .loaded, defaults: defaults) { _ in },
+            .unreadable,
+        )
         XCTAssertNotNil(defaults.object(forKey: LegacyDownloadOwnership.defaultsKey))
     }
 
@@ -145,11 +167,31 @@ final class DownloadOwnershipMigrationTests: XCTestCase {
 
         let outcome = LegacyDownloadOwnership.migrate(
             [legacyItem(id: "kid-movie", itemID: "101")],
+            indexState: .loaded,
             defaults: defaults,
         ) { _ in throw SaveFailure() }
 
         XCTAssertEqual(outcome, .saveFailed)
         XCTAssertNotNil(defaults.object(forKey: LegacyDownloadOwnership.defaultsKey))
+    }
+
+    func test_incompleteDownloadList_defersTheImportAndKeepsTheRecord() {
+        store("""
+        {"kid-movie": {"serverIdentifier": "server-machine-1", "profileIdentifier": "kid-uuid"}}
+        """)
+
+        for state in [DownloadPersistedIndexState.corrupt, .unreadable, .missing] {
+            var saveCount = 0
+            let outcome = LegacyDownloadOwnership.migrate(
+                [legacyItem(id: "kid-movie", itemID: "101")],
+                indexState: state,
+                defaults: defaults,
+            ) { _ in saveCount += 1 }
+
+            XCTAssertEqual(outcome, .deferred, "\(state)")
+            XCTAssertEqual(saveCount, 0, "\(state)")
+            XCTAssertNotNil(defaults.object(forKey: LegacyDownloadOwnership.defaultsKey), "\(state)")
+        }
     }
 
     // MARK: - Idempotence
@@ -159,11 +201,13 @@ final class DownloadOwnershipMigrationTests: XCTestCase {
         {"kid-movie": {"serverIdentifier": "server-machine-1", "profileIdentifier": "kid-uuid"}}
         """)
         var items = [legacyItem(id: "kid-movie", itemID: "101"), legacyItem(id: "old-movie", itemID: "303")]
-        _ = LegacyDownloadOwnership.migrate(items, defaults: defaults) { items = $0 }
+        _ = LegacyDownloadOwnership.migrate(items, indexState: .loaded, defaults: defaults) { items = $0 }
         let afterFirstRun = items
         var saveCount = 0
 
-        let outcome = LegacyDownloadOwnership.migrate(items, defaults: defaults) { _ in saveCount += 1 }
+        let outcome = LegacyDownloadOwnership.migrate(items, indexState: .loaded, defaults: defaults) { _ in
+            saveCount += 1
+        }
 
         XCTAssertEqual(outcome, .nothingStored)
         XCTAssertEqual(saveCount, 0)
@@ -182,7 +226,11 @@ final class DownloadOwnershipMigrationTests: XCTestCase {
         var saveCount = 0
         let items = [legacyItem(id: "old-movie", itemID: "303")]
 
-        XCTAssertEqual(LegacyDownloadOwnership.migrate(items, defaults: defaults) { _ in saveCount += 1 }, .nothingStored)
+        let outcome = LegacyDownloadOwnership.migrate(items, indexState: .loaded, defaults: defaults) { _ in
+            saveCount += 1
+        }
+
+        XCTAssertEqual(outcome, .nothingStored)
         XCTAssertEqual(saveCount, 0)
     }
 
@@ -204,7 +252,11 @@ final class DownloadOwnershipMigrationTests: XCTestCase {
         otherServer.metadata.identity = MediaIdentity(server: elsewhere, itemID: "202")
         var saveCount = 0
 
-        let outcome = LegacyDownloadOwnership.migrate([enrolled, otherServer], defaults: defaults) { _ in
+        let outcome = LegacyDownloadOwnership.migrate(
+            [enrolled, otherServer],
+            indexState: .loaded,
+            defaults: defaults,
+        ) { _ in
             saveCount += 1
         }
 
@@ -223,10 +275,350 @@ final class DownloadOwnershipMigrationTests: XCTestCase {
         XCTAssertNil(defaults.object(forKey: LegacyDownloadOwnership.defaultsKey))
     }
 
+    // MARK: - Pre-fork download index (`accessScope`)
+
+    func test_indexAccessScope_givesTheDownloadToThatProfile() throws {
+        let entry = try indexEntry(indexEntryJSON(accessScope: kidScope))
+
+        XCTAssertEqual(entry.enrolledOwner, MediaOwner(server: indexServer, userID: "kid-uuid"))
+        XCTAssertEqual(entry.migratedItem.ownerID, "plex|server-a|kid-uuid")
+        // The scope names the server the pre-fork metadata did not store.
+        XCTAssertEqual(entry.migratedItem.identity, MediaIdentity(server: indexServer, itemID: "123"))
+    }
+
+    func test_indexAccessScopeWithAnEmptyServerOrProfile_leavesTheDownloadUnowned() throws {
+        let scopes = [
+            DownloadAccessScope(serverIdentifier: "", accessScopeIdentifier: "kid-uuid"),
+            DownloadAccessScope(serverIdentifier: "server-a", accessScopeIdentifier: ""),
+        ]
+        for scope in scopes {
+            let entry = try indexEntry(indexEntryJSON(accessScope: scope))
+
+            XCTAssertNil(entry.enrolledOwner, "\(scope)")
+            XCTAssertNil(entry.migratedItem.ownerID, "\(scope)")
+            XCTAssertNil(entry.migratedItem.identity, "\(scope)")
+        }
+    }
+
+    func test_indexAccessScopeForAnotherServer_leavesTheDownloadUnowned() throws {
+        let storedServers = [
+            ServerIdentity(provider: .plex, id: "server-b"),
+            // Pre-fork Plinx only ever enrolled Plex downloads.
+            ServerIdentity(provider: .jellyfin, id: "server-a"),
+        ]
+        for storedServer in storedServers {
+            let entry = try indexEntry(indexEntryJSON(accessScope: kidScope, storedServer: storedServer))
+
+            XCTAssertNil(entry.enrolledOwner, "\(storedServer)")
+            XCTAssertNil(entry.migratedItem.ownerID, "\(storedServer)")
+            XCTAssertEqual(entry.migratedItem.identity?.server, storedServer)
+        }
+    }
+
+    func test_indexAccessScope_replacesAStrayOwnerIDAndNeverKeepsIt() throws {
+        let stray = "plex|server-a|someone-else"
+
+        let scoped = try indexEntry(indexEntryJSON(accessScope: kidScope, ownerID: stray))
+        XCTAssertEqual(scoped.migratedItem.ownerID, "plex|server-a|kid-uuid")
+
+        let unusableScope = DownloadAccessScope(serverIdentifier: "", accessScopeIdentifier: "kid-uuid")
+        let unusable = try indexEntry(indexEntryJSON(accessScope: unusableScope, ownerID: stray))
+        XCTAssertNil(unusable.migratedItem.ownerID)
+    }
+
+    func test_indexEntryWithoutAccessScope_keepsTheOwnerIDItCarries() throws {
+        // Only this app's fallback index carries an owner without a scope.
+        let owned = try indexEntry(indexEntryJSON(ownerID: "plex|server-a|kid-uuid"))
+        XCTAssertNil(owned.enrolledOwner)
+        XCTAssertEqual(owned.migratedItem.ownerID, "plex|server-a|kid-uuid")
+
+        let unowned = try indexEntry(indexEntryJSON())
+        XCTAssertNil(unowned.migratedItem.ownerID)
+    }
+
+    func test_indexMigration_completeIndexIsLoadedAndPermitsTheOwnershipImport() throws {
+        store("""
+        {"unscoped": {"serverIdentifier": "server-a", "profileIdentifier": "kid-uuid"}}
+        """)
+        let indexURL = try writeIndex([
+            indexEntryJSON(id: "scoped", ratingKey: "1", accessScope: kidScope),
+            indexEntryJSON(id: "unscoped", ratingKey: "2"),
+        ])
+        let offlineStore = try makeStore()
+
+        let state = LegacyDownloadIndex.migrate(indexFileURL: indexURL, into: offlineStore)
+
+        XCTAssertEqual(state, .loaded)
+        var items = try offlineStore.allDownloads()
+        XCTAssertEqual(owner(of: "scoped", in: items), "plex|server-a|kid-uuid")
+        XCTAssertNil(owner(of: "unscoped", in: items))
+        XCTAssertTrue(items.allSatisfy { $0.enrichmentState == .pending })
+        let kid = MediaOwner(server: indexServer, userID: "kid-uuid")
+        XCTAssertEqual(offlineStore.owner(id: kid.id), kid)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: indexURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: indexURL.appendingPathExtension("migrated").path))
+
+        let outcome = LegacyDownloadOwnership.migrate(items, indexState: state, defaults: defaults) { items = $0 }
+
+        XCTAssertEqual(outcome, .migrated(["unscoped": kid]))
+        XCTAssertEqual(owner(of: "unscoped", in: items), kid.id)
+    }
+
+    func test_indexMigration_withADamagedEntry_dropsOnlyThatEntryAndDefersTheOwnershipImport() throws {
+        store("""
+        {"unscoped": {"serverIdentifier": "server-a", "profileIdentifier": "kid-uuid"}}
+        """)
+        let indexURL = try writeIndex([
+            indexEntryJSON(id: "scoped", ratingKey: "1", accessScope: kidScope),
+            #"{"id": "damaged", "status": "completed"}"#,
+            indexEntryJSON(id: "unscoped", ratingKey: "2"),
+        ])
+        let offlineStore = try makeStore()
+
+        let state = LegacyDownloadIndex.migrate(indexFileURL: indexURL, into: offlineStore)
+
+        XCTAssertEqual(state, .corrupt)
+        let items = try offlineStore.allDownloads()
+        XCTAssertEqual(Set(items.map(\.id)), ["scoped", "unscoped"])
+        XCTAssertEqual(owner(of: "scoped", in: items), "plex|server-a|kid-uuid")
+        XCTAssertNil(owner(of: "unscoped", in: items))
+        // The pre-fork file is moved aside with the damaged entry, never deleted.
+        XCTAssertTrue(FileManager.default.fileExists(atPath: indexURL.appendingPathExtension("migrated").path))
+
+        var saveCount = 0
+        let outcome = LegacyDownloadOwnership.migrate(items, indexState: state, defaults: defaults) { _ in
+            saveCount += 1
+        }
+
+        XCTAssertEqual(outcome, .deferred)
+        XCTAssertEqual(saveCount, 0)
+        XCTAssertNotNil(defaults.object(forKey: LegacyDownloadOwnership.defaultsKey))
+    }
+
+    func test_indexMigration_ofAFileThatIsNotAList_keepsItInPlace() throws {
+        let indexURL = try writeIndex(raw: #"{"not": "a list"}"#)
+        let offlineStore = try makeStore()
+
+        XCTAssertEqual(LegacyDownloadIndex.migrate(indexFileURL: indexURL, into: offlineStore), .corrupt)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: indexURL.path))
+        XCTAssertTrue(try offlineStore.allDownloads().isEmpty)
+    }
+
+    // MARK: - Pre-fork offline resume points
+
+    func test_indexMigration_movesThePreForkResumePointIntoTheOwnersOfflineProgress() throws {
+        let playedAt = Date(timeIntervalSinceReferenceDate: 700_000_000)
+        let indexURL = try writeIndex([
+            indexEntryJSON(
+                id: "scoped", ratingKey: "1", accessScope: kidScope, viewOffset: "1234.5", lastPlayedAt: playedAt,
+            ),
+            indexEntryJSON(id: "unscoped", ratingKey: "2", viewOffset: "600", lastPlayedAt: playedAt),
+        ])
+        let offlineStore = try makeStore()
+        XCTAssertEqual(LegacyDownloadIndex.migrate(indexFileURL: indexURL, into: offlineStore), .loaded)
+        var items = try offlineStore.allDownloads()
+        XCTAssertEqual(
+            items.first { $0.id == "scoped" }?.metadata.legacyResumePoint,
+            LegacyDownloadResumePoint(position: 1234.5, lastPlayedAt: playedAt),
+        )
+
+        XCTAssertTrue(LegacyDownloadIndex.restoreResumePoints(in: &items, store: offlineStore))
+
+        let kid = MediaOwner(server: indexServer, userID: "kid-uuid")
+        let watchState = try XCTUnwrap(offlineStore.watchState(itemID: "1", owner: kid))
+        XCTAssertEqual(watchState.viewOffset, 1234.5)
+        XCTAssertEqual(watchState.lastViewedAt, playedAt)
+        XCTAssertEqual(watchState.source, .local)
+        XCTAssertFalse(watchState.played)
+        // Journaled like an interrupted stream, so the server is reconciled later, most recent wins.
+        let journal = offlineStore.pendingJournal(owner: kid)
+        XCTAssertEqual(journal.map(\.itemID), ["1"])
+        XCTAssertEqual(journal.first?.event, ProgressJournalEvent.stop.rawValue)
+        XCTAssertEqual(journal.first?.position, 1234.5)
+        XCTAssertEqual(journal.first?.duration, 5400)
+        XCTAssertEqual(journal.first?.occurredAt, playedAt)
+        // The point is moved, not copied. A download without an owner keeps its point and records nothing.
+        XCTAssertNil(items.first { $0.id == "scoped" }?.metadata.legacyResumePoint)
+        XCTAssertEqual(items.first { $0.id == "unscoped" }?.metadata.legacyResumePoint?.position, 600)
+        XCTAssertFalse(LegacyDownloadIndex.restoreResumePoints(in: &items, store: offlineStore))
+        XCTAssertEqual(offlineStore.pendingJournal(owner: kid).count, 1)
+    }
+
+    func test_resumePointWaitsWithAnUnownedDownloadUntilTheOwnershipImportNamesItsOwner() throws {
+        store("""
+        {"unscoped": {"serverIdentifier": "server-a", "profileIdentifier": "kid-uuid"}}
+        """)
+        let playedAt = Date(timeIntervalSinceReferenceDate: 700_000_000)
+        let indexURL = try writeIndex([
+            indexEntryJSON(id: "unscoped", ratingKey: "2", viewOffset: "600", lastPlayedAt: playedAt),
+        ])
+        let offlineStore = try makeStore()
+        let state = LegacyDownloadIndex.migrate(indexFileURL: indexURL, into: offlineStore)
+        var items = try offlineStore.allDownloads()
+        XCTAssertFalse(LegacyDownloadIndex.restoreResumePoints(in: &items, store: offlineStore))
+
+        let outcome = LegacyDownloadOwnership.migrate(items, indexState: state, defaults: defaults) { migrated in
+            items = migrated
+            try offlineStore.save(downloads: migrated)
+        }
+        let kid = MediaOwner(server: indexServer, userID: "kid-uuid")
+        XCTAssertEqual(outcome, .migrated(["unscoped": kid]))
+        // As `DownloadManager` does for every imported owner.
+        offlineStore.register(owner: kid)
+        // The point survived the offline database while the download had no owner.
+        items = try offlineStore.allDownloads()
+
+        XCTAssertTrue(LegacyDownloadIndex.restoreResumePoints(in: &items, store: offlineStore))
+        XCTAssertEqual(offlineStore.watchState(itemID: "2", owner: kid)?.viewOffset, 600)
+        XCTAssertEqual(offlineStore.pendingJournal(owner: kid).map(\.occurredAt), [playedAt])
+    }
+
+    func test_resumePoint_neverOverwritesMoreRecentProgress() throws {
+        let offlineStore = try makeStore()
+        let kid = MediaOwner(server: indexServer, userID: "kid-uuid")
+        let newer = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        offlineStore.setWatchState(
+            OfflineWatchState(viewOffset: 42, viewCount: 0, played: false, lastViewedAt: newer, source: .local),
+            itemID: "123",
+            owner: kid,
+        )
+        var item = try indexEntry(indexEntryJSON(
+            accessScope: kidScope,
+            viewOffset: "1234.5",
+            lastPlayedAt: Date(timeIntervalSinceReferenceDate: 700_000_000),
+        )).migratedItem
+
+        LegacyDownloadIndex.restoreResumePoint(of: &item, owner: kid, store: offlineStore)
+
+        XCTAssertNil(item.metadata.legacyResumePoint)
+        XCTAssertEqual(offlineStore.watchState(itemID: "123", owner: kid)?.viewOffset, 42)
+        XCTAssertEqual(offlineStore.watchState(itemID: "123", owner: kid)?.lastViewedAt, newer)
+        XCTAssertTrue(offlineStore.pendingJournal(owner: kid).isEmpty)
+
+        // Restoring the same point again, as after a failed save, records nothing twice, even though the offline
+        // database reads the pre-fork date back only to the millisecond.
+        let playedAt = Date(timeIntervalSinceReferenceDate: 900_000_000.123_456)
+        let json = indexEntryJSON(accessScope: kidScope, viewOffset: "60", lastPlayedAt: playedAt)
+        var first = try indexEntry(json).migratedItem
+        var retried = try indexEntry(json).migratedItem
+        LegacyDownloadIndex.restoreResumePoint(of: &first, owner: kid, store: offlineStore)
+        LegacyDownloadIndex.restoreResumePoint(of: &retried, owner: kid, store: offlineStore)
+        XCTAssertEqual(offlineStore.watchState(itemID: "123", owner: kid)?.viewOffset, 60)
+        XCTAssertEqual(offlineStore.pendingJournal(owner: kid).count, 1)
+    }
+
+    func test_resumePointWithoutAPlayDate_countsAsPlayedWhenTheDownloadWasMade() throws {
+        let offlineStore = try makeStore()
+        let kid = MediaOwner(server: indexServer, userID: "kid-uuid")
+        var item = try indexEntry(indexEntryJSON(accessScope: kidScope, viewOffset: "300")).migratedItem
+        XCTAssertNil(item.metadata.legacyResumePoint?.lastPlayedAt)
+
+        LegacyDownloadIndex.restoreResumePoint(of: &item, owner: kid, store: offlineStore)
+
+        XCTAssertEqual(offlineStore.watchState(itemID: "123", owner: kid)?.lastViewedAt, item.metadata.createdAt)
+        XCTAssertEqual(offlineStore.pendingJournal(owner: kid).map(\.occurredAt), [item.metadata.createdAt])
+    }
+
+    func test_resumePoint_onlyAPositivePositionIsKeptAndADamagedOneNeverCostsTheDownload() throws {
+        for offset in ["0", "-5", #""12""#, "null"] {
+            let entry = try indexEntry(indexEntryJSON(accessScope: kidScope, viewOffset: offset))
+
+            XCTAssertNil(entry.item.metadata.legacyResumePoint, offset)
+            XCTAssertEqual(entry.item.status, .completed, offset)
+            XCTAssertEqual(entry.migratedItem.ownerID, "plex|server-a|kid-uuid", offset)
+        }
+
+        let damagedDate = try indexEntry(indexEntryJSON(
+            viewOffset: "90",
+            extraMetadata: #""lastPlayedAt": "yesterday""#,
+        ))
+        XCTAssertEqual(damagedDate.item.metadata.legacyResumePoint, LegacyDownloadResumePoint(position: 90))
+    }
+
     // MARK: - Helpers
 
     private func store(_ json: String) {
         defaults.set(Data(json.utf8), forKey: LegacyDownloadOwnership.defaultsKey)
+    }
+
+    private func makeStore() throws -> OfflineStore {
+        let database = try TestOfflineDatabase()
+        offlineDatabase = database
+        return database.makeStore()
+    }
+
+    private func indexEntry(_ json: String) throws -> LegacyDownloadIndexEntry {
+        try JSONDecoder().decode(LegacyDownloadIndexEntry.self, from: Data(json.utf8))
+    }
+
+    private func writeIndex(_ entries: [String]) throws -> URL {
+        try writeIndex(raw: "[\(entries.joined(separator: ","))]")
+    }
+
+    private func writeIndex(raw: String) throws -> URL {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("plinx.tests.index.\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        indexDirectory = directory
+        let url = directory.appendingPathComponent("index.json")
+        try Data(raw.utf8).write(to: url)
+        return url
+    }
+
+    /// One entry of `index.json` as pre-fork Plinx wrote it: the metadata names the item by `ratingKey` with no
+    /// server, and the enrollment scope and offline resume point sit beside it.
+    private func indexEntryJSON(
+        id: String = "legacy",
+        ratingKey: String = "123",
+        accessScope: DownloadAccessScope? = nil,
+        ownerID: String? = nil,
+        storedServer: ServerIdentity? = nil,
+        viewOffset: String? = nil,
+        lastPlayedAt: Date? = nil,
+        extraMetadata: String? = nil,
+    ) -> String {
+        var fields = [
+            #""id": "\#(id)""#,
+            #""status": "completed""#,
+            #""progress": 1"#,
+            #""bytesWritten": 1024"#,
+            #""totalBytes": 1024"#,
+            #""requestedQuality": "megabits3_720p""#,
+        ]
+        if let accessScope {
+            let server = accessScope.serverIdentifier
+            let profile = accessScope.accessScopeIdentifier
+            fields.append(#""accessScope": {"serverIdentifier": "\#(server)", "accessScopeIdentifier": "\#(profile)"}"#)
+        }
+        if let ownerID {
+            fields.append(#""ownerID": "\#(ownerID)""#)
+        }
+        var metadata = [
+            #""ratingKey": "\#(ratingKey)""#,
+            #""guid": "plex://movie/\#(ratingKey)""#,
+            #""type": "movie""#,
+            #""title": "Movie \#(ratingKey)""#,
+            #""genres": []"#,
+            #""duration": 5400"#,
+            #""contentRating": "G""#,
+            #""videoFileName": "video.mp4""#,
+            #""createdAt": 1"#,
+        ]
+        if let storedServer {
+            metadata.append(#""provider": "\#(storedServer.provider.rawValue)""#)
+            metadata.append(#""serverIdentifier": "\#(storedServer.id)""#)
+        }
+        if let viewOffset {
+            metadata.append(#""viewOffset": \#(viewOffset)"#)
+        }
+        if let lastPlayedAt {
+            metadata.append(#""lastPlayedAt": \#(lastPlayedAt.timeIntervalSinceReferenceDate)"#)
+        }
+        if let extraMetadata {
+            metadata.append(extraMetadata)
+        }
+        fields.append(#""metadata": {\#(metadata.joined(separator: ", "))}"#)
+        return "{\(fields.joined(separator: ", "))}"
     }
 
     private func owner(of downloadID: String, in items: [DownloadItem]) -> String? {

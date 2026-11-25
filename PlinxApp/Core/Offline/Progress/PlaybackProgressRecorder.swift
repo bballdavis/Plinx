@@ -31,16 +31,18 @@ final class PlaybackProgressRecorder {
     }
 
     /// Keeps the position of a stream interrupted by a lost server, so the download resumes there and the server is
-    /// caught up by the synchronization.
+    /// caught up by the synchronization. `occurredAt` dates a position played earlier, such as the resume point
+    /// pre-fork Plinx saved with a download (`LegacyDownloadIndex`).
     static func recordInterruptedStream(
         owner: MediaOwner,
         itemID: String,
         position: TimeInterval,
         duration: TimeInterval?,
         store: OfflineStore,
+        occurredAt: Date = Date(),
     ) {
         guard position > 0 else { return }
-        let now = Date()
+        let now = occurredAt
         let previous = store.watchState(itemID: itemID, owner: owner)
         store.setWatchState(
             OfflineWatchState(

@@ -5,7 +5,6 @@ struct PauseScreenOverlay: View {
     let media: MediaItem
     let position: Double
     let duration: Double?
-    let playbackRate: Float
     let showsEndsAtTime: Bool
     let isLive: Bool
 
@@ -93,7 +92,6 @@ struct PauseScreenOverlay: View {
            let endsAtText = playerEndsAtText(
                position: position,
                duration: duration,
-               playbackRate: playbackRate,
                now: now,
            )
         {

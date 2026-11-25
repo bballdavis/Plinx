@@ -5,7 +5,6 @@ import Testing
 @MainActor
 struct DownloadModelsTests {
     private let server = ServerIdentity(provider: .plex, id: "server-1")
-    private let url = URL(string: "https://media.example.com/video")!
 
     @Test func `a failed download can be retried`() {
         let failed = DownloadItem.make(id: "download-1", itemID: "movie-1", server: server, status: .failed)
@@ -45,23 +44,6 @@ struct DownloadModelsTests {
         #expect(failed.canRetry(among: [failed, otherFailed, otherUser]))
     }
 
-    @Test(arguments: [401, 404, 500, 503])
-    func `an error response is not kept as a video`(statusCode: Int) {
-        let response = HTTPURLResponse(url: url, statusCode: statusCode, httpVersion: nil, headerFields: nil)
-
-        #expect(DownloadedFileValidation.failureMessage(response: response, fileSize: 512) != nil)
-    }
-
-    @Test func `an empty file is not kept as a video`() {
-        let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)
-
-        #expect(DownloadedFileValidation.failureMessage(response: response, fileSize: 0) != nil)
-    }
-
-    @Test(arguments: [200, 206])
-    func `a successful response with content is kept`(statusCode: Int) {
-        let response = HTTPURLResponse(url: url, statusCode: statusCode, httpVersion: nil, headerFields: nil)
-
-        #expect(DownloadedFileValidation.failureMessage(response: response, fileSize: 512) == nil)
-    }
+    // Whether a finished transfer is kept as a video is covered with `DownloadIntegrityValidator` in
+    // `DownloadIntegrityTests`.
 }

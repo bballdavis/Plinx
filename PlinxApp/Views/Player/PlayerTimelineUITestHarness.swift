@@ -76,7 +76,6 @@ struct PlayerTimelineUITestHarness: View {
                 duration: duration,
                 bufferedAhead: 15,
                 bufferBasePosition: playbackPosition,
-                playbackRate: 1,
                 showsEndsAtTime: false,
                 showsClock: false,
                 isScrubbing: isScrubbing,
@@ -107,17 +106,11 @@ struct PlayerTimelineUITestHarness: View {
                 userInteraction: {},
                 showAudioSettings: {},
                 showSubtitleSettings: {},
-                showSpeedSettings: {},
                 showSettings: {},
                 goLive: {},
                 showLiveChannels: {},
                 previousChannel: {},
-                nextChannel: {},
-                menuPresentationChanged: { _ in },
-                tabsPresentationChanged: { _ in },
-                selectChapter: { _ in },
-                restartFromBeginning: {},
-                selectQueueItem: { _ in }
+                nextChannel: {}
             ),
             position: $position
         )
@@ -132,7 +125,6 @@ struct PlayerTimelineUITestHarness: View {
             duration: duration,
             bufferedAhead: 15,
             bufferBasePosition: playbackPosition,
-            playbackRate: 1,
             showsEndsAtTime: false,
             isScrubbing: isScrubbing,
             onDismiss: {},

@@ -102,24 +102,36 @@ final class LibraryStore {
                 Task { await syncServers() }
             }
         }
+        // Each server lists only the libraries this profile's own sign-in may see, so the lists belong to this
+        // profile and this activation.
+        let loadGeneration = registry.generation
+        let loadProfileID = profileID
         let sessions = registry.sessions.filter { servers?.contains($0.identity) ?? true }
         let result = await sessionManager.aggregation.fanOut(servers: sessions) { services in
             try await services.library.libraries()
+        }
+        guard registry.generation == loadGeneration else {
+            // The profile changed during the load: drop the previous profile's lists and load the current one's.
+            syncPending = true
+            return
         }
         if !result.cancelled.isEmpty, result.succeeded.isEmpty {
             throw CancellationError()
         }
         for (server, libraries) in result.value {
             librariesByServer[server] = libraries
-            // Settings of libraries deleted on the server are only dropped after this successful load.
-            settingsManager.pruneLibraries(of: server, keeping: Set(libraries.map(\.id)))
+            // Settings of libraries deleted on the server are only dropped after this successful load, and only for
+            // the profile that listed them: a Plex Home or Jellyfin user may see only some of a server's libraries,
+            // and the libraries another profile hid must stay hidden for it.
+            settingsManager.pruneLibraries(of: server, keeping: Set(libraries.map(\.id)), profileID: loadProfileID)
         }
         loadedServers.formUnion(result.succeeded)
         #if !os(tvOS)
             // Unreachable servers still list their cached libraries.
             for server in result.skipped.union(result.failed) where librariesByServer[server] == nil {
                 guard let services = registry.services(for: server),
-                      let cached = try? await services.library.libraries()
+                      let cached = try? await services.library.libraries(),
+                      registry.generation == loadGeneration
                 else { continue }
                 librariesByServer[server] = cached
             }

@@ -50,6 +50,9 @@ private let serverSpellings: [(String, PlinxRating)] = [
     // Notes after the rating
     ("PG-13 (US)", .pg13),
     ("R for violence and language", .r),
+    // A rating spelled with spaces, then a note: the whole rating wins, not its first word
+    ("PG 13 (US)", .pg13),
+    ("TV MA (US)", .tvMa),
     // TV content descriptors keep the base rating
     ("TV-Y7-FV", .tvY7),
     ("TV-14-LV", .tv14),
@@ -61,6 +64,14 @@ private let serverSpellings: [(String, PlinxRating)] = [
 private let adultRatings: [String] = [
     "NC-17", "nc17", "NC 17", "Rated NC-17", "US-NC-17", "X", "XXX",
     "18", "18+", "R18", "R18+", "gb/18", "DE-18", "FSK 18", "AU-R18+",
+    // Adult certificates above 18: Singapore R21, South Korea 19, and 21+
+    "R21", "sg/R21", "R 21", "19", "KR-19", "kr/19", "21+",
+    // Other adult spellings: Canada 18A, Malaysia 18SX, Singapore M18, a leading "+"
+    "18A", "CA-18A", "my/18SX", "M18", "sg/M18", "+18",
+    // A spelled-out country or board before the age
+    "DE-FSK 18", "South Korea:19", "Germany:FSK 18",
+    // An adult rating spelled with spaces, then a note
+    "R 21 (SG)", "NC 17 for explicit content", "KR 19 (Korea)", "18 (DE)",
 ]
 
 private let unratedValues: [String] = [
@@ -68,6 +79,8 @@ private let unratedValues: [String] = [
     "", "   ", "NR", "Not Rated", "NOT-RATED", "Unrated", "Approved", "Passed",
     // Other national systems are not mapped onto US ratings
     "gb/PG", "gb/12A", "GB-15", "de/12", "FSK-6", "au/M", "MA15+", "CA-14A", "U", "12",
+    // Age certificates under 18 are not adult-only
+    "sg/NC16", "kr/15", "16+", "17",
     // Lookalikes and garbage
     "PG-14", "TV-PG-X", "TV-R", "GP", "M", "USPG", "US-", "RATED", "TV", "G-Rated",
 ]
@@ -110,6 +123,16 @@ struct ContentRatingNormalizerTests {
         #expect(!permissive.isAllowed(adult))
         #expect(permissive.explain(adult) == .rejected(reason: .adultOnlyRating))
         #expect(permissive.isAllowed(unrated))
+    }
+
+    @Test(arguments: adultRatings)
+    func adultRatingsAreRejectedByTheWidestPolicyThatAllowsUnrated(raw: String) {
+        let permissive = SafetyInterceptor(policy: .ratingOnly(max: .tvMa, allowUnrated: true))
+        let item = PlinxMediaItem(id: "1", title: "Adult", labels: [], contentRating: raw)
+
+        #expect(item.isAdultOnly)
+        #expect(!permissive.isAllowed(item))
+        #expect(permissive.explain(item) == .rejected(reason: .adultOnlyRating))
     }
 
     @Test func contentRatingInitializerParsesThroughTheNormalizer() {

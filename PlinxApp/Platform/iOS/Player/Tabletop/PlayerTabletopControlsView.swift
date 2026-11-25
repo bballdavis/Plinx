@@ -11,7 +11,6 @@ struct PlayerTabletopControlsView: View {
     var duration: Double?
     var bufferedAhead: Double
     var bufferBasePosition: Double
-    var playbackRate: Float
     var showsEndsAtTime: Bool
     var chapters: [MediaChapter]
     var showsChaptersOnTimeline: Bool
@@ -243,7 +242,6 @@ struct PlayerTabletopControlsView: View {
                 duration: duration,
                 bufferedAhead: bufferedAhead,
                 playbackPosition: bufferBasePosition,
-                playbackRate: playbackRate,
                 showsEndsAtTime: showsEndsAtTime,
                 chapters: chapters,
                 showsChaptersOnTimeline: showsChaptersOnTimeline,

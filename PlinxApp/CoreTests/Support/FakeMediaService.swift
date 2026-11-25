@@ -281,13 +281,6 @@ class FakeMediaService: MediaHomeService, MediaLibraryService, MediaSearchServic
 
     func release(plan _: PlaybackPlan) async {}
 
-    func externalPlaybackTarget(
-        for _: MediaItem,
-        version _: MediaVersionRequest,
-    ) async throws -> ExternalPlaybackTarget {
-        throw NotStubbed(function: #function)
-    }
-
     func reportStarted(
         plan _: PlaybackPlan,
         position _: TimeInterval,

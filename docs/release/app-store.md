@@ -62,6 +62,12 @@ The listener does not bind to the LAN. It stops when the demo is signed out.
 Do not rely on background downloads while iOS has suspended the demo service;
 the samples are small and can be downloaded while the app is in the foreground.
 
+The iOS app declares the `audio` background mode for two parent settings that
+are off by default: Picture in Picture and background audio. If review asks
+which feature uses it, point to Settings > Playback after the parental gate:
+with either one on, a sample that is playing keeps playing in a Picture in
+Picture window or as audio when the reviewer leaves the app.
+
 The sample library includes movies, television seasons/episodes, learning
 videos, mixed-rating playlists and collections, and safe sample metadata for
 PG-13 and unrated filtering. Default demo limits are PG/TV-PG with unrated items

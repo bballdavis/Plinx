@@ -62,11 +62,6 @@ extension ShapeStyle where Self == Color {
     static var recordingIndicator: Color {
         Color(red: 1, green: 0.27, blue: 0.23)
     }
-
-    /// Intro, credits and commercial spans on a playback timeline, translucent so the played fill still shows through.
-    static var progressSegment: Color {
-        Color(red: 1, green: 0.76, blue: 0.28).opacity(0.7)
-    }
 }
 
 extension LiveTVCategory {

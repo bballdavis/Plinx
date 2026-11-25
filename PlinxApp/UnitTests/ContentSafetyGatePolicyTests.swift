@@ -1,11 +1,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// PlinxContentRulesSafetyTests.swift
+// ContentSafetyGatePolicyTests.swift
 // ─────────────────────────────────────────────────────────────────────────────
 //
-// Unit tests for `PlinxContentRules` — the synchronous content checks that
-// apply PlinxCore's `SafetyInterceptor` rules to app media types against an
-// explicit `SafetyPolicy`, and for the playlist Play / Shuffle selection built
-// on them (`PlinxPlaylistPlaybackSelection`).
+// Unit tests for `ContentSafetyGate` judged against an explicit
+// `SafetyPolicy` (`ContentSafetyGate(policy:)`, the one way to check content
+// against a policy other than the shared gate's), and for the playlist Play /
+// Shuffle selection built on the gate (`PlinxPlaylistPlaybackSelection`).
 //
 // Running:
 //   Select the Plinx-iOS-UnitTests target in Xcode and press Cmd+U.
@@ -14,8 +14,11 @@
 //   Every item follows the same parent-selected rating policy. Plex clips and
 //   home videos commonly omit a rating, but that is not evidence that they are
 //   allowed. They remain hidden until the parent explicitly enables unrated
-//   content. Adult-only ratings (NC-17, X, an 18 certificate) sit above every
-//   ceiling and are rejected even when unrated content is allowed.
+//   content. Adult-only ratings (NC-17, X, an age certificate of 18 or older
+//   such as 18, KR-19 or R21) sit above every ceiling and are rejected even
+//   when unrated content is allowed. An episode without a rating of its own
+//   takes its series' rating; one whose series is unknown is rejected under
+//   every policy.
 //
 //   Quick-reference regression table:
 //   ┌─────────────────────────────────┬────────────────────┬──────────────────┐
@@ -26,6 +29,9 @@
 //   │ Movie, contentRating="R"        │ ❌ blocked (G max)  │ ❌ blocked        │
 //   │ Movie, contentRating="NC-17"/X  │ ❌ blocked          │ ❌ always blocked │
 //   │ Movie, contentRating="G"        │ ✅ allowed          │ ✅ allowed        │
+//   │ Episode, unrated, TV-Y series   │ ✅ allowed          │ ✅ allowed        │
+//   │ Episode, unrated, TV-MA series  │ ❌ blocked          │ ❌ blocked        │
+//   │ Episode, unrated, series unknown│ ❌ blocked          │ ❌ blocked        │
 //   │ Collection                      │ ✅ always allowed   │ ✅ always allowed │
 //   │ Playlist                        │ ✅ always allowed   │ ✅ always allowed │
 //   └─────────────────────────────────┴────────────────────┴──────────────────┘
@@ -35,7 +41,8 @@ import XCTest
 import PlinxCore
 @testable import Plinx
 
-final class PlinxContentRulesSafetyTests: XCTestCase {
+@MainActor
+final class ContentSafetyGatePolicyTests: XCTestCase {
 
     // MARK: - Policies
 
@@ -48,12 +55,16 @@ final class PlinxContentRulesSafetyTests: XCTestCase {
     /// The most permissive policy a parent can choose: highest ceilings and unrated allowed.
     private let widestPolicy = SafetyPolicy.ratingOnly(maxMovie: .r, maxTV: .tvMa, allowUnrated: true)
 
+    private func makeGate(_ policy: SafetyPolicy) -> ContentSafetyGate {
+        ContentSafetyGate(policy: policy)
+    }
+
     // MARK: - Clip items follow the same unrated policy
 
     func test_clipItem_noRating_blockedWithStrictPolicy() {
         let item = MediaItem.fixture(type: .clip, contentRating: nil)
         XCTAssertFalse(
-            PlinxContentRules.isAllowed(item, policy: strictPolicy),
+            makeGate(strictPolicy).isAllowed(item),
             "Missing clip metadata must fail closed when unrated content is disabled"
         )
     }
@@ -61,7 +72,7 @@ final class PlinxContentRulesSafetyTests: XCTestCase {
     func test_clipItem_noRating_allowedWithPermissivePolicy() {
         let item = MediaItem.fixture(type: .clip, contentRating: nil)
         XCTAssertTrue(
-            PlinxContentRules.isAllowed(item, policy: permissivePolicy),
+            makeGate(permissivePolicy).isAllowed(item),
             "Clip items should pass under permissive policy too"
         )
     }
@@ -69,7 +80,7 @@ final class PlinxContentRulesSafetyTests: XCTestCase {
     func test_clipItem_withRating_allowedWhenWithinPolicy() {
         let item = MediaItem.fixture(type: .clip, contentRating: "G")
         XCTAssertTrue(
-            PlinxContentRules.isAllowed(item, policy: strictPolicy),
+            makeGate(strictPolicy).isAllowed(item),
             "Clip items carrying a G rating must be allowed under a G-max policy"
         )
     }
@@ -79,7 +90,7 @@ final class PlinxContentRulesSafetyTests: XCTestCase {
     func test_movieItem_noRating_blockedByStrictPolicy() {
         let item = MediaItem.fixture(type: .movie, contentRating: nil)
         XCTAssertFalse(
-            PlinxContentRules.isAllowed(item, policy: strictPolicy),
+            makeGate(strictPolicy).isAllowed(item),
             "Movie items without a rating must be blocked when allowUnrated=false"
         )
     }
@@ -87,7 +98,7 @@ final class PlinxContentRulesSafetyTests: XCTestCase {
     func test_movieItem_noRating_allowedByPermissivePolicy() {
         let item = MediaItem.fixture(type: .movie, contentRating: nil)
         XCTAssertTrue(
-            PlinxContentRules.isAllowed(item, policy: permissivePolicy),
+            makeGate(permissivePolicy).isAllowed(item),
             "Movie items without a rating must be allowed when allowUnrated=true"
         )
     }
@@ -96,13 +107,13 @@ final class PlinxContentRulesSafetyTests: XCTestCase {
 
     func test_movieItem_ratedG_allowed() {
         let item = MediaItem.fixture(type: .movie, contentRating: "G")
-        XCTAssertTrue(PlinxContentRules.isAllowed(item, policy: strictPolicy))
+        XCTAssertTrue(makeGate(strictPolicy).isAllowed(item))
     }
 
     func test_movieItem_ratedPG_blocked() {
         let item = MediaItem.fixture(type: .movie, contentRating: "PG")
         XCTAssertFalse(
-            PlinxContentRules.isAllowed(item, policy: strictPolicy),
+            makeGate(strictPolicy).isAllowed(item),
             "PG movie must be blocked by a G-max policy"
         )
     }
@@ -110,11 +121,11 @@ final class PlinxContentRulesSafetyTests: XCTestCase {
     func test_movieItem_ratedR_blocked() {
         let item = MediaItem.fixture(type: .movie, contentRating: "R")
         XCTAssertFalse(
-            PlinxContentRules.isAllowed(item, policy: strictPolicy),
+            makeGate(strictPolicy).isAllowed(item),
             "R-rated movie must be blocked by a G-max policy"
         )
         XCTAssertFalse(
-            PlinxContentRules.isAllowed(item, policy: permissivePolicy),
+            makeGate(permissivePolicy).isAllowed(item),
             "Allowing unrated content must not lift the rating ceiling"
         )
     }
@@ -122,16 +133,18 @@ final class PlinxContentRulesSafetyTests: XCTestCase {
     // MARK: - Adult-only ratings are always rejected
 
     func test_adultOnlyRatings_blockedEvenByWidestPolicy() {
-        for rating in ["NC-17", "X"] {
+        let widest = makeGate(widestPolicy)
+        for rating in ["NC-17", "X", "18", "R18+", "KR-19", "sg/R21", "21+", "18A"] {
             let item = MediaItem.fixture(id: "adult-\(rating)", type: .movie, contentRating: rating)
             XCTAssertFalse(
-                PlinxContentRules.isAllowed(item, policy: widestPolicy),
+                widest.isAllowed(item),
                 "\(rating) must be rejected even with the highest ceilings and unrated content allowed"
             )
             XCTAssertFalse(
-                PlinxContentRules.isAllowed(.playable(item), policy: widestPolicy),
+                widest.isAllowed(MediaDisplayItem.playable(item)),
                 "\(rating) must be rejected when wrapped as a display item"
             )
+            XCTAssertNil(widest.shown(MediaDisplayItem.playable(item)), "\(rating) must never be shown")
         }
     }
 
@@ -139,7 +152,7 @@ final class PlinxContentRulesSafetyTests: XCTestCase {
         let adult = MediaItem.fixture(id: "adult", type: .movie, contentRating: "NC-17")
         let hub = Hub(id: "hub.movie.adult", title: "Adult", items: [.playable(adult)])
         XCTAssertNil(
-            PlinxContentRules.filtered(hub, policy: widestPolicy),
+            makeGate(widestPolicy).filter(hub),
             "A hub with only adult-only items must be removed under every policy"
         )
     }
@@ -155,16 +168,44 @@ final class PlinxContentRulesSafetyTests: XCTestCase {
             allowUnrated: false
         )
 
-        XCTAssertTrue(PlinxContentRules.isAllowed(tvY, policy: strictPolicy))
-        XCTAssertFalse(PlinxContentRules.isAllowed(tvPG, policy: strictPolicy))
-        XCTAssertTrue(PlinxContentRules.isAllowed(tvPG, policy: raisedPolicy))
+        XCTAssertTrue(makeGate(strictPolicy).isAllowed(tvY))
+        XCTAssertFalse(makeGate(strictPolicy).isAllowed(tvPG))
+        XCTAssertTrue(makeGate(raisedPolicy).isAllowed(tvPG))
     }
 
     func test_globalUnratedToggle_appliesToYouTubeLikeClips() {
         let unrated = MediaItem.fixture(id: "unrated-youtube", type: .clip, contentRating: nil)
 
-        XCTAssertFalse(PlinxContentRules.isAllowed(unrated, policy: strictPolicy))
-        XCTAssertTrue(PlinxContentRules.isAllowed(unrated, policy: permissivePolicy))
+        XCTAssertFalse(makeGate(strictPolicy).isAllowed(unrated))
+        XCTAssertTrue(makeGate(permissivePolicy).isAllowed(unrated))
+    }
+
+    // MARK: - Episodes are judged against their series
+
+    func test_unratedEpisode_takesItsSeriesRating() async {
+        for policy in [strictPolicy, permissivePolicy] {
+            let gate = makeGate(policy)
+            await gate.learnSeries(of: [.kidsSeries, .adultSeries], lookup: Self.noLookup)
+
+            XCTAssertTrue(
+                gate.isAllowed(MediaItem.fixture(id: "kids-ep", type: .episode, series: "kids-show")),
+                "An unrated episode of a TV-Y series counts as TV-Y, not as unrated (allowUnrated=\(policy.allowUnrated))"
+            )
+            XCTAssertFalse(
+                gate.isAllowed(MediaItem.fixture(id: "adult-ep", type: .episode, series: "adult-show")),
+                "An unrated episode of a TV-MA series counts as TV-MA (allowUnrated=\(policy.allowUnrated))"
+            )
+        }
+    }
+
+    func test_unratedEpisodeOfAnUnknownSeries_blockedByEveryPolicy() {
+        let episode = MediaItem.fixture(id: "orphan-ep", type: .episode, series: "unknown-show")
+        for policy in [strictPolicy, permissivePolicy, widestPolicy] {
+            XCTAssertFalse(
+                makeGate(policy).isAllowed(episode),
+                "Without its series' rating an unrated episode must stay blocked (allowUnrated=\(policy.allowUnrated))"
+            )
+        }
     }
 
     // MARK: - Containers may display only after their children are filtered
@@ -184,7 +225,7 @@ final class PlinxContentRulesSafetyTests: XCTestCase {
             server: .safetyTestServer
         ))
         XCTAssertTrue(
-            PlinxContentRules.isAllowed(displayItem, policy: strictPolicy),
+            makeGate(strictPolicy).isAllowed(displayItem),
             "Collections must always pass safety filtering (children are filtered individually)"
         )
     }
@@ -204,29 +245,27 @@ final class PlinxContentRulesSafetyTests: XCTestCase {
             server: .safetyTestServer
         ))
         XCTAssertTrue(
-            PlinxContentRules.isAllowed(displayItem, policy: strictPolicy),
+            makeGate(strictPolicy).isAllowed(displayItem),
             "Playlists must always pass safety filtering (entries are filtered individually)"
         )
     }
 
     // MARK: - Hub-level filtering
 
-    func test_hubWithUnratedClipItems_isRemovedByStrictFilter() throws {
+    func test_hubWithUnratedClipItems_isRemovedByStrictFilter() {
         let clipItem = MediaItem.fixture(type: .clip, contentRating: nil)
         let hub = Hub(id: "hub.clip.recent", title: "Other Videos", items: [.playable(clipItem)])
-        let filtered = PlinxContentRules.filtered(hub, policy: strictPolicy)
         XCTAssertNil(
-            filtered,
+            makeGate(strictPolicy).filter(hub),
             "An unrated clip hub must be removed when the parent has not enabled unrated content"
         )
     }
 
-    func test_hubWithMovieNoRating_removedByStrictFilter() throws {
+    func test_hubWithMovieNoRating_removedByStrictFilter() {
         let movieItem = MediaItem.fixture(type: .movie, contentRating: nil)
         let hub = Hub(id: "hub.movie.new", title: "New Movies", items: [.playable(movieItem)])
-        let filtered = PlinxContentRules.filtered(hub, policy: strictPolicy)
         XCTAssertNil(
-            filtered,
+            makeGate(strictPolicy).filter(hub),
             "A hub containing only unrated movie items must be nil after strict safety filtering"
         )
     }
@@ -236,15 +275,25 @@ final class PlinxContentRulesSafetyTests: XCTestCase {
         let blocked = MediaItem.fixture(id: "blocked", type: .movie, contentRating: "R")
         let hub = Hub(id: "hub.movie.mixed", title: "Mixed", items: [.playable(blocked), .playable(allowed)])
 
-        let filtered = try XCTUnwrap(PlinxContentRules.filtered(hub, policy: strictPolicy))
+        let filtered = try XCTUnwrap(makeGate(strictPolicy).filter(hub))
 
         XCTAssertEqual(filtered.items.map(\.id), ["allowed"])
         XCTAssertEqual(filtered.size, 1)
     }
 
+    /// Only filtering removes a hub: one the server sent empty holds nothing to block, and stays.
+    func test_hubTheServerSentEmpty_isKept() throws {
+        let hub = Hub(id: "hub.movie.empty", title: "Empty", items: [])
+
+        let filtered = try XCTUnwrap(makeGate(strictPolicy).filter(hub))
+
+        XCTAssertTrue(filtered.items.isEmpty)
+    }
+
     // MARK: - Playlist Play / Shuffle selection
 
     func test_playlistSelectionBuildsQueueOnlyFromAuthorizedEntries() {
+        let gate = makeGate(strictPolicy)
         let allowed = MediaItem.fixture(id: "allowed", type: .movie, contentRating: "G")
         let blocked = MediaItem.fixture(id: "blocked", type: .movie, contentRating: "R")
         let adult = MediaItem.fixture(id: "adult", type: .movie, contentRating: "NC-17")
@@ -256,41 +305,52 @@ final class PlinxContentRulesSafetyTests: XCTestCase {
             .playable(unrated)
         ]
 
-        let authorized = PlinxPlaylistPlaybackSelection.authorizedItems(
-            from: source,
-            policy: strictPolicy
-        )
+        let authorized = PlinxPlaylistPlaybackSelection.authorizedItems(from: source, gate: gate)
 
         XCTAssertEqual(authorized.map(\.id), ["allowed"])
         XCTAssertEqual(
-            PlinxPlaylistPlaybackSelection.item(
-                from: source,
-                policy: strictPolicy,
-                shuffled: false
-            )?.id,
+            PlinxPlaylistPlaybackSelection.item(from: source, gate: gate, shuffled: false)?.id,
             "allowed"
         )
         XCTAssertEqual(
-            PlinxPlaylistPlaybackSelection.item(
-                from: source,
-                policy: strictPolicy,
-                shuffled: true
-            )?.id,
+            PlinxPlaylistPlaybackSelection.item(from: source, gate: gate, shuffled: true)?.id,
             "allowed",
             "Shuffle must only pick from authorized entries"
         )
     }
 
     func test_playlistSelectionReturnsNothingWhenNoEntryIsAuthorized() {
+        let gate = makeGate(strictPolicy)
         let source: [MediaDisplayItem] = [
             .playable(MediaItem.fixture(id: "blocked", type: .movie, contentRating: "R")),
             .playable(MediaItem.fixture(id: "adult", type: .movie, contentRating: "X")),
             .playable(MediaItem.fixture(id: "unrated", type: .clip, contentRating: nil))
         ]
 
-        XCTAssertTrue(PlinxPlaylistPlaybackSelection.authorizedItems(from: source, policy: strictPolicy).isEmpty)
-        XCTAssertNil(PlinxPlaylistPlaybackSelection.item(from: source, policy: strictPolicy, shuffled: false))
-        XCTAssertNil(PlinxPlaylistPlaybackSelection.item(from: source, policy: strictPolicy, shuffled: true))
+        XCTAssertTrue(PlinxPlaylistPlaybackSelection.authorizedItems(from: source, gate: gate).isEmpty)
+        XCTAssertNil(PlinxPlaylistPlaybackSelection.item(from: source, gate: gate, shuffled: false))
+        XCTAssertNil(PlinxPlaylistPlaybackSelection.item(from: source, gate: gate, shuffled: true))
+    }
+
+    /// Play starts an unrated episode of an allowed series, and never one of a blocked or unknown series.
+    func test_playlistSelectionJudgesEpisodesAgainstTheirSeries() async {
+        let gate = makeGate(strictPolicy)
+        await gate.learnSeries(of: [.kidsSeries, .adultSeries], lookup: Self.noLookup)
+        let source: [MediaDisplayItem] = [
+            .playable(MediaItem.fixture(id: "adult-ep", type: .episode, series: "adult-show")),
+            .playable(MediaItem.fixture(id: "orphan-ep", type: .episode, series: "unknown-show")),
+            .playable(MediaItem.fixture(id: "kids-ep", type: .episode, series: "kids-show"))
+        ]
+
+        XCTAssertEqual(PlinxPlaylistPlaybackSelection.authorizedItems(from: source, gate: gate).map(\.id), ["kids-ep"])
+        XCTAssertEqual(PlinxPlaylistPlaybackSelection.item(from: source, gate: gate, shuffled: true)?.id, "kids-ep")
+    }
+
+    // MARK: - Helpers
+
+    /// The series these tests teach the gate come with their own ratings, so it never looks one up.
+    private static let noLookup: ContentSafetyGate.SeriesLookup = { _ in
+        throw URLError(.notConnectedToInternet)
     }
 }
 
@@ -301,12 +361,17 @@ private extension ServerIdentity {
 }
 
 private extension MediaItem {
+    static let kidsSeries = MediaItem.fixture(id: "kids-show", type: .series, contentRating: "TV-Y")
+    static let adultSeries = MediaItem.fixture(id: "adult-show", type: .series, contentRating: "TV-MA")
+
     /// Convenience initialiser for test fixtures.
     /// Only requires the fields that meaningfully vary between tests.
+    /// - Parameter series: the series of an episode (its grandparent), on the same server.
     static func fixture(
         id: String = "fixture-id",
         type: MediaKind = .movie,
-        contentRating: String? = nil
+        contentRating: String? = nil,
+        series: String? = nil
     ) -> MediaItem {
         MediaItem(
             id: id,
@@ -316,7 +381,7 @@ private extension MediaItem {
             title: "Test Item",
             type: type,
             parentRatingKey: nil,
-            grandparentRatingKey: nil,
+            grandparentRatingKey: series,
             genres: [],
             year: nil,
             duration: nil,

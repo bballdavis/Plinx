@@ -206,8 +206,8 @@ final class DemoFixtureTests: XCTestCase {
         let response = try JSONDecoder().decode(PlexItemMediaContainer.self, from: DemoFixtureCatalog.response(for: request).data)
         let items = try XCTUnwrap(response.mediaContainer.metadata)
         XCTAssertEqual(items.count, 4)
-        let policy = SafetyPolicy.ratingOnly(maxMovie: .pg, maxTV: .tvPg, allowUnrated: false)
-        let permitted = items.filter { PlinxContentRules.isAllowed(MediaItem(plexItem: $0), policy: policy) }
+        let gate = ContentSafetyGate(policy: .ratingOnly(maxMovie: .pg, maxTV: .tvPg, allowUnrated: false))
+        let permitted = items.filter { gate.isAllowed(MediaItem(plexItem: $0)) }
         XCTAssertEqual(Set(permitted.map(\.ratingKey)), ["moonbound", "hidden-gardens"])
     }
 
@@ -261,8 +261,8 @@ final class DemoFixtureTests: XCTestCase {
                 let item = try XCTUnwrap(response.mediaContainer.metadata?.first)
                 XCTAssertEqual(item.contentRating ?? "", rating)
                 XCTAssertEqual(item.librarySectionID, 5)
-                let policy = SafetyPolicy.ratingOnly(maxMovie: .r, maxTV: .tvPg, allowUnrated: false)
-                XCTAssertEqual(PlinxContentRules.isAllowed(item, policy: policy), !["tv14", "tvma", "unrated"].contains(key))
+                let gate = ContentSafetyGate(policy: .ratingOnly(maxMovie: .r, maxTV: .tvPg, allowUnrated: false))
+                XCTAssertEqual(gate.isAllowed(MediaItem(plexItem: item)), !["tv14", "tvma", "unrated"].contains(key))
             }
             let episodesRequest = URLRequest(url: URL(string: "\(demoBaseURL)/library/metadata/\(showID)/grandchildren")!)
             let episodes = try JSONDecoder().decode(PlexItemMediaContainer.self, from: DemoFixtureCatalog.response(for: episodesRequest).data)

@@ -85,6 +85,7 @@
 /* Home */
 "home.loading" = "Loading your shows…";
 "home.section.continueWatching" = "Continue Watching";
+"home.section.favorites" = "My Favorites";
 "home.section.moviesAndTV" = "Movies & TV";
 "home.section.recentMovies" = "Recently Added Movies";
 "home.section.recentTV" = "Recently Added TV";
@@ -293,6 +294,7 @@
 "settings.playback.pauseWhenScreenTurnsOff.title" = "Pause playback when screen turns off";
 "settings.playback.plinx.bedtime.section" = "Bedtime and Autoplay";
 "settings.playback.plinx.bedtime.footer" = "The sleep timer starts with every video and pauses playback when it runs out. Set Play next episode to Off to stop after each episode.";
+"settings.playback.plinx.outsideApp.footer" = "Picture in Picture and background audio are off until you turn them on. While both are off, leaving Plinx closes the player, and the video picks up where it left off when you come back.";
 "settings.player.plinx.section" = "Player";
 "settings.player.plinx.footer" = "Videos always play in Plinx, at normal speed.";
 

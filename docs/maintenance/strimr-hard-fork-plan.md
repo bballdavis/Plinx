@@ -29,15 +29,17 @@ Status as of 2026-11-24, on `feat/strimr-hard-fork`.
   `PlinxApp/Core/Safety`, wrapped in `MediaServices.init`, with
   `reviewedRequirements` and the `SafeMediaServicesTests` conformance test.
   `ContentRatingNormalizer` in `PlinxCore` (adult-only ratings always
-  rejected). The six `Safe*ViewModel` decorators and `StrimrAdapter` are
-  deleted; `PlinxContentRules` keeps the same rules for callers with an
-  explicit policy. Launcher and player-load authorization cover every queue
-  member.
+  rejected). The six `Safe*ViewModel` decorators, `StrimrAdapter` and the
+  `PlinxContentRules` copy of the gate's rules are deleted; callers with an
+  explicit policy use `ContentSafetyGate(policy:)`. Launcher and player-load
+  authorization cover every queue member.
 - **P3, one implementation per concept.** The Plinx timeline (with chapters,
   skip segments, scrub preview, end time and tvOS swipe scrub), iOS player
   controls, tvOS player buttons and track selection, the launcher, sign-in,
   server and profile selection, root tabs, backdrop gradient, rating label
-  and downloads settings each have one implementation. The Plinx screens run
+  and downloads settings each have one implementation. The tvOS system
+  player style and the upstream tvOS timeline it used are deleted, so the
+  Plinx timeline is the only one. The Plinx screens run
   on the upstream view models, and the downstream patches are rebuilt in
   place (see [upstream provenance](upstream-strimr.md)).
 - **Also landed early:** Jellyfin provider choice at onboarding (P4),
@@ -45,16 +47,24 @@ Status as of 2026-11-24, on `feat/strimr-hard-fork`.
   review: the offline-session coordinator and `DownloadOwnershipStore`
   retired in favor of upstream's offline system and `ownerID`, the Top Shelf
   session export removed, the sample library running through the real
-  session stores and boundary, and `TvHeroIdentityView` deleted.
+  session stores and boundary, and `TvHeroIdentityView` deleted. The
+  filtered **My Favorites** Home row from the feature plan
+  (`HomeFavoritesStore`) replaces upstream's Favorites screen, which no Plinx
+  screen opened.
 
 **What remains:**
 
 - **Verification of P1 to P3.** Both app targets must build, and the unit,
   UI and focus tests must pass, including `SafeMediaServicesTests`. Archive
-  validation must show no Sentry, Trakt or Simkl strings. Live parity tests
-  must pass on Plex.
-- **Tests.** Delete the pairing-era `StrimrUpgradeSeamTests` and
-  `OfflineSessionAccessTests`, and rewrite the tests listed for the test stage
+  validation must show no Sentry, Trakt or Simkl strings.
+  `validate_testflight_archive.sh` fails on any Trakt or Simkl text, including
+  UTF-16 values in compiled string tables, and on Sentry artifacts and DSN
+  markers. It does not scan for bare "sentry", which matches Swift identifiers
+  such as `previousEntryID`. Live parity tests must pass on Plex.
+- **Tests.** Delete the pairing-era `StrimrUpgradeSeamTests`. Keep
+  `OfflineSessionAccessTests`, rewritten for the absorbed stack: it covers
+  download ownership and the first offline launch after the update
+  (`PlinxLegacyOfflineSession`). Rewrite the tests listed for the test stage
   (offline playback, demo fixtures, quick actions, download integrity, parity
   tests). `DownloadOwnershipMigrationTests` is added and `PlinxApp/CoreTests`
   is compiled into `Plinx-iOS-UnitTests`; both need a passing run.
@@ -65,9 +75,24 @@ Status as of 2026-11-24, on `feat/strimr-hard-fork`.
   Decide whether seasons and episodes without their own rating may inherit an
   allowed series' rating; today they stay hidden unless unrated content is
   allowed, which is common on Jellyfin. Read Jellyfin's parental policy.
-- **Parent tools (P6).** A fresh PIN and confirmation for each destructive
-  management action, a UI test that no Manage entry appears in kid mode, and
-  a parent Manage menu on tvOS.
+- **Parent tools (P6).** Parents cannot reach the Manage menu yet, on iOS or
+  tvOS. Its entries exist only while the parental gate is unlocked, and the
+  gate unlocks only behind Settings, Manage Downloads and the profile
+  picker's management sheet, which cover browsing and lock the gate again
+  when they close. No parent path shows a card or detail page while the gate
+  is unlocked, and the library Manage actions (scan, empty trash) have no
+  screen. Add a parent entry point on both platforms. Before it ships,
+  delete, unmatch and empty trash must each ask for a fresh PIN
+  (`ParentalAccessCoordinator.unlock(withPIN:)`) as well as a confirmation.
+  Today delete and unmatch ask only for a confirmation and rely on the
+  existing unlock. `LaunchSmokeUITests/test_kidModeOffersNoManageMenu` checks
+  that kid mode shows no Manage entry (nor Delete, Match or Empty Trash), and
+  `SafeMediaServicesTests/test_manageMenuIsEmptyAndRefusedWhileLocked` checks
+  the same for an administrator account.
+  `SafeMediaServicesTests/test_everyParentOnlyRequirementIsRefusedWhileLockedAndAnsweredOnceUnlocked`
+  checks every parent-only requirement (all 25 management actions, playlist
+  edits, the watchlist, subtitle downloads and server rights) against an
+  administrator's server. All three need a passing run.
 - **Shrink (P7).** Finish moving UI-test harness screens and fixtures behind
   `#if DEBUG` (the launch hooks and the UI-test route switch already are),
   delete the now-unreachable upstream settings screens, remove the
@@ -209,7 +234,7 @@ Apply the "kid app, but useful" test to every feature.
 | Sleep timer, default sleep timer (#206, #341) | Adopt | Yes | Offer as a parent "bedtime" setting |
 | Night mode, dialogue boost (#358) | Adopt | Yes | Kid-friendly audio |
 | Theme music (#229) | Adopt | Yes | Parent toggle |
-| Autoplay and post-play (#159) | Adopt | Yes, every next item re-checked | Parent toggle; launcher test for an over-ceiling next episode |
+| Autoplay and post-play (#159) | Adopt | Yes, every next item re-checked | Parent toggle; `PlaybackLauncherTests` blocks a queue whose next episode is over the ceiling |
 | Favorites (#161) | Adopt | Yes, a filtered "My favorites" row | Writes allowed; harmless |
 | Playlist management (#257) | Parent-only | Kids see filtered playlists only | Edits gated |
 | Remove from Continue Watching (#336) | Adopt | Yes | Harmless account write |
@@ -219,7 +244,7 @@ Apply the "kid app, but useful" test to every feature.
 | Offline mode, downloads before sign-in (#186, #154) | Adopt one offline system | Only the active profile's downloads | Upstream offline (`Shared/Offline`, 4.3k lines) overlaps Plinx's offline access coordinator; keep one (see Shrink) |
 | iPhone Duo, pinch zoom, auto-rotate, PiP (#258–#260, #251, #250) | Adopt | Yes | — |
 | Home hero carousel, extras, person pages, folder tree, shared items (#365, #174, #121, #202, #328) | Adopt | Yes, filtered by the boundary | No extra seams needed once the boundary exists |
-| tvOS system player style (#413) | Exclude | Plinx player only | Bypasses Plinx chrome and the timeline |
+| tvOS system player style (#413) | Exclude | Plinx player only | Bypasses Plinx chrome and the timeline; its controls, menus, timeline and setting are deleted |
 | Default playback speed (#334) | Exclude | — | Plinx removed speed control |
 | About, licenses, privacy (#263) | Parent-only | No external links in kid UI | Reuse the license list for compliance |
 | Screenshot demo mode (#272) | Evaluate | — | See the demo item under Shrink |
@@ -415,7 +440,7 @@ The durations are estimates, not commitments.
 | P3 | Merge shadows into originals: timeline, player chrome, detail actions, tvOS focus | No same-name overrides left; UI and focus tests pass | 1–2 weeks | Done on the branch; UI and focus test runs pending |
 | P4 | Jellyfin onboarding and accounts | Kid flow works end to end on a Jellyfin server; live parity tests on Jellyfin | ~1 week | Onboarding and accounts in place; Jellyfin verification open |
 | P5 | Seerr kid flow | Requests attributed to the kid's Seerr user; uncertified titles never shown | 1–2 weeks | Not started; Seerr is off for kids |
-| P6 | Parent tools: Manage, settings consolidation | No Manage entry in kid mode (UI test); destructive actions need a PIN | ~1 week | Partly: Manage is parent-only at the boundary and settings use one Plinx tree; per-action PIN and UI test open |
+| P6 | Parent tools: Manage, settings consolidation | No Manage entry in kid mode (UI test); destructive actions need a PIN | ~1 week | Partly: Manage is parent-only at the boundary and settings use one Plinx tree; the kid-mode UI test is written (run pending); no parent entry point reaches Manage on either platform; per-action PIN open |
 | P7 | Shrink pass | Items above closed or ticketed | ~1 week, then ongoing | Partly; see Status |
 | P8 | Live TV allowlist, filtered Top Shelf, in-app approvals | Separate privacy and safety review | Later | Later |
 

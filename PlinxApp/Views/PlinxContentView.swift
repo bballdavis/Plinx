@@ -11,7 +11,8 @@ import SwiftUI
 /// loading, never an offline warning. Offline content appears only once the
 /// session is ready (cached content and the family's downloads), or, when the
 /// session cannot be restored and the device has no network, as the offline
-/// Downloads root.
+/// Downloads root of the profile pre-fork Plinx last signed in
+/// (`PlinxLegacyOfflineSession`).
 struct PlinxContentView: View {
     @Environment(SessionManager.self) private var sessionManager
     @Environment(ServerRegistry.self) private var registry
@@ -31,6 +32,8 @@ struct PlinxContentView: View {
     /// Bumped when a new content policy is applied, which rebuilds the tab
     /// shell so every screen reloads through the updated safety boundary.
     @State private var safetyGeneration = 0
+    /// Set once the pre-fork offline session snapshot has been deleted.
+    @State private var retiredLegacyOfflineSession = false
 
     private struct PlaybackPresentationToken: Identifiable {
         let id = "plinx.playback.presentation"
@@ -100,9 +103,15 @@ struct PlinxContentView: View {
             offlineCoordinator.setCacheLimit(megabytes: megabytes)
         }
         .onChange(of: registry.connectedServices.map(ObjectIdentifier.init), initial: true) { _, _ in
-            downloadManager.activateSession(services: registry.connectedServices)
+            activateDownloadOwners()
+        }
+        .onChange(of: isMigrationFailedOffline) { _, _ in
+            activateDownloadOwners()
         }
         #endif
+        .onChange(of: sessionManager.status, initial: true) { _, status in
+            retireLegacyOfflineSessionIfUpdated(status)
+        }
     }
 
     // MARK: - Session content
@@ -143,21 +152,59 @@ struct PlinxContentView: View {
     /// session that could not be restored (`migrationFailed`): with no account
     /// at all there is no profile that could own downloads, so onboarding
     /// stays in front. Only downloads of the active owners that the content
-    /// policy allows count, never every profile's downloads on the device:
-    /// with no owner active the recovery card is shown alone (fail closed).
+    /// policy allows count, never every profile's downloads on the device. In
+    /// this state the only owner is the profile pre-fork Plinx last signed in
+    /// (`activateDownloadOwners`); with no owner active the recovery card is
+    /// shown alone (fail closed).
     private var showsStaticDownloads: Bool {
         #if os(tvOS)
         false
         #else
-        guard sessionManager.status == .migrationFailed,
-              !offlineCoordinator.availability.hasNetworkPath
-        else {
+        guard isMigrationFailedOffline else {
             return false
         }
         return !DownloadAccessPolicy(downloadManager: downloadManager)
             .filter(downloadManager.ownedItems)
             .isEmpty
         #endif
+    }
+
+    #if !os(tvOS)
+    /// The one-time update to accounts and profiles could not finish and the
+    /// device has no network to retry it.
+    private var isMigrationFailedOffline: Bool {
+        sessionManager.status == .migrationFailed && !offlineCoordinator.availability.hasNetworkPath
+    }
+
+    /// Sets whose downloads the app lists and plays. Normally these are the
+    /// owners of the connected services. While the update cannot finish
+    /// offline there are no services yet, so the profile pre-fork Plinx last
+    /// signed in, and only that profile, owns the offline Downloads root
+    /// (`PlinxLegacyOfflineSession`). Leaving that state, for example when the
+    /// network returns and the update is retried, hands ownership back to the
+    /// connected services, which are none until a profile is active again.
+    private func activateDownloadOwners() {
+        let fallbackOwner = PlinxLegacyOfflineSession.fallbackOwner(
+            status: sessionManager.status,
+            hasNetworkPath: offlineCoordinator.availability.hasNetworkPath,
+            snapshotOwner: { PlinxLegacyOfflineSession.snapshotOwner() }
+        )
+        if let fallbackOwner {
+            downloadManager.activateOwners([fallbackOwner])
+        } else {
+            downloadManager.activateSession(services: registry.connectedServices)
+        }
+    }
+    #endif
+
+    /// Deletes the pre-fork offline session snapshot once the update to
+    /// accounts and profiles has finished; it is never needed after that.
+    private func retireLegacyOfflineSessionIfUpdated(_ status: SessionManager.Status) {
+        guard !retiredLegacyOfflineSession,
+              PlinxLegacyOfflineSession.updateHasFinished(status)
+        else { return }
+        retiredLegacyOfflineSession = true
+        PlinxSignOut.removeLegacyOfflineAuthorization()
     }
 
     @ViewBuilder
@@ -268,6 +315,88 @@ struct PlinxContentView: View {
         sessionContent
         #endif
     }
+}
+
+// MARK: - Pre-fork offline session
+
+/// The profile pre-fork Plinx last signed in on this device, so a family that
+/// opens the app offline right after the update keeps that profile's
+/// downloads.
+///
+/// The one-time update to accounts and profiles (`MultiServerMigration`) needs
+/// plex.tv to learn who the saved Plex sign-in belongs to. Offline it fails
+/// (`SessionManager.Status.migrationFailed`), no profile is active, and no
+/// download has an active owner. Pre-fork Plinx kept a Keychain snapshot of
+/// its last ready session (`plinx.offlineSession.v1`: the Plex server's
+/// machine identifier and the Plex Home user's UUID, never a token) and showed
+/// that profile's downloads offline. Read here, that pair is the same Plex
+/// `MediaOwner` its downloads were given (`LegacyDownloadOwnership`), so the
+/// offline Downloads root lists exactly that profile's own downloads, still
+/// checked by `DownloadAccessPolicy` and the content gate.
+///
+/// Fail closed: no snapshot, an unreadable one, or an empty identifier gives
+/// no owner, and the recovery card is shown alone. The snapshot is read only
+/// while the update cannot finish offline; once it finishes, the snapshot is
+/// deleted (`updateHasFinished`), as Log Out deletes it.
+@MainActor
+enum PlinxLegacyOfflineSession {
+    /// True once the update to accounts and profiles has finished, or was not
+    /// needed: the session left loading for anything but the recovery state.
+    static func updateHasFinished(_ status: SessionManager.Status) -> Bool {
+        switch status {
+        case .hydrating, .migrationFailed:
+            false
+        case .needsAccount, .needsProfileSelection, .ready:
+            true
+        }
+    }
+
+    #if !os(tvOS)
+    /// The owner whose downloads the offline Downloads root may show, or `nil`
+    /// when the connected services decide. Only while the update has failed
+    /// and the device has no network; the snapshot is not read otherwise.
+    static func fallbackOwner(
+        status: SessionManager.Status,
+        hasNetworkPath: Bool,
+        snapshotOwner: () -> MediaOwner?
+    ) -> MediaOwner? {
+        guard status == .migrationFailed, !hasNetworkPath else { return nil }
+        return snapshotOwner()
+    }
+
+    /// The owner recorded in this device's snapshot, or `nil`.
+    static func snapshotOwner(
+        secureStore: any SecureStore = Keychain(service: Bundle.main.bundleIdentifier ?? "com.bballdavis.plinx")
+    ) -> MediaOwner? {
+        guard let stored = try? secureStore.string(forKey: PlinxSignOut.legacyOfflineSessionKey) else {
+            return nil
+        }
+        return owner(fromSnapshot: Data(stored.utf8))
+    }
+
+    /// Pre-fork Plinx only ever recorded Plex sessions.
+    static func owner(fromSnapshot data: Data) -> MediaOwner? {
+        guard let snapshot = try? JSONDecoder().decode(Snapshot.self, from: data) else { return nil }
+        let serverIdentifier = snapshot.identity.serverIdentifier
+        let profileIdentifier = snapshot.identity.profileIdentifier
+        guard !serverIdentifier.isEmpty, !profileIdentifier.isEmpty else { return nil }
+        return MediaOwner(
+            server: ServerIdentity(provider: .plex, id: serverIdentifier),
+            userID: profileIdentifier
+        )
+    }
+
+    /// The part of pre-fork Plinx's `OfflineSessionSnapshot` that names the
+    /// profile; its server and profile names and save date are not used.
+    private struct Snapshot: Decodable {
+        struct Identity: Decodable {
+            let serverIdentifier: String
+            let profileIdentifier: String
+        }
+
+        let identity: Identity
+    }
+    #endif
 }
 
 // MARK: - UI test routes (Debug only)
@@ -513,7 +642,7 @@ extension PlinxContentView {
                 let launcher = PlaybackLauncher(
                     services: services,
                     coordinator: mainCoordinator,
-                    safetyPolicy: .ratingOnly(maxMovie: .pg, maxTV: .tvPg, allowUnrated: false)
+                    gate: ContentSafetyGate(policy: .ratingOnly(maxMovie: .pg, maxTV: .tvPg, allowUnrated: false))
                 )
                 _ = await launcher.play(ratingKey: "moonbound", type: .movie, shouldResumeFromOffset: false)
             }

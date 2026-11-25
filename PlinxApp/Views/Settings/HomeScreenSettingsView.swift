@@ -49,13 +49,14 @@ struct HomeScreenSettingsView: View {
 
     private var currentDefaultSectionOrder: [String] {
         combineMoviesTV
-            ? ["continueWatching", "moviesAndTV", "otherVideos"]
-            : ["continueWatching", "recentMovies", "recentTV", "otherVideos"]
+            ? ["continueWatching", HomeFavoritesStore.sectionKey, "moviesAndTV", "otherVideos"]
+            : ["continueWatching", HomeFavoritesStore.sectionKey, "recentMovies", "recentTV", "otherVideos"]
     }
 
     private func sectionDisplayKey(_ id: String) -> String {
         switch id {
         case "continueWatching": return "home.section.continueWatching"
+        case HomeFavoritesStore.sectionKey: return "home.section.favorites"
         case "moviesAndTV":      return "home.section.moviesAndTV"
         case "recentMovies":     return "home.section.recentMovies"
         case "recentTV":         return "home.section.recentTV"
@@ -67,6 +68,7 @@ struct HomeScreenSettingsView: View {
     private func sectionIconName(_ id: String) -> String {
         switch id {
         case "continueWatching": return "clock.arrow.circlepath"
+        case HomeFavoritesStore.sectionKey: return "star.fill"
         case "moviesAndTV":      return "film.fill"
         case "recentMovies":     return "film.fill"
         case "recentTV":         return "tv.fill"

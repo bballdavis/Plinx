@@ -42,8 +42,8 @@ app on upstream `0235d27` and settled each patch as follows.
 |---|---|
 | Plex product identity from the host app (`496caa0`, plan 12) | `PlexProductIdentity` and `PlexAuthURLBuilder` in `Core/Networking/Plex`; every Plex request sends `X-Plex-Product` from them |
 | Playback authorization (`8d9412a`) | `isPlaybackAuthorized` on the iOS and tvOS `PlayerWrapper` and `PlayerView`, defaulting to `ContentSafetyGate`, enforced at the single load site and before autoplay, queue advance and SharePlay |
-| No playback-speed control (`8d9412a`) | Speed pickers removed; the player always starts at 1x |
-| Volume cap (`24d9689`) | `PlaybackSettings.maxVolumePercent` (same JSON key, default 70), `PlayerController.maximumVolume`, re-applied around every engine load |
+| No playback-speed control (`8d9412a`) | Speed pickers, the player's rate plumbing and the `defaultPlaybackRate` setting are deleted; `PlayerController` always plays at 1x. An upstream speed change has nothing to port onto |
+| Volume cap (`24d9689`) | `PlaybackSettings.maxVolumePercent` (same JSON key, default 70), `PlayerController.maximumVolume`, re-applied around every engine load; the player volume follows the cap until something sets it |
 | SharePlay presentation capability (`3ffa298`, plan 10) | `\.sharePlayPresentationPolicy`, now defaulting to `.hidden` so it fails closed |
 | Buffering overlay switch (`9cf6cf0`) | `showsBufferingOverlay` on both player wrappers |
 | Local playback state (`75052bd`, part) | Downloaded files never show the buffering spinner |

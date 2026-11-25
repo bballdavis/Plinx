@@ -100,6 +100,13 @@ the app also receives `--ui-testing`:
 - `refreshLoading`
 - `appStoreMediaDetail`
 
+On Apple TV, `profileSwitcher` and `profileSwitcherModal` show fixture
+profiles with no profile remembered as last active, so every choice needs the
+parental gate. The harness gives the picker its own parental gate, already
+unlocked as when Settings presents the picker, so choosing the PIN-protected
+fixture opens its PIN keypad. That gate has no PIN, keeps its attempt counts
+in its own `UserDefaults` suite, and never changes the app's gate.
+
 Keep these routes deterministic and free of credentials or personal data.
 When a visual-audit route needs account-backed content, capture loading or
 empty states unless the test explicitly opts into the existing live-test mode.

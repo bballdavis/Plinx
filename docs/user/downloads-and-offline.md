@@ -53,6 +53,8 @@ items also appear in the parent-gated Manage Downloads screen.
   user) that created it, and only that profile sees it.
 - The first time this version runs, Plinx moves the profile records that
   earlier versions kept for each download onto the downloads themselves.
+  A download that was partly watched offline before the update resumes where
+  that profile left off.
 - A download with no profile record, such as one made before Plinx tracked
   profiles, belongs to no profile. Children never see it. A parent sees it
   under **Other downloads** in Manage Downloads and can delete it there, but it
@@ -78,3 +80,11 @@ When Plinx opens, it shows its loading screen while it connects. The
 **Connection unavailable** card and the offline Downloads view appear only if
 that connection fails or the device reports no network. When the network comes
 back, Plinx retries on its own; **Try Again** shows progress while a retry runs.
+
+The first time this version opens, Plinx moves your sign-in to accounts and
+profiles, which needs a connection to Plex. If the device is offline then, for
+example when the app updated at home and is first opened on a plane, the
+offline Downloads view shows the downloads of the profile that was last signed
+in before the update, and only that profile's. Other profiles' downloads stay
+hidden until the update finishes and that profile is chosen. The update
+finishes on its own when the network comes back.

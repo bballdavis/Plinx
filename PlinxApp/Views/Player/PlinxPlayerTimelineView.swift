@@ -14,7 +14,6 @@ struct PlayerTimelineView: View {
     var duration: Double?
     var bufferedAhead: Double
     var playbackPosition: Double
-    var playbackRate: Float = 1
     var showsEndsAtTime = false
     var chapters: [MediaChapter] = []
     var showsChaptersOnTimeline = false
@@ -173,7 +172,6 @@ struct PlayerTimelineView: View {
                         if let endsAtText = playerEndsAtText(
                             position: displayPosition,
                             duration: PlayerTimelinePolicy.validDuration(duration),
-                            playbackRate: playbackRate,
                             now: context.date
                         ) {
                             Text(endsAtText)
@@ -285,29 +283,22 @@ struct PlayerTimelineView: View {
     #endif
 }
 
-/// The wall-clock time playback ends at the current rate; `nil` without a usable duration or rate.
+/// The wall-clock time playback ends; `nil` without a usable duration. Plinx always plays at normal speed.
 func playerEndsAtText(
     position: Double,
     duration: Double?,
-    playbackRate: Float,
     now: Date
 ) -> String? {
     guard let duration,
           duration.isFinite,
           duration > 0,
           position.isFinite,
-          position >= 0,
-          playbackRate.isFinite,
-          playbackRate > 0
+          position >= 0
     else {
         return nil
     }
 
-    let remaining = max(duration - position, 0)
-    let wallClockRemaining = remaining / Double(playbackRate)
-    guard wallClockRemaining.isFinite else { return nil }
-
-    let endDate = now.addingTimeInterval(wallClockRemaining)
+    let endDate = now.addingTimeInterval(max(duration - position, 0))
     let time = endDate.formatted(date: .omitted, time: .shortened)
     return String(localized: "player.timeline.endsAt \(time)")
 }
@@ -1110,25 +1101,75 @@ private struct PlayerTimelineArchGeometry {
         }
     }
 
-    /// Follows a finger on the Siri Remote touch surface while the timeline holds the focus, through the player's
-    /// window-level recognizer (`PlayerTouchSurfacePanView`). Clickpad presses stay move commands.
+    /// Follows a finger on the Siri Remote touch surface while the timeline holds the focus, through a window-level
+    /// recognizer (`PlinxTimelineTouchSurfacePanView`). Clickpad presses stay move commands.
     private struct PlinxTimelineTouchSurfacePan: UIViewRepresentable {
         var isEnabled: Bool
         var onChanged: (CGFloat, CGFloat) -> Void
         var onEnded: () -> Void
 
-        func makeUIView(context _: Context) -> PlayerTouchSurfacePanView {
-            PlayerTouchSurfacePanView()
+        func makeUIView(context _: Context) -> PlinxTimelineTouchSurfacePanView {
+            PlinxTimelineTouchSurfacePanView()
         }
 
-        func updateUIView(_ view: PlayerTouchSurfacePanView, context _: Context) {
+        func updateUIView(_ view: PlinxTimelineTouchSurfacePanView, context _: Context) {
             view.onChanged = onChanged
             view.onEnded = onEnded
             view.recognizer.isEnabled = isEnabled
         }
 
-        static func dismantleUIView(_ view: PlayerTouchSurfacePanView, coordinator _: ()) {
+        static func dismantleUIView(_ view: PlinxTimelineTouchSurfacePanView, coordinator _: ()) {
             view.recognizer.view?.removeGestureRecognizer(view.recognizer)
+        }
+    }
+
+    /// Touches reach the focused view's window, not the SwiftUI view, so the pan recognizer sits on the window.
+    /// Ported from upstream Strimr's `PlayerTouchSurfacePanView` (tvOS `PlayerScrubInteraction.swift`), whose
+    /// file left with the system player timeline; this timeline is its only user.
+    private final class PlinxTimelineTouchSurfacePanView: UIView, UIGestureRecognizerDelegate {
+        let recognizer = UIPanGestureRecognizer()
+        var onChanged: (CGFloat, CGFloat) -> Void = { _, _ in }
+        var onEnded: () -> Void = {}
+
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            isUserInteractionEnabled = false
+            recognizer.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.indirect.rawValue)]
+            recognizer.cancelsTouchesInView = false
+            // Clickpad presses must reach the focused view right away, even while a finger rests on the surface.
+            recognizer.allowedPressTypes = []
+            recognizer.delaysTouchesEnded = false
+            recognizer.delegate = self
+            recognizer.addTarget(self, action: #selector(handlePan(_:)))
+        }
+
+        @available(*, unavailable)
+        required init?(coder _: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            recognizer.view?.removeGestureRecognizer(recognizer)
+            window?.addGestureRecognizer(recognizer)
+        }
+
+        @objc private func handlePan(_ recognizer: UIPanGestureRecognizer) {
+            switch recognizer.state {
+            case .began, .changed:
+                onChanged(recognizer.translation(in: recognizer.view).x, recognizer.view?.bounds.width ?? 0)
+            case .ended, .cancelled, .failed:
+                onEnded()
+            default:
+                break
+            }
+        }
+
+        func gestureRecognizer(
+            _: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith _: UIGestureRecognizer
+        ) -> Bool {
+            true
         }
     }
 #endif

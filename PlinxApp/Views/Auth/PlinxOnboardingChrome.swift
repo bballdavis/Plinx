@@ -320,6 +320,15 @@ struct PlinxParentalRequest: Identifiable {
     /// protected abilities open for the child who uses the device next.
     let relocksAfterAction: Bool
     let action: () -> Void
+
+    /// Whether the approved action still runs once the gate has closed. An
+    /// action that keeps the gate unlocked (`relocksAfterAction == false`, such
+    /// as opening profile management) depends on that unlock, so it is dropped
+    /// when the gate relocked first, for example because the app left the
+    /// foreground. A one-shot action runs: the parent approved exactly it.
+    func runsAfterApproval(isParentalGateUnlocked: Bool) -> Bool {
+        relocksAfterAction || isParentalGateUnlocked
+    }
 }
 
 extension View {
@@ -348,6 +357,7 @@ private struct PlinxParentalApprovalModifier: ViewModifier {
     private func runApprovedAction() {
         guard let approved = approvedRequest else { return }
         approvedRequest = nil
+        guard approved.runsAfterApproval(isParentalGateUnlocked: parentalAccess.isUnlocked) else { return }
         approved.action()
         if approved.relocksAfterAction {
             parentalAccess.lock()

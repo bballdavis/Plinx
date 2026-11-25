@@ -96,7 +96,11 @@ final class AccountStore {
         return try? JSONDecoder().decode([PlexCloudResource].self, from: Data(value.utf8))
     }
 
+    /// Called with every server list fetched for a Plex user, before its servers are used.
+    @ObservationIgnored var willCacheResources: ([PlexCloudResource]) -> Void = { _ in }
+
     func setCachedResources(_ resources: [PlexCloudResource], userUUID: String) {
+        willCacheResources(resources)
         do {
             let data = try JSONEncoder().encode(resources)
             try secureStore.setString(

@@ -390,23 +390,6 @@ enum PlaybackReadAhead: String, Codable, CaseIterable, Hashable, Identifiable {
     }
 }
 
-/// Look of the tvOS player controls.
-enum PlayerControlsStyle: String, Codable, CaseIterable, Hashable, Identifiable {
-    case classic
-    case system
-
-    var id: Self {
-        self
-    }
-
-    var title: String {
-        switch self {
-        case .classic: String(localized: "settings.playback.playerStyle.classic")
-        case .system: String(localized: "settings.playback.playerStyle.system")
-        }
-    }
-}
-
 /// What a center click does on tvOS while the player controls are hidden.
 enum PlayerCenterClickAction: String, Codable, CaseIterable, Hashable, Identifiable {
     case playPause
@@ -455,7 +438,6 @@ struct PlaybackSettings: Codable, Equatable {
     var seekBackwardSeconds = 10
     var seekForwardSeconds = 10
     var doubleTapToSeek = true
-    var defaultPlaybackRate: Float = 1.0
     var audioDelayMilliseconds = 0
     var subtitleFontSize = defaultSubtitleFontSize
     var subtitleTextColor = SubtitleTextColor.white
@@ -467,16 +449,9 @@ struct PlaybackSettings: Codable, Equatable {
     var subtitleBottomMargin = SubtitleBottomMargin.automatic
     var subtitleSearch = SubtitleSearchPreferences()
     var automaticSubtitleSearch = false
-    /// Upstream's external player choice. Plinx always plays in its own player and never reads it; it is decoded
-    /// only so settings saved by earlier builds load, and `PlinxSettingsSanitizer` clears it.
-    var externalPlayer: ExternalPlayerSelection?
-    /// Upstream's custom player definition, decoded for the same reason and never used.
-    var customExternalPlayer: CustomExternalPlayer?
     /// Forces the server-side transcode for Live TV, the route used before the engine played broadcast streams.
     var transcodeLiveTV = false
     var readAhead = PlaybackReadAhead.standard
-    /// Plinx plays only in its own player chrome on tvOS; the system style (#413) is not offered.
-    var playerControlsStyle = PlayerControlsStyle.classic
     var centerClickAction = PlayerCenterClickAction.playPause
     /// Parent-set ceiling of the player's output volume, in percent (kid safety).
     var maxVolumePercent = PlaybackSettings.defaultMaxVolumePercent
@@ -546,8 +521,6 @@ struct PlaybackSettings: Codable, Equatable {
         seekBackwardSeconds = try container.decodeIfPresent(Int.self, forKey: .seekBackwardSeconds) ?? 10
         seekForwardSeconds = try container.decodeIfPresent(Int.self, forKey: .seekForwardSeconds) ?? 10
         doubleTapToSeek = try container.decodeIfPresent(Bool.self, forKey: .doubleTapToSeek) ?? true
-        let decodedRate = (try? container.decodeIfPresent(Float.self, forKey: .defaultPlaybackRate)) ?? 1.0
-        defaultPlaybackRate = PlaybackSpeedOptions.all.contains { $0.rate == decodedRate } ? decodedRate : 1.0
         audioDelayMilliseconds = PlaybackOffsetRange.audio.clamp(
             (try? container.decodeIfPresent(Int.self, forKey: .audioDelayMilliseconds)) ?? 0,
         )
@@ -575,16 +548,10 @@ struct PlaybackSettings: Codable, Equatable {
             ?? .automatic
         subtitleSearch = (try? container.decode(SubtitleSearchPreferences.self, forKey: .subtitleSearch))
             ?? SubtitleSearchPreferences()
-        externalPlayer = try? container.decodeIfPresent(ExternalPlayerSelection.self, forKey: .externalPlayer)
-        customExternalPlayer = try? container.decodeIfPresent(
-            CustomExternalPlayer.self,
-            forKey: .customExternalPlayer,
-        )
+        // Upstream builds also saved `externalPlayer` and `customExternalPlayer`. Plinx never hands playback to
+        // another app, so those keys are not read, and the next save drops them.
         transcodeLiveTV = (try? container.decodeIfPresent(Bool.self, forKey: .transcodeLiveTV)) ?? false
         readAhead = (try? container.decodeIfPresent(PlaybackReadAhead.self, forKey: .readAhead)) ?? .standard
-        playerControlsStyle = (
-            try? container.decodeIfPresent(PlayerControlsStyle.self, forKey: .playerControlsStyle),
-        ) ?? .classic
         centerClickAction = (
             try? container.decodeIfPresent(PlayerCenterClickAction.self, forKey: .centerClickAction),
         ) ?? .playPause
@@ -649,7 +616,11 @@ struct PlaybackSettings: Codable, Equatable {
 struct InterfaceSettings: Codable, Equatable {
     var homeRowsByProfile: [String: HomeRowPreferences] = [:]
     var librariesByProfile: [String: LibraryPreferences] = [:]
-    // Pre-multi-server settings, only read by the migration and cleared once it succeeds.
+    /// Library settings of every profile that has none of its own: the single device-wide list of earlier versions,
+    /// which applied to every profile and Plex Home user. A profile's first change starts from it.
+    var familyLibraries: LibraryPreferences?
+    // Pre-multi-server settings, only read by `SettingsManager.adoptLegacyLibraries`, which moves them to
+    // `familyLibraries` once their server is known.
     var hiddenLibraryIds: [String] = []
     var navigationLibraryIds: [String] = []
     var homeRowsByScope: [String: HomeRowPreferences] = [:]
@@ -694,6 +665,7 @@ struct InterfaceSettings: Codable, Equatable {
             [String: LibraryPreferences].self,
             forKey: .librariesByProfile,
         )) ?? [:]
+        familyLibraries = try? container.decodeIfPresent(LibraryPreferences.self, forKey: .familyLibraries)
         hiddenLibraryIds = try container.decodeIfPresent([String].self, forKey: .hiddenLibraryIds) ?? []
         navigationLibraryIds = try container.decodeIfPresent([String].self, forKey: .navigationLibraryIds) ?? []
         homeRowsByScope = try container.decodeIfPresent(

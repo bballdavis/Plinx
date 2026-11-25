@@ -1,12 +1,10 @@
 import SwiftUI
 
 struct PlaybackSettingsView: View {
-    var playbackRate: Float
     var quality: TranscodeQualityPreset
     var showsQualitySelection: Bool
     var versions: [PlaybackSettingsVersion] = []
     var onSelectVersion: (String) -> Void = { _ in }
-    var onSelectPlaybackRate: (Float) -> Void
     var onSelectQuality: (TranscodeQualityPreset) -> Void
     var videoZoom = VideoZoom.fit
     var videoFillScale = 1.0

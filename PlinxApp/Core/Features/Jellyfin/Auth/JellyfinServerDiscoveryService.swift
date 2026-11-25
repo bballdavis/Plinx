@@ -12,6 +12,23 @@ nonisolated struct JellyfinDiscoveredServer: Hashable, Identifiable, Sendable {
 }
 
 nonisolated struct JellyfinServerDiscoveryService: Sendable {
+    /// Whether this build can search the local network for Jellyfin servers.
+    ///
+    /// The search sends a UDP broadcast from a BSD socket. On iPhone and iPad
+    /// that needs the managed `com.apple.developer.networking.multicast`
+    /// entitlement, which Apple grants on request. Without it every search
+    /// fails, so the sign-in form offers manual address entry only. Apple TV
+    /// needs no entitlement. Define `PLINX_MULTICAST_ENTITLEMENT` for the iOS
+    /// target only in the change that signs it with the granted entitlement
+    /// (docs/development/setup.md, "Entitlements").
+    static var isSupported: Bool {
+        #if os(tvOS) || PLINX_MULTICAST_ENTITLEMENT
+        true
+        #else
+        false
+        #endif
+    }
+
     private static let discoveryPort: in_port_t = 7359
     private static let discoveryMessage = Data("Who is JellyfinServer?".utf8)
     private static let timeout: TimeInterval = 3

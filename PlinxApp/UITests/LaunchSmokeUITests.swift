@@ -130,6 +130,59 @@ final class LaunchSmokeUITests: XCTestCase {
         XCTAssertFalse(app.buttons["demo.player.close"].exists)
     }
 
+    /// Hard-fork plan P6: kid mode never offers the server Manage menu, neither in a card's quick actions nor in the
+    /// detail page's More menu. The sample account administers nothing, so this is the screen-level check;
+    /// `SafeMediaServicesTests/test_manageMenuIsEmptyAndRefusedWhileLocked` covers an administrator account.
+    func test_kidModeOffersNoManageMenu() {
+        let app = XCUIApplication()
+        app.launchArguments += ["--ui-testing", "--disable-animations"]
+        app.launchEnvironment["PLINX_UI_TEST_MODE"] = "demo"
+        app.launch()
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["home.hub.moviesAndTV"].waitForExistence(timeout: 30),
+            "The sample library should open on Home in kid mode",
+        )
+        let card = app.buttons.matching(identifier: "home.card.moviesAndTV.0")
+            .matching(NSPredicate(format: "label == %@", "Moonbound")).firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 10), "Home should show the sample movie card")
+        card.press(forDuration: 0.8)
+        let details = app.buttons["quickAction.option.go-details"]
+        XCTAssertTrue(details.waitForExistence(timeout: 10), "The card's quick actions should open")
+        assertNoManageEntry(in: app, surface: "The card's quick actions")
+        details.tap()
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["media.detail.screen"].firstMatch.waitForExistence(timeout: 20),
+            "The sample movie should open its detail page",
+        )
+        let more = app.buttons["More Actions"].firstMatch
+        XCTAssertTrue(more.waitForExistence(timeout: 20), "The detail page should offer its More menu")
+        more.tap()
+        let menuEntry = app.buttons
+            .matching(NSPredicate(format: "label == %@ OR label == %@", "File Information", "Play from start"))
+            .firstMatch
+        XCTAssertTrue(menuEntry.waitForExistence(timeout: 5), "The More menu should open")
+        assertNoManageEntry(in: app, surface: "The detail page's More menu")
+
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "kid-mode-detail-more-menu"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    /// The Manage entry, every action it holds, and the library Manage actions, by their English titles.
+    private func assertNoManageEntry(in app: XCUIApplication, surface: String) {
+        let titles = [
+            "Manage", "Refresh Metadata", "Analyze", "Edit Artwork", "Edit Metadata", "Advanced Settings",
+            "Fix Match", "Identify", "Unmatch", "Delete from Server",
+            "Scan Library Files", "Refresh All Metadata", "Analyze Library", "Empty Trash",
+        ]
+        for title in titles {
+            XCTAssertFalse(app.buttons[title].exists, "\(surface) must not offer \(title) in kid mode")
+        }
+    }
+
     func test_playerFitFillSurvivesHiddenControls() {
         XCUIDevice.shared.orientation = .landscapeLeft
         let app = XCUIApplication()

@@ -65,10 +65,14 @@ struct AppSettingsTests {
             .continueWatchingAction == .play)
     }
 
-    @Test func `default playback rate is normal speed unless a listed speed is chosen`() throws {
-        #expect(try decode(#"{"playback":{}}"#).playback.defaultPlaybackRate == 1.0)
-        #expect(try decode(#"{"playback":{"defaultPlaybackRate":1.3}}"#).playback.defaultPlaybackRate == 1.0)
-        #expect(try decode(#"{"playback":{"defaultPlaybackRate":1.5}}"#).playback.defaultPlaybackRate == 1.5)
+    /// Plinx has no playback speed setting: videos always play at normal speed. A speed saved by an earlier build is
+    /// ignored, the playback settings beside it still load, and the next save drops it.
+    @Test func `a saved default playback speed is ignored and dropped on the next save`() throws {
+        let decoded = try decode(#"{"playback":{"defaultPlaybackRate":1.5,"maxVolumePercent":40}}"#)
+        #expect(decoded.playback.maxVolumePercent == 40)
+
+        let encoded = try String(decoding: JSONEncoder().encode(decoded), as: UTF8.self)
+        #expect(!encoded.contains("defaultPlaybackRate"))
     }
 
     @Test func `tab bar stays on top unless chosen`() throws {
@@ -307,50 +311,44 @@ struct AppSettingsTests {
         #expect(SettingsManager(userDefaults: defaults).playback.audioDelayMilliseconds == -350)
     }
 
-    @Test func `missing external player settings decode as the built-in player`() throws {
-        let settings = try decode(#"{"playback":{"showClock":true}}"#)
+    /// Upstream builds saved an external player choice. Plinx never hands playback to another app and does not read
+    /// it, but the rest of the saved settings, the parent's volume cap included, still load.
+    @Test func `settings saved with an upstream external player still load`() throws {
+        let settings = try decode(Self.upstreamExternalPlayerSettings)
 
-        #expect(settings.playback.externalPlayer == nil)
-        #expect(settings.playback.customExternalPlayer == nil)
         #expect(settings.playback.showClock)
+        #expect(settings.playback.maxVolumePercent == 40)
     }
 
-    @Test func `external player settings survive a round trip`() throws {
-        var settings = AppSettings()
-        settings.playback.externalPlayer = .known(.infuse)
-
-        var decoded = try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(settings))
-        #expect(decoded.playback.externalPlayer == .known(.infuse))
-
-        let custom = CustomExternalPlayer(name: "Mine", template: "mine://play?url={url}")
-        settings.playback.externalPlayer = .custom
-        settings.playback.customExternalPlayer = custom
-        decoded = try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(settings))
-
-        #expect(decoded.playback.externalPlayer == .custom)
-        #expect(decoded.playback.customExternalPlayer == custom)
-    }
-
-    @Test func `corrupt external player keeps other settings`() throws {
+    @Test func `a corrupt upstream external player keeps other settings`() throws {
         let settings = try decode(#"{"playback":{"externalPlayer":{"known":{"_0":"mpv"}},"showClock":true}}"#)
 
-        #expect(settings.playback.externalPlayer == nil)
         #expect(settings.playback.showClock)
     }
 
-    /// Plinx never hands playback to another app; `PlinxSettingsSanitizer` clears a choice saved by upstream builds.
     @MainActor
-    @Test func `a cleared external player stays cleared after a reload`() throws {
+    @Test func `the next save drops an upstream external player`() throws {
         let defaults = try #require(UserDefaults(suiteName: #function))
         defer { defaults.removePersistentDomain(forName: #function) }
+        defaults.set(Data(Self.upstreamExternalPlayerSettings.utf8), forKey: "strimr.settings")
+
         let manager = SettingsManager(userDefaults: defaults)
+        #expect(manager.playback.maxVolumePercent == 40)
+        manager.setAudioDelayMilliseconds(0)
 
-        manager.setExternalPlayer(.known(.vlc))
-        #expect(SettingsManager(userDefaults: defaults).playback.externalPlayer == .known(.vlc))
-        manager.setExternalPlayer(nil)
-
-        #expect(SettingsManager(userDefaults: defaults).playback.externalPlayer == nil)
+        let data = try #require(defaults.data(forKey: "strimr.settings"))
+        let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let playback = try #require(object["playback"] as? [String: Any])
+        #expect(playback["externalPlayer"] == nil)
+        #expect(playback["customExternalPlayer"] == nil)
+        #expect(playback["maxVolumePercent"] as? Int == 40)
     }
+
+    private static let upstreamExternalPlayerSettings = """
+    {"playback":{"externalPlayer":{"custom":{}},\
+    "customExternalPlayer":{"name":"Mine","template":"mine://play?url={url}"},\
+    "showClock":true,"maxVolumePercent":40}}
+    """
 
     @Test func `commercial auto skip is off unless chosen`() throws {
         #expect(try !decode(#"{"playback":{"autoSkipIntros":true}}"#).playback.autoSkipCommercials)
@@ -372,16 +370,17 @@ struct AppSettingsTests {
         #expect(try decode(#"{"playback":{"automaticSubtitleSearch":true}}"#).playback.automaticSubtitleSearch)
     }
 
-    /// Plinx draws its own (classic) player controls by default.
-    @Test func `player controls use the classic style unless changed`() throws {
-        #expect(AppSettings().playback.playerControlsStyle == .classic)
-        #expect(try decode(#"{"playback":{}}"#).playback.playerControlsStyle == .classic)
-        #expect(try decode(#"{"playback":{"playerControlsStyle":"x"}}"#).playback.playerControlsStyle == .classic)
+    /// Plinx has one tvOS player chrome, so the upstream player style setting is gone. A style saved by an earlier
+    /// build is ignored, the playback settings beside it still load, and the next save drops it.
+    @Test func `a saved player style is ignored and dropped on the next save`() throws {
+        let decoded = try decode(
+            #"{"playback":{"playerControlsStyle":"system","centerClickAction":"showControls","maxVolumePercent":40}}"#,
+        )
+        #expect(decoded.playback.centerClickAction == .showControls)
+        #expect(decoded.playback.maxVolumePercent == 40)
 
-        var settings = AppSettings()
-        settings.playback.playerControlsStyle = .system
-        let decoded = try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(settings))
-        #expect(decoded.playback.playerControlsStyle == .system)
+        let encoded = try String(decoding: JSONEncoder().encode(decoded), as: UTF8.self)
+        #expect(!encoded.contains("playerControlsStyle"))
     }
 
     @Test func `center click plays and pauses unless changed`() throws {

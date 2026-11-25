@@ -46,11 +46,12 @@ enum HomeHeroSelection {
 #endif
 
 /// The kid-facing Home: Continue Watching from the absorbed `HomeViewModel`
-/// (merged across the profile's servers), then Plinx's recently-added rows
-/// built from each visible library (`HomeRecentlyAddedStore` and
-/// `HomeRecentlyAddedProjection`). Every title arrives through the safety
-/// boundary in `MediaServices`; rows are filtered again with
-/// `ContentSafetyGate` when drawn, so a stricter policy hides titles at once.
+/// (merged across the profile's servers), My Favorites (`HomeFavoritesStore`),
+/// then Plinx's recently-added rows built from each visible library
+/// (`HomeRecentlyAddedStore` and `HomeRecentlyAddedProjection`). Every title
+/// arrives through the safety boundary in `MediaServices`; rows are filtered
+/// again with `ContentSafetyGate` when drawn, so a stricter policy hides titles
+/// at once.
 struct PlinxHomeView: View {
     private static let logger = Logger(subsystem: "com.bballdavis.plinx", category: "home")
 
@@ -66,9 +67,12 @@ struct PlinxHomeView: View {
 
     @Environment(ServerRegistry.self) private var registry
     @Environment(LibraryStore.self) private var libraryStore
+    @Environment(SettingsManager.self) private var settingsManager
+    @Environment(SessionManager.self) private var sessionManager
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var mainCoordinator: MainCoordinator
     @State private var recentlyAdded = HomeRecentlyAddedStore()
+    @State private var favorites = HomeFavoritesStore()
     @State private var artworkRefreshToken = UUID()
     #if os(tvOS)
     @Environment(MediaFocusModel.self) private var mediaFocusModel
@@ -89,8 +93,8 @@ struct PlinxHomeView: View {
     private var orderedHomeSections: [String] {
         let stored = decodeHomeStringArray(homeSectionOrderJson)
         let defaults: [String] = combineMoviesTV
-            ? ["continueWatching", "moviesAndTV", "otherVideos"]
-            : ["continueWatching", "recentMovies", "recentTV", "otherVideos"]
+            ? ["continueWatching", HomeFavoritesStore.sectionKey, "moviesAndTV", "otherVideos"]
+            : ["continueWatching", HomeFavoritesStore.sectionKey, "recentMovies", "recentTV", "otherVideos"]
         if stored.isEmpty { return defaults }
         let storedKnown = stored.filter { defaults.contains($0) }
         let missing = defaults.filter { !Set(stored).contains($0) }
@@ -131,6 +135,11 @@ struct PlinxHomeView: View {
             try? await Task.sleep(for: .milliseconds(500))
             guard !Task.isCancelled else { return }
             await recentlyAdded.refreshChangedServers(registry: registry)
+        }
+        .task(id: favoritesRefreshKey) {
+            // A favorite added or removed bumps its server's watch state; never reloaded during playback.
+            guard !mainCoordinator.isPresentingPlayer else { return }
+            await favorites.load(registry: registry)
         }
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
@@ -182,6 +191,19 @@ struct PlinxHomeView: View {
         RecentlyAddedRefreshKey(
             revisions: Dictionary(
                 registry.connectedServices.map { ($0.identity, $0.watchStateRevision + $0.mediaRevision) },
+                uniquingKeysWith: { first, _ in first }
+            ),
+            isPlayerPresented: mainCoordinator.isPresentingPlayer
+        )
+    }
+
+    /// What My Favorites depends on: the ready servers, the content policy and each server's watch state.
+    private var favoritesRefreshKey: FavoritesRefreshKey {
+        FavoritesRefreshKey(
+            readyServers: registry.readyServers,
+            policyRevision: ContentSafetyGate.shared.revision,
+            watchStateRevisions: Dictionary(
+                registry.connectedServices.map { ($0.identity, $0.watchStateRevision) },
                 uniquingKeysWith: { first, _ in first }
             ),
             isPlayerPresented: mainCoordinator.isPresentingPlayer
@@ -273,10 +295,12 @@ struct PlinxHomeView: View {
     private func refreshContent() async {
         let viewModel = viewModel
         let recentlyAdded = recentlyAdded
+        let favorites = favorites
         let registry = registry
         async let home: Void = viewModel.reload()
         async let recent: Void = recentlyAdded.reload(registry: registry)
-        _ = await (home, recent)
+        async let favorite: Void = favorites.load(registry: registry)
+        _ = await (home, recent, favorite)
         artworkRefreshToken = UUID()
     }
 
@@ -288,6 +312,8 @@ struct PlinxHomeView: View {
             switch sectionId {
             case "continueWatching":
                 rows.append(contentsOf: continueWatchingRows)
+            case HomeFavoritesStore.sectionKey:
+                rows.append(contentsOf: favoritesRows)
             case "moviesAndTV", "recentMovies", "recentTV", "otherVideos":
                 rows.append(contentsOf: groups.filter { $0.sectionKey == sectionId && $0.hub.hasItems })
             default:
@@ -410,6 +436,13 @@ struct PlinxHomeView: View {
         let isPlayerPresented: Bool
     }
 
+    private struct FavoritesRefreshKey: Equatable {
+        let readyServers: Set<ServerIdentity>
+        let policyRevision: Int
+        let watchStateRevisions: [ServerIdentity: Int]
+        let isPlayerPresented: Bool
+    }
+
     #if os(tvOS)
     private enum HomeFocusTarget: Hashable {
         case card(row: Int, item: Int)
@@ -429,6 +462,27 @@ struct PlinxHomeView: View {
                 sectionKey: row.sectionKey
             )
         }
+    }
+
+    /// My Favorites, re-checked against the current policy and the libraries the profile hides.
+    private var favoritesRows: [ShelfRow] {
+        let items = favorites.rowItems(
+            serverOrder: registry.enabledSessions.map(\.identity),
+            hiddenLibraries: PlinxLibraryVisibility.hiddenLibraries(
+                settingsManager: settingsManager,
+                sessionManager: sessionManager
+            )
+        )
+        guard !items.isEmpty else { return [] }
+        let id = HomeFavoritesStore.sectionKey
+        return [
+            ShelfRow(
+                id: id,
+                hub: Hub(id: id, title: String(localized: "home.section.favorites", table: "Plinx"), items: items),
+                layout: .portrait,
+                sectionKey: id
+            )
+        ]
     }
 
     // MARK: - Home library filtering & ordering

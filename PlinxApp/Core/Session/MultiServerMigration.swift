@@ -35,7 +35,10 @@ struct MultiServerMigration {
     func run() async -> Outcome {
         guard defaults.integer(forKey: Self.versionKey) < Self.currentVersion else { return .alreadyMigrated }
         do {
-            let outcome = switch try legacyProvider() {
+            let provider = try legacyProvider()
+            // Libraries do not depend on the account: they move first, even when the account cannot be migrated.
+            migrateLibraries(provider: provider)
+            let outcome = switch provider {
             case .plex:
                 try await migratePlex()
             case .jellyfin:
@@ -110,9 +113,8 @@ struct MultiServerMigration {
         state.activeProfileID = profileID
         profileStore.replaceState(state)
 
-        migrateSettings(
+        migrateHomeRows(
             profileID: profileID,
-            server: server,
             scopeID: server.map { Self.scopeID(server: $0, accountIdentifier: legacyAccountIdentifier) },
         )
         favoritesStore.renameProfile(from: legacyAccountIdentifier, to: profileID)
@@ -147,9 +149,8 @@ struct MultiServerMigration {
         state.activeProfileID = profileID
         profileStore.replaceState(state)
 
-        migrateSettings(
+        migrateHomeRows(
             profileID: profileID,
-            server: connection.serverIdentity,
             scopeID: Self.scopeID(server: connection.serverIdentity, accountIdentifier: connection.userID),
         )
         return .migrated(profileID: profileID)
@@ -157,26 +158,33 @@ struct MultiServerMigration {
 
     // MARK: - Settings
 
-    private func migrateSettings(profileID: String, server: ServerIdentity?, scopeID: String?) {
+    /// Earlier versions kept one device-wide list of hidden and pinned libraries, used by every profile and every Plex
+    /// Home user. It stays family-wide: it becomes the library settings of every profile that has none of its own
+    /// (`InterfaceSettings.familyLibraries`), including the Home users that appear after the update and the account
+    /// signed in again after a revoked token. Without a known server the list waits for the first Plex server list
+    /// (`AccountStore.willCacheResources`), as the previous version applied it to the next server chosen.
+    private func migrateLibraries(provider: MediaProvider?) {
+        let server: ServerIdentity? = switch provider {
+        case .plex:
+            defaults.string(forKey: LegacyKeys.plexServerIdentifier).map { ServerIdentity(provider: .plex, id: $0) }
+        case .jellyfin:
+            defaults.data(forKey: LegacyKeys.jellyfinConnection)
+                .flatMap { try? JSONDecoder().decode(JellyfinConnection.self, from: $0) }?.serverIdentity
+        case nil:
+            nil
+        }
+        guard let server else { return }
+        settingsManager.adoptLegacyLibraries(on: [server])
+    }
+
+    private func migrateHomeRows(profileID: String, scopeID: String?) {
         settingsManager.updateInterface { interface in
-            if let server {
-                let hidden = interface.hiddenLibraryIds.map { LibraryIdentity(server: server, libraryID: $0) }
-                let navigation = interface.navigationLibraryIds.map { LibraryIdentity(server: server, libraryID: $0) }
-                if !hidden.isEmpty || !navigation.isEmpty {
-                    var libraries = interface.librariesByProfile[profileID] ?? LibraryPreferences()
-                    libraries.hiddenLibraries = hidden
-                    libraries.navigationLibraries = navigation
-                    interface.librariesByProfile[profileID] = libraries
-                }
-            }
             if let scopeID, let rows = interface.homeRowsByScope[scopeID] {
                 var migrated = HomeRowPreferences()
                 migrated.orderedRowIDs = Self.uniqued(rows.orderedRowIDs.map(HomeRow.migratedRowID))
                 migrated.hiddenRowIDs = Self.uniqued(rows.hiddenRowIDs.map(HomeRow.migratedRowID))
                 interface.homeRowsByProfile[profileID] = migrated
             }
-            interface.hiddenLibraryIds = []
-            interface.navigationLibraryIds = []
             interface.homeRowsByScope = [:]
             interface.multiServerSearchEnabled = nil
         }

@@ -636,7 +636,7 @@ struct JellyfinCatalogService {
         case .collection:
             return try await (collectionPlaybackItems(id: item.id).filter(\.isPlayable), nil)
         case .playlist:
-            return try await (playlistItems(id: item.id, fields: "Chapters,Trickplay").filter(\.isPlayable), nil)
+            return try await (playlistItems(id: item.id, fields: Self.queueFields).filter(\.isPlayable), nil)
         case .folder, .unknown:
             return ([], nil)
         }
@@ -665,7 +665,7 @@ struct JellyfinCatalogService {
                 URLQueryItem(name: "Filters", value: "IsNotFolder"),
                 URLQueryItem(name: "Recursive", value: "true"),
                 URLQueryItem(name: "MediaTypes", value: "Audio,Video"),
-                URLQueryItem(name: "Fields", value: "Chapters,Trickplay"),
+                URLQueryItem(name: "Fields", value: Self.queueFields),
                 URLQueryItem(name: "ExcludeLocationTypes", value: "Virtual"),
                 URLQueryItem(name: "EnableTotalRecordCount", value: "false"),
                 URLQueryItem(name: "CollapseBoxSetItems", value: "false"),
@@ -708,11 +708,19 @@ struct JellyfinCatalogService {
         return [URLQueryItem(name: "UserId", value: userID)]
     }
 
+    /// Jellyfin returns `OfficialRating` on its own but `CustomRating` only when asked. The safety boundary judges
+    /// the stricter of the two (`JellyfinContentRating`), so every `Fields` list for titles a child can see or play
+    /// asks for it: here, and through this list in the ones built on it.
+    static let ratingFields = "CustomRating"
+
     static let cardFields = [
         "Overview", "PrimaryImageAspectRatio", "UserData", "ProductionYear", "RunTimeTicks",
         "ChildCount", "RecursiveItemCount", "ParentId", "SeriesId", "SeasonId", "SeriesName",
-        "SeasonName", "ParentIndexNumber", "IndexNumber", "MediaSources", "ProviderIds",
+        "SeasonName", "ParentIndexNumber", "IndexNumber", "MediaSources", "ProviderIds", ratingFields,
     ].joined(separator: ",")
+
+    /// The lean list for collection and playlist queues.
+    static let queueFields = ["Chapters", "Trickplay", ratingFields].joined(separator: ",")
 
     static let detailFields = [
         cardFields, "Genres", "Studios", "People", "MediaStreams", "Chapters",

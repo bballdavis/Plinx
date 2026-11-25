@@ -10,7 +10,8 @@ import Foundation
 /// - "grandfathered" downloads, made before per-profile downloads. Pre-fork Plinx showed them to every profile,
 ///   signed in or not; one owner per download cannot express that, and giving them to one profile would be a guess;
 /// - "unprovenanced" downloads, and downloads the record does not name;
-/// - every download, when the record cannot be decoded. The record is then kept for recovery.
+/// - every download, when the record cannot be decoded. The record is then kept for recovery;
+/// - every download, when the download list did not load completely. The record is then kept as well.
 ///
 /// A download that already has an owner keeps it, and one whose stored server differs from the recorded one is left
 /// alone. Ownership only decides whose downloads a profile sees: the content gate still checks each download when it
@@ -19,6 +20,8 @@ enum LegacyDownloadOwnership {
     static let defaultsKey = "plinx.downloadOwnership.v1"
 
     enum Outcome: Equatable {
+        /// The download list did not load completely: nothing changed and any record is kept.
+        case deferred
         /// No record: nothing to import (a fresh install, or the import already ran).
         case nothingStored
         /// The record could not be decoded: nothing changed and the record is kept.
@@ -30,13 +33,18 @@ enum LegacyDownloadOwnership {
     }
 
     /// Assigns the recorded owners, saves them with `save`, and only then removes the record.
-    /// - Parameter save: Persists the updated downloads; when it throws, the record is kept.
+    /// - Parameters:
+    ///   - indexState: How the download list loaded. Only a complete list is migrated, so the record is never
+    ///     consumed while some of the downloads it names still wait for recovery.
+    ///   - save: Persists the updated downloads; when it throws, the record is kept.
     @MainActor
     static func migrate(
         _ items: [DownloadItem],
+        indexState: DownloadPersistedIndexState,
         defaults: UserDefaults,
         save: ([DownloadItem]) throws -> Void,
     ) -> Outcome {
+        guard indexState.permitsOwnershipMigration else { return .deferred }
         guard let stored = defaults.object(forKey: defaultsKey) else { return .nothingStored }
         guard let data = stored as? Data, let owners = recordedOwners(from: data) else { return .unreadable }
         let (migrated, assigned) = assigningOwners(owners, to: items)

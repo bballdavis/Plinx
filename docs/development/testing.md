@@ -49,8 +49,10 @@ xcodebuild test \
 The home-screen and content-safety regression gate is deterministic and does
 not require live Plex credentials. It covers the safety boundary every provider
 goes through and the row projection on top of it, including rated YouTube
-content, parental rating ceilings, the global unrated toggle, and the Other
-Videos landscape row:
+content, parental rating ceilings, the global unrated toggle, the Other
+Videos landscape row, and the My Favorites row (`HomeFavoritesStoreTests`:
+blocked titles, hidden libraries, and favorites loaded under an earlier
+policy):
 
 ```bash
 source scripts/build_environment.sh
@@ -61,6 +63,7 @@ xcodebuild test \
   -destination "platform=iOS Simulator,name=iPhone 17,OS=26.5" \
   -derivedDataPath "$PLINX_XCODE_DERIVED_DATA_PATH" \
   -only-testing:Plinx-iOS-UnitTests/HomeRecentlyAddedProjectionTests \
+  -only-testing:Plinx-iOS-UnitTests/HomeFavoritesStoreTests \
   -only-testing:Plinx-iOS-UnitTests/SafeMediaServicesTests \
   CODE_SIGNING_ALLOWED=NO
 ```
@@ -102,22 +105,132 @@ engine's asynchronous seek or completion behavior.
 
 `SafeMediaServicesTests` is the conformance test for the boundary in
 `PlinxApp/Core/Safety`. A fake provider returns an allowed title and a blocked
-one from every content call; the test fails if the blocked title ever leaves
-`SafeMediaServices`. It also parses the provider protocols in
-`PlinxApp/Core/Services/Protocols` and fails when a requirement is missing from
-`SafeMediaServices.reviewedRequirements`. Run it, plus `PlinxCore` tests,
-whenever you change a provider protocol, a provider, `ContentSafetyGate`, or
-rating normalization.
+one from every content call and from its offline caches; the test fails if
+the blocked title ever leaves `SafeMediaServices`. It also parses the provider
+protocols in `PlinxApp/Core/Services/Protocols`, the offline cache protocols
+(`OfflineHomeCacheReading`, `OfflineDetailCacheReading`) and
+`AccountPreferencesService`, and fails when a requirement is missing from
+`SafeMediaServices.reviewedRequirements`. It parses the services
+`MediaServices` stores as well, and fails when one is declared as a protocol
+that the table does not review. Run it, plus `PlinxCore` tests, whenever you
+change a provider protocol, a provider, `MediaServices`, `ContentSafetyGate`,
+or rating normalization.
+
+Tightening the policy applies at once. In `SafeMediaServicesTests`,
+`test_tighterPolicyAppliesToLaterPagesOfListingsGatheredUnderTheOldOne`
+pages every listing past its first page under a permissive policy, lowers it
+to G and TV-Y without unrated titles, and checks that a later page holds no
+title only the old policy allowed and is indexed and counted in the stricter
+listing. `test_tighterPolicyAppliesToTheOfflineCaches` does the same for the
+cached home and detail page, and
+`test_homeRowsLoadedUnderAPermissivePolicyAreHiddenWhenItTightens` checks,
+through the sample library, that `HomeViewModel.rows` drops rows loaded under
+the permissive policy without a reload.
+
+The server Manage menu is parent-only. In `SafeMediaServicesTests`,
+`test_everyParentOnlyRequirementIsRefusedWhileLockedAndAnsweredOnceUnlocked`
+calls every `gated` requirement through `MediaServices`, against a provider
+and a management service that answer as an administrator's server would. With
+the gate locked, each request is refused or answers empty or false, and none
+reaches the provider. Once a parent unlocks the gate, each one reaches it.
+`test_everyGatedRequirementHasAParentOnlyProbe` fails when a `gated`
+requirement has no probe. `test_manageMenuIsEmptyAndRefusedWhileLocked`
+checks that, with the gate locked, the card and detail menus get no Manage
+entry on a server the account administers, and that delete, unmatch and
+refresh do nothing. The UI test
+`LaunchSmokeUITests/test_kidModeOffersNoManageMenu` opens the sample library
+(`PLINX_UI_TEST_MODE=demo`) and checks that neither a card's quick actions nor
+the detail page's More menu offers Manage, any of its actions, or the library
+actions (Scan, Refresh All Metadata, Analyze Library, Empty Trash). Run both
+when you change the Manage menu, `MediaQuickActions`, or the parental gate.
+
+Both locks read `ContentSafetyGate.isParentUnlocked`, which
+`ContentSafetyBoundary` keeps equal to the parental gate.
+`ContentSafetyBoundaryTests` (in `ParentalAccessCoordinatorTests.swift`)
+drives the coordinator with no view in between. It checks that an unlock
+reaches the gate, that a lock clears it at once and denies server rights,
+that swapping to the sample library's locked coordinator relocks it, and
+that leaving the foreground relocks it. `ParentalSceneLockTests` in the same
+file covers the relock on leaving the foreground and its bounded wait while
+a Plex sign-in is in progress. Run them when you change the parental gate,
+what relocks it, or `ContentSafetyBoundary`.
 
 `ContentRatingNormalizerTests` (in `PlinxCore`) covers how ratings are parsed:
 US movie and TV ratings in any case, prefixes such as `US-` and `Rated `, TV
-content descriptors, trailing notes, adult-only ratings, and the fallback to
-unrated for anything else. `PlinxContentRulesSafetyTests` checks the same
-rules through `PlinxContentRules` and the playlist play and shuffle selection.
+content descriptors, trailing notes (including ratings written with spaces,
+such as `PG 13 (US)`), adult-only ratings including age certificates above 18
+(`KR-19`, `R21`, `21+`, `18A`) and their rejection when unrated content is
+allowed, and the fallback to unrated for anything else.
+`ContentSafetyGatePolicyTests` checks the same rules through
+`ContentSafetyGate(policy:)`, the one way to judge titles against an explicit
+policy: unrated, adult-only and over-the-ceiling titles, unrated episodes
+judged against their series (and blocked when the series is unknown), hub
+filtering, and the playlist Play and Shuffle selection.
+
+Jellyfin titles carry two ratings. `JellyfinMappingTests` covers how
+`JellyfinContentRating` picks the stricter of `OfficialRating` and
+`CustomRating`, and that every Jellyfin `Fields` list asks for `CustomRating`.
+`SafeMediaServicesTests.test_jellyfinCustomRatingAboveTheCeilingIsBlocked`
+checks at the gate that a custom rating above the ceiling blocks a title whose
+official rating is under it, and that a custom rating never loosens one.
+
+Seasons and episodes are judged against their series. In
+`SafeMediaServicesTests`,
+`test_unratedEpisodesOfABlockedSeriesStayBlockedWhenUnratedContentIsAllowed`
+gives the fake provider unrated and rated episodes and seasons (Plex and
+Jellyfin shapes) of a TV-MA series, a TV-Y series, a series the provider
+cannot find, and a lookup that answers with a movie. With unrated content
+allowed, it checks every path that returns them (watching rows, search, hub
+pages, season pages, favorites, playlist entries, season downloads, queues,
+direct lookups) and that each series is looked up once.
+`test_anUnratedEpisodeTakesItsSeriesRating`,
+`test_aSeriesListedWithItsEpisodesIsNotLookedUp`, and
+`test_learnedSeriesRatingsAreKeptForOfflineChecks` cover the inherited
+rating, the lookups a listing makes unnecessary, and the on-device
+`SeriesRatingStore` that judges downloads offline.
+`test_containersAreListedWithoutTheServerArtworkOfTheirEntries` checks that
+collections and playlists leave the boundary without the server composite
+and counts. Run them when you change `ContentSafetyGate`, a wrapper in
+`SafeContentServices`, or how a provider maps series, seasons, episodes or
+containers.
+
+`PlaybackLauncherTests` covers `PlaybackLauncher`, the final check before the
+player opens. Its fake services let every title through the boundary, so each
+refusal comes from the launcher: a title the fresh lookup finds over the
+ceiling, a queue whose next episode is over the launcher's gate (the kid
+ceiling, or a stricter `ContentSafetyGate(policy:)` a caller passes), unrated
+episodes of a blocked or unknown series (an unrated episode of an allowed
+series plays), a playlist with a blocked entry (the starting entry,
+one re-rated since the list loaded, or a later one), and a cancelled launch
+(by the caller or by its task), none of which presents the player. Offline, a
+stub `OfflinePlaybackSource` hands the launcher downloads it must refuse: one
+of another profile or with no owner, one whose pinned server metadata or a
+stricter launcher gate blocks it, and one that is unfinished or from another
+server.
+Allowed controls on the same fixtures fail if the launcher refuses everything,
+so no refusal passes for that reason alone. Run it when you change
+the launcher, `PlaybackQueue`, `DownloadAccessPolicy`, or a playback entry
+point.
 
 `DownloadOwnershipMigrationTests` covers the one-time move of the per-profile
 records that earlier versions kept in `plinx.downloadOwnership.v1` onto each
 download's owner, and checks that a download with no record stays unowned.
+It also drives `LegacyDownloadIndex.migrate` with a temporary `index.json` and
+a test offline database: an entry's `accessScope` becomes its owner, an empty
+server or profile, another server, or a stray `ownerID` never does, and a
+damaged entry is dropped on its own and defers the ownership import. The
+offline resume points that index kept move into the owner's offline progress
+once, never over more recent progress.
+
+`MultiServerMigrationTests` checks that the libraries hidden before the update
+stay hidden for every profile: a second Plex Home user that appears after the
+update, an account whose token was revoked, a Jellyfin server without a token,
+and a list whose server is only known from the first Plex server list.
+`ProfileSettingsTests` covers the family's library settings themselves, and
+`SettingsManagerPlaybackTests` checks them through `PlinxLibraryVisibility`.
+It also checks that a library load for one profile, which lists only the
+libraries that profile can see, never removes a library another profile or
+the family hid.
 
 Changes to `PlinxApp/Core` or `PlinxApp/Platform` are ordinary Plinx changes:
 build both app targets and run the unit tests for the touched area. There is
@@ -188,8 +301,12 @@ The focused tests also cover the 40-video initial catalog request, independent
 catalog/channel failures, tail-triggered pagination, and long-press actions.
 `OfflinePlaybackTests` covers download access: only the active profile's
 owned downloads that the content policy allows are playable, and downloads
-with no owner are refused. `DownloadIntegrityTests` covers
-`DownloadIntegrityValidator`, the 20 percent space-savings rule
+with no owner are refused. `OfflineEpisodeChainingTests` covers offline
+next-episode chaining, which uses the same `DownloadAccessPolicy` decision: an
+episode of another profile, without an owner, or whose stored or pinned
+metadata fails the gate never plays next. `DownloadIntegrityTests` covers
+`DownloadIntegrityValidator` and the reason a failed download row shows, the
+20 percent space-savings rule
 (`DownloadSpaceSavingsPolicy`), and the mapping of the old Plinx
 download-quality setting to a quality preset.
 
@@ -260,10 +377,14 @@ App integration logic such as:
 - canonical library-catalog loading and complete movie/TV/Other Videos row projection
 - layout policies
 - the content-safety boundary (`SafeMediaServicesTests`) and content rules
+- the final playback check (`PlaybackLauncherTests`)
 - navigation coordination
 - offline playback decisions
 - parental authorization, download ownership and its migration, safe
   playlists, and playback-volume application
+- Jellyfin server search availability on iPhone and iPad
+  (`JellyfinServerDiscoveryAvailabilityTests`; see "Entitlements" in
+  `docs/development/setup.md`)
 
 ### `PlinxApp/CoreTests/`
 
@@ -294,6 +415,7 @@ Apple TV-specific policy and live parity coverage.
 | Kid-facing flows, major UI behavior, or visible layout changes | Targeted UI tests and snapshot tests |
 | Real-data browse/render behavior, providers, or session code in `PlinxApp/Core` | Live UI smoke and/or live parity checks where applicable |
 | Provider protocols, providers, or the content-safety boundary | `SafeMediaServicesTests` plus `PlinxCore` tests |
+| `PlinxPlaybackLauncher`, playback queues, or a playback entry point | `PlaybackLauncherTests` plus `SafeMediaServicesTests` |
 | Release/archive/build pipeline changes | Archive validation and any touched script/workflow validation |
 
 ## Live Credentials

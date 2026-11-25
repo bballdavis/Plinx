@@ -13,11 +13,18 @@ import Foundation
 //     playback queues, downloads) goes through `ContentSafetyGate`: blocked
 //     titles are dropped, emptied hubs and rows disappear, paged listings are
 //     re-indexed so counts stay consistent, and looking up a blocked title
-//     throws `ContentSafetyError.blocked`.
+//     throws `ContentSafetyError.blocked`. Seasons and episodes are judged
+//     against their series too: the wrappers let the gate look the series up
+//     through the provider's own, unfiltered `mediaItem(id:)` first.
+//   • Collections and playlists are listed without the artwork and counts the
+//     server builds from all of their entries.
 //   • Server rights and management are denied unless a parent has the gate
 //     unlocked; playlist edits, the watchlist and subtitle downloads likewise.
-//   • Live TV and external players are off.
-//   • Artwork is passed through: it only draws titles the caller already has.
+//   • Live TV is off. No provider protocol hands a title to another app, so
+//     there is no external-player path to disable.
+//   • Artwork is passed through: it only draws paths the caller already has,
+//     and the boundary hands out no path that draws a blocked title (container
+//     composites are removed above).
 //
 // When a provider protocol gains a requirement, `SafeMediaServicesTests` fails
 // until it is added to `reviewedRequirements` below with its treatment, and,
@@ -55,27 +62,32 @@ struct SafeMediaServices {
         authorization: any MediaAuthorizationService,
         management: any MediaManagementService,
     ) {
-        self.home = SafeHomeService(base: home, gate: gate)
+        // The provider's own lookup, unfiltered: the gate needs a series' rating to judge its seasons and episodes,
+        // even when the series itself is blocked.
+        let lookUpSeries: ContentSafetyGate.SeriesLookup = { [detail] seriesID in
+            try await detail.mediaItem(id: seriesID)
+        }
+        self.home = SafeHomeService(base: home, gate: gate, lookUpSeries: lookUpSeries)
         // The same choice as `OfflineServiceDecorators`, so callers casting to the browse protocols still find them.
         self.library = if let plex = library as? any MediaLibraryService & PlexAdvancedLibraryService {
-            SafePlexLibraryService(base: plex, gate: gate, artwork: artwork)
+            SafePlexLibraryService(base: plex, gate: gate, artwork: artwork, lookUpSeries: lookUpSeries)
         } else if let browse = library as? any MediaLibraryService & AdvancedLibraryBrowseService {
-            SafeBrowseLibraryService(base: browse, gate: gate, artwork: artwork)
+            SafeBrowseLibraryService(base: browse, gate: gate, artwork: artwork, lookUpSeries: lookUpSeries)
         } else {
-            SafeLibraryService(base: library, gate: gate, artwork: artwork)
+            SafeLibraryService(base: library, gate: gate, artwork: artwork, lookUpSeries: lookUpSeries)
         }
-        self.search = SafeSearchService(base: search, gate: gate)
+        self.search = SafeSearchService(base: search, gate: gate, lookUpSeries: lookUpSeries)
         self.artwork = artwork
         self.detail = SafeDetailService(base: detail, gate: gate)
-        self.favorites = SafeFavoritesService(base: favorites, gate: gate)
-        self.playlists = SafePlaylistService(base: playlists, gate: gate)
+        self.favorites = SafeFavoritesService(base: favorites, gate: gate, lookUpSeries: lookUpSeries)
+        self.playlists = SafePlaylistService(base: playlists, gate: gate, lookUpSeries: lookUpSeries)
         self.playback = if let memory = playback as? any MediaPlaybackService & MediaTrackSelectionMemoryService {
-            SafeTrackMemoryPlaybackService(base: memory, gate: gate)
+            SafeTrackMemoryPlaybackService(base: memory, gate: gate, lookUpSeries: lookUpSeries)
         } else {
-            SafePlaybackService(base: playback, gate: gate)
+            SafePlaybackService(base: playback, gate: gate, lookUpSeries: lookUpSeries)
         }
         liveTV = DisabledLiveTVService()
-        self.downloads = SafeDownloadService(base: downloads, gate: gate)
+        self.downloads = SafeDownloadService(base: downloads, gate: gate, lookUpSeries: lookUpSeries)
         self.authorization = SafeAuthorizationService(base: authorization, gate: gate)
         self.management = SafeManagementService(base: management, gate: gate)
     }
@@ -87,19 +99,20 @@ extension SafeMediaServices {
     enum Treatment: String, Sendable {
         /// Returns titles: every one passes `ContentSafetyGate`, and a blocked subject throws.
         case filtered
-        /// Returns collections or playlists, listed as they are; their entries are filtered when opened.
+        /// Returns collections or playlists, listed without their server artwork and counts; their entries are filtered
+        /// when opened.
         case container
         /// Parent-only: refused, empty or false unless `ContentSafetyGate.isParentUnlocked`.
         case gated
-        /// Returns no titles (writes, reports, settings, artwork of titles the caller already has).
+        /// Returns no titles (writes, reports, settings, artwork of paths the caller already has).
         case passthrough
-        /// Never reaches the provider (Live TV, external players, unfiltered letter counts).
+        /// Never reaches the provider (Live TV, unfiltered letter counts).
         case disabled
     }
 
-    /// Every requirement of the protocols `MediaServices` is built from, by protocol and selector, with how the
-    /// boundary treats it. `SafeMediaServicesTests` parses the protocol declarations and fails when this list and the
-    /// protocols differ.
+    /// Every requirement of the protocols `MediaServices` is built from or stores, and of the offline caches its
+    /// wrappers expose, by protocol and selector, with how the boundary treats it. `SafeMediaServicesTests` parses the
+    /// protocol declarations and `MediaServices`' stored services, and fails when this list and the protocols differ.
     static let reviewedRequirements: [String: [String: Treatment]] = [
         "MediaHomeService": [
             "loadHome(hiddenLibraryIDs:includesPlaylists:shownRowIDs:mergesNextUp:)": .filtered,
@@ -188,7 +201,6 @@ extension SafeMediaServices {
             "queue(playlistID:startingWith:)": .filtered,
             "prepare(media:resume:quality:trackPreference:version:)": .filtered,
             "release(plan:)": .passthrough,
-            "externalPlaybackTarget(for:version:)": .disabled,
             "reportStarted(plan:position:isPaused:currentSelection:)": .passthrough,
             "reportProgress(plan:position:isPaused:currentSelection:)": .passthrough,
             "reportStopped(plan:position:currentSelection:)": .passthrough,
@@ -276,6 +288,21 @@ extension SafeMediaServices {
             "supportsAdvancedSettings(for:)": .gated,
             "advancedSettings(itemID:)": .gated,
             "updateAdvancedSetting(_:value:itemID:)": .gated,
+        ],
+        // The iOS offline caches, which screens read by casting `home` and `detail` (`SafeContentServices.swift`).
+        "OfflineHomeCacheReading": [
+            "cachedHome()": .filtered,
+        ],
+        "OfflineDetailCacheReading": [
+            "cachedDetails(for:)": .filtered,
+            "canOpenPerson(id:)": .passthrough,
+            "forgetDeletedMedia(itemID:)": .passthrough,
+        ],
+        // `MediaServices.accountPreferences`, stored as the provider builds it: account settings, no titles.
+        "AccountPreferencesService": [
+            "subtitleModes": .passthrough,
+            "load()": .passthrough,
+            "apply(_:)": .passthrough,
         ],
     ]
 }

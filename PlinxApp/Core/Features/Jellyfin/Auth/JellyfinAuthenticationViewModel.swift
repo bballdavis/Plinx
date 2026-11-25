@@ -26,6 +26,11 @@ final class JellyfinAuthenticationViewModel {
         isLoading || isDiscovering
     }
 
+    /// False on iPhone and iPad until the app is signed with the multicast
+    /// entitlement (`JellyfinServerDiscoveryService.isSupported`). The server
+    /// step then hides the search and offers manual address entry only.
+    let isDiscoveryAvailable = JellyfinServerDiscoveryService.isSupported
+
     @ObservationIgnored private let context = JellyfinAPIContext()
     @ObservationIgnored private let onAuthenticated: (JellyfinAuthenticatedSession, JellyfinConnection) throws -> Void
     @ObservationIgnored private let discoveryService = JellyfinServerDiscoveryService()
@@ -62,7 +67,7 @@ final class JellyfinAuthenticationViewModel {
     }
 
     func discoverServers() async {
-        guard !isBusy else { return }
+        guard isDiscoveryAvailable, !isBusy else { return }
         discoveredServers = []
         isDiscovering = true
         errorMessage = nil

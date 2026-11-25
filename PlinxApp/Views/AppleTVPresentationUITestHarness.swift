@@ -3,11 +3,14 @@ import SwiftUI
 import PlinxUI
 
 /// The production tvOS profile picker with two fixture Plex Home profiles, one PIN-protected, and no account behind
-/// them: choices are set directly and never loaded from the session.
+/// them: choices are set directly and never loaded from the session. No profile is remembered as last active, so
+/// every choice needs the parental gate; the harness opens with the gate already unlocked, as when Settings presents
+/// the picker, so choosing the protected profile goes straight to its PIN keypad.
 @MainActor
 struct AppleTVProfileSwitcherUITestHarness: View {
     @State private var viewModel: ProfileSwitcherViewModel
     @State private var presentsAsModal: Bool
+    @State private var parentalAccess: ParentalAccessCoordinator
     private let modal: Bool
 
     init(sessionManager: SessionManager, modal: Bool) {
@@ -36,6 +39,7 @@ struct AppleTVProfileSwitcherUITestHarness: View {
         ]
         _viewModel = State(initialValue: viewModel)
         _presentsAsModal = State(initialValue: !modal)
+        _parentalAccess = State(initialValue: Self.unlockedParentalAccess())
         self.modal = modal
     }
 
@@ -58,7 +62,23 @@ struct AppleTVProfileSwitcherUITestHarness: View {
 
     private var profileSwitcher: some View {
         ProfileSwitcherView(viewModel: viewModel, loadsProfilesOnAppear: false)
+            .environment(parentalAccess)
     }
+
+    private static func unlockedParentalAccess() -> ParentalAccessCoordinator {
+        let suiteName = "com.bballdavis.plinx.ui-tests.profile-switcher"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defaults.removePersistentDomain(forName: suiteName)
+        let coordinator = ParentalAccessCoordinator(store: NoParentalPINStore(), legacyDefaults: defaults)
+        _ = coordinator.unlockWithMathChallenge()
+        return coordinator
+    }
+}
+
+private struct NoParentalPINStore: ParentalPINStoring {
+    func readPIN() throws -> String? { nil }
+    func writePIN(_: String) throws {}
+    func deletePIN() throws {}
 }
 
 /// The production tvOS player controls (classic style) over a paused, network-free fixture.
@@ -82,7 +102,6 @@ struct AppleTVPlayerControlsUITestHarness: View {
             duration: 1_800,
             bufferedAhead: 30,
             bufferBasePosition: position,
-            playbackRate: 1,
             showsEndsAtTime: false,
             showsClock: false,
             isScrubbing: false,
@@ -100,9 +119,7 @@ struct AppleTVPlayerControlsUITestHarness: View {
             settingsControl: nil,
             showsSubtitleOffsetIndicator: false,
             settingsFocusGeneration: 0,
-            isShowingPanel: false,
-            menus: nil,
-            tabs: nil
+            isShowingPanel: false
         )
     }
 
@@ -118,17 +135,11 @@ struct AppleTVPlayerControlsUITestHarness: View {
             userInteraction: {},
             showAudioSettings: {},
             showSubtitleSettings: {},
-            showSpeedSettings: {},
             showSettings: {},
             goLive: {},
             showLiveChannels: {},
             previousChannel: {},
-            nextChannel: {},
-            menuPresentationChanged: { _ in },
-            tabsPresentationChanged: { _ in },
-            selectChapter: { _ in },
-            restartFromBeginning: {},
-            selectQueueItem: { _ in }
+            nextChannel: {}
         )
     }
 }

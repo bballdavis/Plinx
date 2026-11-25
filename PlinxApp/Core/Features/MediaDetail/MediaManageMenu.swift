@@ -118,6 +118,11 @@ extension MediaQuickAction {
 
 /// The Manage entry of a menu. tvOS menus handle nested menus poorly, so there it opens a dialog instead, presented
 /// by `mediaManagePresentation`.
+///
+/// Callers show it only when `MediaQuickActions.manageActions(for:)` has entries, which needs the parental gate
+/// unlocked. No Plinx screen shows a card or detail page while the gate is unlocked, so parents cannot reach it yet.
+/// Before adding a parent entry point, make delete, unmatch and empty trash ask for a fresh PIN
+/// (`ParentalAccessCoordinator.unlock(withPIN:)`) besides their confirmation (hard-fork plan, P6).
 struct MediaManageMenu: View {
     let item: MediaItem
     let quickActions: MediaQuickActions

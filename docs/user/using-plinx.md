@@ -18,7 +18,12 @@ them.
 
 **Continue Watching** combines in-progress titles from every connected
 server, with the next episodes of shows you are watching at the end of the
-same row. Recently added rows load from the same library catalogs used by
+same row. **My Favorites** lists the movies, shows, seasons, and episodes
+added with Favorite on a title's page, sorted by title; it appears
+once there is at least one favorite the current parent controls allow. Plex
+favorites are saved on this device for each profile; Jellyfin favorites belong
+to the Jellyfin user, so profiles that sign in as the same Jellyfin user share
+them. Recently added rows load from the same library catalogs used by
 Library Browse. Parents can select which libraries appear and how home
 sections are arranged. Movie and TV libraries can be combined or split, while
 YouTube and other none-agent video libraries remain separate landscape rows.
@@ -36,6 +41,8 @@ them in Settings; an existing saved preference is preserved.
 
 Visible libraries are chosen separately for each profile. A library a parent
 hides for a profile disappears from that profile's Home, Library, and Search.
+Libraries hidden in an earlier version of Plinx stay hidden for every profile
+after the update, until a parent changes a profile's visible libraries.
 
 ## Search
 
@@ -72,6 +79,13 @@ On iPhone and iPad, the player header offers:
   returns when you rotate back to landscape during the same playback session;
 - **Picture in Picture**, in landscape and on wider screens, only when a
   parent has turned it on.
+
+Leaving Plinx closes the player, and the video picks up where it left off
+when you come back. On iPhone and iPad, a parent can allow watching outside
+the app instead: with Picture in Picture on, a playing video moves into a
+Picture in Picture window, and with background audio on, its sound keeps
+playing. If neither applies, for example because the video was paused, the
+player stays open and paused until you return.
 
 When a sleep timer is running, the header shows how long is left. The header
 appears and hides with the rest of the player controls. The touch lock above

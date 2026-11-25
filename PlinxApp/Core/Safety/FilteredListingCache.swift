@@ -57,13 +57,14 @@ final class FilteredListingCache<Element> {
 
     /// - Parameters:
     ///   - key: Identifies the listing: the same server request apart from its position.
+    ///   - shown: What the listing shows of a server element; `nil` drops it.
     ///   - fetch: Loads the unfiltered server listing at a server index.
     func page(
         key: String,
         startIndex: Int,
         limit: Int,
         policyRevision: Int,
-        isAllowed: (Element) -> Bool,
+        shown: (Element) -> Element?,
         fetch: (_ serverStart: Int, _ serverLimit: Int) async throws -> ServerPage,
     ) async throws -> Page {
         await acquire(key)
@@ -91,7 +92,7 @@ final class FilteredListingCache<Element> {
                 let page = try await fetch(listing.serverCursor, serverPageSize)
                 fetchedPages += 1
                 listing.serverCursor += page.items.count
-                listing.allowed += page.items.filter(isAllowed)
+                listing.allowed += page.items.compactMap(shown)
                 if let total = page.totalCount {
                     listing.reachedEnd = page.items.isEmpty || listing.serverCursor >= total
                 } else {

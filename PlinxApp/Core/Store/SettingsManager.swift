@@ -124,11 +124,6 @@ final class SettingsManager {
         persist()
     }
 
-    func setPlayerControlsStyle(_ style: PlayerControlsStyle) {
-        settings.playback.playerControlsStyle = style
-        persist()
-    }
-
     func setCenterClickAction(_ action: PlayerCenterClickAction) {
         settings.playback.centerClickAction = action
         persist()
@@ -219,11 +214,6 @@ final class SettingsManager {
         persist()
     }
 
-    func setDefaultPlaybackRate(_ rate: Float) {
-        settings.playback.defaultPlaybackRate = rate
-        persist()
-    }
-
     func setDoubleTapToSeek(_ enabled: Bool) {
         settings.playback.doubleTapToSeek = enabled
         persist()
@@ -279,11 +269,6 @@ final class SettingsManager {
         persist()
     }
 
-    func setExternalPlayer(_ selection: ExternalPlayerSelection?) {
-        settings.playback.externalPlayer = selection
-        persist()
-    }
-
     func resetSubtitleAppearance() {
         settings.playback.resetSubtitleAppearance()
         persist()
@@ -291,27 +276,6 @@ final class SettingsManager {
 
     func updatePlayback(_ transform: (inout PlaybackSettings) -> Void) {
         transform(&settings.playback)
-        persist()
-    }
-
-    func setHiddenLibraryIds(_ ids: [String]) {
-        settings.interface.hiddenLibraryIds = ids.sorted()
-        persist()
-    }
-
-    func setLibraryDisplayed(_ libraryId: String, displayed: Bool) {
-        var hiddenIds = Set(settings.interface.hiddenLibraryIds)
-        if displayed {
-            hiddenIds.remove(libraryId)
-        } else {
-            hiddenIds.insert(libraryId)
-        }
-        settings.interface.hiddenLibraryIds = hiddenIds.sorted()
-        persist()
-    }
-
-    func setNavigationLibraryIds(_ ids: [String]) {
-        settings.interface.navigationLibraryIds = ids
         persist()
     }
 
@@ -372,32 +336,71 @@ final class SettingsManager {
 
     // MARK: - Libraries (per profile)
 
+    /// The profile's own library settings or, until it has some, the family's (`InterfaceSettings.familyLibraries`).
     func libraryPreferences(profileID: String) -> LibraryPreferences {
-        settings.interface.librariesByProfile[profileID] ?? LibraryPreferences()
+        settings.interface.librariesByProfile[profileID] ?? settings.interface.familyLibraries ?? LibraryPreferences()
     }
 
+    /// A profile's first change starts from the family's library settings and gives the profile its own.
     func updateLibraryPreferences(profileID: String, _ transform: (inout LibraryPreferences) -> Void) {
         var preferences = libraryPreferences(profileID: profileID)
         transform(&preferences)
         guard preferences != libraryPreferences(profileID: profileID) else { return }
-        settings.interface.librariesByProfile[profileID] = preferences.isEmpty ? nil : preferences
+        settings.interface.librariesByProfile[profileID] = storedLibraries(preferences)
         persist()
     }
 
-    /// Forgets the libraries a server stopped returning, for every profile. Only call it after a successful load.
-    func pruneLibraries(of server: ServerIdentity, keeping libraryIDs: Set<String>) {
-        var changed = false
-        for (profileID, preferences) in settings.interface.librariesByProfile {
-            var pruned = preferences
-            pruned.pruneLibraries(of: server, keeping: libraryIDs)
-            if pruned != preferences {
-                settings.interface.librariesByProfile[profileID] = pruned.isEmpty ? nil : pruned
-                changed = true
+    /// Forgets the libraries of `server` that a successful load for `profileID`, made with that profile's own
+    /// sign-in, no longer returned. Only that profile's own settings change: a Plex Home or Jellyfin user may see only
+    /// some of a server's libraries, so the libraries other profiles and the family hid must stay hidden for the
+    /// profiles that see more. A profile that still uses the family's settings is left as it is.
+    func pruneLibraries(of server: ServerIdentity, keeping libraryIDs: Set<String>, profileID: String) {
+        guard let preferences = settings.interface.librariesByProfile[profileID] else { return }
+        var pruned = preferences
+        pruned.pruneLibraries(of: server, keeping: libraryIDs)
+        guard pruned != preferences else { return }
+        settings.interface.librariesByProfile[profileID] = storedLibraries(pruned)
+        persist()
+    }
+
+    /// Moves the device-wide library list of earlier versions (`hiddenLibraryIds`, `navigationLibraryIds`) onto
+    /// `servers` for every profile: it becomes the family's library settings and joins the settings profiles already
+    /// have. It applies once; later calls do nothing.
+    func adoptLegacyLibraries(on servers: [ServerIdentity]) {
+        let interface = settings.interface
+        guard !servers.isEmpty, !interface.hiddenLibraryIds.isEmpty || !interface.navigationLibraryIds.isEmpty else {
+            return
+        }
+        let hidden = servers.flatMap { server in
+            interface.hiddenLibraryIds.map { LibraryIdentity(server: server, libraryID: $0) }
+        }
+        let pinned = servers.flatMap { server in
+            interface.navigationLibraryIds.map { LibraryIdentity(server: server, libraryID: $0) }
+        }
+        let adopt: (inout LibraryPreferences) -> Void = { preferences in
+            for library in hidden where !preferences.isHidden(library) {
+                preferences.setHidden(library, hidden: true)
+            }
+            for library in pinned {
+                preferences.setPinned(library, pinned: true)
             }
         }
-        if changed {
-            persist()
+        var family = interface.familyLibraries ?? LibraryPreferences()
+        adopt(&family)
+        settings.interface.familyLibraries = family
+        for (profileID, var preferences) in interface.librariesByProfile {
+            adopt(&preferences)
+            settings.interface.librariesByProfile[profileID] = preferences
         }
+        settings.interface.hiddenLibraryIds = []
+        settings.interface.navigationLibraryIds = []
+        persist()
+    }
+
+    /// A profile's empty settings are kept while the family has some, so a profile that shows every library keeps
+    /// showing them.
+    private func storedLibraries(_ preferences: LibraryPreferences) -> LibraryPreferences? {
+        preferences.isEmpty && settings.interface.familyLibraries == nil ? nil : preferences
     }
 
     // MARK: - Cleanup
@@ -411,10 +414,14 @@ final class SettingsManager {
             cleaned.removeRows(of: servers)
             settings.interface.homeRowsByProfile[profileID] = cleaned.isEmpty ? nil : cleaned
         }
+        if var family = settings.interface.familyLibraries {
+            family.removeLibraries(of: servers)
+            settings.interface.familyLibraries = family.isEmpty ? nil : family
+        }
         for (profileID, preferences) in settings.interface.librariesByProfile {
             var cleaned = preferences
             cleaned.removeLibraries(of: servers)
-            settings.interface.librariesByProfile[profileID] = cleaned.isEmpty ? nil : cleaned
+            settings.interface.librariesByProfile[profileID] = storedLibraries(cleaned)
         }
         persist()
     }

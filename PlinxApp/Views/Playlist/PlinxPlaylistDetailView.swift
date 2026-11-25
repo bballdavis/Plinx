@@ -3,22 +3,23 @@ import PlinxUI
 import SwiftUI
 
 /// Picks what Play and Shuffle start in a playlist: only playable titles the
-/// policy allows, so an entry the boundary let through under an older policy
+/// gate allows now, so an entry the boundary let through under an older policy
 /// can never start playback. `PlinxPlaybackLauncher` checks it again.
+@MainActor
 enum PlinxPlaylistPlaybackSelection {
     static func authorizedItems(
         from items: [MediaDisplayItem],
-        policy: SafetyPolicy
+        gate: ContentSafetyGate
     ) -> [MediaItem] {
-        PlinxContentRules.filteredItems(items, policy: policy).compactMap(\.playableItem)
+        items.compactMap(\.playableItem).filter { gate.isAllowed($0) }
     }
 
     static func item(
         from items: [MediaDisplayItem],
-        policy: SafetyPolicy,
+        gate: ContentSafetyGate,
         shuffled: Bool
     ) -> MediaItem? {
-        let playable = authorizedItems(from: items, policy: policy)
+        let playable = authorizedItems(from: items, gate: gate)
         return shuffled ? playable.randomElement() : playable.first
     }
 }
@@ -141,7 +142,7 @@ struct PlinxPlaylistDetailView: View {
     private func play(shuffled: Bool) {
         guard let item = PlinxPlaylistPlaybackSelection.item(
             from: items,
-            policy: ContentSafetyGate.shared.policy,
+            gate: .shared,
             shuffled: shuffled
         ) else { return }
         onPlay(item)

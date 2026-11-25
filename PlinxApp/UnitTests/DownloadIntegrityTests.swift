@@ -62,7 +62,7 @@ final class DownloadIntegrityTests: XCTestCase {
     }
 
     func test_rejectsUnsuccessfulHTTPResponses() {
-        for status in [401, 404, 500] {
+        for status in [401, 404, 500, 503] {
             XCTAssertThrowsError(
                 try DownloadIntegrityValidator.validate(
                     response: response(status: status, contentLength: 4),
@@ -127,6 +127,32 @@ final class DownloadIntegrityTests: XCTestCase {
             response: response(status: 206, contentLength: 400),
             stagedFileSize: 1000
         )
+    }
+
+    func test_failedDownloadRowNamesTheServerStatusOnlyForAnUnsuccessfulResponse() {
+        for status in [401, 404, 500, 503] {
+            XCTAssertEqual(
+                DownloadIntegrityValidator.failureMessage(
+                    for: .unsuccessfulStatus,
+                    response: response(status: status, contentLength: 4)
+                ),
+                String(localized: "downloads.status.serverError \(status)")
+            )
+        }
+
+        let generic = String(localized: "downloads.status.failed")
+        XCTAssertEqual(DownloadIntegrityValidator.failureMessage(for: .unsuccessfulStatus, response: nil), generic)
+        for failure in [
+            DownloadIntegrityFailure.invalidResponse,
+            .unexpectedContentType,
+            .emptyFile,
+            .contentLengthMismatch,
+        ] {
+            XCTAssertEqual(
+                DownloadIntegrityValidator.failureMessage(for: failure, response: response(status: 200)),
+                generic
+            )
+        }
     }
 
     func test_rejectsTextAndStructuredErrorPayloads() {

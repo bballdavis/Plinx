@@ -33,7 +33,7 @@ final class NowPlayingController {
     private var commandTargets: [(command: MPRemoteCommand, target: Any)] = []
     private var cancellables: Set<AnyCancellable> = []
     #if os(macOS)
-        private var requestedRate: Float = 1
+        private let requestedRate: Float = 1
         private var lastPublished: (elapsed: Double, rate: Double, date: Date)?
     #endif
 
@@ -76,13 +76,6 @@ final class NowPlayingController {
             publishPlayback()
         #else
             attachCommandsToSession()
-        #endif
-    }
-
-    func setPlaybackRate(_ rate: Float) {
-        #if os(macOS)
-            requestedRate = rate
-            publishPlayback()
         #endif
     }
 

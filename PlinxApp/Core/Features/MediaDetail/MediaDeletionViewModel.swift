@@ -44,6 +44,8 @@ final class MediaDeletionViewModel {
         }
     }
 
+    /// Runs after the confirmation only, on the standing parental unlock. No screen reaches it today; a parent entry
+    /// point must add a fresh PIN before this call (see `MediaManageMenu`).
     func delete() async {
         guard case let .ready(impact) = state else { return }
         state = .deleting(impact)

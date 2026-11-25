@@ -47,18 +47,6 @@ enum PlinxSettingsSanitizer {
         if settingsManager.playback.automaticSubtitleSearch {
             settingsManager.setAutomaticSubtitleSearch(false)
         }
-        // External players leave the Plinx player and its safety checks.
-        if settingsManager.playback.externalPlayer != nil {
-            settingsManager.setExternalPlayer(nil)
-        }
-        // Plinx removed playback speed control.
-        if settingsManager.playback.defaultPlaybackRate != 1.0 {
-            settingsManager.setDefaultPlaybackRate(1.0)
-        }
-        // The tvOS system player style bypasses the Plinx chrome and timeline.
-        if settingsManager.playback.playerControlsStyle != .classic {
-            settingsManager.setPlayerControlsStyle(.classic)
-        }
     }
 
     private static func hasPersistedDisplayCollections(in defaults: UserDefaults) -> Bool {

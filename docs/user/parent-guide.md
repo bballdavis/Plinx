@@ -13,11 +13,22 @@ Parents can set separate movie and television rating ceilings. The default
 limits are G and TV-Y, and parents can raise either limit to any supported
 rating. Plinx filters browsing, search, playlists, and
 playback; it checks content again immediately before playback starts.
-Adult-only ratings, such as NC-17 or X, are never shown.
+Adult-only ratings, such as NC-17, X, or another country's 18, 19, or 21
+certificate, are never shown.
 
 Unrated or unknown media, including clips and home videos, stays hidden unless
 a parent deliberately allows it. Library visibility is a separate choice: a
 visible library can still have content blocked by its rating policy.
+
+Seasons and episodes follow their show's rating. An episode of a show above
+your TV limit stays hidden even when the episode itself has no rating, so
+allowing unrated content (which many Jellyfin servers need before any TV shows
+up) never opens episodes of a blocked show. An episode without a rating of its
+own is judged by its show's rating.
+
+Collections and playlists appear as plain tiles, without the poster collage
+the server makes from their contents, because that collage can show titles
+above your limits. Opening one lists only the titles your limits allow.
 
 ## Family settings
 
@@ -31,11 +42,13 @@ Protected settings can control:
 - download quality and offline access;
 - player options such as autoplay, the sleep timer, skipping intros and
   credits, audio, subtitles, and whether Picture in Picture and background
-  audio are allowed (both are off until a parent turns them on);
+  audio are allowed on iPhone and iPad (both are off until a parent turns
+  them on; while both are off, leaving Plinx closes the player);
 - the maximum Plinx player output level; and
 - touch lock and parental PIN behavior.
 
-The maximum playback level affects only the Plinx player. It is not hearing
+The Plinx player plays at the maximum playback level you set (70% until you
+change it). The level affects only the Plinx player. It is not hearing
 protection and cannot limit device, headphone, AirPlay, receiver, or television
 volume.
 
@@ -56,7 +69,9 @@ again, and the parental gate locks.
 When Plinx asks who is watching, continuing as the profile that was last used
 needs no parent. Switching to a different profile, managing profiles, adding a
 connection, and logging out all ask for the parental gate, unless Settings is
-already unlocked. Plinx never asks children to choose a profile again just
+already unlocked. If Plinx does not remember who watched last, for example
+after a Plex Home user or a profile was removed, choosing any profile asks for
+the parental gate. Plinx never asks children to choose a profile again just
 because they were away from the app for a while.
 
 **Manage profiles** appears on the profile picker even when the current Plex
@@ -65,7 +80,17 @@ decides who may manage profiles. **Log Out** on the profile picker is the same
 full Log Out as in Settings.
 
 Leaving Settings, or any change that reloads the app's main screens, such as
-a profile switch or Log Out, locks the parental gate again.
+a profile switch or Log Out, locks the parental gate again. Leaving the app
+locks it too: Settings and profile management opened from the profile picker
+show the parental gate again when you come back.
+
+Signing in to Plex from Settings on iPhone or iPad is the one exception,
+because the sign-in itself takes you out of Plinx. While a Plex sign-in is
+in progress, you can switch to a password manager, an authenticator, or your
+email and come back to finish. If you are away for more than five minutes,
+Plinx shows the parental gate when you come back and you start the sign-in
+over. If the sign-in finishes or is cancelled while you are away, the gate
+locks then.
 
 ## Safety boundaries
 

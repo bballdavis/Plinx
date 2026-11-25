@@ -41,7 +41,7 @@ public struct SafetyInterceptor: Sendable {
     /// **Fail-closed behavior:**
     /// - Missing rating → rejected
     /// - Unrecognized rating string (not in `PlinxRating`) → rejected
-    /// - Adult-only rating (NC-17, X, 18) → rejected, even when unrated items are allowed
+    /// - Adult-only rating (NC-17, X, an age certificate of 18 or older) → rejected, even when unrated items are allowed
     /// - Missing labels when label matching is active → rejected
     public func isAllowed(_ item: PlinxMediaItem) -> Bool {
         guard passesLabelGate(item) else { return false }
@@ -137,7 +137,7 @@ public enum FilterDecision: Sendable, Equatable {
         case missingRating
         /// Item's rating exceeds the policy maximum.
         case ratingExceedsMax(itemRating: PlinxRating, maxAllowed: PlinxRating)
-        /// Item is rated for adults only (NC-17, X, 18), above every ceiling.
+        /// Item is rated for adults only (NC-17, X, an age certificate of 18 or older), above every ceiling.
         case adultOnlyRating
     }
 }

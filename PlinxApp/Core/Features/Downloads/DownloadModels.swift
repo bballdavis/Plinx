@@ -101,6 +101,16 @@ struct DownloadedSubtitleFile: Codable, Hashable {
     var isHearingImpaired: Bool
 }
 
+/// Where pre-fork Plinx left off playing a download offline. It kept this only in its download index
+/// (`metadata.viewOffset` and `metadata.lastPlayedAt`) and never sent it to the server.
+/// `LegacyDownloadIndex.restoreResumePoints` moves it into the owner's offline progress once the download has an owner.
+struct LegacyDownloadResumePoint: Hashable {
+    /// Seconds into the video; always greater than zero.
+    var position: TimeInterval
+    /// When the download was last played, or nil when the index did not say.
+    var lastPlayedAt: Date?
+}
+
 struct DownloadedMediaMetadata: Codable, Hashable {
     var identity: MediaIdentity?
     var itemID: String
@@ -135,6 +145,9 @@ struct DownloadedMediaMetadata: Codable, Hashable {
     var createdAt: Date
     /// Plinx's offline grid shape for this download (for example landscape for home videos). Nil follows the type.
     var artworkLayoutStyle: DownloadArtworkLayoutStyle?
+    /// An offline resume point pre-fork Plinx saved, until it is moved into the owner's offline progress. It stays
+    /// here while the download has no owner.
+    var legacyResumePoint: LegacyDownloadResumePoint?
 
     var resolvedArtworkLayoutStyle: DownloadArtworkLayoutStyle {
         artworkLayoutStyle ?? DownloadArtworkLayoutStyle.default(for: type)
@@ -245,6 +258,8 @@ struct DownloadedMediaMetadata: Codable, Hashable {
         case versionLabel
         case createdAt
         case artworkLayoutStyle
+        case viewOffset
+        case lastPlayedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -315,6 +330,17 @@ struct DownloadedMediaMetadata: Codable, Hashable {
         versionLabel = try container.decodeIfPresent(String.self, forKey: .versionLabel)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         artworkLayoutStyle = try? container.decodeIfPresent(DownloadArtworkLayoutStyle.self, forKey: .artworkLayoutStyle)
+        // A damaged resume point costs only the resume point, never the download.
+        if let position = try? container.decodeIfPresent(TimeInterval.self, forKey: .viewOffset),
+           position.isFinite, position > 0
+        {
+            legacyResumePoint = LegacyDownloadResumePoint(
+                position: position,
+                lastPlayedAt: try? container.decodeIfPresent(Date.self, forKey: .lastPlayedAt),
+            )
+        } else {
+            legacyResumePoint = nil
+        }
     }
 
     func encode(to encoder: Encoder) throws {
@@ -350,6 +376,9 @@ struct DownloadedMediaMetadata: Codable, Hashable {
         try container.encodeIfPresent(versionLabel, forKey: .versionLabel)
         try container.encode(createdAt, forKey: .createdAt)
         try container.encodeIfPresent(artworkLayoutStyle, forKey: .artworkLayoutStyle)
+        // Written back in the pre-fork shape, so a resume point waiting for an owner survives the offline database.
+        try container.encodeIfPresent(legacyResumePoint?.position, forKey: .viewOffset)
+        try container.encodeIfPresent(legacyResumePoint?.lastPlayedAt, forKey: .lastPlayedAt)
     }
 
     var subtitle: String? {
@@ -516,17 +545,6 @@ extension DownloadedMediaMetadata {
             grandparentArtPath: nil,
             parentThumbPath: nil,
         )
-    }
-}
-
-enum DownloadedFileValidation {
-    /// The reason a finished transfer must not be kept as a video, or nil when it is usable.
-    static func failureMessage(response: URLResponse?, fileSize: Int64) -> String? {
-        if let response = response as? HTTPURLResponse, !(200 ..< 300).contains(response.statusCode) {
-            return String(localized: "downloads.status.serverError \(response.statusCode)")
-        }
-        guard fileSize > 0 else { return String(localized: "downloads.status.failed") }
-        return nil
     }
 }
 

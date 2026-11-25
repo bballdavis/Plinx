@@ -223,6 +223,84 @@ struct MultiServerMigrationTests {
         #expect(context.settings.interface.navigationLibraryIds.isEmpty)
     }
 
+    @Test func `every home profile keeps the libraries hidden before the update`() async {
+        let context = makeContext()
+        legacyPlex(token: "token", serverID: "server-a")
+        context.settings.updateInterface { $0.hiddenLibraryIds = ["2", "5"] }
+        let server = ServerIdentity(provider: .plex, id: "server-a")
+        let hidden = ["2", "5"].map { LibraryIdentity(server: server, libraryID: $0) }
+        let kid = PlexCloudUser(
+            id: 8,
+            uuid: "kid-1",
+            username: nil,
+            title: "Kid",
+            friendlyName: nil,
+            authToken: "",
+            thumb: nil,
+        )
+
+        _ = await context.migration(resolving: plexUser).run()
+        // The other Home users appear with the first `/home/users` load after the update.
+        context.profiles.updatePlexHomeUsers(
+            [
+                MultiServerMigration.homeUser(from: plexUser, uuid: "user-1"),
+                MultiServerMigration.homeUser(from: kid, uuid: "kid-1"),
+            ],
+            accountID: "plex:user-1",
+        )
+
+        let profileIDs = context.profiles.profiles(accounts: context.accounts.accounts).map(\.id)
+        #expect(profileIDs == ["plex.user-1", "plex.kid-1"])
+        for profileID in profileIDs {
+            #expect(context.settings.libraryPreferences(profileID: profileID).hiddenLibraries == hidden)
+        }
+    }
+
+    @Test func `a revoked token keeps the libraries hidden on the previous server`() async {
+        let context = makeContext()
+        legacyPlex(token: "token", serverID: "server-a")
+        context.settings.updateInterface { $0.hiddenLibraryIds = ["2"] }
+        let migration = context.migration { _ in throw PlexAPIError.requestFailed(statusCode: 401) }
+
+        #expect(await migration.run() == .nothingToMigrate)
+
+        // The account signed in again after the update sees the same server.
+        #expect(context.settings.libraryPreferences(profileID: "plex.user-1").hiddenLibraries == [
+            LibraryIdentity(server: ServerIdentity(provider: .plex, id: "server-a"), libraryID: "2"),
+        ])
+    }
+
+    @Test func `without a previous server the hidden libraries wait for the first server list`() async {
+        let context = makeContext()
+        defaults.set("plex", forKey: MultiServerMigration.LegacyKeys.provider)
+        secureStore.values[MultiServerMigration.LegacyKeys.plexToken] = "token"
+        context.settings.updateInterface { $0.hiddenLibraryIds = ["2"] }
+
+        #expect(await context.migration(resolving: plexUser).run() == .migrated(profileID: "plex.user-1"))
+        #expect(context.settings.interface.hiddenLibraryIds == ["2"])
+
+        // `SessionManager` adopts them on the servers of the first Plex server list, before they are used.
+        let servers = ["server-a", "server-b"].map { ServerIdentity(provider: .plex, id: $0) }
+        context.settings.adoptLegacyLibraries(on: servers)
+
+        #expect(context.settings.libraryPreferences(profileID: "plex.kid-1").hiddenLibraries == servers.map {
+            LibraryIdentity(server: $0, libraryID: "2")
+        })
+        #expect(context.settings.interface.hiddenLibraryIds.isEmpty)
+    }
+
+    @Test func `jellyfin without a token keeps the libraries hidden on its server`() async {
+        let context = makeContext()
+        legacyJellyfin(token: nil)
+        context.settings.updateInterface { $0.hiddenLibraryIds = ["jf-library"] }
+
+        #expect(await context.migration(resolving: plexUser).run() == .nothingToMigrate)
+
+        #expect(context.settings.libraryPreferences(profileID: "any").hiddenLibraries == [
+            LibraryIdentity(server: connection.serverIdentity, libraryID: "jf-library"),
+        ])
+    }
+
     @Test func `home rows of the current scope move to the profile with merged ids`() async {
         let context = makeContext()
         legacyPlex(token: "token", serverID: "server-a")

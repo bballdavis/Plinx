@@ -223,22 +223,26 @@ struct JellyfinAuthenticationView: View {
             .disabled(viewModel.isBusy || viewModel.serverURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             .accessibilityIdentifier("jellyfin.auth.continue")
 
-            PlinxOnboardingActionButton(treatment: .secondary) {
-                Task { await viewModel.discoverServers() }
-            } label: {
-                Label {
-                    Text("jellyfin.auth.discovery.search")
-                } icon: {
-                    if viewModel.isDiscovering {
-                        ProgressView()
-                            .tint(Color.accentColor)
-                    } else {
-                        Image(systemName: "network")
+            // Hidden where the build cannot broadcast (iPhone and iPad without
+            // the multicast entitlement): there, every search would fail.
+            if viewModel.isDiscoveryAvailable {
+                PlinxOnboardingActionButton(treatment: .secondary) {
+                    Task { await viewModel.discoverServers() }
+                } label: {
+                    Label {
+                        Text("jellyfin.auth.discovery.search")
+                    } icon: {
+                        if viewModel.isDiscovering {
+                            ProgressView()
+                                .tint(Color.accentColor)
+                        } else {
+                            Image(systemName: "network")
+                        }
                     }
                 }
+                .disabled(viewModel.isBusy)
+                .accessibilityIdentifier("jellyfin.auth.discover")
             }
-            .disabled(viewModel.isBusy)
-            .accessibilityIdentifier("jellyfin.auth.discover")
         } else {
             primaryAction("jellyfin.auth.signIn", isLoading: viewModel.isLoading) {
                 Task { await viewModel.signIn() }

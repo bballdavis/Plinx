@@ -107,6 +107,17 @@ final class SafetyInterceptorTests: XCTestCase {
         XCTAssertEqual(sut.explain(item), .allowed)
     }
 
+    func test_adultCertificatesAboveEighteenAreRejectedEvenWhenUnratedIsAllowed() {
+        let sut = SafetyInterceptor(policy: .ratingOnly(max: .tvMa, allowUnrated: true))
+
+        for raw in ["R21", "sg/R21", "R 21", "19", "KR-19", "kr/19", "21+", "18A"] {
+            let item = PlinxMediaItem(id: raw, title: "Adult", labels: [], contentRating: raw)
+            XCTAssertTrue(item.isAdultOnly, "\(raw) must classify as adult-only")
+            XCTAssertFalse(sut.isAllowed(item), "\(raw) must be rejected even when unrated is allowed")
+            XCTAssertEqual(sut.explain(item), .rejected(reason: .adultOnlyRating))
+        }
+    }
+
     func test_labelAnyEmptySetIsPassThrough() {
         let item = PlinxMediaItem(id: "15", title: "Any-Empty", labels: [], rating: .g)
         let policy = SafetyPolicy(labelMatchMode: .any([]), maxMovieRating: .g, maxTVRating: .tvY)

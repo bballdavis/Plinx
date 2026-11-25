@@ -105,7 +105,7 @@ struct ProfileSettingsTests {
             ]
         }
 
-        settings.pruneLibraries(of: serverA, keeping: ["1"])
+        settings.pruneLibraries(of: serverA, keeping: ["1"], profileID: "p")
 
         #expect(settings.libraryPreferences(profileID: "p").hiddenLibraries == [
             LibraryIdentity(server: serverA, libraryID: "1"),
@@ -126,6 +126,86 @@ struct ProfileSettingsTests {
 
         #expect(settings.homeRowPreferences(profileID: "p1") == HomeRowPreferences())
         #expect(settings.libraryPreferences(profileID: "p1") == LibraryPreferences())
+    }
+
+    // MARK: - Family libraries
+
+    @Test func `profiles without library settings use the family's`() {
+        let settings = SettingsManager(userDefaults: defaults)
+        settings.updateInterface {
+            $0.hiddenLibraryIds = ["5"]
+            $0.navigationLibraryIds = ["1"]
+        }
+
+        settings.adoptLegacyLibraries(on: [serverA])
+
+        for profileID in ["p1", "p2"] {
+            let libraries = settings.libraryPreferences(profileID: profileID)
+            #expect(libraries.hiddenLibraries == [LibraryIdentity(server: serverA, libraryID: "5")])
+            #expect(libraries.navigationLibraries == [LibraryIdentity(server: serverA, libraryID: "1")])
+        }
+        #expect(settings.interface.hiddenLibraryIds.isEmpty)
+        #expect(settings.interface.navigationLibraryIds.isEmpty)
+    }
+
+    @Test func `the legacy list joins profiles that already have settings and applies once`() {
+        let settings = SettingsManager(userDefaults: defaults)
+        settings.updateLibraryPreferences(profileID: "p") {
+            $0.setHidden(LibraryIdentity(server: serverB, libraryID: "x"), hidden: true)
+        }
+        settings.updateInterface { $0.hiddenLibraryIds = ["5"] }
+
+        settings.adoptLegacyLibraries(on: [serverA])
+        settings.adoptLegacyLibraries(on: [ServerIdentity(provider: .plex, id: "server-c")])
+
+        #expect(settings.libraryPreferences(profileID: "p").hiddenLibraries == [
+            LibraryIdentity(server: serverB, libraryID: "x"),
+            LibraryIdentity(server: serverA, libraryID: "5"),
+        ])
+        #expect(settings.interface.familyLibraries?.hiddenLibraries == [
+            LibraryIdentity(server: serverA, libraryID: "5"),
+        ])
+    }
+
+    @Test func `a profile that shows every family library keeps showing them`() {
+        let settings = SettingsManager(userDefaults: defaults)
+        let hidden = LibraryIdentity(server: serverA, libraryID: "5")
+        settings.updateInterface { $0.hiddenLibraryIds = ["5"] }
+        settings.adoptLegacyLibraries(on: [serverA])
+
+        settings.updateLibraryPreferences(profileID: "parent") { $0.setHidden(hidden, hidden: false) }
+        let reloaded = SettingsManager(userDefaults: defaults)
+
+        #expect(reloaded.libraryPreferences(profileID: "parent").hiddenLibraries.isEmpty)
+        #expect(reloaded.libraryPreferences(profileID: "kid").hiddenLibraries == [hidden])
+    }
+
+    @Test func `family libraries survive a load that lists only some libraries`() {
+        let settings = SettingsManager(userDefaults: defaults)
+        settings.updateInterface { $0.hiddenLibraryIds = ["5"] }
+        settings.adoptLegacyLibraries(on: [serverA])
+
+        // A Home user restricted to library 1 does not see library 5, which stays hidden for the others.
+        settings.pruneLibraries(of: serverA, keeping: ["1"], profileID: "kid")
+
+        #expect(settings.libraryPreferences(profileID: "kid").hiddenLibraries == [
+            LibraryIdentity(server: serverA, libraryID: "5"),
+        ])
+    }
+
+    @Test func `removing an account removes the family libraries of its servers`() {
+        let settings = SettingsManager(userDefaults: defaults)
+        settings.updateInterface { $0.hiddenLibraryIds = ["5"] }
+        settings.adoptLegacyLibraries(on: [serverA])
+        settings.updateLibraryPreferences(profileID: "parent") {
+            $0.setHidden(LibraryIdentity(server: serverA, libraryID: "5"), hidden: false)
+        }
+
+        settings.removeSettings(of: [serverA])
+
+        #expect(settings.interface.familyLibraries == nil)
+        #expect(settings.interface.librariesByProfile.isEmpty)
+        #expect(settings.libraryPreferences(profileID: "kid") == LibraryPreferences())
     }
 
     @Test func `per profile settings survive a reload`() {

@@ -1,4 +1,5 @@
 import Foundation
+import PlinxCore
 
 extension MediaTrackMetadata {
     init(jellyfinStream: JellyfinMediaStream) {
@@ -74,7 +75,10 @@ extension MediaItem {
                     MediaRating(source: .jellyfinCritics, value: $0)
                 },
             ].compactMap(\.self),
-            contentRating: jellyfinItem.officialRating,
+            contentRating: JellyfinContentRating.resolve(
+                official: jellyfinItem.officialRating,
+                custom: jellyfinItem.customRating,
+            ),
             studio: jellyfinItem.studios?.first?.name,
             tagline: jellyfinItem.taglines?.first,
             thumbPath: primaryPath,
@@ -188,6 +192,43 @@ extension Person {
                 tag: jellyfinPerson.primaryImageTag,
             ),
         )
+    }
+}
+
+/// The one rating Plinx judges and shows for a Jellyfin item.
+///
+/// Jellyfin keeps two ratings: `OfficialRating` from the title's metadata, and `CustomRating`, which an admin sets
+/// to rate a title differently (Jellyfin's own parental controls use it in place of the official one). Plinx takes
+/// the stricter of the two it can read, so a custom rating can tighten a recognized official rating but never
+/// loosen it:
+///   • an adult-only rating in either one wins;
+///   • of two ratings `ContentRatingNormalizer` recognizes, the more severe wins (the official one on a tie);
+///   • a rating Plinx cannot read never replaces one it can;
+///   • when Plinx can read neither, the custom one wins, as on Jellyfin. Both count as unrated.
+///
+/// The result is stored as the item's `contentRating`, so the safety boundary, downloads and favorites all judge it.
+enum JellyfinContentRating {
+    static func resolve(official: String?, custom: String?) -> String? {
+        let official = nonEmpty(official)
+        guard let custom = nonEmpty(custom) else { return official }
+        guard let official else { return custom }
+        switch (ContentRatingNormalizer.classify(official), ContentRatingNormalizer.classify(custom)) {
+        case (.adultOnly, _):
+            return official
+        case (_, .adultOnly):
+            return custom
+        case let (.rated(officialRating), .rated(customRating)):
+            return customRating > officialRating ? custom : official
+        case (.rated, .unrated):
+            return official
+        case (.unrated, .rated), (.unrated, .unrated):
+            return custom
+        }
+    }
+
+    private static func nonEmpty(_ value: String?) -> String? {
+        let value = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return value?.isEmpty == false ? value : nil
     }
 }
 

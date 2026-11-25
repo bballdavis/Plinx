@@ -112,6 +112,11 @@ targets:
         NSLocalNetworkUsageDescription: Plinx connects to your Plex and Jellyfin media servers and an optional parent-configured Youtarr service on your local network.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
+        # Picture in Picture and background audio need the audio background
+        # mode. Both are parent settings, off by default; otherwise the player
+        # closes when the app backgrounds (PlayerBackgroundPolicy).
+        UIBackgroundModes:
+          - audio
         UILaunchStoryboardName: LaunchScreen
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait

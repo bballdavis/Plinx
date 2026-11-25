@@ -29,13 +29,6 @@ final class PlayerViewModel {
         liveContext != nil
     }
 
-    /// Live streams cannot play faster than real time, and SharePlay takes the group's rate.
-    /// Always normal speed in Plinx: the default playback speed setting (#334) is not offered, and a value stored
-    /// before is ignored.
-    func initialPlaybackRate(settings _: PlaybackSettings, isSharePlay _: Bool) -> Float {
-        1.0
-    }
-
     var liveChannel: LiveTVChannel? {
         liveContext?.channel
     }
@@ -432,12 +425,13 @@ final class PlayerViewModel {
     func makeNextPlayerViewModel() -> PlayerViewModel? {
         #if !os(tvOS)
             if isLocalPlayback {
-                // Offline chaining only uses downloaded episodes. The offline store is read directly, so the next
-                // episode must pass the gate before anything of it shows.
                 guard let media,
-                      let next = DownloadManager.shared?.nextDownloadedEpisode(after: media),
-                      let request = DownloadManager.shared?.localPlaybackRequest(for: next, resumes: false),
-                      ContentSafetyGate.shared.isAllowed(request.media)
+                      let downloads = DownloadManager.shared,
+                      let request = Self.chainedLocalPlaybackRequest(
+                          next: downloads.nextDownloadedEpisode(after: media),
+                          policy: DownloadAccessPolicy(downloadManager: downloads),
+                          playbackRequest: { downloads.localPlaybackRequest(for: $0, resumes: false) },
+                      )
                 else { return nil }
                 return PlayerViewModel(request: request)
             }
@@ -448,6 +442,22 @@ final class PlayerViewModel {
             shouldResumeFromOffset: false,
         )
     }
+
+    #if !os(tvOS)
+        /// Offline chaining only uses downloaded episodes, read from the device instead of through the boundary.
+        /// The next episode is played only when `DownloadAccessPolicy` allows it, the same decision the downloads
+        /// grid, the detail page and the launcher make: it belongs to the active profile, and both the metadata stored
+        /// with it and the server metadata pinned for it pass the gate. Anything else ends the chain, so an episode
+        /// the downloads grid hides never reaches the next-episode card.
+        static func chainedLocalPlaybackRequest(
+            next: DownloadItem?,
+            policy: DownloadAccessPolicy,
+            playbackRequest: (DownloadItem) -> LocalPlaybackRequest?,
+        ) -> LocalPlaybackRequest? {
+            guard let next, policy.decision(for: next) == .allowed else { return nil }
+            return playbackRequest(next)
+        }
+    #endif
 
     func makePlayerViewModel(
         at index: Int,

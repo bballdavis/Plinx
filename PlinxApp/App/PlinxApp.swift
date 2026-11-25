@@ -1,3 +1,4 @@
+import Observation
 import PlinxCore
 import PlinxUI
 import SwiftUI
@@ -28,7 +29,10 @@ import UIKit
 // view models initialised with `SessionManager`/`SettingsManager`.
 //
 // The SafetyPolicy computed here is pushed into `ContentSafetyGate.shared`
-// before any session hydrates, and kept in sync with the parental gate.
+// before any session hydrates. `ContentSafetyBoundary` then keeps the gate
+// equal to that policy and to the effective parental gate, and
+// `ParentalSceneLock` relocks the parental gate when the app leaves the
+// foreground.
 // ─────────────────────────────────────────────────────────────────────────────
 
 @main
@@ -52,7 +56,9 @@ struct PlinxApp: App {
     #endif
 
     // ── Plinx layer ─────────────────────────────────────────────────────
-    @State private var parentalAccessCoordinator = ParentalAccessCoordinator()
+    @State private var parentalAccessCoordinator: ParentalAccessCoordinator
+    @State private var parentalSceneLock: ParentalSceneLock
+    @State private var safetyBoundary: ContentSafetyBoundary
     @State private var watchStatusStore = PlinxWatchStatusStore()
     @StateObject private var playbackLaunchCoordinator = PlaybackLaunchCoordinator()
     @StateObject private var playbackCoordinator = PlaybackCoordinator()
@@ -113,6 +119,14 @@ struct PlinxApp: App {
     // MARK: - Init (dependency construction)
 
     init() {
+        let familyParentalAccess = ParentalAccessCoordinator()
+        _parentalAccessCoordinator = State(initialValue: familyParentalAccess)
+        _parentalSceneLock = State(initialValue: ParentalSceneLock(deferral: .shared, lock: {
+            familyParentalAccess.lock()
+            DemoPreferences.parentalAccess.lock()
+        }))
+        _safetyBoundary = State(initialValue: ContentSafetyBoundary(gate: .shared))
+
         let processEnvironment = ProcessInfo.processInfo.environment
         ReleaseScreenshotCaptureMode.installNetworkMutationBlockerIfNeeded()
         LivePlexUITestBootstrap.primeCredentialsIfNeeded(environment: processEnvironment)
@@ -179,7 +193,11 @@ struct PlinxApp: App {
                 .environment(\.sharePlayPresentationPolicy, .hidden)
                 .environment(\.plinxTheme, theme)
                 .environment(\.safetyPolicy, safetyPolicy)
-                .modifier(ContentSafetyBoundarySync(policy: safetyPolicy, parentalAccess: effectiveParentalAccess))
+                .modifier(ContentSafetyBoundarySync(
+                    boundary: safetyBoundary,
+                    policy: safetyPolicy,
+                    parentalAccess: effectiveParentalAccess
+                ))
                 // ── Global configuration ────────────────────────────
                 .toastHost()
                 .preferredColorScheme(.dark)
@@ -193,16 +211,15 @@ struct PlinxApp: App {
                     AppearanceSetup.apply(theme, accentColor: UIColor(accentColor))
                 }
                 .onChange(of: scenePhase) { _, newPhase in
-                    // Protected UI never survives leaving the foreground.
-                    if newPhase != .active {
-                        parentalAccessCoordinator.lock()
-                        DemoPreferences.parentalAccess.lock()
-                    }
+                    // Protected UI never survives leaving the foreground; an
+                    // account sign-in in progress defers it, bounded.
+                    parentalSceneLock.scenePhaseChanged(to: newPhase)
                 }
                 // ── Lifecycle hardening ─────────────────────────────
                 .lifecycleHardening(
                     coordinator: playbackCoordinator,
-                    mainCoordinator: mainCoordinator
+                    mainCoordinator: mainCoordinator,
+                    settingsManager: isDemoSession ? DemoPreferences.settings : settingsManager
                 )
             #if !os(tvOS)
                 // ── Touch-only baby lock overlay ───────────────────
@@ -243,27 +260,235 @@ enum PlinxSafetyPreferences {
 
 // MARK: - Safety boundary synchronisation
 
-/// Keeps `ContentSafetyGate.shared` equal to the policy the app computes and
-/// to the effective parental gate (the demo has its own coordinator).
+/// Keeps `ContentSafetyGate` equal to the policy the app computes and to the
+/// effective parental gate (the sample library has its own coordinator).
+///
+/// Parent-only abilities behind the boundary (server rights, management,
+/// deletion, playlist edits, subtitle downloads) read
+/// `ContentSafetyGate.isParentUnlocked`, so a relock must reach the gate
+/// whatever locked the coordinator, whether or not a view updates. The
+/// boundary observes the coordinator itself: when an unlocked coordinator is
+/// about to change, the gate closes at once, before the coordinator stores its
+/// new state, and the new state is copied on the next main-actor turn. The
+/// gate only opens while that observation is armed, and a coordinator that
+/// stays locked never writes to the gate.
+@MainActor
+final class ContentSafetyBoundary {
+    let gate: ContentSafetyGate
+    /// The coordinator the gate follows; `nil` until the first `update`, when the gate stays locked.
+    private(set) var parentalAccess: ParentalAccessCoordinator?
+    /// Bumped for every observation, so a callback armed earlier or for a replaced coordinator does nothing.
+    private var generation = 0
+    /// Whether a change of `parentalAccess` will reach `coordinatorWillChange`; observation fires once.
+    private var isObserving = false
+
+    init(gate: ContentSafetyGate) {
+        self.gate = gate
+    }
+
+    /// Applies `policy` and makes the gate follow `parentalAccess` from now on, in place of any previous coordinator.
+    func update(policy: SafetyPolicy, parentalAccess: ParentalAccessCoordinator) {
+        if gate.policy != policy {
+            gate.policy = policy
+        }
+        if self.parentalAccess !== parentalAccess {
+            self.parentalAccess = parentalAccess
+            observe(parentalAccess)
+        }
+        synchronizeParentAccess()
+    }
+
+    private func synchronizeParentAccess() {
+        guard let parentalAccess else {
+            if gate.isParentUnlocked {
+                gate.isParentUnlocked = false
+            }
+            return
+        }
+        if !isObserving {
+            // Never open the gate without following the coordinator's next change.
+            observe(parentalAccess)
+        }
+        if gate.isParentUnlocked != parentalAccess.isUnlocked {
+            gate.isParentUnlocked = parentalAccess.isUnlocked
+        }
+    }
+
+    private func observe(_ coordinator: ParentalAccessCoordinator) {
+        generation += 1
+        let generation = generation
+        let wasUnlocked = coordinator.isUnlocked
+        isObserving = true
+        withObservationTracking {
+            _ = coordinator.isUnlocked
+        } onChange: { [weak self] in
+            // Called on the main actor (the coordinator is main-actor isolated), before the change is stored.
+            MainActor.assumeIsolated {
+                self?.coordinatorWillChange(generation: generation, wasUnlocked: wasUnlocked)
+            }
+        }
+    }
+
+    private func coordinatorWillChange(generation: Int, wasUnlocked: Bool) {
+        guard generation == self.generation else { return }
+        isObserving = false
+        if wasUnlocked {
+            // Fail closed: a parent session that may be ending grants nothing from now on.
+            gate.isParentUnlocked = false
+        }
+        Task { @MainActor [weak self] in
+            // A newer observation (a synchronization or another coordinator) has taken over.
+            guard let self, generation == self.generation, let coordinator = parentalAccess else { return }
+            if wasUnlocked || coordinator.isUnlocked {
+                synchronizeParentAccess()
+            } else {
+                observe(coordinator)
+            }
+        }
+    }
+}
+
+/// Feeds `ContentSafetyBoundary` the policy and the effective parental gate as
+/// the scene computes them. The boundary follows the coordinator on its own;
+/// the lock-state change here is a second path to the same idempotent update.
 private struct ContentSafetyBoundarySync: ViewModifier {
+    let boundary: ContentSafetyBoundary
     let policy: SafetyPolicy
     let parentalAccess: ParentalAccessCoordinator
 
     func body(content: Content) -> some View {
         content
-            .onAppear(perform: synchronize)
-            .onChange(of: policy) { _, _ in synchronize() }
-            .onChange(of: parentalAccess.isUnlocked) { _, _ in synchronize() }
-            .onChange(of: ObjectIdentifier(parentalAccess)) { _, _ in synchronize() }
+            .onAppear(perform: update)
+            .onChange(of: policy) { _, _ in update() }
+            .onChange(of: parentalAccess.isUnlocked) { _, _ in update() }
+            .onChange(of: ObjectIdentifier(parentalAccess)) { _, _ in update() }
     }
 
-    private func synchronize() {
-        let gate = ContentSafetyGate.shared
-        if gate.policy != policy {
-            gate.policy = policy
+    private func update() {
+        boundary.update(policy: policy, parentalAccess: parentalAccess)
+    }
+}
+
+// MARK: - Relock on leaving the foreground
+
+/// Account sign-ins that send the parent outside the app: Plex's web sign-in,
+/// with its system sign-in prompt, the Safari fallback, or a switch to a
+/// password manager, an authenticator or email. While a sign-in holds a lease,
+/// leaving the foreground does not relock the parental gate at once, which
+/// would tear Settings, and the sign-in inside it, down.
+/// `ParentalSceneLock` bounds the wait.
+///
+/// Leases are held weakly: a sign-in torn down without ending its lease stops
+/// counting once it is deallocated, so a lost lease never keeps the gate open.
+@MainActor
+final class ParentalRelockDeferral {
+    final class Lease {
+        fileprivate init() {}
+    }
+
+    private struct WeakLease {
+        weak var lease: Lease?
+    }
+
+    static let shared = ParentalRelockDeferral()
+
+    /// Called when the last lease ends, so a relock deferred while the app was away happens then.
+    var onLastLeaseEnded: (@MainActor () -> Void)?
+
+    private var leases: [WeakLease] = []
+
+    init() {}
+
+    var isActive: Bool {
+        leases.removeAll { $0.lease == nil }
+        return !leases.isEmpty
+    }
+
+    func begin() -> Lease {
+        let lease = Lease()
+        leases.append(WeakLease(lease: lease))
+        return lease
+    }
+
+    func end(_ lease: Lease) {
+        let wasActive = isActive
+        leases.removeAll { $0.lease == nil || $0.lease === lease }
+        if wasActive, leases.isEmpty {
+            onLastLeaseEnded?()
         }
-        if gate.isParentUnlocked != parentalAccess.isUnlocked {
-            gate.isParentUnlocked = parentalAccess.isUnlocked
+    }
+}
+
+/// Relocks the parental gate whenever the app leaves the foreground (any
+/// scene phase other than `.active`), so protected UI never survives the
+/// parent leaving.
+///
+/// While an account sign-in holds a `ParentalRelockDeferral` lease the relock
+/// waits, so a parent can add or reconnect an account from Settings. It
+/// happens as soon as the sign-in ends while the app is still away, or when
+/// the app comes back after more than `gracePeriod`. Coming back sooner keeps
+/// the parent where they were.
+@MainActor
+final class ParentalSceneLock {
+    /// Long enough to find a password or a one-time code in another app; short
+    /// enough that a device left on a half-finished sign-in relocks before a
+    /// child picks it up.
+    nonisolated static let signInGracePeriod: TimeInterval = 5 * 60
+
+    private let deferral: ParentalRelockDeferral
+    private let gracePeriod: TimeInterval
+    private let now: () -> Date
+    private let lock: @MainActor () -> Void
+    private var phase: ScenePhase = .active
+    /// When the app left the foreground with the relock deferred; `nil` otherwise.
+    private var deferredSince: Date?
+
+    init(
+        deferral: ParentalRelockDeferral,
+        gracePeriod: TimeInterval = ParentalSceneLock.signInGracePeriod,
+        now: @escaping () -> Date = Date.init,
+        lock: @escaping @MainActor () -> Void
+    ) {
+        self.deferral = deferral
+        self.gracePeriod = gracePeriod
+        self.now = now
+        self.lock = lock
+        followDeferral()
+    }
+
+    func scenePhaseChanged(to newPhase: ScenePhase) {
+        followDeferral()
+        phase = newPhase
+        if newPhase == .active {
+            if let deferredSince, !deferral.isActive || hasExpired(since: deferredSince) {
+                relock()
+            }
+            deferredSince = nil
+        } else if !deferral.isActive {
+            relock()
+        } else if let deferredSince {
+            if hasExpired(since: deferredSince) {
+                relock()
+            }
+        } else {
+            deferredSince = now()
+        }
+    }
+
+    private func hasExpired(since start: Date) -> Bool {
+        now().timeIntervalSince(start) > gracePeriod
+    }
+
+    private func relock() {
+        deferredSince = nil
+        lock()
+    }
+
+    /// Re-registered on every phase change, so the instance the app keeps is the one called.
+    private func followDeferral() {
+        deferral.onLastLeaseEnded = { [weak self] in
+            guard let self, phase != .active else { return }
+            relock()
         }
     }
 }

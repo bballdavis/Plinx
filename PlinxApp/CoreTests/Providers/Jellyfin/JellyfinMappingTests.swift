@@ -169,4 +169,61 @@ struct JellyfinMappingTests {
         #expect(JellyfinArtworkPath.make(ownerID: "movie-1", type: "Primary", tag: nil) == nil)
         #expect(JellyfinArtworkPath.parse("https://example.com/image") == nil)
     }
+
+    // MARK: - Content rating
+
+    @Test func `maps a custom rating stricter than the official one`() throws {
+        let json = #"{"Id":"movie-2","Name":"Restricted","Type":"Movie","OfficialRating":"PG","CustomRating":"R"}"#
+        let item = try JSONDecoder().decode(JellyfinItem.self, from: Data(json.utf8))
+
+        #expect(item.officialRating == "PG")
+        #expect(item.customRating == "R")
+        #expect(MediaItem(jellyfinItem: item, server: server).contentRating == "R")
+    }
+
+    @Test func `judges the stricter of the official and custom ratings`() {
+        let cases: [(official: String?, custom: String?, judged: String?)] = [
+            ("PG-13", nil, "PG-13"),
+            ("PG-13", "  ", "PG-13"),
+            (nil, "R", "R"),
+            ("", "TV-14", "TV-14"),
+            (nil, nil, nil),
+            // Of two recognized ratings, the more severe one, on either scale.
+            ("PG", "R", "R"),
+            ("TV-Y7", "TV-14", "TV-14"),
+            ("TV-PG", "PG-13", "PG-13"),
+            // A custom rating never loosens a recognized official one.
+            ("R", "PG", "R"),
+            ("PG-13", "TV-Y7", "PG-13"),
+            ("PG", "PG", "PG"),
+            // Adult-only wins from either side.
+            ("G", "NC-17", "NC-17"),
+            ("NC-17", "G", "NC-17"),
+            ("PG", "X", "X"),
+            // A rating Plinx cannot read never replaces one it can.
+            ("PG", "15", "PG"),
+            ("Not Rated", "TV-MA", "TV-MA"),
+            // Neither readable: the custom one, as on Jellyfin. Both are unrated.
+            ("Not Rated", "Approved", "Approved"),
+        ]
+        for (official, custom, judged) in cases {
+            #expect(
+                JellyfinContentRating.resolve(official: official, custom: custom) == judged,
+                "official \(official ?? "nil"), custom \(custom ?? "nil")"
+            )
+        }
+    }
+
+    @Test func `every item field list asks for the custom rating`() {
+        let lists = [
+            JellyfinCatalogService.cardFields,
+            JellyfinCatalogService.detailFields,
+            JellyfinCatalogService.playbackFields,
+            JellyfinCatalogService.featuredFields,
+            JellyfinCatalogService.queueFields,
+        ]
+        for fields in lists {
+            #expect(fields.split(separator: ",").contains("CustomRating"), "\(fields)")
+        }
+    }
 }

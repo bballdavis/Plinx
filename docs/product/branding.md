@@ -621,7 +621,8 @@ seasons are present.
 
 The tvOS action row offers Play, Restart when available, Watched, and
 **Favorite** when the server supports favorites. Kids can favorite titles; it
-is a harmless account write. Below the detail column, an **Extras** row shows
+is a harmless account write, and favorites appear in the **My Favorites** row
+on Home on both platforms. Below the detail column, an **Extras** row shows
 the server's trailers and clips, which play in the Plinx player and pass the
 same content checks as any other title. The tvOS detail page has no Manage
 menu, file information, playlist editing, or track pickers.
@@ -1080,9 +1081,12 @@ Rules:
 Gating (`PlinxProfileSwitchRules`):
 
 - Continuing as the last active profile opens without the parental gate.
+  With no profile remembered as last active, every choice asks for the gate.
 - Choosing a different profile, Manage profiles, adding a connection, and
   Log Out ask for the parental gate first, unless Settings already unlocked
   it. The gate relocks after the action.
+- The profile-management sheet (modal on Apple TV) shows the parental gate in
+  place of its content whenever the gate is locked, as Settings does.
 - Log Out removes every account (Plex and Jellyfin) and asks for confirmation.
 - The profile choice inside first-time account setup is a grown-up step and is
   not gated again.

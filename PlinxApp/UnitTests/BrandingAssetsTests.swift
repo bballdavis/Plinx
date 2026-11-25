@@ -53,6 +53,45 @@ final class BrandingAssetsTests: XCTestCase {
         XCTAssertTrue(storyboard?.contains("constant=\"260\"") == true)
     }
 
+    /// Zero collection: Trakt and Simkl sync and upstream error reporting were removed, so the
+    /// shipped copy must not describe them (docs/security/privacy-and-safety.md).
+    func test_stringCatalog_shipsNoTrackerOrErrorReportCopy() throws {
+        let catalogURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Resources/Localizable.xcstrings")
+        let catalogData = try Data(contentsOf: catalogURL)
+        let catalog = try XCTUnwrap(JSONSerialization.jsonObject(with: catalogData) as? [String: Any])
+        let strings = try XCTUnwrap(catalog["strings"] as? [String: Any])
+        XCTAssertFalse(strings.isEmpty)
+
+        let removedKeyPrefixes = ["settings.privacy.", "integrations.trackers."]
+        for key in strings.keys where removedKeyPrefixes.contains(where: { key.hasPrefix($0) }) {
+            XCTFail("Removed tracker or error-report copy is back in the string catalog: \(key)")
+        }
+        let catalogText = String(decoding: catalogData, as: UTF8.self).lowercased()
+        XCTAssertFalse(catalogText.contains("trakt"))
+        XCTAssertFalse(catalogText.contains("simkl"))
+
+        let missing = "plinx.test.missing-localization"
+        XCTAssertNotEqual(
+            Bundle.main.localizedString(forKey: "settings.server.connection", value: missing, table: nil),
+            missing,
+            "The app's compiled string table must be readable for the checks below to mean anything"
+        )
+        for key in [
+            "settings.privacy.trackers",
+            "settings.privacy.errorReports",
+            "settings.privacy.errorReports.footer",
+        ] {
+            XCTAssertEqual(
+                Bundle.main.localizedString(forKey: key, value: missing, table: nil),
+                missing,
+                "The app bundle still ships \(key)"
+            )
+        }
+    }
+
     func test_signInPrimaryButtonStyleSemantic_isLiquidGlassPrimary() {
         XCTAssertEqual(PlinxBrandingSemantics.signInPrimaryButtonStyleValue, "liquidGlassPrimary")
     }

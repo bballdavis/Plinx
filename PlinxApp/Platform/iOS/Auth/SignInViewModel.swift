@@ -14,6 +14,9 @@ final class SignInViewModel {
     @ObservationIgnored private let presentationContextProvider = WebAuthenticationPresentationContextProvider()
     @ObservationIgnored private let onToken: (String) async throws -> Void
     @ObservationIgnored private let plexContext = PlexAPIContext()
+    /// Held while the sign-in runs: Plex's sign-in leaves the app (its system prompt, Safari, a password manager), and
+    /// relocking the parental gate then would tear down Settings and this sign-in with it (`ParentalSceneLock`).
+    @ObservationIgnored private var relockDeferral: ParentalRelockDeferral.Lease?
 
     init(onToken: @escaping (String) async throws -> Void) {
         self.onToken = onToken
@@ -23,6 +26,7 @@ final class SignInViewModel {
         cancelSignIn()
         errorMessage = nil
         isAuthenticating = true
+        relockDeferral = ParentalRelockDeferral.shared.begin()
 
         do {
             await plexContext.waitForBootstrap()
@@ -56,6 +60,11 @@ final class SignInViewModel {
 
         authSession?.cancel()
         authSession = nil
+
+        if let relockDeferral {
+            self.relockDeferral = nil
+            ParentalRelockDeferral.shared.end(relockDeferral)
+        }
     }
 
     /// The product name matches the `X-Plex-Product` header, so plex.tv names the device after the host app.

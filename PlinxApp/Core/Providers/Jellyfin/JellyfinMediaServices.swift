@@ -713,7 +713,7 @@ final class JellyfinMediaServiceAdapter: MediaHomeService, MediaLibraryService, 
     }
 
     func queue(playlistID: String, startingWith entry: PlaylistEntry) async throws -> PlaybackQueue {
-        let values = try await catalog.playlistItems(id: playlistID, fields: "Chapters,Trickplay")
+        let values = try await catalog.playlistItems(id: playlistID, fields: JellyfinCatalogService.queueFields)
             .filter(\.isPlayable)
         let entries = JellyfinPlaylistService.entries(from: values, server: server)
         let queueItems = values.map {
@@ -880,75 +880,6 @@ final class JellyfinMediaServiceAdapter: MediaHomeService, MediaLibraryService, 
         } catch {
             guard !Task.isCancelled, !error.isCancellation else { return }
             ErrorReporter.capture(error)
-        }
-    }
-
-    func externalPlaybackTarget(
-        for media: MediaItem,
-        version: MediaVersionRequest,
-    ) async throws -> ExternalPlaybackTarget {
-        let item = try await catalog.item(id: media.id)
-        let access = try context.externalMediaAccess()
-        let url = try Self.externalPlaybackURL(
-            item: item,
-            version: version,
-            baseURL: access.baseURL,
-            token: access.token,
-        )
-        var target = ExternalPlaybackTarget(url: url, media: media)
-        target.subtitles = try Self.externalSubtitleURLs(
-            item: item,
-            version: version,
-            baseURL: access.baseURL,
-            token: access.token,
-        )
-        return target
-    }
-
-    /// The container extension tells the player the file format.
-    static func externalPlaybackURL(
-        item: JellyfinItem,
-        version: MediaVersionRequest,
-        baseURL: URL,
-        token: String,
-    ) throws -> URL {
-        let sources = item.mediaSources ?? []
-        guard let source = source(in: sources, versions: sources.map(mapFileInfoVersion), request: version) else {
-            throw ExternalPlaybackError.noPlayableSource
-        }
-        let container = MediaVersionSignature.normalizedContainer(source.container)
-        return try JellyfinAPIContext.makeURL(
-            baseURL: baseURL,
-            path: ["Videos", item.id, container.isEmpty ? "stream" : "stream.\(container)"],
-            query: [
-                URLQueryItem(name: "Static", value: "true"),
-                URLQueryItem(name: "MediaSourceId", value: source.id),
-                URLQueryItem(name: "api_key", value: token),
-            ],
-        )
-    }
-
-    /// External text subtitles converted to SRT by the server: the player reads the embedded tracks from the file
-    /// itself. The source default comes first.
-    static func externalSubtitleURLs(
-        item: JellyfinItem,
-        version: MediaVersionRequest,
-        baseURL: URL,
-        token: String,
-    ) throws -> [URL] {
-        let sources = item.mediaSources ?? []
-        guard let source = source(in: sources, versions: sources.map(mapFileInfoVersion), request: version) else {
-            return []
-        }
-        let external = (source.mediaStreams ?? []).filter { $0.isExternal == true && $0.isDownloadableTextSubtitle }
-        let ordered = external.filter { $0.index == source.defaultSubtitleStreamIndex }
-            + external.filter { $0.index != source.defaultSubtitleStreamIndex }
-        return try ordered.map { stream in
-            try JellyfinAPIContext.makeURL(
-                baseURL: baseURL,
-                path: ["Videos", item.id, source.id, "Subtitles", String(stream.index), "0", "Stream.srt"],
-                query: [URLQueryItem(name: "api_key", value: token)],
-            )
         }
     }
 

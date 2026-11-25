@@ -294,6 +294,9 @@ Validates the app bundle inside an `.xcarchive` before you upload it.
 - `PrivacyInfo.xcprivacy` exists in the app bundle
 - `Assets.car` exists in the app bundle
 - no Sentry bundle or obvious telemetry/secret marker is embedded
+- no Trakt or Simkl code or strings ship: it scans every file in the bundle,
+  and decodes each compiled string table and property list first, because
+  those store non-ASCII values as UTF-16
 
 ### App Store Screenshot Validation
 

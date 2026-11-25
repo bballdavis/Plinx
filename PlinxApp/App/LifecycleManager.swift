@@ -4,8 +4,27 @@ import UIKit
 #endif
 import PlinxCore
 
+/// Decides whether leaving the foreground closes the player.
+///
+/// Closing is the default, so nothing plays outside the app unless a parent
+/// allows it. On iPhone and iPad a parent can turn on Picture in Picture or
+/// background audio in protected settings; the player then stays open and
+/// `PlayerView` decides on its own, as upstream does: it keeps playing in a
+/// Picture in Picture window or as background audio, and pauses otherwise.
+/// tvOS offers neither setting, so its player always closes.
+enum PlayerBackgroundPolicy {
+    static func closesPlayerOnBackground(_ playback: PlaybackSettings) -> Bool {
+        #if os(tvOS)
+        return true
+        #else
+        return !(playback.pictureInPicture || playback.backgroundAudio)
+        #endif
+    }
+}
+
 /// Applies lifecycle hardening to the Plinx app:
-/// - Stops playback and tears down the player engine when the app backgrounds.
+/// - Stops playback and tears down the player engine when the app backgrounds,
+///   unless a parent allowed playback outside the app (`PlayerBackgroundPolicy`).
 /// - Automatically re-presents the player and resumes playback on foreground return.
 /// - Stops playback on low-memory warnings.
 /// - Stops playback when the screen is captured.
@@ -30,6 +49,8 @@ struct LifecycleHardeningModifier: ViewModifier {
 
     let coordinator: PlaybackCoordinator
     let mainCoordinator: MainCoordinator
+    /// The settings the player reads; the App Review sample library has its own.
+    let settingsManager: SettingsManager
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -40,6 +61,15 @@ struct LifecycleHardeningModifier: ViewModifier {
             .onChange(of: scenePhase) {
                 let newPhase = scenePhase
                 if newPhase == .background {
+                    guard PlayerBackgroundPolicy.closesPlayerOnBackground(settingsManager.playback) else {
+                        // A parent allowed Picture in Picture or background
+                        // audio. Closing the player here would end both, so it
+                        // stays open and pauses itself unless one of them
+                        // keeps it playing.
+                        suspendedPlayback = nil
+                        return
+                    }
+
                     coordinator.handleBackgrounding()
 
                     // Stash the active playback before tearing down so the
@@ -115,11 +145,13 @@ struct LifecycleHardeningModifier: ViewModifier {
 extension View {
     func lifecycleHardening(
         coordinator: PlaybackCoordinator,
-        mainCoordinator: MainCoordinator
+        mainCoordinator: MainCoordinator,
+        settingsManager: SettingsManager
     ) -> some View {
         modifier(LifecycleHardeningModifier(
             coordinator: coordinator,
-            mainCoordinator: mainCoordinator
+            mainCoordinator: mainCoordinator,
+            settingsManager: settingsManager
         ))
     }
 }

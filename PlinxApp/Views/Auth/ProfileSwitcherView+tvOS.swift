@@ -9,7 +9,7 @@ import SwiftUI
 // upstream's tvOS picker was not kept). Dark Plinx surfaces, the shared
 // focus ring, and a remote-friendly PIN keypad driven by the shared
 // `ProfileSwitcherViewModel`. Parental rules: see `PlinxProfileSwitchRules`
-// and the iOS picker.
+// and the iOS picker; the profile-management modal is re-gated the same way.
 // ─────────────────────────────────────────────────────────────────────────────
 
 @MainActor
@@ -126,13 +126,19 @@ struct ProfileSwitcherView: View {
             Text(Self.logoutMessage)
         }
         .taskPresentation(item: $managementSheet, style: .compactModal, onDismiss: managementDidClose) { sheet in
-            switch sheet {
-            case .profiles:
-                NavigationStack { ProfilesSettingsView() }
-            case let .connection(profile):
-                TaskModalNavigationView {
-                    ProfileDetailView(profileID: profile.id, startsWithNewConnection: true)
+            // Re-gated like Settings: the gate relocks when the app leaves the
+            // foreground, and profile management must not outlive it.
+            if parentalAccess.isUnlocked {
+                switch sheet {
+                case .profiles:
+                    NavigationStack { ProfilesSettingsView() }
+                case let .connection(profile):
+                    TaskModalNavigationView {
+                        ProfileDetailView(profileID: profile.id, startsWithNewConnection: true)
+                    }
                 }
+            } else {
+                ParentalGateView(onAllowed: {})
             }
         }
         .plinxParentalApproval($parentalRequest)

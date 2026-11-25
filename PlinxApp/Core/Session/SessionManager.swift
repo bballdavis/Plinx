@@ -34,7 +34,9 @@ final class SessionManager {
         /// No account yet: first launch.
         case needsAccount
         case needsProfileSelection
-        /// The one-time migration could not finish (Keychain or plex.tv unavailable); it is retried.
+        /// The one-time migration could not finish (Keychain or plex.tv unavailable); it is retried. Meanwhile, on an
+        /// iPhone or iPad with no network, the profile pre-fork Plinx last signed in keeps its own downloads
+        /// (`PlinxLegacyOfflineSession`); no other profile's downloads are listed.
         case migrationFailed
         case ready
     }
@@ -82,6 +84,13 @@ final class SessionManager {
         self.versionSelectionStore = versionSelectionStore
         self.accountStore = accountStore
         self.profileStore = profileStore
+        // Libraries hidden before the update for a server it did not know apply to the first Plex servers listed,
+        // as the previous version applied them to the next server chosen (see `MultiServerMigration`).
+        accountStore.willCacheResources = { resources in
+            settingsManager.adoptLegacyLibraries(
+                on: resources.map { ServerIdentity(provider: .plex, id: $0.clientIdentifier) },
+            )
+        }
         #if os(tvOS)
             let availability = ServerAvailabilityMonitor()
         #else
@@ -183,6 +192,13 @@ final class SessionManager {
             settingsManager: settingsManager,
             favoritesStore: favoritesStore,
             resolvePlexUser: { token in
+                // Without plex.tv only the upstream offline keys name the token's user, and pre-fork Plinx never
+                // wrote them. Its own snapshot (`plinx.offlineSession.v1`) is deliberately not used here: it names
+                // the profile whose downloads played offline, not the user the token belongs to, and the account
+                // created from this user is kept for good. A wrong guess could pair a child's profile with another
+                // user's token. So an offline first launch after the update fails the migration (`migrationFailed`)
+                // and retries it when the network returns, while `PlinxLegacyOfflineSession` lists that profile's
+                // downloads.
                 #if !os(tvOS)
                     if let user = OfflineSessionStore().loadPlexUser(token: token), user.uuid != nil {
                         return user

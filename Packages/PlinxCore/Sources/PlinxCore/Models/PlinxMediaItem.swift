@@ -3,7 +3,7 @@ public struct PlinxMediaItem: Sendable, Equatable {
     public let title: String
     public let labels: [String]
     public let rating: PlinxRating?
-    /// Rated for adults only (NC-17, X, an 18 certificate): rejected by every policy, even one that allows
+    /// Rated for adults only (NC-17, X, an age certificate of 18 or older): rejected by every policy, even one that allows
     /// unrated content.
     public let isAdultOnly: Bool
 

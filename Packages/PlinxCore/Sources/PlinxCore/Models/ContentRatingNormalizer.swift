@@ -12,13 +12,14 @@
 //
 // in the spellings the servers produce: any case, `_` or spaces for `-`, a
 // `US-`/`US:`/`US/`/`US ` country prefix, a `Rated ` prefix, and a trailing
-// note after the rating ("PG-13 (US)", "R for violence").
+// note after the rating ("PG-13 (US)", "PG 13 (US)", "R for violence").
 //
 // Everything else is `.unrated`, which the safety policy rejects unless a
-// parent opts in to unrated content. Ratings that are explicitly adult (NC-17,
-// X, or an 18 certificate from any country) are `.adultOnly`: they sit above
-// every ceiling a parent can choose and are rejected even when unrated content
-// is allowed.
+// parent opts in to unrated content. Ratings that are explicitly adult are
+// `.adultOnly`: NC-17, X, and any age certificate of 18 or older from any
+// country ("18", "R18+", "FSK 18", "KR-19", "R21", "21+", "18A", "18SX").
+// They sit above every ceiling a parent can choose and are rejected even when
+// unrated content is allowed.
 //
 // Other national systems are deliberately not mapped onto US ratings. Add one
 // only with tests and a parent-visible mapping.
@@ -31,7 +32,7 @@ import Foundation
 public enum ContentRatingClassification: Sendable, Equatable {
     /// A recognized US movie or TV rating.
     case rated(PlinxRating)
-    /// Rated for adults only (NC-17, X, an 18 certificate). Never allowed.
+    /// Rated for adults only (NC-17, X, an age certificate of 18 or older). Never allowed.
     case adultOnly
     /// Missing, explicitly not rated, or a rating system Plinx does not map.
     /// Allowed only when the policy allows unrated content.
@@ -56,10 +57,15 @@ public enum ContentRatingNormalizer {
         if let classification = match(compact(value)) {
             return classification
         }
-        // A note after the rating: "PG-13 (US)", "R for violence".
+        // A note after the rating: "PG-13 (US)", "R for violence". The rating
+        // itself may contain spaces ("PG 13 (US)", "R 21 (SG)", "NC 17 for
+        // ..."), so the longest leading run of words that is a rating wins.
+        // Taking only the first word would read those as PG, R, or unrated.
         let tokens = value.split(separator: " ")
-        if tokens.count > 1, let classification = match(compact(String(tokens[0]))) {
-            return classification
+        for count in stride(from: tokens.count - 1, through: 1, by: -1) {
+            if let classification = match(compact(tokens[..<count].joined())) {
+                return classification
+            }
         }
         return .unrated
     }
@@ -90,7 +96,7 @@ public enum ContentRatingNormalizer {
         if let rating = movieRatings[key] {
             return .rated(rating)
         }
-        if adultRatings.contains(key) || isEighteenCertificate(key) {
+        if adultRatings.contains(key) || isAdultAgeCertificate(key) {
             return .adultOnly
         }
         if let rating = tvRating(key) {
@@ -110,15 +116,32 @@ public enum ContentRatingNormalizer {
         return nil
     }
 
-    /// "18", "18+", "R18", "R18+", or a short country/board code before 18 ("GB18", "DE18", "FSK18").
-    private static func isEighteenCertificate(_ key: String) -> Bool {
+    /// An age certificate of 18 or older from any country or board: a two-digit age of at least
+    /// 18 with an optional `+` on either side, any country, board or class letters before it, and
+    /// an optional class suffix of up to two letters after it.
+    ///
+    /// "18", "18+", "+18", "19", "21+", "R18+", "R21", "M18", "GB18", "DE18", "FSK18", "DEFSK18",
+    /// "KR19", "SGR21", "GERMANYFSK18", "18A", "18SX", "18SG". Ages under 18 ("12A", "MA15+",
+    /// "NC16") are not adult. The letters before the age are not limited in length, because a
+    /// spelled-out country ("South Korea:19") must not turn an adult rating into an unrated one.
+    private static func isAdultAgeCertificate(_ key: String) -> Bool {
         var body = Substring(key)
-        if body.hasSuffix("+") {
-            body = body.dropLast()
-        }
-        guard body.hasSuffix("18") else { return false }
-        let prefix = body.dropLast(2)
-        return prefix.count <= 4 && prefix.allSatisfy { $0.isASCII && $0.isLetter }
+        if body.hasPrefix("+") { body = body.dropFirst() }
+        if body.hasSuffix("+") { body = body.dropLast() }
+        let prefix = body.prefix(while: isASCIILetter)
+        let rest = body.dropFirst(prefix.count)
+        let digits = rest.prefix(while: { $0.isASCII && $0.isNumber })
+        let suffix = rest.dropFirst(digits.count)
+        guard digits.count == 2,
+              suffix.count <= 2,
+              suffix.allSatisfy(isASCIILetter),
+              let age = Int(digits)
+        else { return false }
+        return age >= 18
+    }
+
+    private static func isASCIILetter(_ character: Character) -> Bool {
+        character.isASCII && character.isLetter
     }
 
     // MARK: - Spelling
