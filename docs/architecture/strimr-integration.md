@@ -129,7 +129,7 @@ these treatments:
 |---|---|---|
 | `filtered` | Returns titles. Every one passes the gate, and a blocked subject throws `ContentSafetyError.blocked` | Home rows, library items and previews, search, detail and seasons, favorites, playlist entries, queues, `prepare`, `prepareDownload` |
 | `container` | Returns collections or playlists as they are; their entries are filtered when opened | `collections(in:)`, `playlists(in:)` |
-| `gated` | Parent-only: refused, empty or false unless the parental gate is unlocked | Server rights (`authorization`), every management action, playlist edits, subtitle search and install |
+| `gated` | Parent-only: refused, empty or false unless the parental gate is unlocked | Server rights (`authorization`), every management action, playlist edits, subtitle search and install, watchlist writes |
 | `passthrough` | Returns no titles: writes, reports, settings, or artwork of titles the caller already has | Played state, favorites writes, progress reports, artwork |
 | `disabled` | Never reaches the provider | Live TV and DVR, external playback, Plex letter indexes |
 
@@ -148,6 +148,12 @@ Later checks catch anything that reaches playback or storage some other way:
   `isPlaybackAuthorized` defaults to the gate.
 - `DownloadManager` checks every item before it enqueues a download, including
   each episode of a season or show.
+- Screens that hold titles loaded earlier or read from the device check them
+  with the gate again: Home rows and the hero (including the saved same-day
+  featured selection), search results (after dropping hidden libraries), the
+  "downloaded only" library listing, and offline next-episode chaining. The
+  [privacy and safety guide](../security/privacy-and-safety.md#later-checks)
+  lists them.
 
 ### Outside the boundary
 
@@ -191,6 +197,31 @@ policy hides titles at once. Items, the hero selection and tvOS focus memory
 are keyed by server plus item ID, because two servers can use the same ID.
 Upstream's Home hero carousel is not drawn, and the sanitizer turns it off.
 
+### Home library settings
+
+The parent's Home choices are stored in `UserDefaults` under
+`plinx.homeHiddenLibraryIds` (libraries hidden from Home) and
+`plinx.homeLibraryOrder` (their order). Each value is a
+`LibraryIdentity.stableKey` (`<provider>:<serverID>:<libraryID>`), so two
+servers that use the same library ID never share a setting.
+
+Builds before multi-server stored the plain library ID. `HomeLibrarySettingKeys`
+migrates those values when libraries load:
+
+- The migration waits until every enabled server's libraries have loaded, so
+  an ID is never matched while another server is still missing.
+- A plain ID that exactly one library has becomes that library's stable key.
+  Duplicates are dropped and the order is kept.
+- A plain ID that several libraries share, or none, is kept as stored rather
+  than guessed.
+
+`HomeRecentlyAddedProjection` reads both forms, so nothing a family set is
+lost either way. Turning a library back on removes its stable key; when an
+ambiguous plain ID was hiding it, that ID is replaced by the stable keys of
+the other libraries that share it, so they stay hidden. Library visibility
+(`Visible Libraries`) is a separate, per-profile setting and always wins: a
+hidden library is left out of Home whatever these keys say.
+
 ## Features Not Shipped
 
 - **Removed:** Trakt and Simkl sync (no viewing history leaves the device),
@@ -205,11 +236,44 @@ Upstream's Home hero carousel is not drawn, and the sanitizer turns it off.
 The [hard-fork plan](../maintenance/strimr-hard-fork-plan.md) records the
 reasoning and the later phases for Seerr, Live TV and Top Shelf.
 
+### Dormant on purpose
+
+Some upstream code compiles but is never reachable by a child. It is kept on
+purpose for planned work, so don't delete it as dead code, and don't wire it
+into a screen without that work and a privacy and safety review.
+
+| Area | Where | Why it is inert | Kept for |
+|---|---|---|---|
+| Seerr discovery and requests | `Core/Features/Seerr`, `SeerrStore` | Seerr view models build their own repositories and don't go through `MediaServices`. `PlinxSettingsSanitizer` turns off the discover tab and the Home hero, and the Seerr settings are hidden, so no kid screen opens them | The Seerr-in-Discover work: a `SeerrCatalogService` protocol behind the safety boundary, a Seerr user per kid, and certification filtering |
+| Live TV and DVR | `Core/Features/LiveTV` and each provider's Live TV service | `SafeMediaServices` replaces every provider's `liveTV` with `DisabledLiveTVService`, which is never available, so these screens can't load a channel. The player presentation also closes a Live TV presentation | A parent-approved channel allowlist. Program and channel models carry no rating, so per-item filtering can't fail closed |
+
+### Sample library and screenshots
+
+There is one sample-library mechanism: the App Review sample library in
+`App/` (`DemoFixtureBootstrap` with the loopback `DemoMediaServer`). It runs
+as a temporary account through the real session stores, server registry and
+safety boundary. UI tests and screenshot capture enter that same sample
+library; upstream's separate demo and screenshot mode was not kept. The
+[privacy and safety guide](../security/privacy-and-safety.md#local-sample-library)
+describes its guarantees, and
+[testing](../development/testing.md#app-review-demo-fixtures) how tests use it.
+
 ## Persisted Identifiers
 
 Keys that came from Strimr keep their names, such as the Keychain item
 `strimr.plex.authToken`. Renaming one would sign families out or reset what
-they saved. Add a migration if a rename is ever unavoidable.
+they saved. Add a migration if a rename is ever unavoidable. Plinx's own keys
+follow the same rule; for example the Home library settings keep their names
+and gained a value migration instead (see
+[Home library settings](#home-library-settings)).
+
+The same goes for the other identifiers stored on the device: the Keychain
+service fallback, the Top Shelf App Group and Keychain service, the background
+download session identifier, the `strimr-download://` artwork prefix in saved
+download metadata, and the trickplay cache folder. Everything else says Plinx:
+type names (for example `PlinxProfile` and `PlinxWatchActivity`), user-visible
+text, error domains, and log subsystems. Users see Strimr's name only where
+the about and licenses screens credit it.
 
 The Plex product identity reads the app's display name, so requests and the
 sign-in page say Plinx.

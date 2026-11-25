@@ -441,8 +441,8 @@ From `PlinxTheme.Typography.default`:
 Implementation note:
 
 - Typography uses the SF Rounded system design throughout the app.
-- The app root applies `.fontDesign(.rounded)` so upstream system text inherits
-  the same friendly treatment without modifying Strimr.
+- The app root applies `.fontDesign(.rounded)` so system text in the shared
+  `Core` and `Platform` screens inherits the same friendly treatment.
 - Timers, PINs, and other numeric information may retain monospaced digits.
 - Do not swap in random font families or novelty typefaces.
 - The personality comes from weight, spacing, surface treatment, and color, not from decorative type.

@@ -59,6 +59,11 @@ connection, and logging out all ask for the parental gate, unless Settings is
 already unlocked. Plinx never asks children to choose a profile again just
 because they were away from the app for a while.
 
+**Manage profiles** appears on the profile picker even when the current Plex
+profile is a restricted one, because the parental gate, not the Plex profile,
+decides who may manage profiles. **Log Out** on the profile picker is the same
+full Log Out as in Settings.
+
 Leaving Settings, or any change that reloads the app's main screens, such as
 a profile switch or Log Out, locks the parental gate again.
 
@@ -67,5 +72,11 @@ a profile switch or Log Out, locks the parental gate again.
 No external links appear in kid-facing UI. Plinx also keeps parental settings
 separate from the browsing experience and fails closed when content metadata is
 missing or uncertain. Live TV and requests to a Seerr server are not offered.
+
+Some actions change the family's server or account, so Plinx shows them only
+while the parental gate is unlocked: adding to a playlist and renaming or
+deleting one, the Plex watchlist, and subtitle search (including automatic
+subtitle search). Kids also don't see Shuffle on a media details page.
+Starting SharePlay from Plinx is not offered.
 
 For the engineering policy behind these rules, see [privacy and safety](../security/privacy-and-safety.md).

@@ -58,11 +58,37 @@ The script refuses a dirty tree and any remote Swift package without an exact
   [upstream provenance page](../maintenance/upstream-strimr.md) records where
   that code came from.
 - The in-app licenses screen (`PlinxLicensesSettingsView`) lists Plinx,
-  Strimr and every bundled third-party component, with the license texts in
+  Strimr and every bundled third-party component from
+  `OpenSourceLicense.dependencies`, with the license texts in
   `PlinxApp/Core/Resources/Licenses`. It is reachable only from parent-gated
-  Settings. It leaves Sentry out because Plinx links no crash-reporting SDK.
+  Settings.
 - When a dependency is added or changed, add or update its entry in
   `OpenSourceLicense` and its license text. Confirm its license is compatible
   before it ships. The SwiftAssRenderer stack (swift-ass-renderer, libass,
   FreeType, HarfBuzz, FriBidi and Fontconfig) arrived with the absorption, so
   review it before the first release that includes it.
+
+### What the license list covers
+
+The list names every component linked into the shipped app targets: the
+packages in `PlinxApp/project.yml` and the products they pull in. Each license
+text must match the `LICENSE` file of the package checkout the build resolves.
+
+- **swift-ass-renderer** is the `wunax/swift-ass-renderer` fork, the one
+  `PlinxApp/project.yml` pins and the build links. The list's link and license
+  text are that fork's.
+- **swift-issue-reporting** is the current name of Point-Free's
+  `xctest-dynamic-overlay` package. It still ships, through swift-ass-renderer
+  and combine-schedulers, so its entry and license file use the new name and
+  URL.
+- **Not listed, because Plinx does not link them:**
+  - Sentry. Plinx links no crash-reporting or analytics SDK; upstream's
+    reporter was not carried over.
+  - SMBClient. Only AetherEngine's `AetherEngineSMB` product brings it in, and
+    no Plinx target links that product or imports it.
+  - LibTrueHD. It comes in only through AetherEngine's `TrueHDObjectAudio`
+    package trait, which is off.
+
+If a target starts linking `AetherEngineSMB`, or the TrueHD trait is turned on,
+the component and its license text (and any NOTICE file) must be added to the
+list before that build ships. Test-only packages are not listed.

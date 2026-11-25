@@ -91,9 +91,11 @@ Or use the repo scripts:
 ./scripts/run_iphone_sim.sh
 ```
 
-To verify the Apple TV target on Apple Silicon without installing a tvOS
-simulator runtime, compile for a generic simulator with the supported
-architecture explicitly selected:
+### Compile without a simulator runtime
+
+Compiling never needs a simulator runtime. On Apple Silicon, build either
+target for a generic simulator destination with the supported architecture
+explicitly selected:
 
 ```bash
 source scripts/build_environment.sh
@@ -104,10 +106,15 @@ xcodebuild build \
   ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO
 ```
 
+Use `-scheme Plinx-iOS` with `generic/platform=iOS Simulator` for the iPhone
+and iPad target. To compile the unit and UI test bundles as well, run
+`xcodebuild build-for-testing` with the same destination and settings.
+
 The pinned LibDovi simulator binary supplies arm64. An unrestricted generic
 build can also request x86_64 and fail at link time; that is not a reason to
-change the AetherEngine pin. A runtime is still needed for Apple TV
-interaction tests, and simulator builds do not verify distribution signing.
+change the AetherEngine pin. Running tests, UI tests, or the app needs an
+installed simulator runtime and a concrete device (`xcrun simctl list devices
+available`), and simulator builds do not verify distribution signing.
 
 ## Project Generation Rules
 

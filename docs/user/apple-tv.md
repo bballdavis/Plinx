@@ -12,7 +12,7 @@ child.
 
 | Task | Apple TV | iPhone and iPad |
 |---|---|---|
-| Browse, search, and play approved Plex media | Yes | Yes |
+| Browse, search, and play approved Plex or Jellyfin media | Yes | Yes |
 | Parent gate, rating limits, and library visibility | Yes | Yes |
 | Optional parent-configured Youtarr Explore | Yes | Yes |
 | Download and offline playback | No | Yes |
@@ -27,7 +27,7 @@ open the focused item or activate a control. Press Menu to dismiss a sheet or
 return to the previous level. Settings remain behind the parental gate; unlock
 them before changing profiles, servers, ratings, or library visibility.
 
-Press and hold Select on a Plex media card to open Quick Actions without also
+Press and hold Select on a media card to open Quick Actions without also
 opening or playing the card. The menu can mark playable media watched or
 unwatched and open More Info. Library Recommended, Browse, and Collections use
 the same interaction as Home, Search, Collection, and Playlist screens.
@@ -43,11 +43,27 @@ While a saved account reconnects, Apple TV shows loading and offers Retry if
 the connection fails. The browsing tabs appear when streaming is ready;
 Downloads does not appear.
 
+## When the media server can't be reached
+
+If none of the profile's servers can be reached, Apple TV shows a
+**Connection unavailable** card in place of the browsing tabs: "Plinx can't
+reach your media server. Make sure it's turned on, then try again." Choose
+**Try Again** to reconnect; Plinx waits a few seconds for a server to answer
+and returns to the tabs as soon as one does. If the Apple TV itself has no
+network, the card asks you to connect first.
+
+The card does not appear while Plinx is still connecting. The Plinx header,
+Settings, and Explore (when a parent set up Youtarr) stay available while it
+is shown.
+
 ## Troubleshooting
 
 - If a server is missing, confirm the selected Plex account and profile can see
   it (or that the Jellyfin server and user are correct), then open **Accounts
   and servers** in protected settings to reconnect or choose it again.
+- If the **Connection unavailable** card stays up, make sure the media server
+  is turned on and reachable from the Apple TV's network, then choose **Try
+  Again**.
 - If focus seems lost, press Menu to dismiss the current sheet and use the
   directional controls to select a visible action. Every primary Apple TV
   action is intended to be reachable by remote navigation.

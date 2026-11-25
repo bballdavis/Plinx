@@ -57,6 +57,24 @@ Tests/PlinxUITests/
 - targeted smoke behavior
 - deterministic visual-audit surfaces through `PLINX_UI_TEST_SCREEN`
 
+### Debug builds only
+
+Every UI-test and screenshot launch hook works only in a Debug build. Run UI
+tests and screenshot capture against Debug, which the schemes' test action and
+the capture scripts already use. In a Release build these hooks do nothing:
+
+- `--ui-testing` with `PLINX_UI_TEST_SCREEN` (the visual-audit routes below and
+  their harness screens);
+- `PLINX_UI_TEST_MODE=demo`, which enters the sample library at launch;
+- the live Plex sign-in used by live smoke tests;
+- screenshot capture mode, its network mutation blocker, and the screenshot
+  orientation override.
+
+The `downloadsGrid` route seeds download fixtures, which replaces the real
+downloads folder. Seeding needs both a Debug build and `--ui-testing`; setting
+`PLINX_UI_TEST_SCREEN=downloadsGrid` alone does nothing. A Release build never
+seeds fixtures.
+
 ### Visual-audit fixtures
 
 `VisualAuditUITests` captures real Plinx views without changing normal app

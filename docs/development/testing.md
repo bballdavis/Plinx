@@ -112,8 +112,8 @@ rating normalization.
 `ContentRatingNormalizerTests` (in `PlinxCore`) covers how ratings are parsed:
 US movie and TV ratings in any case, prefixes such as `US-` and `Rated `, TV
 content descriptors, trailing notes, adult-only ratings, and the fallback to
-unrated for anything else. `StrimrAdapterSafetyTests` checks the same rules
-through `PlinxContentRules` and the playlist play and shuffle selection.
+unrated for anything else. `PlinxContentRulesSafetyTests` checks the same
+rules through `PlinxContentRules` and the playlist play and shuffle selection.
 
 `DownloadOwnershipMigrationTests` covers the one-time move of the per-profile
 records that earlier versions kept in `plinx.downloadOwnership.v1` onto each
@@ -125,8 +125,22 @@ no separate integration contract. The live parity tests below cover real
 server content.
 
 `PlinxApp/CoreTests` holds upstream's tests for the absorbed code. They are
-not part of any `project.yml` target yet, so they do not run in CI or from the
-commands above. Do not rely on them until a target is added.
+compiled into the `Plinx-iOS-UnitTests` target, so they run with the app unit
+tests above and in CI. Keep them passing when you change `PlinxApp/Core` or
+`PlinxApp/Platform`. When a Plinx change alters upstream behavior on purpose,
+update the upstream test in place rather than skipping it.
+
+### Compiling and running
+
+Compiling needs no simulator runtime. Build the app targets and their test
+bundles for a generic destination (`generic/platform=iOS Simulator` or
+`generic/platform=tvOS Simulator`, with `ARCHS=arm64`); see
+[setup](setup.md#compile-without-a-simulator-runtime). Running unit tests, UI
+tests, or the app needs an installed simulator runtime and a concrete device
+destination, as in the commands above.
+
+UI-test and screenshot launch hooks work only in Debug builds; see
+[UI testing](ui-testing.md#debug-builds-only).
 
 ### Tooling contracts
 
@@ -174,7 +188,7 @@ The focused tests also cover the 40-video initial catalog request, independent
 catalog/channel failures, tail-triggered pagination, and long-press actions.
 `OfflinePlaybackTests` covers download access: only the active profile's
 owned downloads that the content policy allows are playable, and downloads
-with no owner are refused. `StrimrDownloadIntegrityTests` covers
+with no owner are refused. `DownloadIntegrityTests` covers
 `DownloadIntegrityValidator`, the 20 percent space-savings rule
 (`DownloadSpaceSavingsPolicy`), and the mapping of the old Plinx
 download-quality setting to a quality preset.
@@ -253,8 +267,8 @@ App integration logic such as:
 
 ### `PlinxApp/CoreTests/`
 
-Upstream's tests for the absorbed code. Not wired into any target yet, so they
-do not run.
+Upstream's tests for the absorbed code, compiled into the
+`Plinx-iOS-UnitTests` target and run with the app unit tests.
 
 ### `PlinxApp/UITests/`
 

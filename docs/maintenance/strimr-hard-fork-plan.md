@@ -54,11 +54,10 @@ Status as of 2026-11-24, on `feat/strimr-hard-fork`.
   validation must show no Sentry, Trakt or Simkl strings. Live parity tests
   must pass on Plex.
 - **Tests.** Delete the pairing-era `StrimrUpgradeSeamTests` and
-  `OfflineSessionAccessTests`, rewrite the tests listed for the test stage
+  `OfflineSessionAccessTests`, and rewrite the tests listed for the test stage
   (offline playback, demo fixtures, quick actions, download integrity, parity
-  tests), add
-  `DownloadOwnershipMigrationTests`, and give `PlinxApp/CoreTests` a test
-  target; it is not wired into any target yet.
+  tests). `DownloadOwnershipMigrationTests` is added and `PlinxApp/CoreTests`
+  is compiled into `Plinx-iOS-UnitTests`; both need a passing run.
 - **Seerr protocol (P2) and kid flow (P5).** There is no `SeerrCatalogService`
   yet, so Seerr stays off for kids. Seerr and Youtarr Explore share one
   navigation path today; give them separate paths before Seerr is enabled.
@@ -69,7 +68,8 @@ Status as of 2026-11-24, on `feat/strimr-hard-fork`.
 - **Parent tools (P6).** A fresh PIN and confirmation for each destructive
   management action, a UI test that no Manage entry appears in kid mode, and
   a parent Manage menu on tvOS.
-- **Shrink (P7).** Move UI-test harnesses and fixtures behind `#if DEBUG`,
+- **Shrink (P7).** Finish moving UI-test harness screens and fixtures behind
+  `#if DEBUG` (the launch hooks and the UI-test route switch already are),
   delete the now-unreachable upstream settings screens, remove the
   `StrimrAdapter`, `PlinxContentAuthorization` and
   `SafePlaylistPlaybackSelection` aliases once callers move, share one media

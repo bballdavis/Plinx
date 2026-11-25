@@ -1,8 +1,8 @@
 # Privacy Policy
 
-Effective date: August 12, 2026
+Effective date: November 24, 2026
 
-Plinx is an independent, parent-managed client for Plex Media Server with an optional connection to a parent-configured Youtarr service. This policy explains what the Plinx developer does not collect, what the app stores locally, and when the app communicates with services selected by the user.
+Plinx is an independent, parent-managed client for Plex Media Server and Jellyfin servers, with an optional connection to a parent-configured Youtarr service. This policy explains what the Plinx developer does not collect, what the app stores locally, and when the app communicates with services selected by the user.
 
 ## Plinx Developer Collection
 
@@ -21,7 +21,13 @@ Plinx communicates with Plex services to authenticate an existing Plex account, 
 
 Those communications can include Plex account/profile identifiers, authentication tokens, server identifiers, media metadata, searches, playback requests, progress updates, and download requests. Plex and the server operator process that information under their own policies and configuration. Review the [Plex Privacy Policy](https://www.plex.tv/about/privacy-legal/) and the policies of the server operator.
 
-Plinx is not affiliated with or endorsed by Plex.
+## Jellyfin Servers
+
+A parent can connect one or more Jellyfin servers. Plinx communicates directly with each Jellyfin server the family connects to sign in, list libraries and users, and request media. To find servers, Plinx can send a discovery request on the local network; a parent can also enter a server address.
+
+Those communications can include the Jellyfin username and password entered at sign-in, or a Quick Connect code; the access token the server issues; the app name, device name, and a device identifier; media metadata, searches, playback requests, progress updates, and download requests. Plinx sends the password only to the selected server and does not store it. The Jellyfin server operator processes that information under the server's own configuration and policies.
+
+Plinx is not affiliated with or endorsed by Plex or Jellyfin.
 
 ## Optional Youtarr Service
 
@@ -33,20 +39,20 @@ The Youtarr operator processes that information under the operator's own configu
 
 Plinx stores only information needed to provide app features:
 
-- Plex authentication tokens, Youtarr API credentials or additional authorization header, and the parental PIN in the system Keychain;
-- Plex and optional Youtarr connection details in app-local settings;
+- Plex account and profile tokens, Jellyfin access tokens, Youtarr API credentials or additional authorization header, and the parental PIN in the system Keychain;
+- the connected Plex accounts, Jellyfin servers, profiles, and optional Youtarr connection details in app-local settings;
 - content-control, appearance, playback, library, and download preferences in app-local settings;
-- downloaded media, artwork, playback progress, and an app-local server/profile ownership record for offline access.
+- downloaded media, artwork, playback progress, a cache of titles and artwork for offline browsing, and an app-local ownership record for each download.
 
-The ownership record prevents a download created under one Plex server/profile from appearing after a different server or profile is selected. Plinx does not upload this record.
+The ownership record names the provider (Plex or Jellyfin), the server, and the user that created each download. A download appears only while that same provider, server, and user is active; a download with no owner is visible only from parent-authorized download management. Plinx does not upload this record.
 
 ## Local Network
 
-Plinx requests local-network access so it can communicate with Plex Media Servers and an optional parent-configured Youtarr service on the same network. Denying access can prevent local services from loading; remote connections may still work when available.
+Plinx requests local-network access so it can find and communicate with Plex Media Servers, Jellyfin servers, and an optional parent-configured Youtarr service on the same network. Denying access can prevent local services from loading; remote connections may still work when available.
 
 ## Retention and Deletion
 
-Settings and downloaded files remain on the device until they are changed or deleted. Signing out removes the stored Plex authentication token and default-server selection, but it does not silently delete downloads or the separately parent-configured Youtarr connection. Downloads from a different or unidentified profile are hidden and can be removed from parent-authorized download management. A parent can remove or replace the Youtarr configuration from protected Settings.
+Settings and downloaded files remain on the device until they are changed or deleted. Signing out removes every connected account and its stored credentials from the device: Plex account and profile tokens, Jellyfin access tokens, and the linked profiles and server choices. It also clears the offline browsing cache. Before removing the accounts, it sends any watch progress recorded offline to the servers that can still be reached. Signing out does not silently delete downloads or the separately parent-configured Youtarr connection. Downloads stay on the device, owned by the provider, server, and user that created them, and are hidden until that user signs in again; a parent can remove them from parent-authorized download management. A parent can remove or replace the Youtarr configuration from protected Settings.
 
 Uninstalling Plinx removes its app container and downloaded files. The operating system controls Keychain retention; reinstalling may preserve Keychain items unless they are explicitly replaced or the device is erased.
 
@@ -56,7 +62,7 @@ Plinx is presented as a parent-managed family media client, not as a Kids Catego
 
 ## Security
 
-Plinx uses Apple Keychain for sensitive credentials and prefers encrypted Plex connections when available. No method of storage or transmission is guaranteed to be completely secure, particularly when a user-selected Plex server offers only an unencrypted local connection.
+Plinx uses Apple Keychain for sensitive credentials and prefers encrypted Plex connections when available. No method of storage or transmission is guaranteed to be completely secure, particularly when a user-selected Plex or Jellyfin server offers only an unencrypted connection.
 
 ## Changes and Contact
 

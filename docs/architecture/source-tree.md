@@ -30,7 +30,7 @@ Plinx is one codebase, organized by layer:
 | `Platform/iOS/`, `Platform/tvOS/` | Platform screens kept from upstream |
 | `Resources/` | Assets, launch screen, privacy manifest, `Plinx.strings`, `Localizable.xcstrings`, the sample library's bundled media |
 | `UnitTests/`, `UnitTestsTV/`, `UITests/`, `UITestsTV/` | App unit, live parity, and UI tests |
-| `CoreTests/` | Upstream's tests for the absorbed code. Not yet part of any `project.yml` target, so they do not run |
+| `CoreTests/` | Upstream's tests for the absorbed code, compiled into the `Plinx-iOS-UnitTests` target |
 
 There is no `Decorators/` folder: content filtering happens once, in
 `Core/Safety`.

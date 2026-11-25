@@ -21,7 +21,9 @@ Current implementation anchors:
 - Trakt and Simkl sync were removed when Plinx absorbed Strimr, so no viewing
   history leaves the device for a tracking service
 - Plinx ships no Top Shelf extension and writes no session credentials for
-  one. Log Out on Apple TV clears any Top Shelf credentials an earlier build
+  one. The upstream write path (`SessionManager.updateTopShelf` and
+  `TopShelfSessionStore.save`) is removed, so `TopShelfSessionStore` can only
+  clear. Log Out on Apple TV clears any Top Shelf credentials an earlier build
   stored
 - the App Review sample library is answered on the device; see
   [Local sample library](#local-sample-library)
@@ -75,9 +77,9 @@ iOS or tvOS. `SafeMediaServices` asks `ContentSafetyGate` about every title:
 - **Live TV is off.** The provider's Live TV service is replaced by one that
   is never available.
 - **Parent-only while locked.** Server rights, every management action (the
-  Manage menu), playlist edits, and subtitle search and install are refused
-  unless the parental gate is unlocked. Favorites, watchlist, played state,
-  and removing a title from Continue Watching stay available to kids.
+  Manage menu), playlist edits, subtitle search and install, and watchlist
+  writes are refused unless the parental gate is unlocked. Favorites, played
+  state, and removing a title from Continue Watching stay available to kids.
 - **External playback is refused.** The boundary never returns an external
   playback target.
 
@@ -86,6 +88,25 @@ is rebuilt so screens opened under the old policy close. While Settings is
 unlocked the rebuild waits until Settings relocks, so editing ratings never
 closes Settings. Screens also check titles with the gate again when they draw
 rows, results, and detail pages.
+
+### Later checks
+
+Some screens hold titles that were loaded earlier, under an older policy, or
+read from the device instead of through the boundary. Each checks them with the
+gate again before showing them:
+
+- **Home rows and hero.** `HomeViewModel.rows` filters every row each time it
+  is read, including rows restored from the offline cache. The hero re-checks
+  every slide (resume and featured) when it is rebuilt, and the saved
+  same-day featured selection is filtered before it is reused.
+- **Search.** `SearchViewModel` first drops results from libraries the profile
+  hides (see [Library visibility](#library-visibility)), then checks each title
+  with the gate, and only then merges and ranks results across servers.
+- **Downloaded library listing.** The "downloaded only" library view reads the
+  offline store directly, so every item it lists is filtered by the gate.
+- **Offline next episode.** When a downloaded episode ends, the next
+  downloaded episode of the active profile is offered only if the gate allows
+  it, so a blocked episode never reaches the next-episode card.
 
 `SafeMediaServices.reviewedRequirements` classifies every requirement of every
 provider protocol, and `SafeMediaServicesTests` fails when a protocol gains a
@@ -129,15 +150,36 @@ with its own fail-closed control.
   sleep-timer fade. It limits only the Plinx player and is not hearing
   protection.
 - SharePlay initiation is hidden by default:
-  `\.sharePlayPresentationPolicy` defaults to `.hidden`. Incoming SharePlay
+  `\.sharePlayPresentationPolicy` defaults to `.hidden`. Media detail on iOS
+  and tvOS shows its SharePlay actions only when the policy is `.enabled`, and
+  starting a session from detail returns early otherwise. Incoming SharePlay
   playback goes through the same launcher and player checks.
 - Playback speed is fixed at 1x. There is no speed control.
 - External players are never used. Plinx does not hand playback to another
   app, because that would bypass the content checks and the volume cap.
-- Subtitle search is parent-only: it is hidden from the player's track menus
-  unless the parental gate is unlocked, and the boundary refuses it.
+- Subtitle search is parent-only, including automatic search.
+  `PlayerViewModel.canSearchSubtitles` requires the parental gate to be
+  unlocked, so the player's track menus hide it and automatic search never
+  starts while the gate is locked. An automatic search that is running stops
+  before it downloads or installs anything if the gate relocks, and the
+  boundary refuses the request in any case. The automatic-search setting is
+  also hidden and reset to off.
 - Picture in Picture and background audio are parent settings and default to
   off.
+
+### Media detail and card actions
+
+These actions are hidden from kids, not just refused, so a locked screen never
+offers a button that fails:
+
+- **Playlists.** "Add to playlist" in media detail and card menus, and the
+  playlist card's Rename and Delete, show only while the parental gate is
+  unlocked. The boundary refuses playlist edits in any case.
+- **Watchlist and Shuffle.** Media detail does not offer Watchlist or Shuffle
+  to kids. Watchlist writes change the family's Plex account, so the boundary
+  also refuses them unless the parental gate is unlocked.
+- **SharePlay.** Hidden unless the SharePlay policy is enabled; see
+  [Playback](#playback).
 
 ### Settings, profiles, and sign-out
 
@@ -150,6 +192,14 @@ with its own fail-closed control.
   no gate. Switching to another profile, Manage profiles, adding a connection,
   and Log Out require the parental gate unless Settings already unlocked it,
   and the gate relocks after the action.
+- **The gate guards Manage profiles.** The profile picker offers Manage
+  profiles whether or not the active Plex profile is restricted
+  (`PlinxProfileSwitchRules.showsManageProfiles`), and it always opens behind
+  the parental gate. Upstream hid it from restricted Plex profiles instead;
+  in Plinx the gate, not the restricted flag, decides who may manage profiles.
+- **Log Out from the profile picker is the full sign-out.** On iPhone, iPad,
+  and Apple TV, the picker's Log Out runs the same `PlinxSignOut` as Settings,
+  described below.
 - **No profile re-prompt.** Upstream's 15-minute profile re-prompt is disabled
   (`SessionManager.promptsForProfileOnReturn`), so a child returning to the
   app is never offered the family's other profiles.
@@ -179,15 +229,35 @@ Downloads are available on iPhone and iPad only.
   provider, server, and user). That is the only ownership record, and it is
   stored with the download in the offline database. Only the active profile's
   downloads that the current policy allows are listed or played.
-- **One-time migration.** Plinx reads the per-profile records that earlier
-  versions kept in `plinx.downloadOwnership.v1` once, and assigns each
-  recorded download to that server and profile. Entries in the old download
-  index that carry a profile scope keep exactly that owner.
-- **Unowned downloads are parent-only.** A download with no owner record,
-  such as one made before per-profile ownership, belongs to no profile.
-  Children never see it. Parents see it, with other profiles' downloads and
-  blocked titles, under "Other downloads" in the parent-gated Manage Downloads
-  screen, where it can be deleted but never played.
+- **One-time migration.** `LegacyDownloadOwnership` reads the per-profile
+  record that earlier versions kept in `plinx.downloadOwnership.v1` once, when
+  the download index loaded cleanly, and assigns each recorded download to
+  that Plex server and profile. Entries in the old download index that carry a
+  profile scope keep exactly that owner.
+  - Only downloads with no owner get one. A download whose stored server
+    differs from the recorded server is left alone, and entries with an empty
+    server or profile are skipped.
+  - The record is removed only after the new owners are saved. If the save
+    fails, nothing changes and the record stays for the next launch.
+  - **An unreadable record is kept and nothing is assigned.** A record that
+    cannot be decoded, is not data, or has an unknown version changes no
+    download, and the record stays on the device.
+- **Unowned downloads are parent-only.** A download with no owner record
+  belongs to no profile. Children never see it. Parents see it, with other
+  profiles' downloads and blocked titles, under "Other downloads" in the
+  parent-gated Manage Downloads screen, where it can be deleted but never
+  played.
+  - **Grandfathered downloads are now parent-only.** Earlier versions marked
+    downloads made before per-profile ownership as "grandfathered" and showed
+    them to every profile, signed in or not, checked only by the content gate.
+    One owner per download cannot express "shared", and giving them to one
+    profile would be a guess, so they stay unowned. The same holds for
+    "unprovenanced" downloads and downloads the record does not name. A child
+    who wants one back downloads it again.
+  - **Unowned downloads are never adopted.** Upstream gave every unowned
+    download on a server to the first profile that connected to it. Plinx
+    removed that, so connecting a profile never takes over another profile's
+    or an unowned download.
 - **Every enqueue is checked.** `DownloadManager` checks the title, and each
   episode of a season or show, with the gate. A blocked title is refused, and
   any server-side transcode it started is cancelled.
@@ -217,6 +287,27 @@ Visible libraries are chosen per profile. A hidden library is left out of
 Home, Library, and search. A search result with no library (all Jellyfin
 results, and Plex items shared one by one) is dropped whenever the profile
 hides any library on that server, which fails closed.
+
+## Test and screenshot hooks
+
+The hooks that UI tests and screenshot capture use are compiled into Debug
+builds only. In a Release build they do nothing:
+
+- the UI-test screen routes (`PLINX_UI_TEST_SCREEN`) and the harness screens
+  they open;
+- the live Plex UI-test sign-in (`LivePlexUITestBootstrap`);
+- screenshot capture mode (`ReleaseScreenshotCaptureMode`), including its
+  network mutation blocker, and the screenshot orientation override;
+- the sample library's UI-test auto-start.
+
+Download fixtures replace the real downloads folder, so seeding them
+(`DownloadUITestFixtures`) needs both a Debug build and the `--ui-testing`
+launch argument; the `downloadsGrid` screen name alone is not enough.
+
+Release builds keep one piece of the sample-library code: at launch, an
+interrupted sample session is discarded before the session loads, so its
+synthetic token is never sent anywhere. See
+[UI testing](../development/ui-testing.md) for the launch arguments.
 
 ## Local sample library
 

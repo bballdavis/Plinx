@@ -21,7 +21,7 @@ See the [hard-fork plan](strimr-hard-fork-plan.md) for the decision.
 | `Strimr-iOS/Features/` | `PlinxApp/Platform/iOS/` |
 | `Strimr-tvOS/Features/`, `Strimr-tvOS/Shared/` | `PlinxApp/Platform/tvOS/` |
 | `Localizable.xcstrings` | `PlinxApp/Resources/Localizable.xcstrings` |
-| `StrimrTests/` | `PlinxApp/CoreTests/` (not yet in a test target, so not run) |
+| `StrimrTests/` | `PlinxApp/CoreTests/` (compiled into `Plinx-iOS-UnitTests`) |
 
 When Plinx already had its own version of a screen or helper, the upstream copy
 was deleted, so each concept has one implementation. Upstream's macOS app, Top
@@ -87,6 +87,13 @@ localization commits are regenerated rather than replayed.
 Persisted identifiers that came from Strimr, such as the Keychain key
 `strimr.plex.authToken`, keep their original names. Renaming them would sign
 existing families out.
+
+Code and copy were renamed for Plinx. When porting, read upstream's
+`StrimrProfile` as `PlinxProfile` and `StrimrWatchActivity` as
+`PlinxWatchActivity`; the SharePlay activity identifier is
+`com.bballdavis.plinx.watch`. Strings that say "Strimr" become "Plinx", and
+string-catalog entries for screens Plinx does not ship were removed rather than
+renamed.
 
 ## Taking upstream changes
 

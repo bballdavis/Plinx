@@ -10,9 +10,10 @@ quality. Downloads are available on iPhone and iPad only; Apple TV does not
 offer download controls or offline playback.
 
 From a show's details, Download opens a season-and-episode picker. From a
-season's details, the same picker stays scoped to that season. Select All queues
-every episode that is not already downloaded, or individual episodes can be
-chosen before confirming.
+season's details, Download opens the episode picker for that season only; it
+does not switch to other seasons. Select All queues every episode that is not
+already downloaded, so Select All on a season's picker downloads the whole
+season. You can also choose individual episodes before confirming.
 
 ## Download quality
 
@@ -55,7 +56,10 @@ items also appear in the parent-gated Manage Downloads screen.
 - A download with no profile record, such as one made before Plinx tracked
   profiles, belongs to no profile. Children never see it. A parent sees it
   under **Other downloads** in Manage Downloads and can delete it there, but it
-  cannot be played.
+  cannot be played. This includes older downloads that earlier versions showed
+  to every profile; download them again from the profile that should have them.
+- Signing in with a profile never takes over downloads that have no owner or
+  belong to another profile.
 - Plinx validates download integrity before it becomes available to play.
 - HTML, JSON, XML, empty, truncated, and unsuccessful HTTP responses are never
   promoted to playable media.
