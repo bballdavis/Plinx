@@ -5,7 +5,7 @@ struct PlayerWrapper: View {
     let onExit: () -> Void
     let showsBufferingOverlay: Bool
     let isPlaybackAuthorized: @MainActor (MediaItem) -> Bool
-    let onCurrentMediaChange: @MainActor (MediaItem?) -> Void
+    let onViewModelChange: @MainActor (PlayerViewModel) -> Void
 
     /// The default authorization is the shared safety boundary, so a caller that passes nothing still plays only
     /// what the active policy allows.
@@ -14,13 +14,13 @@ struct PlayerWrapper: View {
         onExit: @escaping () -> Void,
         showsBufferingOverlay: Bool = true,
         isPlaybackAuthorized: @escaping @MainActor (MediaItem) -> Bool = { ContentSafetyGate.shared.isAllowed($0) },
-        onCurrentMediaChange: @escaping @MainActor (MediaItem?) -> Void = { _ in },
+        onViewModelChange: @escaping @MainActor (PlayerViewModel) -> Void = { _ in },
     ) {
         self.viewModel = viewModel
         self.onExit = onExit
         self.showsBufferingOverlay = showsBufferingOverlay
         self.isPlaybackAuthorized = isPlaybackAuthorized
-        self.onCurrentMediaChange = onCurrentMediaChange
+        self.onViewModelChange = onViewModelChange
     }
 
     var body: some View {
@@ -31,7 +31,7 @@ struct PlayerWrapper: View {
             onExit: onExit,
             showsBufferingOverlay: showsBufferingOverlay,
             isPlaybackAuthorized: isPlaybackAuthorized,
-            onCurrentMediaChange: onCurrentMediaChange,
+            onViewModelChange: onViewModelChange,
         )
     }
 }

@@ -171,7 +171,7 @@ private struct PlinxLibraryPortraitCarousel: View {
 
 /// Plinx-owned browse controls keep all library filters on the shared dark
 /// focus treatment instead of allowing tvOS to add its bright white plate.
-/// Type and sort open an inline row of pills; filters open the upstream
+/// Type and sort open an inline row of pills; filters open the shared
 /// filter form, which covers both Plex and Jellyfin libraries.
 private struct PlinxLibraryBrowseControlsView: View {
     private enum Panel {

@@ -1,3 +1,4 @@
+#if DEBUG
 import SwiftUI
 
 /// Deterministic fixture reached only through the existing --ui-testing route.
@@ -221,3 +222,4 @@ struct PlayerTimelineUITestHarness: View {
             .accessibilityIdentifier("timeline.fixture.\(id)")
     }
 }
+#endif

@@ -58,7 +58,7 @@ enum PlinxLibraryRecommendationLoader {
     /// Size of the recently-added sample the discovery row is drawn from.
     static let discoveryCandidateLimit = 48
 
-    /// Loads (or refreshes) the upstream recommended hubs, then applies the
+    /// Loads (or refreshes) the shared recommended hubs, then applies the
     /// Plinx post-processing: the parent's hidden and reordered sections and,
     /// when no browsable hub is left, a "Recently Added" discovery row.
     ///

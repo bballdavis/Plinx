@@ -4,7 +4,7 @@ import PlinxUI
 
 /// Shows a toggle for each library of the active profile. Libraries toggled
 /// OFF are hidden from the Library tab and left out of Home and search
-/// (`PlinxLibraryVisibility`). The choice is stored per profile in upstream's
+/// (`PlinxLibraryVisibility`). The choice is stored per profile in
 /// `LibraryPreferences.hiddenLibraries`, so every server's libraries are kept
 /// apart; older single-server settings were moved there by `MultiServerMigration`.
 struct VisibleLibrariesView: View {

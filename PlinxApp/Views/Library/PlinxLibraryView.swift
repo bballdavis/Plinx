@@ -3,7 +3,7 @@ import UIKit
 import PlinxUI
 
 /// The kid-facing library list: the active profile's visible libraries as
-/// banner tiles. Data comes from upstream's `LibraryViewModel`; the banner
+/// banner tiles. Data comes from the shared `LibraryViewModel`; the banner
 /// artwork is its library preview, which `SafeMediaServices` builds only from
 /// titles the parent's policy allows.
 struct PlinxLibraryView: View {

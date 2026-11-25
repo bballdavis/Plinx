@@ -6,8 +6,8 @@ import SwiftUI
 // Plinx profile picker (Apple TV)
 //
 // The one `ProfileSwitcherView` on tvOS (formerly `PlinxProfileSwitcherTVView`;
-// upstream's tvOS picker is not compiled). Dark Plinx surfaces, the shared
-// focus ring, and a remote-friendly PIN keypad driven by the absorbed
+// upstream's tvOS picker was not kept). Dark Plinx surfaces, the shared
+// focus ring, and a remote-friendly PIN keypad driven by the shared
 // `ProfileSwitcherViewModel`. Parental rules: see `PlinxProfileSwitchRules`
 // and the iOS picker.
 // ─────────────────────────────────────────────────────────────────────────────

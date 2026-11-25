@@ -5,7 +5,7 @@ import SwiftUI
 // Player settings (parent-only)
 //
 // The kid-appropriate part of upstream's Playback, Audio and Subtitles pages,
-// built on the upstream `SettingsViewModel` bindings. Deliberately absent:
+// built on the shared `SettingsViewModel` bindings. Deliberately absent:
 //   • default playback speed (Plinx removed speed control),
 //   • external and custom external players (playback never leaves Plinx),
 //   • the tvOS system player style (Plinx keeps its own player and timeline),

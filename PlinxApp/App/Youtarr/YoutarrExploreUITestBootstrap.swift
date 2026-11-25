@@ -1,3 +1,4 @@
+#if DEBUG
 import Foundation
 import SwiftUI
 import PlinxCore
@@ -65,3 +66,4 @@ struct YoutarrExploreUITestHarness: View {
         }
     }
 }
+#endif

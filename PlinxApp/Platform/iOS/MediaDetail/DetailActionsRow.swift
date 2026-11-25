@@ -66,14 +66,15 @@ struct DetailActionsRow: View {
             // Streaming stays the default online (the download may be lower quality); this plays the local copy.
             if !isServerUnreachable, let request = downloadedPlayback {
                 Button {
-                    coordinator.showLocalPlayer(request)
+                    playDownloaded(request, resumes: true)
                 } label: {
                     Label("offline.detail.playDownloaded", systemImage: "arrow.down.circle")
                 }
             }
 
             if !isServerUnreachable {
-                if viewModel.shouldShowWatchlistButton {
+                // Watchlist and Shuffle are parent-only in Plinx: kids get the title's own play actions.
+                if ContentSafetyGate.shared.isParentUnlocked, viewModel.shouldShowWatchlistButton {
                     Button {
                         Task { await viewModel.toggleWatchlistStatus() }
                     } label: {
@@ -84,6 +85,7 @@ struct DetailActionsRow: View {
                             || viewModel.isLoadingWatchlistStatus
                             || viewModel.isUpdatingWatchlistStatus,
                     )
+                    .accessibilityIdentifier("media.detail.watchlist")
                 }
 
                 if viewModel.shouldShowBothWatchActions {
@@ -98,8 +100,11 @@ struct DetailActionsRow: View {
                     .disabled(viewModel.isLoading || viewModel.isUpdatingWatchStatus)
                 }
 
-                Button(action: handleShuffle) {
-                    Label("common.actions.shuffle", systemImage: "shuffle")
+                if ContentSafetyGate.shared.isParentUnlocked {
+                    Button(action: handleShuffle) {
+                        Label("common.actions.shuffle", systemImage: "shuffle")
+                    }
+                    .accessibilityIdentifier("media.detail.shuffle")
                 }
 
                 if sharePlayPresentationPolicy == .enabled, viewModel.primaryActionRatingKey != nil {
@@ -167,8 +172,26 @@ struct DetailActionsRow: View {
         offlineCoordinator.isUnreachable(mediaServices.identity)
     }
 
+    /// The downloaded copy the play actions use: only the active profile's own download that `DownloadAccessPolicy`
+    /// allows (stored and pinned metadata both pass the gate), as in the downloads grid.
     private var downloadedPlayback: LocalPlaybackRequest? {
-        downloadManager.localPlaybackRequest(forDetail: viewModel)
+        guard let request = downloadManager.localPlaybackRequest(forDetail: viewModel),
+              let download = downloadManager.ownedItems.first(where: {
+                  $0.status == .completed && $0.identity == request.media.identity
+              }),
+              DownloadAccessPolicy(downloadManager: downloadManager).decision(for: download) == .allowed
+        else { return nil }
+        return request
+    }
+
+    /// Plays the downloaded copy through `PlaybackLauncher`, which checks ownership and both metadata sets again
+    /// right before the player opens.
+    private func playDownloaded(_ request: LocalPlaybackRequest, resumes: Bool) {
+        PlaybackLauncher(services: mediaServices, coordinator: coordinator).playDownloaded(
+            ratingKey: request.media.id,
+            type: request.media.kind,
+            shouldResumeFromOffset: resumes,
+        )
     }
 
     private var playButton: some View {
@@ -262,11 +285,8 @@ struct DetailActionsRow: View {
 
     private func handlePlay() {
         if isServerUnreachable {
-            if let request = downloadManager.localPlaybackRequest(
-                forDetail: viewModel,
-                resumes: !viewModel.shouldPlayPrimaryActionFromStart,
-            ) {
-                coordinator.showLocalPlayer(request)
+            if let request = downloadedPlayback {
+                playDownloaded(request, resumes: !viewModel.shouldPlayPrimaryActionFromStart)
             }
             return
         }
@@ -286,8 +306,8 @@ struct DetailActionsRow: View {
 
     private func handlePlayFromStart() {
         if isServerUnreachable {
-            if let request = downloadManager.localPlaybackRequest(forDetail: viewModel, resumes: false) {
-                coordinator.showLocalPlayer(request)
+            if let request = downloadedPlayback {
+                playDownloaded(request, resumes: false)
             }
             return
         }
@@ -301,6 +321,7 @@ struct DetailActionsRow: View {
     }
 
     private func handleShuffle() {
+        guard ContentSafetyGate.shared.isParentUnlocked else { return }
         onShuffle(viewModel.media.id, viewModel.media.mediaKind)
     }
 

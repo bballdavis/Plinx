@@ -1,8 +1,8 @@
 import CryptoKit
 import Foundation
 
-/// A Strimr profile: local (persisted by Strimr) or Plex Home (virtual, read live from plex.tv).
-enum StrimrProfile: Identifiable, Hashable, Sendable {
+/// A profile of the app: local (persisted on the device) or Plex Home (virtual, read live from plex.tv).
+enum PlinxProfile: Identifiable, Hashable, Sendable {
     case local(LocalProfile)
     case plexHome(PlexHomeProfile)
 

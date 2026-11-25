@@ -5,8 +5,8 @@ import SwiftUI
 /// The Plinx settings screen, protected by a parental gate.
 ///
 /// Everything here is parent-only: content ratings, library visibility, the
-/// player, accounts and servers, profiles, legal notices and Log Out. Upstream
-/// Settings shells (`SettingsView`, the tvOS settings columns) are not used, so
+/// player, accounts and servers, profiles, legal notices and Log Out. Upstream's
+/// Settings shells (`SettingsView`, the tvOS settings columns) were not kept, so
 /// playback speed, external players, trackers and Seerr integrations never
 /// appear.
 struct PlinxSettingsView: View {
@@ -426,7 +426,7 @@ private struct SettingsBody: View {
 
     private var legalSection: some View {
         Section {
-            Link(destination: PlinxSettingsLinks.strimrSource) {
+            Link(destination: OpenSourceLicense.strimr.url) {
                 Label {
                     Text("settings.about.strimr", tableName: "Plinx")
                 } icon: {
@@ -685,7 +685,7 @@ private struct SettingsBody: View {
                     tvExternalLink(
                         title: plinxText("settings.about.strimr"),
                         icon: "chevron.left.forwardslash.chevron.right",
-                        url: PlinxSettingsLinks.strimrSource
+                        url: OpenSourceLicense.strimr.url
                     )
                     tvExternalLink(
                         title: plinxText("settings.about.plinx"),
@@ -775,8 +775,7 @@ private struct SettingsBody: View {
 
 // MARK: - Copy and links
 
-/// Settings copy added with the multi-account port. English renders from the
-/// default values until the strings table gains these keys.
+/// Settings copy added with the multi-account port (Plinx strings table).
 enum PlinxSettingsCopy {
     static var accountsSection: String {
         String(
@@ -825,7 +824,6 @@ enum PlinxSettingsCopy {
 
 /// Legal and support destinations, shown only inside parent-gated Settings.
 enum PlinxSettingsLinks {
-    static let strimrSource = URL(string: "https://github.com/wunax/strimr")!
     static let plinxSource = URL(string: "https://github.com/bballdavis/Plinx")!
     static let privacyPolicy = URL(string: "https://bballdavis.github.io/Plinx/docs/user/privacy-policy")!
     static let support = URL(string: "https://github.com/bballdavis/Plinx/issues")!

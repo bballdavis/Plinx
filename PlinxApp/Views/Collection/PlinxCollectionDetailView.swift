@@ -8,7 +8,7 @@ private enum PlinxCollectionFocusTarget: Hashable {
 }
 #endif
 
-/// Plinx collection page on the upstream `CollectionDetailViewModel`.
+/// Plinx collection page on the shared `CollectionDetailViewModel`.
 ///
 /// Collections are containers: `SafeMediaServices` filters their entries one
 /// by one, so the grid only ever holds titles the current policy allows.

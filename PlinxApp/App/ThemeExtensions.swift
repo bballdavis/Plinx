@@ -4,8 +4,8 @@ import PlinxUI
 // ─────────────────────────────────────────────────────────────────────────────
 // ThemeExtensions
 //
-// Defines the Plinx brand color tokens used by both PlinxApp and the compiled
-// Strimr vendor sources (which import these via the shared module).
+// Defines the Plinx brand color tokens used across the app, including the
+// shared screens in Core and Platform.
 //
 // brandPrimary    – the decorative underline stripe in section headers (accent)
 // brandSecondary  – section header title text (neutral light-gray)
@@ -346,7 +346,3 @@ extension View {
         )
     }
 }
-
-/// Shared Plinx chrome for the primary and secondary actions in media detail.
-/// The paired Strimr views compile into the app target, so this keeps their
-/// product-specific presentation in Plinx without forking their behavior.

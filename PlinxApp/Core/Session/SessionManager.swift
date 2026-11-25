@@ -57,7 +57,7 @@ final class SessionManager {
 
     private(set) var status: Status = .hydrating
     private(set) var loadingPhase: LoadingPhase = .preparing
-    private(set) var activeProfile: StrimrProfile?
+    private(set) var activeProfile: PlinxProfile?
 
     /// Set by the main view while the player is shown, so a return from the background never interrupts playback.
     @ObservationIgnored var isPlaybackActive = false
@@ -107,18 +107,13 @@ final class SessionManager {
         accountStore.accounts
     }
 
-    var profiles: [StrimrProfile] {
+    var profiles: [PlinxProfile] {
         profileStore.profiles(accounts: accountStore.accounts)
     }
 
     /// Avatar of the active profile: the Plex avatar of a Home user; local profiles use their initials.
     var activeProfileAvatarURL: URL? {
         activeProfile?.plexHomeProfile?.user.thumb
-    }
-
-    /// A restricted Plex profile cannot manage accounts, profiles or their connections; other profiles can manage it.
-    var canManageAccounts: Bool {
-        !(activeProfile?.isRestricted ?? false)
     }
 
     /// plex.tv token of the active profile on its watchlist account, used by plex.tv features such as Seerr sign-in.
@@ -138,7 +133,7 @@ final class SessionManager {
         }
     }
 
-    func links(for profile: StrimrProfile) -> [ProfileLink] {
+    func links(for profile: PlinxProfile) -> [ProfileLink] {
         profileStore.links(for: profile)
     }
 
@@ -151,13 +146,6 @@ final class SessionManager {
     func hydrate() async {
         status = .hydrating
         loadingPhase = .preparing
-        #if DEBUG
-            // Unsigned simulator builds cannot read the Keychain, and the demo stores must stay apart from real data.
-            if DemoMode.isEnabled {
-                await resumeProfile()
-                return
-            }
-        #endif
         let outcome = await makeMigration().run()
         guard outcome != .failed else {
             status = .migrationFailed
@@ -216,7 +204,7 @@ final class SessionManager {
 
     /// Activates a profile and shows the app as soon as one server is ready, after three seconds at most; the other
     /// servers join when they connect. A Plex Home token, when given, comes from a fresh `/switch`.
-    func activate(_ profile: StrimrProfile, plexHomeToken: String? = nil) async {
+    func activate(_ profile: PlinxProfile, plexHomeToken: String? = nil) async {
         isPromptingProfileOnReturn = false
         let links = profileStore.links(for: profile)
         guard !links.isEmpty else {
@@ -278,14 +266,6 @@ final class SessionManager {
         else { return }
         isPromptingProfileOnReturn = true
         status = .needsProfileSelection
-    }
-
-    /// An external player calling back means the user was watching in it, not away.
-    func didReturnFromExternalPlayback() {
-        profilePromptOnReturn.cancel()
-        if isPromptingProfileOnReturn, status == .needsProfileSelection {
-            cancelProfileSelection()
-        }
     }
 
     // MARK: - Plex accounts
@@ -441,7 +421,7 @@ final class SessionManager {
     }
 
     /// The last profile stays while accounts exist: removing everything goes through removing the accounts.
-    func canDeleteProfile(_ profile: StrimrProfile) -> Bool {
+    func canDeleteProfile(_ profile: PlinxProfile) -> Bool {
         profile.isLocal && profiles.count > 1
     }
 

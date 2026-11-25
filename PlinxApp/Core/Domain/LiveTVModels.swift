@@ -43,7 +43,7 @@ enum LiveTVErrorReporting {
         userInfo[NSLocalizedDescriptionKey] = "Live TV operation failed (\(provider), code \(code))."
 
         return NSError(
-            domain: "Strimr.LiveTV",
+            domain: "com.bballdavis.plinx.LiveTV",
             code: code,
             userInfo: userInfo,
         )

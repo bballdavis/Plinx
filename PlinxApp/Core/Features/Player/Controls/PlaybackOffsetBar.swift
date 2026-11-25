@@ -317,8 +317,6 @@ struct PlaybackOffsetStepper: View {
     var caption: String?
     var isEnabled = true
     var prefersInitialFocus = false
-    /// tvOS settings pages track focus per control.
-    var settingsFocusID: String?
     let onStep: (_ direction: Int, _ coarse: Bool) -> Void
     var onReset: (() -> Void)?
 
@@ -394,22 +392,14 @@ struct PlaybackOffsetStepper: View {
             action: { onStep(control.direction, control.isCoarse) },
         )
         #if os(tvOS)
-        .modifier(PlaybackOffsetFocus(
-            control: control,
-            focusedControl: $focusedControl,
-            settingsFocusID: settingsFocusID,
-        ))
+        .focused($focusedControl, equals: control)
         #endif
     }
 
     private func resetButton(action: @escaping () -> Void) -> some View {
         PlaybackOffsetResetButton(isEnabled: isEnabled && milliseconds != 0, action: action)
         #if os(tvOS)
-            .modifier(PlaybackOffsetFocus(
-                control: .reset,
-                focusedControl: $focusedControl,
-                settingsFocusID: settingsFocusID,
-            ))
+            .focused($focusedControl, equals: .reset)
         #endif
     }
 
@@ -489,24 +479,6 @@ enum PlaybackOffsetControl: String, Hashable {
 }
 
 #if os(tvOS)
-    /// On a settings page the page owns focus; in the player the stepper does.
-    private struct PlaybackOffsetFocus: ViewModifier {
-        let control: PlaybackOffsetControl
-        let focusedControl: FocusState<PlaybackOffsetControl?>.Binding
-        let settingsFocusID: String?
-
-        func body(content: Content) -> some View {
-            if let settingsFocusID {
-                content.settingsFocus(
-                    "\(settingsFocusID).\(control.rawValue)",
-                    exitsLeft: control == .coarseDecrease,
-                )
-            } else {
-                content.focused(focusedControl, equals: control)
-            }
-        }
-    }
-
     /// Steps once on press, then repeats while the remote's select button is held, faster and faster.
     struct PlaybackOffsetStepButton: View {
         let title: String
@@ -682,7 +654,6 @@ enum PlaybackOffsetControl: String, Hashable {
 /// "Audio offset" in Settings > Playback: the same four buttons, without the bar.
 struct AudioDelaySettingsRow: View {
     @Environment(SettingsManager.self) private var settingsManager
-    var settingsFocusID: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -698,7 +669,6 @@ struct AudioDelaySettingsRow: View {
                 kind: .audio,
                 milliseconds: milliseconds,
                 caption: PlaybackOffsetKind.audio.directionLabel(milliseconds: milliseconds),
-                settingsFocusID: settingsFocusID,
                 onStep: { direction, coarse in
                     let current = PlaybackOffset(milliseconds: milliseconds)
                     let stepped = PlaybackOffsetRange.audio.stepped(current, by: direction, coarse: coarse)

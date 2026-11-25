@@ -24,7 +24,7 @@ final class ServerRegistry {
         var connectionFailures = 0
     }
 
-    private(set) var profile: StrimrProfile?
+    private(set) var profile: PlinxProfile?
     private(set) var linkStatuses: [String: LinkStatus] = [:]
     /// Changes on every profile activation, so views drop the state of the previous profile.
     private(set) var generation = 0
@@ -145,11 +145,6 @@ final class ServerRegistry {
 
     /// The accounts linked to the active profile, whether or not their servers are connected or enabled.
     func accountPreferencesTargets() -> [AccountPreferencesTarget] {
-        #if DEBUG
-            if DemoMode.isEnabled {
-                return []
-            }
-        #endif
         guard let profile else { return [] }
         return profileStore.links(for: profile).compactMap { link in
             switch (accountStore.account(id: link.accountID), link.user) {
@@ -202,7 +197,7 @@ final class ServerRegistry {
     // MARK: - Activation
 
     /// Resolves the links of `profile` and starts connecting its enabled servers in parallel.
-    func activate(profile: StrimrProfile, links: [ProfileLink]) {
+    func activate(profile: PlinxProfile, links: [ProfileLink]) {
         deactivate()
         self.profile = profile
         generation += 1
@@ -625,12 +620,6 @@ final class ServerRegistry {
     }
 
     private func connectJellyfin(_ server: ServerIdentity) async {
-        #if DEBUG
-            if DemoMode.isEnabled {
-                markDemoReady(server)
-                return
-            }
-        #endif
         guard let entry = entries[server],
               case let .jellyfin(account)? = accountStore.account(id: entry.link.accountID)
         else { return }
@@ -694,7 +683,7 @@ final class ServerRegistry {
     }
 
     /// `services` already sit behind the content-safety boundary: `MediaServices.init` wraps every provider service in
-    /// `SafeMediaServices`, so the Plex, Jellyfin and demo services published here are all filtered.
+    /// `SafeMediaServices`, so the Plex and Jellyfin services published here are all filtered.
     private func markReady(_ server: ServerIdentity, services: MediaServices?, update: (inout Entry) -> Void) {
         guard var entry = entries[server] else { return }
         guard let services else {
@@ -712,24 +701,6 @@ final class ServerRegistry {
         publishServices()
         resumeReadyWaiters()
     }
-
-    #if DEBUG
-        /// No availability probe and no offline activation: the demo server has no address, and its content must not
-        /// reach the offline store.
-        private func markDemoReady(_ server: ServerIdentity) {
-            guard var entry = entries[server] else { return }
-            do {
-                entry.session.services = try DemoMediaServices.make(server: server)
-            } catch {
-                print("Demo catalog failed to load: \(error)")
-                markUnreachable(server)
-                return
-            }
-            entry.session.status = .ready
-            entries[server] = entry
-            resumeReadyWaiters()
-        }
-    #endif
 
     private func markUnreachable(_ server: ServerIdentity) {
         guard var entry = entries[server] else { return }

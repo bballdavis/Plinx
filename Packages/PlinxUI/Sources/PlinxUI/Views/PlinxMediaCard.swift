@@ -3,7 +3,7 @@ import SwiftUI
 /// A reusable media thumbnail card used throughout Plinx.
 ///
 /// Shows a poster image (via `AsyncImage`), optional progress bar, and labels.
-/// Does not import any Strimr types — data must be pre-adapted by the caller.
+/// Does not import any app types — data must be pre-adapted by the caller.
 public struct PlinxMediaCard: View {
     public let title: String
     public let subtitle: String?

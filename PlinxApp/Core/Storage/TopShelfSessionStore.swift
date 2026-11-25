@@ -36,7 +36,7 @@ import Foundation
             TopShelfSessions.decode(
                 v2: defaults?.data(forKey: TopShelfSessions.sessionsKey),
                 v1: defaults?.data(forKey: TopShelfSessions.legacySessionKey),
-            ).sessions
+            )
         }
     }
 #endif

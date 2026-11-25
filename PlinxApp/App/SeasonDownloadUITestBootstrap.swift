@@ -1,6 +1,6 @@
 import SwiftUI
 
-#if !os(tvOS)
+#if DEBUG && !os(tvOS)
 /// UI-test route `seasonDownloadOffline`: the detail page of a season whose
 /// server cannot be reached, with its episodes already loaded, to check that
 /// the season download picker lists and selects them without a connection.

@@ -16,7 +16,7 @@ private typealias PlatformImage = NSImage
 /// (storage, every download on the device, delete).
 ///
 /// Only downloads `DownloadAccessPolicy` allows are shown: owned by the active
-/// profile (upstream `ownerID`) and allowed by the current content policy
+/// profile (`ownerID`) and allowed by the current content policy
 /// through `ContentSafetyGate`. Playback goes through the app's single player
 /// presentation (`MainCoordinator.showLocalPlayer`), whose player re-checks the
 /// title before it loads.
@@ -251,7 +251,7 @@ struct PlinxDownloadsGridView: View {
         await downloadManager.delete(item)
     }
 
-    /// Restarts a failed download. Upstream's retry resumes from the partial
+    /// Restarts a failed download. `DownloadManager`'s retry resumes from the partial
     /// file when iOS kept one, else prepares it again on the server, which goes
     /// through the safety boundary and re-checks the title against the
     /// server's current metadata. When the download cannot be retried in place
@@ -500,7 +500,7 @@ struct PlinxDownloadsGridView: View {
         )
     }
 
-    /// Same rule as upstream's downloads list: a transfer that has not
+    /// Same rule as the shared downloads list: a transfer that has not
     /// received a byte while Wi-Fi only applies and the device is off Wi-Fi.
     private func isWaitingForWiFi(_ item: DownloadItem) -> Bool {
         item.status == .downloading

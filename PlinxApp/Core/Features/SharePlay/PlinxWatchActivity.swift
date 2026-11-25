@@ -1,8 +1,8 @@
 import Foundation
 import GroupActivities
 
-struct StrimrWatchActivity: GroupActivity, Hashable, Sendable {
-    static let activityIdentifier = "com.github.wunax.strimr.watch"
+struct PlinxWatchActivity: GroupActivity, Hashable, Sendable {
+    static let activityIdentifier = "com.bballdavis.plinx.watch"
 
     let activityID: UUID
     let provider: MediaProvider

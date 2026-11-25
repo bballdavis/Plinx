@@ -5,7 +5,7 @@ import SwiftUI
 
 /// Plinx media detail page.
 ///
-/// The upstream `MediaDetailViewModel` loads everything through the screen's
+/// The shared `MediaDetailViewModel` loads everything through the screen's
 /// `MediaServices`, which `SafeMediaServices` already filters fail-closed
 /// (blocked titles throw, seasons, episodes, cast filmography, extras and
 /// related hubs are filtered, management is denied while the parental gate is
@@ -174,7 +174,7 @@ struct PlinxMediaDetailView: View {
 #if os(tvOS)
 /// Plinx-owned tvOS presentation for media detail.
 ///
-/// The upstream `MediaDetailViewModel` owns loading, playback targets and
+/// The shared `MediaDetailViewModel` owns loading, playback targets and
 /// watch state; this shell supplies the television reading order, focus
 /// behavior and backdrop treatment. It offers no Manage menu, file info,
 /// playlist editing or track pickers: those are parent tools, and kids only

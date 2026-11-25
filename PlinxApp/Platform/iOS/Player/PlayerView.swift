@@ -89,6 +89,9 @@ struct PlayerView: View {
     /// Final playback check (kid safety): every item is checked right before it loads, including next
     /// episodes, queue picks and SharePlay hand-offs. A refusal stops playback and closes the player.
     private let isPlaybackAuthorized: @MainActor (MediaItem) -> Bool
+    /// Told the player's view model whenever it changes (autoplay, queue picks, SharePlay, offline hand-off), so
+    /// overlays drawn around the player follow the item that is playing rather than the one the player opened with.
+    private let onViewModelChange: @MainActor (PlayerViewModel) -> Void
 
     private let controlsHideDelay: TimeInterval = 3.0
     private var seekBackwardInterval: Double {
@@ -107,10 +110,12 @@ struct PlayerView: View {
         viewModel: PlayerViewModel,
         showsBufferingOverlay: Bool = true,
         isPlaybackAuthorized: @escaping @MainActor (MediaItem) -> Bool = { ContentSafetyGate.shared.isAllowed($0) },
+        onViewModelChange: @escaping @MainActor (PlayerViewModel) -> Void = { _ in },
     ) {
         _viewModel = State(initialValue: viewModel)
         self.showsBufferingOverlay = showsBufferingOverlay
         self.isPlaybackAuthorized = isPlaybackAuthorized
+        self.onViewModelChange = onViewModelChange
     }
 
     var body: some View {
@@ -288,6 +293,9 @@ struct PlayerView: View {
 
         let sessionObservers = AnyView(
             playbackObservers
+                .onChange(of: ObjectIdentifier(viewModel), initial: true) { _, _ in
+                    onViewModelChange(viewModel)
+                }
                 .onChange(of: sharePlayCoordinator.activityChangeID) { _, _ in
                     guard let activity = sharePlayCoordinator.activity,
                           activity.ratingKey != viewModel.currentRatingKey
@@ -1623,11 +1631,6 @@ struct PlayerView: View {
             shouldResumeAfterMediaLoad = false
             playerController.resume()
         }
-        #if DEBUG
-            if DemoMode.isEnabled {
-                showControls(temporarily: false)
-            }
-        #endif
     }
 
     private func dismissPlayer(force: Bool = false) {
@@ -2077,7 +2080,7 @@ struct PlayerView: View {
         }
     }
 
-    private func startPlayback(for activity: StrimrWatchActivity) async {
+    private func startPlayback(for activity: PlinxWatchActivity) async {
         do {
             let nextViewModel = try await sharePlayCoordinator.playerViewModel(for: activity)
             await startPlayback(using: nextViewModel)

@@ -1,7 +1,7 @@
 import PlinxUI
 import SwiftUI
 
-/// Plinx search on the upstream multi-server `SearchViewModel`.
+/// Plinx search on the shared multi-server `SearchViewModel`.
 ///
 /// Every server's search service is wrapped by `SafeMediaServices`, so
 /// results arrive filtered; the page re-checks them against the gate so

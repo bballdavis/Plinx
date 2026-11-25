@@ -14,8 +14,9 @@ import PackageDescription
 //
 // Module Boundary:
 //   PlinxUI imports PlinxCore (for HapticManager and model types).
-//   PlinxUI does not import Strimr or any Strimr types.
-//   All data arriving at PlinxUI views is pre-adapted by PlinxApp decorators.
+//   PlinxUI does not import the app's media stack (PlinxApp/Core).
+//   Content reaches PlinxUI views only after the app's safety boundary
+//   (SafeMediaServices in PlinxApp/Core/Safety) has filtered it.
 //
 // ─────────────────────────────────────────────────────────────────────────────
 

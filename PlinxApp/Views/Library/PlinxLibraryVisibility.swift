@@ -1,10 +1,10 @@
 import Foundation
 
 /// Which libraries a profile shows: Plinx's "Visible Libraries" setting, stored
-/// as upstream's per-profile `LibraryPreferences.hiddenLibraries`.
+/// as the per-profile `LibraryPreferences.hiddenLibraries`.
 ///
-/// A hidden library is left out of the Library tab, Home (upstream passes the
-/// hidden libraries to every home request) and search. Hiding a library is a
+/// A hidden library is left out of the Library tab, Home (`HomeViewModel`
+/// passes the hidden libraries to every home request) and search. Hiding a library is a
 /// parent's curation, not the rating policy: `ContentSafetyGate` still judges
 /// every title that a visible library returns.
 @MainActor

@@ -173,26 +173,7 @@ struct SignInView: View {
     private func actionArea(layout: PlinxOnboardingLayout) -> some View {
         VStack(spacing: 14) {
             if let error = viewModel.errorMessage {
-                Label {
-                    Text(error)
-                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
-                        .fixedSize(horizontal: false, vertical: true)
-                } icon: {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(Color.orange)
-                }
-                .foregroundStyle(Color.white)
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(PlinxBrand.surface)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(Color.orange.opacity(0.45), lineWidth: 1)
-                )
-                .accessibilityIdentifier("signIn.error")
+                PlinxOnboardingErrorMessage(message: error, accessibilityIdentifier: "signIn.error")
             }
 
             Button {
@@ -359,8 +340,13 @@ extension SignInView {
     private var tvOSPanelHeight: CGFloat { 430 }
     private var tvOSPanelWidth: CGFloat { 430 }
 
+    /// UI tests (Debug builds only) show a placeholder code instead of starting a plex.tv sign-in.
     private var isUITesting: Bool {
+        #if DEBUG
         ProcessInfo.processInfo.arguments.contains("--ui-testing")
+        #else
+        false
+        #endif
     }
 
     private var tvOSBody: some View {

@@ -11,10 +11,10 @@ import SwiftUI
 // `SafeMediaServices` boundary, so adding one never widens what a child sees
 // beyond the family's rating policy.
 //
-// iPhone and iPad use upstream `AccountsSettingsView` (its removal flow also
-// asks whether the account's downloads are kept). Apple TV cannot host
-// upstream's tvOS settings focus system, so it gets the same actions on the
-// Plinx Settings list.
+// iPhone and iPad use the shared `AccountsSettingsView` (its removal flow also
+// asks whether the account's downloads are kept). Apple TV has no settings
+// focus system for that screen, so it gets the same actions on the Plinx
+// Settings list.
 // ─────────────────────────────────────────────────────────────────────────────
 
 #if !os(tvOS)

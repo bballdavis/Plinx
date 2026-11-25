@@ -72,7 +72,6 @@ final class MainCoordinator: ObservableObject, PlaybackPresenting {
     @Published var seerrDiscoverPath = NavigationPath()
     @Published private var libraryDetailPaths: [LibraryIdentity: NavigationPath] = [:]
     private var mediaRouteEntries: [Tab: [MediaRouteEntry]] = [:]
-    private let settingsManager: SettingsManager
     /// Discover and Live TV only appear once Seerr and the servers have answered, so they are opened when they show
     /// up, unless the user has picked another tab meanwhile.
     private var pendingStartupTab: Tab?
@@ -81,7 +80,6 @@ final class MainCoordinator: ObservableObject, PlaybackPresenting {
     var moreRootTab: Tab?
 
     init(settingsManager: SettingsManager) {
-        self.settingsManager = settingsManager
         applyStartupScreen(settingsManager.interface)
     }
 
@@ -443,10 +441,6 @@ final class MainCoordinator: ObservableObject, PlaybackPresenting {
         }
     }
 
-    var externalPlayer: ExternalPlayer? {
-        settingsManager.playback.resolvedExternalPlayer
-    }
-
     func showPlayer(
         for queue: PlaybackQueue,
         services: MediaServices,
@@ -458,10 +452,6 @@ final class MainCoordinator: ObservableObject, PlaybackPresenting {
         self.shouldResumeFromOffset = shouldResumeFromOffset
         playerNotice = notice
         isPresentingPlayer = true
-    }
-
-    func openExternalPlayer(_ request: ExternalLaunchRequest) async -> Bool {
-        await ExternalPlayerApps.open(request)
     }
 
     func showLivePlayer(context: LiveTVLaunchContext, services: MediaServices) {

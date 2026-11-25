@@ -24,7 +24,7 @@ import UIKit
 //
 // Plinx state layered on top: ParentalAccessCoordinator, PlinxWatchStatusStore,
 // PlaybackLaunchCoordinator, PlaybackCoordinator, PlinxTheme and the computed
-// SafetyPolicy. Screens get services from `ServerRegistry` or use the upstream
+// SafetyPolicy. Screens get services from `ServerRegistry` or use the shared
 // view models initialised with `SessionManager`/`SettingsManager`.
 //
 // The SafetyPolicy computed here is pushed into `ContentSafetyGate.shared`
@@ -122,14 +122,7 @@ struct PlinxApp: App {
         ContentSafetyGate.shared.policy = PlinxSafetyPreferences.storedPolicy()
 
         let favoritesStore = FavoritesStore()
-        #if DEBUG
-        // Upstream's DEBUG-only screenshot mode (-ScreenshotMode) keeps its
-        // seeded stores apart from the family's Keychain and preferences.
-        let demoStores = DemoStores.makeIfEnabled()
-        let settings = demoStores.map { SettingsManager(userDefaults: $0.defaults) } ?? SettingsManager()
-        #else
         let settings = SettingsManager()
-        #endif
         PlinxSettingsSanitizer.applyPlinxDefaults(settings)
         PlinxSettingsSanitizer.disableUnsupportedFeatures(settings)
 
@@ -137,23 +130,12 @@ struct PlinxApp: App {
             store: TrackSelectionStore(),
             settingsManager: settings
         )
-        #if DEBUG
-        let session = SessionManager(
-            settingsManager: settings,
-            favoritesStore: favoritesStore,
-            trackSelectionCoordinator: trackSelectionCoordinator,
-            versionSelectionStore: MediaVersionSelectionStore(),
-            accountStore: demoStores?.accountStore,
-            profileStore: demoStores?.profileStore
-        )
-        #else
         let session = SessionManager(
             settingsManager: settings,
             favoritesStore: favoritesStore,
             trackSelectionCoordinator: trackSelectionCoordinator,
             versionSelectionStore: MediaVersionSelectionStore()
         )
-        #endif
 
         _sessionManager = State(initialValue: session)
         _settingsManager = State(initialValue: settings)

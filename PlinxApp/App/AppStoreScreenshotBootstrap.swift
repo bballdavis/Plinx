@@ -3,9 +3,9 @@ import UIKit
 
 /// UI-test-only entry points for capturing production views against the local
 /// fixture service. This type supplies initial data but does not own a visual
-/// implementation. The landscape launch arguments work in Debug builds only.
+/// implementation. Everything here works in Debug builds only: in Release the
+/// landscape request is always false and the fixture route does not exist.
 enum AppStoreScreenshotBootstrap {
-    static let mediaDetailScreen = "appStoreMediaDetail"
     private static let landscapeArgument = "--app-store-landscape"
     private static let releaseLandscapeArgument = "--release-screenshot-landscape"
 
@@ -40,6 +40,11 @@ enum AppStoreScreenshotBootstrap {
         }
         #endif
     }
+}
+
+#if DEBUG
+extension AppStoreScreenshotBootstrap {
+    static let mediaDetailScreen = "appStoreMediaDetail"
 
     /// The "Moonbound" sample title on `server`. The detail screen loads the rest of its metadata from the server.
     static func media(server: ServerIdentity) -> PlayableMediaItem? {
@@ -112,3 +117,4 @@ struct AppStoreMediaDetailScreenshotHarness: View {
         }
     }
 }
+#endif

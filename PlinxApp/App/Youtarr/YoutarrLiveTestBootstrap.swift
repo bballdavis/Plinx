@@ -1,8 +1,9 @@
 import Foundation
 import PlinxCore
 
-/// Opt-in live-test wiring. It is unreachable during normal app launches and
-/// keeps test credentials in the test process environment rather than source.
+/// Opt-in live-test wiring. It works only in Debug builds launched for UI
+/// tests, and keeps test credentials in the test process environment rather
+/// than source. Release builds always return no configuration.
 enum YoutarrLiveTestBootstrap {
     static let screenName = "youtarrExploreLive"
     private static let mainTabEnvironmentKey = "PLINX_YOUTARR_LIVE_MAIN_TAB"
@@ -11,6 +12,7 @@ enum YoutarrLiveTestBootstrap {
         arguments: [String] = ProcessInfo.processInfo.arguments,
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> YoutarrConfiguration? {
+        #if DEBUG
         guard arguments.contains("--ui-testing"),
               environment["PLINX_YOUTARR_LIVE"] == "1",
               let rawURL = environment["PLINX_YOUTARR_URL"],
@@ -20,6 +22,9 @@ enum YoutarrLiveTestBootstrap {
             return nil
         }
         return try? YoutarrConfiguration(baseURL: baseURL, apiKey: apiKey)
+        #else
+        return nil
+        #endif
     }
 
     static func safetyPolicy(
@@ -42,10 +47,14 @@ enum YoutarrLiveTestBootstrap {
         arguments: [String] = ProcessInfo.processInfo.arguments,
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> YoutarrConfiguration? {
+        #if DEBUG
         guard arguments.contains("--ui-testing"),
               environment[mainTabEnvironmentKey] == "1" else {
             return nil
         }
         return configuration(arguments: arguments, environment: environment)
+        #else
+        return nil
+        #endif
     }
 }

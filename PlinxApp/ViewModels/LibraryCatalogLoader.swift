@@ -88,9 +88,3 @@ final class LibraryCatalogLoader: LibraryCatalogLoading {
         }
     }
 }
-
-/// Former name of `PlinxContentRules`, kept only so callers outside the
-/// library screens keep compiling while they move to `ContentSafetyGate.shared`
-/// (provider data) or `PlinxContentRules` (an explicit, captured policy).
-/// Delete it once nothing refers to it.
-typealias PlinxContentAuthorization = PlinxContentRules

@@ -22,10 +22,11 @@ struct OpenSourceLicense: Identifiable, Hashable {
 }
 
 extension OpenSourceLicense {
+    /// Strimr, the GPL-3.0 project whose code Plinx absorbed, credited in the licenses list and About.
     static let strimr = OpenSourceLicense(
         name: "Strimr",
         license: "GPL-3.0",
-        url: AppInfo.sourceCodeURL,
+        url: URL(string: "https://github.com/wunax/strimr")!,
         textFiles: ["GPL-3.0"],
     )
 

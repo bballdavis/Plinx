@@ -72,7 +72,3 @@ enum PlinxContentRules {
         )
     }
 }
-
-/// Former name, kept while callers move to `PlinxContentRules` (or, for
-/// provider data, to the `ContentSafetyGate` boundary).
-typealias StrimrAdapter = PlinxContentRules

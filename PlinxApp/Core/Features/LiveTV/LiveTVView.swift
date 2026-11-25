@@ -95,12 +95,6 @@ struct LiveTVView: View {
         .task { await store.load() }
         .onAppear {
             store.channelSort = settingsManager.liveTVChannelSort(server: services.identity)
-            #if DEBUG
-                if DemoMode.isEnabled, let demo = DemoLiveTV.section.flatMap(LiveTVSection.init(rawValue:)) {
-                    section = demo
-                    return
-                }
-            #endif
             if let saved = settingsManager.liveTVSection(server: services.identity)
                 .flatMap(LiveTVSection.init(rawValue:)), sections.contains(saved)
             {

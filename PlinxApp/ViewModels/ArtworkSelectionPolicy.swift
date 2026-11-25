@@ -27,7 +27,7 @@ enum ArtworkSelectionPolicy {
     }
 
     /// Resolves the artwork for a landscape library card. Standard landscape
-    /// cards preserve Strimr's backdrop-art default; Other Videos supplies a
+    /// cards keep the shared backdrop-art default; Other Videos supplies a
     /// thumbnail preference through the library-detail environment.
     static func landscapeCardArtworkKind(
         preferredArtworkKind: MediaImageViewModel.ArtworkKind?

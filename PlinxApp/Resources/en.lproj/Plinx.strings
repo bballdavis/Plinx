@@ -60,8 +60,10 @@
 /* Downloads */
 "offline.recovery.title" = "Connection unavailable";
 "offline.recovery.message" = "Your downloaded videos are still available offline.";
-"offline.recovery.tvMessage" = "Connect to your Plex server to browse and play.";
+"offline.recovery.tvMessage" = "Connect to your media server to browse and play.";
 "offline.recovery.retry" = "Try Again";
+"offline.recovery.plinx.serversUnreachable" = "Plinx can’t reach your media server. Make sure it’s turned on, then try again.";
+"offline.recovery.plinx.updateMessage" = "Plinx couldn’t finish updating your sign-in. Your account is kept. Try again in a moment.";
 "downloads.empty.title" = "No downloads";
 "downloads.empty.message" = "Downloaded content will appear here.";
 "downloads.status.queued" = "Queued";

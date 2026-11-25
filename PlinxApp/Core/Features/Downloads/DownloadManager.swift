@@ -19,7 +19,7 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
     /// How the persisted download list loaded; see `DownloadPersistedIndexState`.
     @ObservationIgnored private var persistedIndexState: DownloadPersistedIndexState = .missing
     @ObservationIgnored private let monitor = NWPathMonitor()
-    @ObservationIgnored private let monitorQueue = DispatchQueue(label: "strimr.downloads.network-monitor")
+    @ObservationIgnored private let monitorQueue = DispatchQueue(label: "plinx.downloads.network-monitor")
     @ObservationIgnored private var backgroundEventsCompletionHandler: (() -> Void)?
     @ObservationIgnored private var progressByTaskIdentifier: [Int: Double] = [:]
     @ObservationIgnored private var freshTaskIdentifiers: Set<Int> = []
@@ -161,7 +161,7 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
               items[index].taskIdentifier == currentTaskIdentifier
         else {
             let error = NSError(
-                domain: "Strimr.DownloadManager",
+                domain: Self.errorDomain,
                 code: 1,
                 userInfo: [NSLocalizedDescriptionKey: "Unable to allow cellular access for this download."],
             )
@@ -855,6 +855,7 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
         return legacyItems.count == entries.count ? .loaded : .corrupt
     }
 
+    private static let errorDomain = "com.bballdavis.plinx.DownloadManager"
     private static let insufficientStorageCode = 1001
     private static let storageHeadroomBytes: Int64 = 256 * 1024 * 1024
     private static let unknownLengthReportInterval: Duration = .seconds(1)
@@ -1117,7 +1118,7 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
             try? FileManager.default.removeItem(at: stagedLocation)
             let failure = error as? DownloadIntegrityFailure ?? .invalidResponse
             failDownload(task: task, error: NSError(
-                domain: "Plinx.DownloadManager",
+                domain: Self.errorDomain,
                 code: (task.response as? HTTPURLResponse)?.statusCode ?? 0,
                 userInfo: [
                     NSLocalizedDescriptionKey: DownloadIntegrityValidator.failureMessage(
@@ -1246,7 +1247,7 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
 
     private nonisolated static func stageDownloadFile(at location: URL) throws -> URL {
         let stagingDirectory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("strimr-download-staging", isDirectory: true)
+            .appendingPathComponent("plinx-download-staging", isDirectory: true)
         try FileManager.default.createDirectory(
             at: stagingDirectory,
             withIntermediateDirectories: true,
@@ -1326,7 +1327,7 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate {
                remainingBytes > 0, !hasEnoughSpace(forRemainingBytes: remainingBytes)
             {
                 failDownload(task: downloadTask, error: NSError(
-                    domain: "Strimr.DownloadManager",
+                    domain: Self.errorDomain,
                     code: Self.insufficientStorageCode,
                     userInfo: [NSLocalizedDescriptionKey: String(localized: "downloads.status.insufficientStorage")],
                 ))

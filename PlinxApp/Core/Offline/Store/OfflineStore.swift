@@ -98,17 +98,6 @@ final class OfflineStore {
         }
     }
 
-    func assignOwner(_ owner: MediaOwner, toUnownedDownloadsOn server: ServerIdentity) -> Int {
-        perform {
-            try self.offline.write { db in
-                try DownloadRecord
-                    .filter(Column("ownerID") == nil)
-                    .filter(Column("provider") == server.provider.rawValue && Column("serverID") == server.id)
-                    .updateAll(db, Column("ownerID").set(to: owner.id))
-            }
-        } ?? 0
-    }
-
     private func downloadRecord(from item: DownloadItem) throws -> DownloadRecord {
         let metadata = item.metadata
         return try DownloadRecord(

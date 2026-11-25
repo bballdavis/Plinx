@@ -89,9 +89,9 @@ enum ContentSafetyError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .blocked, .unavailable:
-            String(localized: "safety.content.unavailable", defaultValue: "This isn't available.")
+            String(localized: "safety.content.unavailable", defaultValue: "This isn't available.", table: "Plinx")
         case .parentApprovalRequired:
-            String(localized: "safety.parentApprovalRequired", defaultValue: "Ask a grown-up to unlock this.")
+            String(localized: "safety.parentApprovalRequired", defaultValue: "Ask a grown-up to unlock this.", table: "Plinx")
         }
     }
 }

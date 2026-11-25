@@ -106,7 +106,7 @@ enum LivePlexUITestBootstrap {
         }
 
         /// Profile of the Plex user owning `token`, when that account is already stored.
-        private static func ownerProfile(of token: String, in sessionManager: SessionManager) -> StrimrProfile? {
+        private static func ownerProfile(of token: String, in sessionManager: SessionManager) -> PlinxProfile? {
             let accountStore = sessionManager.accountStore
             guard let account = accountStore.plexAccounts.first(where: { account in
                 (try? accountStore.token(for: .plex(account))) == token

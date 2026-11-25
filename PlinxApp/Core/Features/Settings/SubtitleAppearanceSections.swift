@@ -1,56 +1,6 @@
 import SwiftUI
 
-@MainActor
-struct SettingsSubtitlesView: View {
-    @Environment(SettingsManager.self) private var settingsManager
-
-    private var viewModel: SettingsViewModel {
-        SettingsViewModel(settingsManager: settingsManager)
-    }
-
-    var body: some View {
-        List {
-            Section {
-                Toggle(
-                    "settings.playback.subtitles.styledASS",
-                    isOn: viewModel.styledASSSubtitlesBinding,
-                )
-            } footer: {
-                Text("settings.playback.subtitles.styledASS.description")
-            }
-
-            Section {
-                Toggle(
-                    "settings.playback.subtitles.automaticSearch",
-                    isOn: viewModel.automaticSubtitleSearchBinding,
-                )
-            } footer: {
-                Text("settings.playback.subtitles.automaticSearch.description")
-            }
-
-            Section {
-                Toggle(
-                    "settings.playback.subtitles.showOnSkipBack",
-                    isOn: viewModel.showSubtitlesOnSkipBackBinding,
-                )
-            } footer: {
-                Text("settings.playback.subtitles.showOnSkipBack.description")
-            }
-
-            Section("settings.playback.subtitles.preview.title") {
-                SubtitleAppearancePreview(appearance: settingsManager.playback.subtitleAppearance)
-                    .frame(height: 180)
-                    .listRowInsets(EdgeInsets())
-            }
-
-            SubtitleAppearanceSections()
-        }
-        .insetListStyle()
-        .navigationTitle("settings.playback.subtitles.title")
-    }
-}
-
-/// The appearance settings, shared by the settings screen and the player.
+/// The subtitle appearance settings shown in the player.
 @MainActor
 struct SubtitleAppearanceSections: View {
     var availability = SubtitleAppearanceAvailability.available

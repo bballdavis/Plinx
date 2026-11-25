@@ -57,7 +57,7 @@ settings:
     CURRENT_PROJECT_VERSION: 1
     MARKETING_VERSION: 2026.11.00
     SWIFT_OBJC_INTEROP_MODE: objcxx
-    # Plinx branding — no Strimr references leak into the binary
+    # Plinx branding: the product and display name is Plinx
     PRODUCT_NAME: Plinx
 
 targets:
@@ -109,7 +109,7 @@ targets:
         # delivery runbook before changing this compliance declaration.
         ITSAppUsesNonExemptEncryption: false
         PlinxBuildConfiguration: $(CONFIGURATION)
-        NSLocalNetworkUsageDescription: Plinx connects to Plex Media Servers and an optional parent-configured Youtarr service on your local network.
+        NSLocalNetworkUsageDescription: Plinx connects to your Plex and Jellyfin media servers and an optional parent-configured Youtarr service on your local network.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
         UILaunchStoryboardName: LaunchScreen
@@ -145,6 +145,10 @@ targets:
 
     sources:
       - path: UnitTests
+      # Tests of the absorbed media stack (Swift Testing). Their JSON fixtures
+      # under CoreTests/Fixtures are copied flat into the test bundle, where
+      # `Fixtures.data(_:)` finds them by name.
+      - path: CoreTests
 
     resources:
       - path: UnitTests/Fixtures/YoutarrExternalAPIV1
@@ -160,7 +164,7 @@ targets:
         SWIFT_STRICT_CONCURRENCY: minimal
         OTHER_SWIFT_FLAGS: "-Xfrontend -strict-concurrency=minimal"
         # Host the unit tests inside the running app process so they can access
-        # all internal app types via @testable import Plinx_iOS.
+        # all internal app types via @testable import Plinx.
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Plinx.app/Plinx"
         BUNDLE_LOADER: "$(TEST_HOST)"
 
@@ -214,11 +218,8 @@ targets:
           - "Features/Downloads/DownloadModels.swift"
           - "Features/Downloads/DownloadOptionsView.swift"
           - "Features/Downloads/DownloadRowViews.swift"
-          - "Features/Home/HomeView.swift"
-          - "Features/Library/LibraryBrowseView.swift"
           - "Features/Library/LibraryBrowseViewModel.swift"
           - "Features/Library/LibraryCollectionsViewModel.swift"
-          - "Features/Library/LibraryView.swift"
           - "Features/MediaDetail/DetailFactsSection.swift"
           - "Features/MediaDetail/DetailHeroTitle.swift"
           - "Features/MediaDetail/DetailPlaybackCard.swift"
@@ -227,22 +228,11 @@ targets:
           - "Features/Player/Controls/PlayerControlButtonStyle.swift"
           - "Features/Player/DoubleTapSeek.swift"
           - "Features/Player/PlayerLayoutMode.swift"
-          - "Features/Search/SearchView.swift"
           - "Features/Seerr/SeerrDiscoverView.swift"
           - "Features/Seerr/SeerrManageRequestsSheetView.swift"
           - "Features/Seerr/SeerrMediaDetailView.swift"
           - "Features/Seerr/SeerrMediaRequestSheetView.swift"
-          - "Features/Settings/AccountPreferencesView.swift"
-          - "Features/Settings/IntegrationsView.swift"
-          - "Features/Settings/SeerrView.swift"
-          - "Features/Settings/SettingsAboutView.swift"
-          - "Features/Settings/SettingsAudioView.swift"
-          - "Features/Settings/SettingsInterfaceView.swift"
-          - "Features/Settings/SettingsLicensesView.swift"
-          - "Features/Settings/SettingsPlaybackView.swift"
-          - "Features/Settings/SettingsPrivacyView.swift"
-          - "Features/Settings/SettingsSubtitlesView.swift"
-          - "Features/Settings/SettingsView.swift"
+          - "Features/Settings/SubtitleAppearanceSections.swift"
           - "Library/Player/PictureInPictureCoordinator.swift"
           - "Offline/Artwork/CachedArtworkService.swift"
           - "Offline/OfflineCoordinator.swift"
@@ -268,7 +258,6 @@ targets:
           - "Views/Seerr/SeerrDetailHeroTitle.swift"
           - "Views/Seerr/SeerrEpisodeCardView.swift"
           - "Views/Seerr/SeerrSeasonEpisodesSection.swift"
-          - "Views/TabRootChrome.swift"
           - "Views/Theme/TileButtonStyle.swift"
       - path: Platform/tvOS
 
@@ -298,7 +287,7 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         ITSAppUsesNonExemptEncryption: false
         PlinxBuildConfiguration: $(CONFIGURATION)
-        NSLocalNetworkUsageDescription: Plinx connects to Plex Media Servers and an optional parent-configured Youtarr service on your local network.
+        NSLocalNetworkUsageDescription: Plinx connects to your Plex and Jellyfin media servers and an optional parent-configured Youtarr service on your local network.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
 

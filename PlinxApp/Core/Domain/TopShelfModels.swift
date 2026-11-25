@@ -1,20 +1,15 @@
 import Foundation
 
-// Shared with the Top Shelf extension: keep this file free of app-only types.
+// Where upstream builds shared servers with a Top Shelf extension. Plinx ships no extension and never writes these
+// entries; `TopShelfSessionStore.clear()` uses this file to find and remove anything an earlier build left behind.
 
-/// A server of the active profile as the Top Shelf extension sees it. Its token lives in the shared Keychain under
+/// A server entry an earlier build stored for a Top Shelf extension. Its token lives in the shared Keychain under
 /// `tokenKey`.
 nonisolated struct TopShelfStoredSession: Codable, Hashable, Sendable {
     let provider: String
-    let serverURL: URL
     let serverID: String
-    let userID: String?
 
     var tokenKey: String {
-        Self.tokenKey(provider: provider, serverID: serverID)
-    }
-
-    static func tokenKey(provider: String, serverID: String) -> String {
         "media.serverToken.\(provider).\(serverID)"
     }
 }
@@ -29,42 +24,14 @@ nonisolated enum TopShelfSessions {
     static let legacyPlexTokenKey = "plex.serverToken"
     static let legacyPlexURLKey = "plex.serverURL"
 
-    /// Sessions stored by the app: the v2 list, or the single v1 session of the previous version whose token used the
-    /// unscoped key.
-    static func decode(v2: Data?, v1: Data?) -> (sessions: [TopShelfStoredSession], legacyTokenKeys: [String: String]) {
+    /// Stored sessions: the v2 list, or else the single v1 session of the version before it.
+    static func decode(v2: Data?, v1: Data?) -> [TopShelfStoredSession] {
         if let v2, let sessions = try? JSONDecoder().decode([TopShelfStoredSession].self, from: v2) {
-            return (sessions, [:])
+            return sessions
         }
         guard let v1, let session = try? JSONDecoder().decode(TopShelfStoredSession.self, from: v1) else {
-            return ([], [:])
+            return []
         }
-        return ([session], [session.tokenKey: legacyTokenKey])
-    }
-
-    /// Fraction watched for the Top Shelf progress bar, or nil when the item has not been started.
-    static func playbackProgress(position: Double?, duration: Double?) -> Double? {
-        guard let position, let duration, position > 0, duration > 0 else { return nil }
-        return min(position / duration, 1)
-    }
-
-    /// Merges the rows of several servers: newest first, one entry per title. Servers that failed contribute nothing.
-    static func merge<Item>(
-        _ rows: [[Item]],
-        date: (Item) -> Date?,
-        descriptor: (Item) -> MediaMatchDescriptor,
-    ) -> [Item] {
-        let sorted = rows.flatMap(\.self).enumerated().sorted { lhs, rhs in
-            switch (date(lhs.element), date(rhs.element)) {
-            case let (left?, right?) where left != right:
-                left > right
-            case (_?, nil):
-                true
-            case (nil, _?):
-                false
-            default:
-                lhs.offset < rhs.offset
-            }
-        }.map(\.element)
-        return MediaMatching.group(sorted, descriptor: descriptor).compactMap(\.first)
+        return [session]
     }
 }

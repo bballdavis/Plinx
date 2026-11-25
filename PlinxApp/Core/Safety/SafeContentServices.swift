@@ -348,8 +348,9 @@ final class SafeDetailService: MediaDetailService, OfflineDetailCacheReading {
         self.gate = gate
     }
 
+    /// The watchlist writes to the account (plex.tv): parent-only, like playlist edits.
     var supportsWatchlist: Bool {
-        base.supportsWatchlist
+        gate.isParentUnlocked && base.supportsWatchlist
     }
 
     /// Downloading subtitles writes to the server: parent-only.
@@ -430,10 +431,12 @@ final class SafeDetailService: MediaDetailService, OfflineDetailCacheReading {
     }
 
     func isWatchlisted(_ media: MediaItem) async throws -> Bool {
-        try await base.isWatchlisted(media)
+        guard gate.isParentUnlocked else { return false }
+        return try await base.isWatchlisted(media)
     }
 
     func setWatchlisted(_ watchlisted: Bool, media: MediaItem) async throws {
+        guard gate.isParentUnlocked else { throw ContentSafetyError.parentApprovalRequired }
         try await base.setWatchlisted(watchlisted, media: media)
     }
 

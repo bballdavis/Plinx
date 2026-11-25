@@ -14,10 +14,12 @@ import PlinxUI
 // Libraries are identified by `LibraryIdentity.stableKey`
 // (`<provider>:<serverID>:<libraryID>`), so two servers with the same library
 // id never share a setting. Builds before multi-server stored the plain
-// library id; `HomeLibrarySettingKeys.migrated` rewrites such an id to the
-// stable key of the one library that has it, and keeps it as stored when
-// several libraries (or none) have it. `HomeRecentlyAddedProjection` honors
-// both forms, so nothing a family set is lost either way.
+// library id; `HomeLibrarySettingKeys.migrateStoredKeys` (run by Home once
+// every enabled server's libraries are loaded, and by this screen) rewrites
+// such an id to the stable key of the one library that has it, and keeps it
+// as stored when several libraries (or none) have it.
+// `HomeRecentlyAddedProjection` honors both forms, so nothing a family set is
+// lost either way.
 //
 // Persistence keys (app-level AppStorage / UserDefaults.standard):
 //   plinx.homeHiddenLibraryIds   – JSON [String]  library keys hidden from home
@@ -232,25 +234,13 @@ struct HomeScreenSettingsView: View {
         }
     }
 
-    /// Rewrites plain library ids stored before multi-server to stable keys,
-    /// once every enabled server's libraries are known: an id is only
-    /// unambiguous when no server is missing from the comparison.
     private func migrateLegacyLibraryKeys() {
-        let enabledServers = Set(registry.enabledSessions.map(\.identity))
-        guard !enabledServers.isEmpty,
-              enabledServers.isSubset(of: libraryStore.librariesByServer.keys)
-        else { return }
-        let libraries = libraryStore.libraries
-        let hidden = decodeStringArray(hiddenIdsJson)
-        let migratedHidden = HomeLibrarySettingKeys.migrated(hidden, libraries: libraries)
-        if migratedHidden != hidden {
-            hiddenIdsJson = encodeStringArray(migratedHidden.sorted())
-        }
-        let order = decodeStringArray(orderJson)
-        let migratedOrder = HomeLibrarySettingKeys.migrated(order, libraries: libraries)
-        if migratedOrder != order {
-            orderJson = encodeStringArray(migratedOrder)
-        }
+        HomeLibrarySettingKeys.migrateStoredKeys(
+            hiddenJSON: $hiddenIdsJson,
+            orderJSON: $orderJson,
+            libraryStore: libraryStore,
+            registry: registry
+        )
     }
 
     /// Build the ordered section list, filling in any missing defaults at the end.
@@ -359,6 +349,35 @@ enum HomeLibrarySettingKeys {
                 }
             }
             return seen.insert(resolved).inserted ? resolved : nil
+        }
+    }
+
+    /// Rewrites the plain library ids stored before multi-server in both
+    /// settings to stable keys, once every enabled server's libraries are
+    /// known: an id is only unambiguous when no server is missing from the
+    /// comparison. Writes only what changes. Home runs it as libraries load,
+    /// so families' settings migrate without opening this screen.
+    @MainActor
+    static func migrateStoredKeys(
+        hiddenJSON: Binding<String>,
+        orderJSON: Binding<String>,
+        libraryStore: LibraryStore,
+        registry: ServerRegistry
+    ) {
+        let enabledServers = Set(registry.enabledSessions.map(\.identity))
+        guard !enabledServers.isEmpty,
+              enabledServers.isSubset(of: libraryStore.librariesByServer.keys)
+        else { return }
+        let libraries = libraryStore.libraries
+        let hidden = decodeStringArray(hiddenJSON.wrappedValue)
+        let migratedHidden = migrated(hidden, libraries: libraries)
+        if migratedHidden != hidden {
+            hiddenJSON.wrappedValue = encodeStringArray(migratedHidden.sorted())
+        }
+        let order = decodeStringArray(orderJSON.wrappedValue)
+        let migratedOrder = migrated(order, libraries: libraries)
+        if migratedOrder != order {
+            orderJSON.wrappedValue = encodeStringArray(migratedOrder)
         }
     }
 }

@@ -15,7 +15,7 @@ import Foundation
 //     re-indexed so counts stay consistent, and looking up a blocked title
 //     throws `ContentSafetyError.blocked`.
 //   • Server rights and management are denied unless a parent has the gate
-//     unlocked; playlist edits and subtitle downloads likewise.
+//     unlocked; playlist edits, the watchlist and subtitle downloads likewise.
 //   • Live TV and external players are off.
 //   • Artwork is passed through: it only draws titles the caller already has.
 //
@@ -140,7 +140,7 @@ extension SafeMediaServices {
             "themeMusicURL(path:)": .passthrough,
         ],
         "MediaDetailService": [
-            "supportsWatchlist": .passthrough,
+            "supportsWatchlist": .gated,
             "supportsRemoteSubtitleSearch": .gated,
             "supportsAdvancedSubtitleSearch": .gated,
             "mediaItem(id:)": .filtered,
@@ -155,8 +155,8 @@ extension SafeMediaServices {
             "episodes(for:seriesID:)": .filtered,
             "allEpisodes(for:)": .filtered,
             "setPlayed(_:itemID:)": .passthrough,
-            "isWatchlisted(_:)": .passthrough,
-            "setWatchlisted(_:media:)": .passthrough,
+            "isWatchlisted(_:)": .gated,
+            "setWatchlisted(_:media:)": .gated,
             "trackSelection(itemID:versionID:)": .passthrough,
             "selectAudioTrack(id:itemID:versionID:)": .passthrough,
             "selectSubtitleTrack(id:itemID:versionID:)": .passthrough,

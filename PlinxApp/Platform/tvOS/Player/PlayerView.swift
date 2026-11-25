@@ -78,9 +78,9 @@ struct PlayerView: View {
     /// Final playback check (kid safety): every item is checked right before it loads, including next
     /// episodes, queue picks and SharePlay hand-offs. A refusal stops playback and closes the player.
     private let isPlaybackAuthorized: @MainActor (MediaItem) -> Bool
-    /// Told the item on screen whenever it changes (autoplay, queue picks, SharePlay), so overlays drawn around the
-    /// player act on what is playing rather than on the item the player opened with.
-    private let onCurrentMediaChange: @MainActor (MediaItem?) -> Void
+    /// Told the player's view model whenever it changes (autoplay, queue picks, SharePlay), so overlays drawn around
+    /// the player follow the item that is playing rather than the one the player opened with.
+    private let onViewModelChange: @MainActor (PlayerViewModel) -> Void
 
     private let controlsHideDelay: TimeInterval = 3.0
     private let seekFeedbackDelay: TimeInterval = 1.2
@@ -103,14 +103,14 @@ struct PlayerView: View {
         onExit: @escaping () -> Void,
         showsBufferingOverlay: Bool = true,
         isPlaybackAuthorized: @escaping @MainActor (MediaItem) -> Bool = { ContentSafetyGate.shared.isAllowed($0) },
-        onCurrentMediaChange: @escaping @MainActor (MediaItem?) -> Void = { _ in },
+        onViewModelChange: @escaping @MainActor (PlayerViewModel) -> Void = { _ in },
     ) {
         _viewModel = State(initialValue: viewModel)
         _controlsStyle = State(initialValue: controlsStyle)
         self.onExit = onExit
         self.showsBufferingOverlay = showsBufferingOverlay
         self.isPlaybackAuthorized = isPlaybackAuthorized
-        self.onCurrentMediaChange = onCurrentMediaChange
+        self.onViewModelChange = onViewModelChange
     }
 
     var body: some View {
@@ -316,8 +316,8 @@ struct PlayerView: View {
 
         let sessionObservers = AnyView(
             playbackObservers
-                .onChange(of: viewModel.media?.identity, initial: true) { _, _ in
-                    onCurrentMediaChange(viewModel.media)
+                .onChange(of: ObjectIdentifier(viewModel), initial: true) { _, _ in
+                    onViewModelChange(viewModel)
                 }
                 .onChange(of: sharePlayCoordinator.activityChangeID) { _, _ in
                     guard let activity = sharePlayCoordinator.activity,
@@ -1449,11 +1449,6 @@ struct PlayerView: View {
             shouldResumeAfterMediaLoad = false
             playerController.resume()
         }
-        #if DEBUG
-            if DemoMode.isEnabled {
-                showControls(temporarily: false)
-            }
-        #endif
     }
 
     private func dismissPlayer(force _: Bool = false) {
@@ -2033,7 +2028,7 @@ struct PlayerView: View {
         playerController.setMaximumVolume(settingsManager.playback.maximumVolume)
     }
 
-    private func startPlayback(for activity: StrimrWatchActivity) async {
+    private func startPlayback(for activity: PlinxWatchActivity) async {
         do {
             let nextViewModel = try await sharePlayCoordinator.playerViewModel(for: activity)
             await startPlayback(using: nextViewModel)

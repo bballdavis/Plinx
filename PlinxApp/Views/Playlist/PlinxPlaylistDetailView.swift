@@ -23,10 +23,7 @@ enum PlinxPlaylistPlaybackSelection {
     }
 }
 
-/// Kept so existing tests keep compiling; new code uses `PlinxPlaylistPlaybackSelection`.
-typealias SafePlaylistPlaybackSelection = PlinxPlaylistPlaybackSelection
-
-/// Plinx playlist page on the upstream `PlaylistDetailViewModel`.
+/// Plinx playlist page on the shared `PlaylistDetailViewModel`.
 ///
 /// Entries come through `SafeMediaServices`, which drops blocked titles.
 /// Renaming, reordering, removing and deleting stay hidden for kids:

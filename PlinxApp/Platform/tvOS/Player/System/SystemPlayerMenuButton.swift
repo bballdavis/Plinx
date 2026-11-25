@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Round glass button of the system style that opens an anchored menu. The menu is drawn by Strimr rather than by
+/// Round glass button of the system style that opens an anchored menu. The menu is drawn by the app rather than by
 /// SwiftUI's `Menu`, which on tvOS took the focus out of the player: a click could miss the menu and reach the system
 /// as play/pause, and Back could leave the app. Everything about menus stays in this file.
 enum SystemPlayerMenu: Hashable {

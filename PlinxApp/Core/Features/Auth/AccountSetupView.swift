@@ -3,7 +3,7 @@ import SwiftUI
 
 /// Hosts `AccountSetupFlow`: provider choice, sign-in, Plex Home user, server choice and, at first launch, the
 /// optional "add another account" step. Every step uses the Plinx onboarding screens (`ProviderSelectionView`,
-/// `SignInView`, `ProfileSwitcherView`, `SelectServerView`); Jellyfin sign-in uses the absorbed Jellyfin screen.
+/// `SignInView`, `ProfileSwitcherView`, `SelectServerView`); Jellyfin sign-in uses `JellyfinAuthenticationView`.
 struct AccountSetupView: View {
     @State private var flow: AccountSetupFlow
     private let onFinished: () -> Void

@@ -243,7 +243,7 @@ struct MediaDetailHeaderSection: View {
 
     private func handleSharingResult(
         _ result: GroupActivitySharingResult,
-        for activity: StrimrWatchActivity,
+        for activity: PlinxWatchActivity,
     ) {
         if result == .cancelled {
             sharePlayCoordinator.sharingDidCancel(activity)
@@ -253,7 +253,7 @@ struct MediaDetailHeaderSection: View {
 }
 
 private struct SharePlaySharingRequest: Identifiable {
-    let activity: StrimrWatchActivity
+    let activity: PlinxWatchActivity
     let controller: GroupActivitySharingController
 
     var id: UUID {

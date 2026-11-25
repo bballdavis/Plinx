@@ -43,17 +43,6 @@ struct PlinxContentView: View {
         let safetyGeneration: Int
     }
 
-    private var uiTestScreenOverride: String? {
-        guard ProcessInfo.processInfo.arguments.contains("--ui-testing") else {
-            return nil
-        }
-        return ProcessInfo.processInfo.environment["PLINX_UI_TEST_SCREEN"]
-    }
-
-    private var uiTestReduceMotion: Bool {
-        ProcessInfo.processInfo.environment["PLINX_UI_TEST_REDUCE_MOTION"] == "1"
-    }
-
     var body: some View {
         ZStack {
             // Match the ambient launch treatment during hydration to eliminate
@@ -73,10 +62,12 @@ struct PlinxContentView: View {
         }
         .onAppear {
             applySafetyRevisionIfIdle()
+            #if DEBUG
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 500_000_000)
                 AppStoreScreenshotBootstrap.applyRequestedOrientation()
             }
+            #endif
         }
         .onChange(of: registry.generation) { _, _ in
             // A new profile (or a new set of its servers) never inherits the
@@ -260,134 +251,162 @@ struct PlinxContentView: View {
         mainCoordinator.showMediaDetail(media)
     }
 
-    // MARK: - UI test routes
+    // MARK: - Root
 
+    /// The session's screens. Debug builds launched for UI tests or
+    /// screenshots (`--ui-testing` with `PLINX_UI_TEST_SCREEN`) can open a
+    /// fixture route instead; Release builds have no such routes.
     @ViewBuilder
     private var rootContent: some View {
+        #if DEBUG
         if let uiTestScreenOverride {
-            switch uiTestScreenOverride {
-            case "parentalGate":
-                ParentalGateUITestHarness()
-            case "parentalPINGate":
-                ParentalGateUITestHarness(pin: "2468")
-            case "signIn":
-                NavigationStack {
-                    SignInView(viewModel: SignInViewModel(onToken: { token in
-                        _ = try await sessionManager.addPlexAccount(token: token)
-                        await sessionManager.finishFirstLaunch()
-                    }))
-                }
-            case "accountSetup":
-                AccountSetupView(purpose: .firstLaunch, sessionManager: sessionManager)
-            case "playerSettings":
-                playerSettingsPreview
-            case "playerTimeline":
-                PlayerTimelineUITestHarness()
-            case "loadingGallery":
-                loadingGalleryPreview
-            case "homeLoading":
-                homeLoadingPreview
-            case "appHydrating":
-                appHydratingPreview
-            case "contentLoading":
-                contentLoadingPreview
-            case "homeHeader":
-                homeHeaderPreview
-            case "playerBuffering":
-                playerBufferingPreview
-            case "playerLoading":
-                PlinxPlaybackLoadingView(onExit: {})
-            case "refreshLoading":
-                refreshLoadingPreview
-            case "settings":
-                #if os(tvOS)
-                AppleTVSettingsNavigationUITestHarness()
-                #else
-                NavigationStack {
-                    PlinxSettingsView(isUnlocked: true)
-                }
-                #endif
-            #if os(tvOS)
-            case "settingsNavigation":
-                AppleTVSettingsNavigationUITestHarness()
-            case "appleTVBrowseFocus":
-                AppleTVBrowseFocusUITestHarness(
-                    scenario: .root(hasContent: true),
-                    reduceMotion: uiTestReduceMotion
-                )
-            case "appleTVBrowseFocusEmpty":
-                AppleTVBrowseFocusUITestHarness(scenario: .root(hasContent: false))
-            case "appleTVLibraryDetailFocus":
-                AppleTVBrowseFocusUITestHarness(scenario: .libraryDetail(hasContent: true))
-            case "appleTVSearchFocus":
-                AppleTVBrowseFocusUITestHarness(scenario: .search)
-            case "profileSwitcherModal":
-                AppleTVProfileSwitcherUITestHarness(sessionManager: sessionManager, modal: true)
-            case "playerControls":
-                AppleTVPlayerControlsUITestHarness()
-            case "playerTracks":
-                AppleTVPlayerTracksUITestHarness()
-            case "quickActions":
-                AppleTVQuickActionUITestHarness()
-            case "libraryLoading":
-                AppleTVLibraryLoadingUITestHarness()
-            #endif
-            case AppStoreScreenshotBootstrap.mediaDetailScreen:
-                AppStoreMediaDetailScreenshotHarness()
-            case "profileSwitcher":
-                NavigationStack {
-                    #if os(tvOS)
-                    AppleTVProfileSwitcherUITestHarness(sessionManager: sessionManager, modal: false)
-                    #else
-                    ProfileSwitcherView(viewModel: ProfileSwitcherViewModel(sessionManager: sessionManager))
-                    #endif
-                }
-            case "selectServer":
-                NavigationStack {
-                    SelectServerView(
-                        viewModel: ServerSelectionViewModel(
-                            loadServers: { try await uiTestPlexServers() },
-                            onContinue: { _ in }
-                        )
-                    )
-                }
-            case YoutarrLiveTestBootstrap.screenName:
-                if let configuration = YoutarrLiveTestBootstrap.configuration() {
-                    NavigationStack {
-                        YoutarrExploreView(
-                            configuration: configuration,
-                            safetyPolicy: YoutarrLiveTestBootstrap.safetyPolicy()
-                        )
-                    }
-                } else {
-                    ContentUnavailableView(
-                        "Live test configuration missing",
-                        systemImage: "wrench.and.screwdriver"
-                    )
-                }
-            case YoutarrExploreUITestBootstrap.screenName:
-                if let configuration = YoutarrExploreUITestBootstrap.configuration() {
-                    YoutarrExploreUITestHarness(
-                        configuration: configuration
-                    )
-                } else {
-                    ContentUnavailableView(
-                        "Synthetic Explore configuration missing",
-                        systemImage: "wrench.and.screwdriver"
-                    )
-                }
-            #if !os(tvOS)
-            case DownloadUITestFixtures.screenName:
-                DownloadUITestHarness()
-            case "seasonDownloadOffline":
-                SeasonDownloadUITestHarness()
-            case "demoPlayer":
-                demoPlayerPreview
-            #endif
-            default:
-                sessionContent
-            }
+            uiTestRoute(uiTestScreenOverride)
         } else {
+            sessionContent
+        }
+        #else
+        sessionContent
+        #endif
+    }
+}
+
+// MARK: - UI test routes (Debug only)
+
+#if DEBUG
+extension PlinxContentView {
+    private var uiTestScreenOverride: String? {
+        guard ProcessInfo.processInfo.arguments.contains("--ui-testing") else {
+            return nil
+        }
+        return ProcessInfo.processInfo.environment["PLINX_UI_TEST_SCREEN"]
+    }
+
+    private var uiTestReduceMotion: Bool {
+        ProcessInfo.processInfo.environment["PLINX_UI_TEST_REDUCE_MOTION"] == "1"
+    }
+
+    @ViewBuilder
+    private func uiTestRoute(_ screen: String) -> some View {
+        switch screen {
+        case "parentalGate":
+            ParentalGateUITestHarness()
+        case "parentalPINGate":
+            ParentalGateUITestHarness(pin: "2468")
+        case "signIn":
+            NavigationStack {
+                SignInView(viewModel: SignInViewModel(onToken: { token in
+                    _ = try await sessionManager.addPlexAccount(token: token)
+                    await sessionManager.finishFirstLaunch()
+                }))
+            }
+        case "accountSetup":
+            AccountSetupView(purpose: .firstLaunch, sessionManager: sessionManager)
+        case "playerSettings":
+            playerSettingsPreview
+        case "playerTimeline":
+            PlayerTimelineUITestHarness()
+        case "loadingGallery":
+            loadingGalleryPreview
+        case "homeLoading":
+            homeLoadingPreview
+        case "appHydrating":
+            appHydratingPreview
+        case "contentLoading":
+            contentLoadingPreview
+        case "homeHeader":
+            homeHeaderPreview
+        case "playerBuffering":
+            playerBufferingPreview
+        case "playerLoading":
+            PlinxPlaybackLoadingView(onExit: {})
+        case "refreshLoading":
+            refreshLoadingPreview
+        case "settings":
+            #if os(tvOS)
+            AppleTVSettingsNavigationUITestHarness()
+            #else
+            NavigationStack {
+                PlinxSettingsView(isUnlocked: true)
+            }
+            #endif
+        #if os(tvOS)
+        case "settingsNavigation":
+            AppleTVSettingsNavigationUITestHarness()
+        case "appleTVBrowseFocus":
+            AppleTVBrowseFocusUITestHarness(
+                scenario: .root(hasContent: true),
+                reduceMotion: uiTestReduceMotion
+            )
+        case "appleTVBrowseFocusEmpty":
+            AppleTVBrowseFocusUITestHarness(scenario: .root(hasContent: false))
+        case "appleTVLibraryDetailFocus":
+            AppleTVBrowseFocusUITestHarness(scenario: .libraryDetail(hasContent: true))
+        case "appleTVSearchFocus":
+            AppleTVBrowseFocusUITestHarness(scenario: .search)
+        case "profileSwitcherModal":
+            AppleTVProfileSwitcherUITestHarness(sessionManager: sessionManager, modal: true)
+        case "playerControls":
+            AppleTVPlayerControlsUITestHarness()
+        case "playerTracks":
+            AppleTVPlayerTracksUITestHarness()
+        case "quickActions":
+            AppleTVQuickActionUITestHarness()
+        case "libraryLoading":
+            AppleTVLibraryLoadingUITestHarness()
+        #endif
+        case AppStoreScreenshotBootstrap.mediaDetailScreen:
+            AppStoreMediaDetailScreenshotHarness()
+        case "profileSwitcher":
+            NavigationStack {
+                #if os(tvOS)
+                AppleTVProfileSwitcherUITestHarness(sessionManager: sessionManager, modal: false)
+                #else
+                ProfileSwitcherView(viewModel: ProfileSwitcherViewModel(sessionManager: sessionManager))
+                #endif
+            }
+        case "selectServer":
+            NavigationStack {
+                SelectServerView(
+                    viewModel: ServerSelectionViewModel(
+                        loadServers: { try await uiTestPlexServers() },
+                        onContinue: { _ in }
+                    )
+                )
+            }
+        case YoutarrLiveTestBootstrap.screenName:
+            if let configuration = YoutarrLiveTestBootstrap.configuration() {
+                NavigationStack {
+                    YoutarrExploreView(
+                        configuration: configuration,
+                        safetyPolicy: YoutarrLiveTestBootstrap.safetyPolicy()
+                    )
+                }
+            } else {
+                ContentUnavailableView(
+                    "Live test configuration missing",
+                    systemImage: "wrench.and.screwdriver"
+                )
+            }
+        case YoutarrExploreUITestBootstrap.screenName:
+            if let configuration = YoutarrExploreUITestBootstrap.configuration() {
+                YoutarrExploreUITestHarness(
+                    configuration: configuration
+                )
+            } else {
+                ContentUnavailableView(
+                    "Synthetic Explore configuration missing",
+                    systemImage: "wrench.and.screwdriver"
+                )
+            }
+        #if !os(tvOS)
+        case DownloadUITestFixtures.screenName:
+            DownloadUITestHarness()
+        case "seasonDownloadOffline":
+            SeasonDownloadUITestHarness()
+        case "demoPlayer":
+            demoPlayerPreview
+        #endif
+        default:
             sessionContent
         }
     }
@@ -695,3 +714,4 @@ private struct FixtureParentalPINStore: ParentalPINStoring {
     func writePIN(_: String) throws {}
     func deletePIN() throws {}
 }
+#endif

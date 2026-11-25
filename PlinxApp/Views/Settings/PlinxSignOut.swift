@@ -37,8 +37,8 @@ enum PlinxSignOut {
         parentalAccess: ParentalAccessCoordinator
     ) async {
         // Push watch progress recorded offline while the tokens still exist.
-        // An unreachable server keeps its journal on the device, as upstream's
-        // account removal does.
+        // An unreachable server keeps its journal on the device, as account
+        // removal does.
         let owners = Set(sessionManager.accounts.flatMap { sessionManager.owners(ofAccount: $0.id) })
         for owner in owners {
             _ = await offlineCoordinator.synchronizeProgressNow(owner: owner)

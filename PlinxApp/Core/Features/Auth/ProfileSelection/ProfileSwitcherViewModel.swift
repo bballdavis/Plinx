@@ -24,7 +24,7 @@ struct ProfileChoice: Identifiable, Hashable {
 }
 
 extension ProfileChoice {
-    init(profile: StrimrProfile, isActive: Bool) {
+    init(profile: PlinxProfile, isActive: Bool) {
         switch profile {
         case let .local(local):
             self.init(
@@ -57,7 +57,7 @@ extension ProfileChoice {
     }
 }
 
-/// Picks a Strimr profile to activate, or a Plex Home user of an account while adding a connection.
+/// Picks a profile (`PlinxProfile`) to activate, or a Plex Home user of an account while adding a connection.
 @MainActor
 @Observable
 final class ProfileSwitcherViewModel {
@@ -89,13 +89,6 @@ final class ProfileSwitcherViewModel {
     init(sessionManager: SessionManager, mode: Mode = .activateProfile) {
         self.sessionManager = sessionManager
         self.mode = mode
-    }
-
-    var canManageProfiles: Bool {
-        if case .activateProfile = mode {
-            return sessionManager.canManageAccounts
-        }
-        return false
     }
 
     var canCancel: Bool {

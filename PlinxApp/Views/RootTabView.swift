@@ -90,7 +90,7 @@ struct RootTabView: View {
     }
 
     /// Plinx shows Home, Search, Library, Downloads (`more`) and Explore
-    /// (`seerrDiscover`, Youtarr). Upstream tabs Plinx does not ship fall back
+    /// (`seerrDiscover`, Youtarr). Other `MainCoordinator.Tab` cases fall back
     /// to the nearest Plinx destination.
     var activeRootTab: MainCoordinator.Tab {
         switch mainCoordinator.tab {
@@ -205,13 +205,13 @@ struct RootTabView: View {
             .onChange(of: mainCoordinator.isPresentingPlayer, initial: true) { _, isPresenting in
                 homeViewModel.isPlaybackActive = isPresenting
                 guard !isPresenting, let server = playedServer else { return }
-                // As upstream: closing the player reloads only the played
+                // Closing the player reloads only the played
                 // server's home, to update Continue Watching and Next Up.
                 playedServer = nil
                 Task { await homeViewModel.refresh(server: server) }
             }
             .onChange(of: mainCoordinator.tab, initial: true) { _, tab in
-                // An upstream startup screen (Favorites, Live TV, a pinned
+                // A saved startup screen (Favorites, Live TV, a pinned
                 // library) is not a Plinx tab: navigate within the Plinx one.
                 if tab != activeRootTab {
                     mainCoordinator.tab = activeRootTab

@@ -234,6 +234,7 @@ private struct SeededIndexEntry: Encodable {
 }
 #endif
 
+#if DEBUG
 /// The `downloadsGrid` UI-test route: the downloads grid with the fixture
 /// owner active, as if its profile were signed in. Re-applied whenever the
 /// active owners change (for example when a saved session connects), so the
@@ -253,3 +254,4 @@ struct DownloadUITestHarness: View {
             }
     }
 }
+#endif

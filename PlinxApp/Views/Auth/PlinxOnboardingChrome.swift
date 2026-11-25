@@ -227,6 +227,36 @@ struct PlinxSignInInformationButton: View {
     }
 }
 
+/// An error on an onboarding screen: a warning icon and the message on the
+/// dark surface, outlined in orange.
+struct PlinxOnboardingErrorMessage: View {
+    let message: String
+    var accessibilityIdentifier = "onboarding.error"
+
+    var body: some View {
+        Label {
+            Text(message)
+                .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                .fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(Color.orange)
+        }
+        .foregroundStyle(Color.white)
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(PlinxBrand.surface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.orange.opacity(0.45), lineWidth: 1)
+        )
+        .accessibilityIdentifier(accessibilityIdentifier)
+    }
+}
+
 /// An onboarding action: the Plinx glass button on touch screens and a Plinx
 /// focus surface on Apple TV, where a glass style shows no focus.
 struct PlinxOnboardingActionButton<Label: View>: View {
@@ -259,10 +289,20 @@ struct PlinxOnboardingActionButton<Label: View>: View {
 /// navigation stack, which hide the system navigation bar.
 struct PlinxOnboardingBackButton: View {
     @Environment(\.dismiss) private var dismiss
+    /// Runs instead of leaving the screen, for a screen with steps of its own.
+    private let action: (() -> Void)?
+
+    init(action: (() -> Void)? = nil) {
+        self.action = action
+    }
 
     var body: some View {
         PlinxChromeButton(systemImage: "chevron.left") {
-            dismiss()
+            if let action {
+                action()
+            } else {
+                dismiss()
+            }
         }
         .accessibilityLabel(Text("common.actions.back", tableName: "Plinx"))
         .accessibilityIdentifier("onboarding.back")

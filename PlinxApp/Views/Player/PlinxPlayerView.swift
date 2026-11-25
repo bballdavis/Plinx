@@ -7,7 +7,7 @@ import AVFoundation
 import UIKit
 #endif
 
-/// Plinx-styled player screen around the upstream `PlayerWrapper`.
+/// Plinx-styled player screen around the shared `PlayerWrapper`.
 ///
 /// Plinx adds its branded loading and buffering presentation, the video fill
 /// toggle and the More Actions menu (watched state, More Info). Playback is
@@ -24,8 +24,8 @@ struct PlinxPlayerView: View {
     @State private var quickActionMedia: MediaItem?
     @State private var quickActionErrorMessage: String?
     #if os(tvOS)
-    /// The item on screen, which autoplay, queue picks and SharePlay move past `viewModel`'s first item.
-    @State private var currentMedia: MediaItem?
+    /// The player's current view model, which autoplay, queue picks and SharePlay move past `viewModel`.
+    @State private var currentViewModel: PlayerViewModel?
     #endif
 
     var body: some View {
@@ -37,9 +37,9 @@ struct PlinxPlayerView: View {
                 onExit: {
                     isPresented = false
                 },
-                onCurrentMediaChange: { media in
+                onViewModelChange: { model in
                     #if os(tvOS)
-                    currentMedia = media
+                    currentViewModel = model
                     #endif
                 }
             )
@@ -57,7 +57,7 @@ struct PlinxPlayerView: View {
             #endif
             #if os(tvOS)
             .plinxQuickActionLongPress {
-                guard services != nil, let media = currentMedia else { return }
+                guard services != nil, let media = (currentViewModel ?? viewModel).media else { return }
                 presentQuickActions(for: media)
             }
             .allowsHitTesting(quickActionMedia == nil)
@@ -227,23 +227,29 @@ private struct PlinxPlayerExitButtonStyle: ButtonStyle {
 /// Plinx presentation around the upstream player: the branded buffering
 /// overlay replaces the upstream spinner. The player loads only what
 /// `isPlaybackAuthorized` allows (the shared safety gate by default).
+///
+/// The player swaps its view model for each new item (autoplay, queue picks,
+/// SharePlay, the offline hand-off on iOS), so the overlay follows the view
+/// model the player reports, not the one it opened with.
 struct PlinxPlayerPlaybackView: View {
     let viewModel: PlayerViewModel
     let onExit: () -> Void
     let isPlaybackAuthorized: @MainActor (MediaItem) -> Bool
-    /// tvOS only: the item on screen after each change. The iOS header passes it to its own actions.
-    let onCurrentMediaChange: @MainActor (MediaItem?) -> Void
+    /// The player's view model after each change.
+    let onViewModelChange: @MainActor (PlayerViewModel) -> Void
+
+    @State private var currentViewModel: PlayerViewModel?
 
     init(
         viewModel: PlayerViewModel,
         onExit: @escaping () -> Void,
         isPlaybackAuthorized: @escaping @MainActor (MediaItem) -> Bool = { ContentSafetyGate.shared.isAllowed($0) },
-        onCurrentMediaChange: @escaping @MainActor (MediaItem?) -> Void = { _ in }
+        onViewModelChange: @escaping @MainActor (PlayerViewModel) -> Void = { _ in }
     ) {
         self.viewModel = viewModel
         self.onExit = onExit
         self.isPlaybackAuthorized = isPlaybackAuthorized
-        self.onCurrentMediaChange = onCurrentMediaChange
+        self.onViewModelChange = onViewModelChange
     }
 
     var body: some View {
@@ -256,14 +262,15 @@ struct PlinxPlayerPlaybackView: View {
                 onExit: onExit,
                 showsBufferingOverlay: false,
                 isPlaybackAuthorized: isPlaybackAuthorized,
-                onCurrentMediaChange: onCurrentMediaChange
+                onViewModelChange: { reportViewModel($0) }
             )
             #else
             // The upstream player dismisses its presentation itself.
             PlayerWrapper(
                 viewModel: viewModel,
                 showsBufferingOverlay: false,
-                isPlaybackAuthorized: isPlaybackAuthorized
+                isPlaybackAuthorized: isPlaybackAuthorized,
+                onViewModelChange: { reportViewModel($0) }
             )
             .plinxVideoPresentation()
             #endif
@@ -277,7 +284,13 @@ struct PlinxPlayerPlaybackView: View {
     }
 
     private var showsLoadingOverlay: Bool {
-        viewModel.isLoading || viewModel.isBuffering
+        let model = currentViewModel ?? viewModel
+        return model.isLoading || model.isBuffering
+    }
+
+    private func reportViewModel(_ model: PlayerViewModel) {
+        currentViewModel = model
+        onViewModelChange(model)
     }
 }
 

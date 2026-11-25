@@ -5,7 +5,7 @@ import SwiftUI
 /// Plinx-specific library detail screen.
 ///
 /// Plinx owns the branding, layout and navigation chrome of the library
-/// drill-down. The upstream library view models supply the content through the
+/// drill-down. The shared library view models supply the content through the
 /// screen's `MediaServices` (provided by `ServerScopedView`), which
 /// `SafeMediaServices` has already filtered against the parent's policy.
 struct PlinxLibraryDetailView: View {
@@ -90,7 +90,7 @@ struct PlinxLibraryDetailView: View {
 
     // MARK: - Tabs
 
-    /// Upstream's tabs for this library and provider. Playlists have no
+    /// The `LibraryDetailTab` tabs for this library and provider. Playlists have no
     /// kid-facing surface in Plinx, so that tab is never offered.
     private var availableTabs: [LibraryDetailTab] {
         LibraryDetailTab.available(

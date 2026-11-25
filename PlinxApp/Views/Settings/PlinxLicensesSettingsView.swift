@@ -54,7 +54,7 @@ struct PlinxLicensesSettingsView: View {
     static let plinx = OpenSourceLicense(
         name: "Plinx",
         license: "GPL-3.0",
-        url: URL(string: "https://github.com/bballdavis/Plinx")!,
+        url: PlinxSettingsLinks.plinxSource,
         textFiles: ["GPL-3.0"]
     )
 }

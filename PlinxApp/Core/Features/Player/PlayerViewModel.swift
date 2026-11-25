@@ -813,21 +813,12 @@ final class PlayerViewModel {
 
     func handlePlaybackPosition(_ position: Double, isScrubbing: Bool) {
         guard !isScrubbing else { return }
-        #if DEBUG
-            // The demo clip lasts seconds; the timeline places it at a moment of the full film.
-            self.position = DemoMode.isEnabled ? position + DemoMode.playerOffset : position
-        #else
-            self.position = position
-        #endif
+        self.position = position
         reportTimeline(state: playbackState)
     }
 
     func handlePlaybackDuration(_ duration: Double?) {
-        #if DEBUG
-            self.duration = DemoMode.isEnabled ? media?.duration ?? duration : duration
-        #else
-            self.duration = duration
-        #endif
+        self.duration = duration
     }
 
     func handleBufferedAhead(_ bufferedAhead: Double) {

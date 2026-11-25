@@ -3,7 +3,7 @@ import Foundation
 /// The loaded run of a library browse listing, from its first position up to
 /// the first position whose page has not arrived yet.
 ///
-/// The upstream browse view models page by position. Plinx shows the run as
+/// The shared browse view models page by position. Plinx shows the run as
 /// one continuous grid and asks for `nextIndex` when the grid reaches its end,
 /// so items it leaves out (collections of movie and TV libraries, which have
 /// their own tab) never leave holes.

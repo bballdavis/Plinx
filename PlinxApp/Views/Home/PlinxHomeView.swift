@@ -52,7 +52,7 @@ enum HomeHeroSelection {
 /// boundary in `MediaServices`; rows are filtered again with
 /// `ContentSafetyGate` when drawn, so a stricter policy hides titles at once.
 struct PlinxHomeView: View {
-    private static let logger = Logger(subsystem: "com.plinx.app", category: "home")
+    private static let logger = Logger(subsystem: "com.bballdavis.plinx", category: "home")
 
     @State var viewModel: HomeViewModel
     var topContent: AnyView? = nil
@@ -115,11 +115,18 @@ struct PlinxHomeView: View {
             // Libraries of servers that joined since the shell loaded them.
             try? await libraryStore.loadLibraries()
             guard !Task.isCancelled else { return }
+            // Legacy Home library ids migrate once every enabled server's libraries are known.
+            HomeLibrarySettingKeys.migrateStoredKeys(
+                hiddenJSON: $homeHiddenIdsJson,
+                orderJSON: $homeOrderJson,
+                libraryStore: libraryStore,
+                registry: registry
+            )
             await recentlyAdded.sync(libraries: libraryStore.visibleLibraries, registry: registry)
         }
         .task(id: recentlyAddedRefreshKey) {
             // Changes made from the app (watched, deleted, refreshed) reload
-            // their server once playback ends, grouped like the upstream home.
+            // their server once playback ends, grouped by server like `HomeViewModel`.
             guard !mainCoordinator.isPresentingPlayer else { return }
             try? await Task.sleep(for: .milliseconds(500))
             guard !Task.isCancelled else { return }
@@ -409,7 +416,7 @@ struct PlinxHomeView: View {
     }
     #endif
 
-    /// Continue Watching (and Next Up) from the upstream home, re-checked against the current policy.
+    /// Continue Watching (and Next Up) from `HomeViewModel`, re-checked against the current policy.
     private var continueWatchingRows: [ShelfRow] {
         let gate = ContentSafetyGate.shared
         return HomeLibraryGrouping.continueWatchingRows(from: viewModel.rows).compactMap { row in

@@ -106,7 +106,7 @@ extension RootTabView {
         }
     }
 
-    /// Upstream screens draw from the top edge; on Apple TV they sit below the shell header.
+    /// Shared Core screens draw from the top edge; on Apple TV they sit below the shell header.
     @ViewBuilder
     func withShellClearance<Content: View>(_ content: Content) -> some View {
         #if os(tvOS)

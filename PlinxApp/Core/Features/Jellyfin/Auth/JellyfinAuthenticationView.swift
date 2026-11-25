@@ -1,361 +1,395 @@
+import PlinxUI
 import SwiftUI
 
+/// The Jellyfin step of account setup: the server address, then the user's
+/// credentials or Quick Connect. It uses the Plinx onboarding shell of the Plex
+/// sign-in (`SignInView`): the ambient background, the Plinx lockup, the
+/// grown-up eyebrow and step indicator on iPhone and iPad, and the shared
+/// onboarding actions.
 struct JellyfinAuthenticationView: View {
     @State private var viewModel: JellyfinAuthenticationViewModel
+    #if !os(tvOS)
+    /// True when pushed by account setup or presented to reconnect: the back control can leave the screen.
+    @Environment(\.isPresented) private var isPresented
+    #endif
 
     init(viewModel: JellyfinAuthenticationViewModel) {
         _viewModel = State(initialValue: viewModel)
     }
 
     var body: some View {
-        authenticationForm(viewModel)
+        content
             .onDisappear { viewModel.cancelQuickConnect() }
     }
 
-    private func authenticationForm(_ viewModel: JellyfinAuthenticationViewModel) -> some View {
-        VStack(spacing: contentSpacing) {
-            Spacer(minLength: 0)
+    // MARK: - iPhone and iPad
 
-            VStack(spacing: headerSpacing) {
-                Image("Icon")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: appLogoSize, height: appLogoSize)
-                    .clipShape(RoundedRectangle(cornerRadius: appLogoCornerRadius, style: .continuous))
-                    .accessibilityHidden(true)
+    #if !os(tvOS)
+    private var content: some View {
+        GeometryReader { proxy in
+            let layout = PlinxOnboardingLayout(width: proxy.size.width, height: proxy.size.height)
+            let isExpanded = layout != .compact
 
-                if viewModel.step == .server {
-                    Text("jellyfin.auth.server.title")
-                        .font(.heroTitle)
-                        .foregroundStyle(.textPrimary)
-                    Text("jellyfin.auth.server.subtitle")
-                        .font(.bodyText)
-                        .foregroundStyle(.textSecondary)
-                        .multilineTextAlignment(.center)
-                } else {
-                    Text("jellyfin.auth.credentials.title")
-                        .font(.heroTitle)
-                        .foregroundStyle(.textPrimary)
-                    Text("jellyfin.auth.credentials.subtitle \(viewModel.serverName)")
-                        .font(.bodyText)
-                        .foregroundStyle(.textSecondary)
-                        .multilineTextAlignment(.center)
-                }
-            }
+            ZStack {
+                PlinxAmbientBackground(intensity: .hero)
 
-            VStack(spacing: fieldSpacing) {
-                if viewModel.step == .server {
-                    TextField("jellyfin.auth.server.placeholder", text: Bindable(viewModel).serverURL)
-                        .textContentType(.URL)
-                    #if os(iOS)
-                        .textInputAutocapitalization(.never)
-                        .keyboardType(.URL)
-                    #endif
-                        .onSubmit { Task { await viewModel.validateServer() } }
-                        .jellyfinAuthenticationFieldStyle()
-                } else {
-                    TextField("jellyfin.auth.username", text: Bindable(viewModel).username)
-                        .textContentType(.username)
-                    #if os(iOS)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                    #endif
-                        .jellyfinAuthenticationFieldStyle()
-                    SecureField("jellyfin.auth.password", text: Bindable(viewModel).password)
-                        .textContentType(.password)
-                        .onSubmit { Task { await viewModel.signIn() } }
-                        .jellyfinAuthenticationFieldStyle()
-                }
-            }
-            .frame(maxWidth: authenticationContentMaxWidth)
-
-            if let errorMessage = viewModel.errorMessage {
-                Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
-                    .font(.facts)
-                    .foregroundStyle(.red)
-                    .multilineTextAlignment(.center)
-            }
-
-            VStack(spacing: buttonSpacing) {
-                if viewModel.step == .server {
-                    Button {
-                        Task { await viewModel.validateServer() }
-                    } label: {
-                        primaryButtonLabel("common.actions.continue", isLoading: viewModel.isLoading)
-                    }
-                    .actionButtonStyle(.primary)
-                    .disabled(
-                        viewModel.isBusy
-                            || viewModel.serverURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                    )
-
-                    Button {
-                        Task { await viewModel.discoverServers() }
-                    } label: {
-                        HStack(spacing: 10) {
-                            if viewModel.isDiscovering {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Image(systemName: "network")
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack(alignment: .center, spacing: 12) {
+                            if viewModel.step == .credentials {
+                                PlinxOnboardingBackButton { viewModel.goBack() }
+                                    .disabled(viewModel.isLoading)
+                            } else if isPresented {
+                                PlinxOnboardingBackButton()
                             }
-                            Text("jellyfin.auth.discovery.search")
-                                .fontWeight(.semibold)
+                            PlinxBrandLogoView(
+                                asset: .lockupOnDark,
+                                accessibilityIdentifier: "jellyfin.auth.logo",
+                                maxWidth: layout.logoWidth
+                            )
+                            Spacer(minLength: 16)
+                            PlinxOnboardingStepIndicator(step: .connect, isExpanded: isExpanded)
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 4)
+                        .padding(.top, isExpanded ? 32 : 12)
+
+                        Spacer(minLength: isExpanded ? 48 : 56)
+
+                        VStack(alignment: .leading, spacing: 14) {
+                            PlinxOnboardingGrownUpEyebrow(isExpanded: isExpanded)
+
+                            title
+                                .font(.system(size: layout.titleSize, weight: .heavy, design: .rounded))
+                                .foregroundStyle(Color.white)
+                                .minimumScaleFactor(0.8)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .accessibilityAddTraits(.isHeader)
+
+                            subtitle
+                                .font(.system(isExpanded ? .title2 : .title3, design: .rounded, weight: .semibold))
+                                .foregroundStyle(Color.brandSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        form
+                            .frame(maxWidth: 460)
+                            .padding(.top, 40)
                     }
-                    .actionButtonStyle(.secondary)
-                    .disabled(viewModel.isBusy)
-                } else {
-                    Button {
-                        Task { await viewModel.signIn() }
-                    } label: {
-                        primaryButtonLabel("jellyfin.auth.signIn", isLoading: viewModel.isLoading)
-                    }
-                    .actionButtonStyle(.primary)
-                    .disabled(
-                        viewModel.isBusy
-                            || viewModel.username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                    )
+                    .padding(.horizontal, layout.horizontalPadding)
+                    .padding(.bottom, isExpanded ? 40 : 24)
+                    .frame(maxWidth: layout.contentMaxWidth, alignment: .leading)
+                    .frame(maxWidth: .infinity)
                 }
+                .scrollIndicators(.hidden)
+                .scrollBounceBehavior(.basedOnSize)
             }
-            .frame(maxWidth: authenticationContentMaxWidth)
-
-            if viewModel.step == .server, !viewModel.discoveredServers.isEmpty {
-                discoveredServersList(viewModel)
-            }
-
-            if viewModel.step == .credentials, viewModel.isQuickConnectAvailable {
-                quickConnect(viewModel)
-                    .frame(maxWidth: authenticationContentMaxWidth)
-            }
-
-            Spacer(minLength: 0)
-
-            bottomActions(viewModel)
         }
-        .padding(32)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .toolbar(.hidden, for: .navigationBar)
     }
+    #endif
 
-    private func bottomActions(_ viewModel: JellyfinAuthenticationViewModel) -> some View {
-        VStack(spacing: buttonSpacing) {
-            if viewModel.step == .credentials {
-                Button {
-                    viewModel.goBack()
-                } label: {
-                    Label("common.actions.back", systemImage: "chevron.left")
+    // MARK: - Apple TV
+
+    #if os(tvOS)
+    private var content: some View {
+        ZStack {
+            PlinxAmbientBackground(intensity: .hero)
+
+            ScrollView {
+                VStack(spacing: 40) {
+                    PlinxBrandLogoView(
+                        asset: .lockupWhite,
+                        accessibilityIdentifier: "jellyfin.auth.logo",
+                        maxWidth: 390
+                    )
+                    .frame(height: 130)
+
+                    VStack(spacing: 14) {
+                        PlinxOnboardingGrownUpEyebrow(isExpanded: true)
+                        title
+                            .font(.system(size: 56, weight: .bold, design: .rounded))
+                            .foregroundStyle(Color.white)
+                            .multilineTextAlignment(.center)
+                            .accessibilityAddTraits(.isHeader)
+                        subtitle
+                            .font(.system(size: 27, weight: .semibold, design: .rounded))
+                            .foregroundStyle(Color.white.opacity(0.78))
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: 1_100)
+                    }
+
+                    form
+                        .frame(maxWidth: 640)
+
+                    if viewModel.step == .credentials {
+                        PlinxOnboardingActionButton(treatment: .secondary) {
+                            viewModel.goBack()
+                        } label: {
+                            Label {
+                                Text("common.actions.back", tableName: "Plinx")
+                            } icon: {
+                                Image(systemName: "chevron.left")
+                            }
+                        }
+                        .disabled(viewModel.isLoading)
+                        .accessibilityIdentifier("onboarding.back")
+                    }
                 }
-                .disabled(viewModel.isLoading)
+                .padding(.horizontal, 80)
+                .padding(.vertical, 60)
+                .frame(maxWidth: .infinity)
             }
+            .scrollClipDisabled()
         }
-        .buttonStyle(.plain)
-        .foregroundStyle(.secondary)
-        .frame(maxWidth: authenticationContentMaxWidth)
+    }
+    #endif
+
+    // MARK: - Shared content
+
+    @ViewBuilder
+    private var title: some View {
+        if viewModel.step == .server {
+            Text("jellyfin.auth.server.title")
+        } else {
+            Text("jellyfin.auth.credentials.title")
+        }
     }
 
     @ViewBuilder
-    private func quickConnect(_ viewModel: JellyfinAuthenticationViewModel) -> some View {
+    private var subtitle: some View {
+        if viewModel.step == .server {
+            Text("jellyfin.auth.server.subtitle")
+        } else {
+            Text("jellyfin.auth.credentials.subtitle \(viewModel.serverName)")
+        }
+    }
+
+    private var form: some View {
+        VStack(spacing: 14) {
+            fields
+
+            if let errorMessage = viewModel.errorMessage {
+                PlinxOnboardingErrorMessage(message: errorMessage, accessibilityIdentifier: "jellyfin.auth.error")
+            }
+
+            actions
+
+            if viewModel.step == .server, !viewModel.discoveredServers.isEmpty {
+                discoveredServersList
+            }
+
+            if viewModel.step == .credentials, viewModel.isQuickConnectAvailable {
+                quickConnect
+            }
+        }
+        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+    }
+
+    @ViewBuilder
+    private var fields: some View {
+        if viewModel.step == .server {
+            TextField("jellyfin.auth.server.placeholder", text: Bindable(viewModel).serverURL)
+                .textContentType(.URL)
+            #if os(iOS)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .keyboardType(.URL)
+            #endif
+                .onSubmit { Task { await viewModel.validateServer() } }
+                .plinxOnboardingFieldStyle()
+                .accessibilityIdentifier("jellyfin.auth.server")
+        } else {
+            TextField("jellyfin.auth.username", text: Bindable(viewModel).username)
+                .textContentType(.username)
+            #if os(iOS)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            #endif
+                .plinxOnboardingFieldStyle()
+                .accessibilityIdentifier("jellyfin.auth.username")
+            SecureField("jellyfin.auth.password", text: Bindable(viewModel).password)
+                .textContentType(.password)
+                .onSubmit { Task { await viewModel.signIn() } }
+                .plinxOnboardingFieldStyle()
+                .accessibilityIdentifier("jellyfin.auth.password")
+        }
+    }
+
+    @ViewBuilder
+    private var actions: some View {
+        if viewModel.step == .server {
+            primaryAction("common.actions.continue", isLoading: viewModel.isLoading) {
+                Task { await viewModel.validateServer() }
+            }
+            .disabled(viewModel.isBusy || viewModel.serverURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .accessibilityIdentifier("jellyfin.auth.continue")
+
+            PlinxOnboardingActionButton(treatment: .secondary) {
+                Task { await viewModel.discoverServers() }
+            } label: {
+                Label {
+                    Text("jellyfin.auth.discovery.search")
+                } icon: {
+                    if viewModel.isDiscovering {
+                        ProgressView()
+                            .tint(Color.accentColor)
+                    } else {
+                        Image(systemName: "network")
+                    }
+                }
+            }
+            .disabled(viewModel.isBusy)
+            .accessibilityIdentifier("jellyfin.auth.discover")
+        } else {
+            primaryAction("jellyfin.auth.signIn", isLoading: viewModel.isLoading) {
+                Task { await viewModel.signIn() }
+            }
+            .disabled(viewModel.isBusy || viewModel.username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .accessibilityIdentifier("jellyfin.auth.signIn")
+        }
+    }
+
+    private func primaryAction(
+        _ title: LocalizedStringKey,
+        isLoading: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        PlinxOnboardingActionButton(action: action) {
+            HStack(spacing: 12) {
+                if isLoading {
+                    ProgressView()
+                        .tint(Color.white)
+                }
+                Text(title)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var quickConnect: some View {
         if let code = viewModel.quickConnectCode {
-            VStack(spacing: 8) {
+            VStack(spacing: 12) {
                 Text("jellyfin.auth.quickConnect.instructions")
-                    .font(.bodyText)
-                    .foregroundStyle(.textSecondary)
+                    .font(.system(.callout, design: .rounded, weight: .medium))
+                    .foregroundStyle(Color.brandSecondary)
                     .multilineTextAlignment(.center)
-                Text(code)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(verbatim: code)
                     .font(.system(.largeTitle, design: .monospaced).bold())
-                    .foregroundStyle(.textPrimary)
+                    .foregroundStyle(Color.white)
                 #if !os(tvOS)
                     .textSelection(.enabled)
                 #endif
-                Button("common.actions.cancel") { viewModel.cancelQuickConnect() }
-            }
-        } else {
-            Button {
-                viewModel.startQuickConnect()
-            } label: {
-                Label("jellyfin.auth.quickConnect.button", systemImage: "qrcode")
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 4)
-            }
-            .actionButtonStyle(.secondary)
-            .disabled(viewModel.isBusy)
-        }
-    }
-
-    private func discoveredServersList(_ viewModel: JellyfinAuthenticationViewModel) -> some View {
-        ScrollView {
-            LazyVStack(spacing: 12) {
-                ForEach(viewModel.discoveredServers) { server in
-                    Button {
-                        Task { await viewModel.selectDiscoveredServer(server) }
-                    } label: {
-                        HStack(spacing: serverRowSpacing) {
-                            // Hierarchical styles: the focused plain button turns white on tvOS.
-                            Circle()
-                                .fill(.secondary.opacity(0.2))
-                                .frame(width: serverIconSize, height: serverIconSize)
-                                .overlay {
-                                    Image(systemName: "server.rack")
-                                        .foregroundStyle(.secondary)
-                                }
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(server.name)
-                                    .font(.rowTitle)
-                                    .foregroundStyle(.primary)
-                                Text(server.url.absoluteString)
-                                    .font(.facts)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                            }
-
-                            Spacer()
-
-                            Image(systemName: "chevron.right")
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(serverRowPadding)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(
-                            .surfaceSubtle,
-                            in: RoundedRectangle(cornerRadius: LayoutMetrics.cardCornerRadius, style: .continuous),
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(viewModel.isBusy)
+                    .accessibilityIdentifier("jellyfin.auth.quickConnect.code")
+                PlinxOnboardingActionButton(treatment: .secondary) {
+                    viewModel.cancelQuickConnect()
+                } label: {
+                    Text("common.actions.cancel")
                 }
             }
-        }
-        #if os(tvOS)
-        .scrollClipDisabled()
-        #endif
-        .frame(maxWidth: authenticationContentMaxWidth, maxHeight: discoveredServersMaxHeight)
-    }
-
-    private func primaryButtonLabel(
-        _ title: LocalizedStringKey,
-        isLoading: Bool,
-    ) -> some View {
-        HStack(spacing: 10) {
-            if isLoading {
-                ProgressView()
-                    .controlSize(.small)
+            .padding(20)
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(PlinxBrand.surface)
+            )
+        } else {
+            PlinxOnboardingActionButton(treatment: .secondary) {
+                viewModel.startQuickConnect()
+            } label: {
+                Label {
+                    Text("jellyfin.auth.quickConnect.button")
+                } icon: {
+                    Image(systemName: "qrcode")
+                }
             }
-            Text(title)
-                .fontWeight(.semibold)
+            .disabled(viewModel.isBusy)
+            .accessibilityIdentifier("jellyfin.auth.quickConnect")
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 4)
     }
 
-    private var appLogoSize: CGFloat {
-        #if os(tvOS)
-            192
-        #else
-            128
-        #endif
+    private var discoveredServersList: some View {
+        VStack(spacing: 12) {
+            ForEach(viewModel.discoveredServers) { server in
+                Button {
+                    Task { await viewModel.selectDiscoveredServer(server) }
+                } label: {
+                    HStack(spacing: Self.serverRowSpacing) {
+                        Image(systemName: "server.rack")
+                            .font(.system(size: Self.serverIconSize * 0.45, weight: .semibold))
+                            .foregroundStyle(Color.accentColor)
+                            .frame(width: Self.serverIconSize, height: Self.serverIconSize)
+                            .background(Circle().fill(Color.white.opacity(0.08)))
+                            .accessibilityHidden(true)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(server.name)
+                                .font(.system(.headline, design: .rounded, weight: .bold))
+                                .foregroundStyle(Color.white)
+                            Text(server.url.absoluteString)
+                                .font(.system(.footnote, design: .rounded, weight: .medium))
+                                .foregroundStyle(Color.brandSecondary)
+                                .lineLimit(1)
+                        }
+
+                        Spacer(minLength: 0)
+
+                        Image(systemName: "chevron.right")
+                            .foregroundStyle(Color.brandSecondary)
+                            .accessibilityHidden(true)
+                    }
+                    .padding(Self.serverRowPadding)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .fill(PlinxBrand.surface)
+                    )
+                    .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                }
+                #if os(tvOS)
+                .plinxTVFocusButton(style: PlinxFocusSurfaceStyle(cornerRadius: 20, focusedFillOpacity: 0.12))
+                #else
+                .buttonStyle(.plain)
+                #endif
+                .disabled(viewModel.isBusy)
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("jellyfin.auth.discoveredServers")
     }
 
-    private var authenticationContentMaxWidth: CGFloat {
-        #if os(tvOS)
-            640
-        #else
-            520
-        #endif
-    }
-
-    private var appLogoCornerRadius: CGFloat {
-        #if os(tvOS)
-            40
-        #else
-            28
-        #endif
-    }
-
-    private var contentSpacing: CGFloat {
-        #if os(tvOS)
-            40
-        #else
-            24
-        #endif
-    }
-
-    private var headerSpacing: CGFloat {
-        #if os(tvOS)
-            20
-        #else
-            12
-        #endif
-    }
-
-    private var fieldSpacing: CGFloat {
-        #if os(tvOS)
-            24
-        #else
-            14
-        #endif
-    }
-
-    private var buttonSpacing: CGFloat {
-        #if os(tvOS)
-            24
-        #else
-            12
-        #endif
-    }
-
-    private var serverIconSize: CGFloat {
-        #if os(tvOS)
-            64
-        #else
-            44
-        #endif
-    }
-
-    private var serverRowSpacing: CGFloat {
-        #if os(tvOS)
-            28
-        #else
-            12
-        #endif
-    }
-
-    private var serverRowPadding: CGFloat {
-        #if os(tvOS)
-            24
-        #else
-            16
-        #endif
-    }
-
-    private var discoveredServersMaxHeight: CGFloat {
-        #if os(tvOS)
-            360
-        #else
-            240
-        #endif
-    }
+    #if os(tvOS)
+    private static let serverIconSize: CGFloat = 64
+    private static let serverRowSpacing: CGFloat = 28
+    private static let serverRowPadding: CGFloat = 24
+    #else
+    private static let serverIconSize: CGFloat = 44
+    private static let serverRowSpacing: CGFloat = 12
+    private static let serverRowPadding: CGFloat = 16
+    #endif
 }
 
 private extension View {
-    private var fieldShape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: MediaArtworkMetrics.compactCornerRadius, style: .continuous)
-    }
-
-    func jellyfinAuthenticationFieldStyle() -> some View {
+    /// A text field on the dark onboarding shell. Apple TV keeps the system field, which owns its focus treatment.
+    func plinxOnboardingFieldStyle() -> some View {
         #if os(tvOS)
-            textFieldStyle(.automatic)
-                .controlSize(.large)
+        textFieldStyle(.automatic)
         #else
-            textFieldStyle(.plain)
-                .padding(.horizontal, 16)
-                .frame(minHeight: 54)
-                .background(.surfaceSubtle, in: fieldShape)
-                .overlay {
-                    fieldShape.stroke(.strokeSubtle)
-                }
+        textFieldStyle(.plain)
+            .font(.system(.body, design: .rounded, weight: .semibold))
+            .foregroundStyle(Color.white)
+            .tint(Color.accentColor)
+            .padding(.horizontal, 16)
+            .frame(minHeight: 54)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(PlinxBrand.surface)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
+            )
         #endif
     }
 }

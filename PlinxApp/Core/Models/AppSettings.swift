@@ -467,9 +467,10 @@ struct PlaybackSettings: Codable, Equatable {
     var subtitleBottomMargin = SubtitleBottomMargin.automatic
     var subtitleSearch = SubtitleSearchPreferences()
     var automaticSubtitleSearch = false
-    /// Nil plays in Strimr's built-in player.
+    /// Upstream's external player choice. Plinx always plays in its own player and never reads it; it is decoded
+    /// only so settings saved by earlier builds load, and `PlinxSettingsSanitizer` clears it.
     var externalPlayer: ExternalPlayerSelection?
-    /// Kept apart from the selection so switching to another player does not lose the template.
+    /// Upstream's custom player definition, decoded for the same reason and never used.
     var customExternalPlayer: CustomExternalPlayer?
     /// Forces the server-side transcode for Live TV, the route used before the engine played broadcast streams.
     var transcodeLiveTV = false
@@ -610,11 +611,6 @@ struct PlaybackSettings: Codable, Equatable {
 
     var audioShaping: AudioShaping {
         AudioShaping(dialogueGainDB: dialogueBoost.gainDB, compressor: nightMode ? .night : nil)
-    }
-
-    /// Plinx always plays in its own player; a stored external selection is ignored.
-    var resolvedExternalPlayer: ExternalPlayer? {
-        nil
     }
 
     var subtitleAppearance: SubtitleAppearance {

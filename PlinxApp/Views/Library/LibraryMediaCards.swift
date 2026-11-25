@@ -126,7 +126,7 @@ struct PlinxLibraryCardPlaceholder: View {
 
 /// One Plinx-owned media-card renderer for every library surface. Keeping the
 /// focus decoration here prevents individual tabs from drifting back to the
-/// inset-ring behavior of the upstream card.
+/// inset-ring behavior of the shared `MediaCard`.
 private struct PlinxLibraryMediaCard: View {
     @Environment(ServerRegistry.self) private var registry
     @Environment(MediaServices.self) private var scopedServices: MediaServices?

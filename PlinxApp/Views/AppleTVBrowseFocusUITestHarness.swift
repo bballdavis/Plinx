@@ -1,4 +1,4 @@
-#if os(tvOS)
+#if DEBUG && os(tvOS)
 import SwiftUI
 import PlinxUI
 
